@@ -1,0 +1,28 @@
+{
+    "FileVersion": 3,
+    "Version": 1,
+    "VersionName": "0.1.0",
+    "FriendlyName": "Unreal Claude MCP",
+    "Description": "Drive Unreal Engine 5.7 from Claude (or any MCP client) over a localhost TCP socket. Twelve tools for editor automation: arbitrary Python execution, Blueprint/Widget tree introspection and mutation, viewport screenshots, actor queries, and more. Bypasses UE Python reflection limits by calling native C++ APIs directly.",
+    "Category": "Editor",
+    "CreatedBy": "HD Media",
+    "CreatedByURL": "https://hdmedia.tv",
+    "DocsURL": "",
+    "MarketplaceURL": "",
+    "SupportURL": "",
+    "EnabledByDefault": true,
+    "CanContainContent": false,
+    "IsBetaVersion": false,
+    "Installed": false,
+    "Modules": [
+        {
+            "Name": "UnrealClaudeMCP",
+            "Type": "Editor",
+            "LoadingPhase": "PostEngineInit"
+        }
+    ],
+    "Plugins": [
+        { "Name": "PythonScriptPlugin",       "Enabled": true },
+        { "Name": "EditorScriptingUtilities", "Enabled": true }
+    ]
+}

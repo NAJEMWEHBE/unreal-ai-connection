@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json.schemastore.org/mcp.json",
+  "_comment": "Place this file as .mcp.json at the root of your project (your UE project root works well). Edit the path in args to point to wherever you cloned UnrealClaudeMCP. Open the UE editor with the UnrealClaudeMCP plugin enabled before invoking any tool.",
+  "mcpServers": {
+    "unreal-claude-mcp": {
+      "command": "py",
+      "args": [
+        "C:\\path\\to\\UnrealClaudeMCP\\bridge\\unreal_claude_mcp_bridge.py"
+      ],
+      "env": {}
+    }
+  }
+}

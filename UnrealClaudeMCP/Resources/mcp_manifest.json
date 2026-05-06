@@ -1,0 +1,71 @@
+{
+  "name": "UnrealClaudeMCP",
+  "version": "0.1.0",
+  "description": "Drive Unreal Engine 5.7 from Claude (or any MCP client) over a local TCP socket. Eleven generic editor-automation tools that work with any UE 5.7 project.",
+  "transport": {
+    "type": "tcp",
+    "host": "127.0.0.1",
+    "port": 18888,
+    "framing": "json-per-message"
+  },
+  "tools": [
+    {
+      "name": "execute_unreal_python",
+      "description": "Run arbitrary unreal.* Python in the editor's embedded interpreter (universal escape hatch). Multi-line scripts work.",
+      "params": { "code": "string (required) - Python source code to execute" },
+      "returns": { "ok": "bool", "output": "string", "temp_script": "string" }
+    },
+    {
+      "name": "get_project_summary",
+      "description": "Project name, engine version, enabled plugins, asset counts.",
+      "params": {},
+      "returns": "see docs/TOOLS.md"
+    },
+    {
+      "name": "inspect_blueprint",
+      "description": "Variables, function/event graph names, parent class of a Blueprint asset.",
+      "params": { "path": "string (required)" }
+    },
+    {
+      "name": "inspect_widget_tree",
+      "description": "Read the widget hierarchy of a UWidgetBlueprint or EUW. Bypasses UE 5.7 Python reflection limit on WidgetTree.",
+      "params": { "path": "string (required)" }
+    },
+    {
+      "name": "edit_widget_tree",
+      "description": "Mutate a widget tree. ops: set_root | add_child | set_property. Solves UE 5.7 EUW WidgetTree population.",
+      "params": { "path": "string (required)", "op": "string (required)", "compile": "bool (optional, default false)" }
+    },
+    {
+      "name": "get_viewport_screenshot",
+      "description": "Capture the active editor viewport as base64 PNG.",
+      "params": {},
+      "returns": { "width": "int", "height": "int", "png_bytes": "int", "png_base64": "string" }
+    },
+    {
+      "name": "list_tools",
+      "description": "Return the names of every registered MCP method on the server.",
+      "params": {}
+    },
+    {
+      "name": "get_actors_in_level",
+      "description": "Return name/class/transform of every actor in the active editor world.",
+      "params": { "name_contains": "string (optional)" }
+    },
+    {
+      "name": "focus_actor",
+      "description": "Select an actor by label/name and frame the viewport on it.",
+      "params": { "name": "string (required)" }
+    },
+    {
+      "name": "load_level_by_path",
+      "description": "Load a UE level by package path.",
+      "params": { "path": "string (required)" }
+    },
+    {
+      "name": "take_high_res_screenshot",
+      "description": "Trigger UE's HighResShot. Output to Saved/Screenshots/WindowsEditor/.",
+      "params": { "multiplier": "number (optional, 1..8, default 1)" }
+    }
+  ]
+}

@@ -1,0 +1,159 @@
+# Architecture
+
+## The picture
+
+```
++------------------+         JSON-RPC over stdio        +-------------+         JSON-RPC over TCP        +----------------------+
+|  MCP client      | <==============================>   |  bridge.py  | <============================>   |  UE Editor process   |
+|  (Claude Code)   |                                    |  (Python)   |                                  |  TCP :18888          |
++------------------+                                    +-------------+                                  |    +--------------+  |
+                                                                                                         |    | TCP listener |  |
+                                                                                                         |    +------+-------+  |
+                                                                                                         |           |           |
+                                                                                                         |    +------v-------+  |
+                                                                                                         |    | Dispatcher   |  |
+                                                                                                         |    | (JSON-RPC)   |  |
+                                                                                                         |    +------+-------+  |
+                                                                                                         |           |           |
+                                                                                                         |    +------v-------+  |
+                                                                                                         |    | Handlers x11 |  |
+                                                                                                         |    +------+-------+  |
+                                                                                                         |           |           |
+                                                                                                         |    +------v-------+  |
+                                                                                                         |    | UE native C++|  |
+                                                                                                         |    | UnrealEd     |  |
+                                                                                                         |    | UMG / UMGEd  |  |
+                                                                                                         |    | Python plugin|  |
+                                                                                                         |    +--------------+  |
+                                                                                                         +----------------------+
+```
+
+## The four C++ files that matter
+
+```
+Source/UnrealClaudeMCP/
+  Public/MCP/
+    MCPServer.h          (TCP listener interface)
+    MCPDispatcher.h      (one static function: HandleMessage)
+    MCPHandler.h         (handler interface + registry)
+  Private/
+    UnrealClaudeMCPModule.cpp   (registers all handlers + starts the server in StartupModule)
+    MCP/
+      MCPServer.cpp           (FTcpListener + per-tick recv/dispatch/send)
+      MCPDispatcher.cpp       (parse JSON-RPC, look up handler, return JSON-RPC response)
+      MCPHandler.cpp          (process-singleton FUCMCPHandlerRegistry)
+      Handlers/
+        Handler_*.cpp         (one per MCP method - pure leaves)
+```
+
+Each handler is a leaf with this shape:
+
+```cpp
+class FHandler_Foo : public IUCMCPHandler
+{
+public:
+    virtual FString GetMethodName() const override { return TEXT("foo"); }
+
+    virtual TSharedPtr<FJsonObject> Handle(const TSharedPtr<FJsonObject>& Params, FString& OutError) override
+    {
+        // 1. Parse params
+        // 2. Call UE native C++ APIs
+        // 3. Return TSharedPtr<FJsonObject> on success
+        //    OR set OutError and return nullptr on failure
+    }
+};
+
+TSharedRef<IUCMCPHandler> Make_Handler_Foo()
+{
+    return MakeShared<FHandler_Foo>();
+}
+```
+
+Then in `UnrealClaudeMCPModule.cpp::StartupModule`:
+
+```cpp
+extern TSharedRef<IUCMCPHandler> Make_Handler_Foo();
+// ...
+FUCMCPHandlerRegistry::Get().Register(Make_Handler_Foo());
+```
+
+## Threading
+
+`FTSTicker` callbacks run on the game thread. The TCP listener registers a per-tick callback that drains pending bytes, dispatches synchronously, and sends responses. Handlers therefore run on the game thread, where they can safely call any UE editor API.
+
+Tradeoff: a slow handler will stall the editor's tick. This is acceptable for the current 11 tools (none are long-running). Future handlers that block on disk I/O or the network should dispatch the actual work to a worker thread and return a ticket the client can poll.
+
+## JSON-RPC framing
+
+Each TCP message is one complete JSON object. No length prefix, no newline framing — the dispatcher parses on the assumption that every recv() returns one whole message. This is a simplification, not a wire-protocol commitment. If you push very large payloads through and notice truncation, switch to length-prefixed framing in `FUCMCPServer::TickClients`.
+
+## Why a Python bridge
+
+Claude Code's MCP client speaks the **MCP protocol** (`initialize`, `tools/list`, `tools/call`) over stdio. The plugin's server speaks **raw JSON-RPC 2.0** over TCP, with custom method names like `execute_unreal_python`.
+
+The bridge does two things:
+1. Translates the MCP `initialize` / `tools/list` / `tools/call` envelope into raw method calls
+2. Provides the static tool catalog with JSON Schema parameter descriptions (the catalog is duplicated from `Resources/mcp_manifest.json` because Claude Code expects it during `tools/list`)
+
+If you don't use Claude Code, you don't need the bridge — connect to the TCP server directly.
+
+## Build dependencies
+
+`Source/UnrealClaudeMCP/UnrealClaudeMCP.Build.cs`:
+
+```csharp
+"Sockets", "Networking",          // TCP listener
+"Json", "JsonUtilities",          // JSON-RPC framing
+"PythonScriptPlugin",             // execute_unreal_python handler
+"GraphEditor",                    // UEdGraph iteration in InspectBlueprint
+"Kismet",                         // FBlueprintEditorUtils in EditWidgetTree
+"EngineSettings",                 // UGeneralProjectSettings in GetProjectSummary
+"UMG", "UMGEditor",               // widget classes + WidgetTree
+"AssetRegistry",                  // GetProjectSummary asset count
+"EditorScriptingUtilities",       // UEditorAssetLibrary in LoadLevel / etc.
+"EditorSubsystem",                // ULevelEditorSubsystem
+```
+
+If a handler references a UE class whose owning module isn't in this list, the link step fails with `LNK2019: unresolved external symbol`. The fix is always to add the right module name. The UE source on disk is the ground truth — find the class declaration, look at the `_API` macro prefix, that names the module.
+
+## Adding a new handler — full recipe
+
+1. Decide the method name and the JSON shape of params + result.
+2. Create `Source/UnrealClaudeMCP/Private/MCP/Handlers/Handler_NewThing.cpp`:
+   ```cpp
+   #include "MCP/MCPHandler.h"
+   // ... include UE headers you need
+   class FHandler_NewThing : public IUCMCPHandler { ... };
+   TSharedRef<IUCMCPHandler> Make_Handler_NewThing() {
+       return MakeShared<FHandler_NewThing>();
+   }
+   ```
+3. In `UnrealClaudeMCPModule.cpp`, near the other `extern` declarations:
+   ```cpp
+   extern TSharedRef<IUCMCPHandler> Make_Handler_NewThing();
+   ```
+4. In `StartupModule`, near the other `Reg.Register` calls:
+   ```cpp
+   Reg.Register(Make_Handler_NewThing());
+   ```
+5. If the handler needs a new UE module, add it to `Build.cs`.
+6. Update `Resources/mcp_manifest.json` with the new tool's schema.
+7. If the bridge is used, add the same tool to the `TOOLS` list in `bridge/unreal_claude_mcp_bridge.py`.
+8. Rebuild (`Build.bat UnrealEditor ...` or VS Build Solution).
+9. Restart UE — the new tool registers automatically on module load.
+
+## UE 5.7 API gotchas the original implementation hit (so you don't repeat them)
+
+These are real bugs / surprises that cost hours to find. Documented here as a defensive scar collection:
+
+- `FImageUtils::PNGCompressImageArray` takes `TArrayView64<const FColor>` source and `TArray64<uint8>` output. `CompressImageArray` is deprecated in 5.1 and writes a thumbnail-sized JPEG, not a PNG. (A reviewer subagent specifically told us the opposite — the source is the ground truth, not the model.)
+- `EPythonCommandExecutionMode::ExecuteFile` accepts EITHER a file path OR literal source text — but its file-vs-source heuristic fails on multi-line scripts with comments. The handler always writes the source to a temp `.py` file under `Intermediate/UnrealClaudeMCPPython/` and passes the file path. Bulletproof.
+- `FPluginDescriptor::EnabledByDefault` is `EPluginEnabledByDefault` (enum: `Unspecified` / `Enabled` / `Disabled`), NOT a bool. Cast to a string before serializing.
+- `OnClicked.AddDynamic(this, &Class::Method)` is a preprocessor macro that captures the function name as a string at the call site. Wrapping it in a C++ template breaks the capture and crashes at runtime. Each binding is its own inline call.
+- `BlueprintEditorLibrary.reparent_blueprint` crashes UE for `EditorUtilityWidgetBlueprint`. Workaround: delete the asset and recreate with `EditorUtilityWidgetBlueprintFactory.parent_class = <CustomClass>` from inception.
+- `edit_widget_tree`-style mutations require `WT->Modify()` + `WT->MarkPackageDirty()` + `FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(WBP)` + `SaveLoadedAsset(WBP)` to persist. Compile is a separate concern; don't compile per-edit (it crashes when many edits arrive in quick succession). Compile once at the end of a batch via the explicit `compile: true` flag on the last call.
+- `TUniquePtr<T>` defaulted destructors require the type to be complete. If you `=default` the destructor of a class that owns a `TUniquePtr<FTcpListener>` in its header, MSVC errors with "incomplete type". Move the destructor implementation to the `.cpp` so the include for the held type lives there.
+
+## License
+
+MIT. © 2026 HD Media (Kuwait).
