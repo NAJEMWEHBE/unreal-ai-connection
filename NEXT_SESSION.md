@@ -4,6 +4,32 @@
 
 ---
 
+## Cloud session update — 2026-05-07 (PR #1, branch `claude/analyze-test-coverage-Wwou8`)
+
+A cloud Claude Code session ran a test-coverage pass. Pull this branch before continuing.
+
+**Landed (3 commits, ready to build):**
+- Test infrastructure: `tests/` with 55 pytest unit tests for the bridge, mocked socket, no UE required, ~0.25s, **99% bridge coverage**.
+- CI: `.github/workflows/tests.yml` runs the suite on Python 3.11 + 3.12 on every push/PR.
+- `examples/smoke_test.py`: now asserts on response shape and exits non-zero on regression. Wire shapes were verified against the C++ handler source.
+- Manifest drift detection: `tests/test_manifest_sync.py` — bridge `TOOLS` ↔ `Resources/mcp_manifest.json` lockstep.
+- Real C++ fixes (audited from source, no UE API speculation):
+  - `Handler_GetActorsInLevel`: `name_contains` is now case-insensitive.
+  - `Handler_ExecutePython`: temp `.py` cleanup wrapped in `ON_SCOPE_EXIT`.
+  - `Handler_TakeHighResScreenshot`: `output_dir_hint` now uses `FPlatformProperties::PlatformName()` — Mac/Linux users get the right path. **Closes priority #3 below.**
+- Docs: `docs/ARCHITECTURE.md` ASCII art replaced with Mermaid (component graph + tools/call sequence). Renders natively on GitHub.
+
+**Top job for the local session — first build verification:**
+
+This branch has not yet been compiled in a fresh project. Drop `UnrealClaudeMCP/` into a clean UE 5.7 project's `Plugins/`, regen VS files, build Development Editor | Win64. Watch for the same things flagged in the original list below. Then run `python examples/smoke_test.py` — it should pass all 7 default-ON assertions cleanly.
+
+**Deliberately deferred (need live UE / verification):**
+- New `save_all` handler (priority #4): cloud session declined to write it because the handoff says "verify any UE API claim against UE 5.7 source" and the sandbox can't compile-test. Candidate APIs to try locally: `UEditorAssetSubsystem::SaveAllAssets`, `FEditorFileUtils::SaveDirtyPackages`, console `SAVEALL`. Pick the one that exists and compiles.
+- C++ unit tests via gtest (deferred per priority #5).
+- AI-generated README banner — image-gen MCP balance was 0 credits in the cloud session; Mermaid covers the architecture diagram for now.
+
+---
+
 ## What this repo is
 
 `UnrealClaudeMCP` — a UE 5.7 plugin that runs an MCP (Model Context Protocol) server inside the editor's process so any MCP client (Claude Code, Claude Desktop, your own tooling) can drive Unreal Engine over a local TCP socket. v0.1.0 ships with **11 generic editor-automation tools** + a Python stdio↔TCP bridge.
