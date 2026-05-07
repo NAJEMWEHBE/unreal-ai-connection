@@ -128,7 +128,7 @@ TOOLS = [
     },
     {
         "name": "take_high_res_screenshot",
-        "description": "Trigger UE's HighResShot. Output -> Saved/Screenshots/WindowsEditor/. Optional multiplier (1..8).",
+        "description": "Trigger UE's HighResShot. Output -> Saved/Screenshots/<Platform>Editor/ (Windows/Mac/Linux). Optional multiplier (1..8).",
         "inputSchema": {
             "type": "object",
             "properties": {"multiplier": {"type": "number", "default": 1}},

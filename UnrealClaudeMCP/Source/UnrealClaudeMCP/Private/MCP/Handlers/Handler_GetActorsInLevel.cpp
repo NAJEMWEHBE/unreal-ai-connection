@@ -34,7 +34,7 @@ public:
             ++Total;
 
             const FString Label = A->GetActorLabel();
-            if (!FilterPattern.IsEmpty() && !Label.Contains(FilterPattern)) { continue; }
+            if (!FilterPattern.IsEmpty() && !Label.Contains(FilterPattern, ESearchCase::IgnoreCase)) { continue; }
 
             const FVector Loc = A->GetActorLocation();
             const FRotator Rot = A->GetActorRotation();

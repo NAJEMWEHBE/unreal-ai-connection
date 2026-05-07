@@ -130,7 +130,7 @@ Return the names of every registered MCP method.
 Return name / class / transform of every actor in the active editor world.
 
 **Params**
-- `name_contains` (string, optional) — substring filter on actor label
+- `name_contains` (string, optional) — case-insensitive substring filter on actor label
 
 **Result**
 - `world` (string) — world name
@@ -168,7 +168,7 @@ Load a UE level by package path.
 
 ## take_high_res_screenshot
 
-Trigger UE's `HighResShot` console command. Output goes to `<Project>/Saved/Screenshots/WindowsEditor/`.
+Trigger UE's `HighResShot` console command. Output goes to `<Project>/Saved/Screenshots/<Platform>Editor/` — `WindowsEditor` on Windows, `MacEditor` on Mac, `LinuxEditor` on Linux. The exact path is returned in `output_dir_hint` of the response.
 
 **Params**
 - `multiplier` (number, optional, default 1, capped at 8) — viewport-pixel scaling factor

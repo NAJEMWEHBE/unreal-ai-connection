@@ -64,7 +64,7 @@
     },
     {
       "name": "take_high_res_screenshot",
-      "description": "Trigger UE's HighResShot. Output to Saved/Screenshots/WindowsEditor/.",
+      "description": "Trigger UE's HighResShot. Output to Saved/Screenshots/<Platform>Editor/.",
       "params": { "multiplier": "number (optional, 1..8, default 1)" }
     }
   ]

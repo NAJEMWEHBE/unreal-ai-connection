@@ -2,30 +2,44 @@
 
 ## The picture
 
+```mermaid
+flowchart LR
+    Client["MCP client<br/>(Claude Code, etc.)"]
+    Bridge["bridge.py<br/>(Python, stdio)"]
+
+    subgraph UE["UE Editor process"]
+        TCP["FTcpListener<br/>127.0.0.1:18888"]
+        Disp["FUCMCPDispatcher<br/>JSON-RPC parse / route"]
+        Reg["FUCMCPHandlerRegistry<br/>(11 handlers)"]
+        Native["UE native C++<br/>UnrealEd · UMG · UMGEditor<br/>PythonScriptPlugin · AssetRegistry"]
+    end
+
+    Client <-->|"MCP over stdio<br/>initialize · tools/list · tools/call"| Bridge
+    Bridge <-->|"raw JSON-RPC 2.0<br/>over TCP"| TCP
+    TCP --> Disp
+    Disp --> Reg
+    Reg --> Native
 ```
-+------------------+         JSON-RPC over stdio        +-------------+         JSON-RPC over TCP        +----------------------+
-|  MCP client      | <==============================>   |  bridge.py  | <============================>   |  UE Editor process   |
-|  (Claude Code)   |                                    |  (Python)   |                                  |  TCP :18888          |
-+------------------+                                    +-------------+                                  |    +--------------+  |
-                                                                                                         |    | TCP listener |  |
-                                                                                                         |    +------+-------+  |
-                                                                                                         |           |           |
-                                                                                                         |    +------v-------+  |
-                                                                                                         |    | Dispatcher   |  |
-                                                                                                         |    | (JSON-RPC)   |  |
-                                                                                                         |    +------+-------+  |
-                                                                                                         |           |           |
-                                                                                                         |    +------v-------+  |
-                                                                                                         |    | Handlers x11 |  |
-                                                                                                         |    +------+-------+  |
-                                                                                                         |           |           |
-                                                                                                         |    +------v-------+  |
-                                                                                                         |    | UE native C++|  |
-                                                                                                         |    | UnrealEd     |  |
-                                                                                                         |    | UMG / UMGEd  |  |
-                                                                                                         |    | Python plugin|  |
-                                                                                                         |    +--------------+  |
-                                                                                                         +----------------------+
+
+Sequence of one `tools/call` round trip:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as Claude Code
+    participant B as bridge.py
+    participant S as UE TCP listener
+    participant D as Dispatcher
+    participant H as Handler
+    C->>B: tools/call {name, arguments} (stdio)
+    B->>S: {jsonrpc, id, method, params} (TCP)
+    S->>D: drained on next FTSTicker tick (game thread)
+    D->>H: Handle(Params, OutError)
+    H->>H: call UE native C++ APIs
+    H-->>D: TSharedPtr<FJsonObject> (or OutError)
+    D-->>S: {jsonrpc, id, result|error}
+    S-->>B: TCP response
+    B-->>C: tools/call result wrapped as MCP content[]
 ```
 
 ## The four C++ files that matter

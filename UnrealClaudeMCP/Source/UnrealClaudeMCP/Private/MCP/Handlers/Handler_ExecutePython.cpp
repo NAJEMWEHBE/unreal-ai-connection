@@ -14,6 +14,7 @@
 #include "Misc/Paths.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Guid.h"
+#include "Misc/ScopeExit.h"
 #include "HAL/FileManager.h"
 
 class FHandler_ExecutePython : public IUCMCPHandler
@@ -54,14 +55,18 @@ public:
             return nullptr;
         }
 
+        // Guarantee deletion even if ExecPythonCommandEx throws or we early-return below.
+        ON_SCOPE_EXIT
+        {
+            IFileManager::Get().Delete(*TempPath, /*RequireExists=*/false);
+        };
+
         FPythonCommandEx Cmd;
         Cmd.Command = TempPath;
         Cmd.ExecutionMode = EPythonCommandExecutionMode::ExecuteFile;
         Cmd.Flags = EPythonCommandFlags::None;
 
         const bool bOk = Py->ExecPythonCommandEx(Cmd);
-
-        IFileManager::Get().Delete(*TempPath, /*RequireExists=*/false);
 
         TSharedPtr<FJsonObject> Out = MakeShared<FJsonObject>();
         Out->SetBoolField(TEXT("ok"), bOk);

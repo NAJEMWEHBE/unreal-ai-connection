@@ -1,13 +1,14 @@
 // Copyright (c) 2026 HD Media. MIT licensed - see LICENSE.
 //
 // take_high_res_screenshot - trigger UE's HighResShot via console command.
-// Output goes to Saved/Screenshots/WindowsEditor/HighresScreenshot00000.png
-// (or sequential numbers).
+// Output goes to Saved/Screenshots/<PlatformEditor>/HighresScreenshot00000.png
+// (e.g. WindowsEditor on Windows, MacEditor on Mac, LinuxEditor on Linux).
 
 #include "MCP/MCPHandler.h"
 
 #include "Editor.h"
 #include "UnrealClient.h"
+#include "HAL/PlatformProperties.h"
 
 class FHandler_TakeHighResScreenshot : public IUCMCPHandler
 {
@@ -29,10 +30,16 @@ public:
         UWorld* World = GEditor->GetEditorWorldContext().World();
         GEditor->Exec(World, *Cmd);
 
+        // Cross-platform output path hint. UE writes to Saved/Screenshots/<Platform>Editor/.
+        const FString PlatformEditor = FString::Printf(
+            TEXT("%sEditor"), ANSI_TO_TCHAR(FPlatformProperties::PlatformName()));
+        const FString OutputDirHint = FString::Printf(
+            TEXT("<Project>/Saved/Screenshots/%s/"), *PlatformEditor);
+
         TSharedPtr<FJsonObject> Out = MakeShared<FJsonObject>();
         Out->SetStringField(TEXT("command"), Cmd);
         Out->SetNumberField(TEXT("multiplier"), Multiplier);
-        Out->SetStringField(TEXT("output_dir_hint"), TEXT("<Project>/Saved/Screenshots/WindowsEditor/"));
+        Out->SetStringField(TEXT("output_dir_hint"), OutputDirHint);
         Out->SetBoolField(TEXT("dispatched"), true);
         return Out;
     }
