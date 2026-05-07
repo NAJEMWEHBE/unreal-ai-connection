@@ -145,9 +145,13 @@ def main():
         resp = call("list_tools")
         show(resp)
         result = assert_ok(resp, "list_tools")
-        tools = result.get("tools") or result.get("methods") or []
+        tools = result.get("tools")
+        if not isinstance(tools, list):
+            raise SmokeFailure(f"[list_tools] 'tools' not a list: {result}")
         if len(tools) != 11:
             raise SmokeFailure(f"[list_tools] expected 11 tools, got {len(tools)}: {tools}")
+        if result.get("count") != len(tools):
+            raise SmokeFailure(f"[list_tools] 'count' ({result.get('count')}) != len(tools) ({len(tools)})")
     step("list_tools", t1)
 
     header("2. execute_unreal_python")
@@ -165,9 +169,13 @@ def main():
         resp = call("get_project_summary")
         show(resp)
         result = assert_ok(resp, "get_project_summary")
-        for field in ("project_name", "engine_version"):
+        for field in ("project_name", "engine_version", "plugins", "asset_count"):
             if field not in result:
                 raise SmokeFailure(f"[get_project_summary] missing '{field}': {result}")
+        if not isinstance(result["plugins"], list):
+            raise SmokeFailure(f"[get_project_summary] 'plugins' not a list")
+        if not isinstance(result["asset_count"], int):
+            raise SmokeFailure(f"[get_project_summary] 'asset_count' not int: {result['asset_count']}")
     step("get_project_summary", t3)
 
     header("4. get_actors_in_level (no filter)")
@@ -178,6 +186,12 @@ def main():
         actors = result.get("actors")
         if not isinstance(actors, list):
             raise SmokeFailure(f"[get_actors_in_level] 'actors' not a list: {result}")
+        total = result.get("total_actors")
+        returned = result.get("returned")
+        if not isinstance(total, int) or not isinstance(returned, int):
+            raise SmokeFailure(f"[get_actors_in_level] missing/invalid total_actors/returned")
+        if returned > total:
+            raise SmokeFailure(f"[get_actors_in_level] returned ({returned}) > total ({total})")
     step("get_actors_in_level", t4)
 
     header("5. take_high_res_screenshot (multiplier=1)")
@@ -210,6 +224,8 @@ def main():
             raise SmokeFailure(f"[get_viewport_screenshot] bad width: {result.get('width')}")
         if not isinstance(result.get("height"), int) or result["height"] <= 0:
             raise SmokeFailure(f"[get_viewport_screenshot] bad height: {result.get('height')}")
+        if not isinstance(result.get("png_bytes"), int) or result["png_bytes"] <= 0:
+            raise SmokeFailure(f"[get_viewport_screenshot] bad png_bytes: {result.get('png_bytes')}")
         if not result.get("png_base64"):
             raise SmokeFailure("[get_viewport_screenshot] empty png_base64")
     step("get_viewport_screenshot", t6)

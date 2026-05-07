@@ -2,20 +2,25 @@
 
 Two layers:
 
-## 1. `tests/test_bridge.py` — pytest unit tests for the Python bridge
+## 1. Bridge unit tests (`tests/test_bridge*.py`)
 
 No Unreal Engine instance required. The TCP socket is mocked. Covers MCP
 protocol surface (`initialize`, `tools/list`, `tools/call`, notifications,
-unknown methods) and `call_ue` error paths (connection refused, timeout,
-non-JSON reply, chunked reads).
+unknown methods), `call_ue` error paths (connection refused, timeout,
+non-JSON reply, chunked reads, EOF without terminator), parameterised
+round-trips across all 11 tools, and main-loop fault tolerance.
 
 Run from the repo root:
 
 ```bash
-pytest tests/
+pip install pytest pytest-cov
+pytest tests/                                 # 49 tests, < 1 second
+pytest tests/ --cov=bridge --cov-report=term-missing   # with coverage
 ```
 
-28 tests, runs in well under a second. Safe for CI.
+Bridge coverage is currently 99% (only the `__main__` guard is unreached).
+GitHub Actions runs this suite on every push and PR (see
+`.github/workflows/tests.yml`).
 
 ## 2. `examples/smoke_test.py` — live integration smoke test
 

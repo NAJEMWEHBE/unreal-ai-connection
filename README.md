@@ -94,6 +94,17 @@ Issues / PRs welcome. Two rules:
 1. Verify any UE API claim against UE 5.7 source. Reviewer subagents have made specific UE API claims that turned out wrong; ground-truth the source before committing.
 2. Each new MCP handler is one `Handler_*.cpp` file in `Source/UnrealClaudeMCP/Private/MCP/Handlers/` plus one `extern` declaration + `Reg.Register(Make_Handler_*())` in `UnrealClaudeMCPModule.cpp`. Don't grow the foundation — add handlers.
 
+### Tests
+
+Bridge unit tests run without UE in under a second:
+
+```bash
+pip install pytest pytest-cov
+pytest tests/
+```
+
+CI runs the same suite on every push and PR (see `.github/workflows/tests.yml`). The live integration smoke test in `examples/smoke_test.py` requires a running UE editor — see [`tests/README.md`](tests/README.md).
+
 ## License
 
 MIT — see [`LICENSE`](LICENSE). © 2026 HD Media (Kuwait).
