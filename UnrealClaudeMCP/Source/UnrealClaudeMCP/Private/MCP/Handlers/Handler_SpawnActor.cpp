@@ -99,21 +99,25 @@ public:
             Actor->SetActorLabel(Label);
         }
 
-        // Apply optional properties via PropertyCoercion
+        // Apply optional properties via PropertyCoercion (v0.4.0: dotted path traversal).
         FString FailedProperty;
         const TSharedPtr<FJsonObject>* PropsObj = nullptr;
         if (Params->TryGetObjectField(TEXT("properties"), PropsObj) && PropsObj && (*PropsObj).IsValid())
         {
             for (const auto& Pair : (*PropsObj)->Values)
             {
-                FProperty* Prop = UCMCP::PropertyCoercion::FindProperty(Actor, Pair.Key);
-                if (!Prop)
+                UCMCP::PropertyCoercion::FResolvedProperty Resolved;
+                UCMCP::PropertyCoercion::FCoerceOutcome ResolveOutcome =
+                    UCMCP::PropertyCoercion::ResolvePropertyPath(Actor, Pair.Key, Resolved);
+                if (ResolveOutcome.Result != UCMCP::PropertyCoercion::ECoerceResult::Success)
                 {
-                    FailedProperty = FString::Printf(TEXT("'%s' (property_not_found)"), *Pair.Key);
+                    FailedProperty = FString::Printf(TEXT("'%s' (%s)"), *Pair.Key, *ResolveOutcome.Detail);
                     break;
                 }
                 UCMCP::PropertyCoercion::FCoerceOutcome Outcome =
-                    UCMCP::PropertyCoercion::SetProperty(Actor, Prop, Pair.Value);
+                    UCMCP::PropertyCoercion::SetProperty(
+                        Actor, Resolved.Property, Resolved.PropAddr, Pair.Value,
+                        TEXT(".") + Resolved.ResolvedPath, 0);
                 if (Outcome.Result != UCMCP::PropertyCoercion::ECoerceResult::Success)
                 {
                     FailedProperty = FString::Printf(TEXT("'%s' (%s)"), *Pair.Key, *Outcome.Detail);

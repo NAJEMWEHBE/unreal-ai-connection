@@ -345,8 +345,47 @@ def main():
             raise SmokeFailure(f"[cleanup] residual actors found: {a_res}")
     step("buildalevel", t_buildalevel)
 
+    header("9. advanced property types round-trip (USTRUCT + TArray + path traversal)")
+    def t_advanced_props():
+        # 1. Spawn a test actor
+        spawn_resp = call("spawn_actor", {
+            "class_path": "/Script/Engine.StaticMeshActor",
+            "location": {"x": 0, "y": 0, "z": 0},
+            "label": "AdvSmoke",
+        })
+        spawn_res = assert_ok(spawn_resp, "spawn_actor.adv")
+        actor_name = spawn_res["name"]
+
+        # 2. Set nested USTRUCT via path traversal: RootComponent.RelativeLocation
+        set_loc = call("set_actor_property", {
+            "name": actor_name,
+            "property": "RootComponent.RelativeLocation",
+            "value": {"x": 100.0, "y": 200.0, "z": 50.0},
+        })
+        set_loc_res = assert_ok(set_loc, "set_actor_property.struct_path")
+        applied_loc = set_loc_res.get("new_value") or {}
+        if not (applied_loc.get("x") == 100.0 and applied_loc.get("y") == 200.0 and applied_loc.get("z") == 50.0):
+            raise SmokeFailure(f"USTRUCT round-trip failed: {set_loc_res}")
+
+        # 3. Set TArray<FName> on the actor itself: Tags
+        set_tags = call("set_actor_property", {
+            "name": actor_name,
+            "property": "Tags",
+            "value": ["foo", "bar", "baz"],
+        })
+        set_tags_res = assert_ok(set_tags, "set_actor_property.tarray")
+        new_tags = set_tags_res.get("new_value") or []
+        # FName encoding round-trip: list of strings
+        if list(new_tags) != ["foo", "bar", "baz"]:
+            raise SmokeFailure(f"TArray<FName> round-trip failed: {set_tags_res}")
+
+        # 4. Cleanup
+        delete = call("delete_actor", {"name": actor_name, "force": True})
+        assert_ok(delete, "delete_actor.adv")
+    step("advanced_property_types", t_advanced_props)
+
     if args.bp:
-        header(f"9. inspect_blueprint  ({args.bp})")
+        header(f"10. inspect_blueprint  ({args.bp})")
         def t7():
             resp = call("inspect_blueprint", {"path": args.bp})
             show(resp)
@@ -356,14 +395,14 @@ def main():
     if args.widget:
         wbp = args.widget
 
-        header(f"10a. inspect_widget_tree (BEFORE)  ({wbp})")
+        header(f"11a. inspect_widget_tree (BEFORE)  ({wbp})")
         def t8a():
             resp = call("inspect_widget_tree", {"path": wbp})
             show(resp)
             assert_ok(resp, "inspect_widget_tree.before")
         step("inspect_widget_tree.before", t8a)
 
-        header("10b. edit_widget_tree -- set_root VerticalBox")
+        header("11b. edit_widget_tree -- set_root VerticalBox")
         def t8b():
             resp = call("edit_widget_tree", {
                 "path": wbp, "op": "set_root", "class": "VerticalBox", "name": "RootVB",
@@ -372,7 +411,7 @@ def main():
             assert_ok(resp, "edit_widget_tree.set_root")
         step("edit_widget_tree.set_root", t8b)
 
-        header("10c. edit_widget_tree -- add_child TextBlock 'Title'")
+        header("11c. edit_widget_tree -- add_child TextBlock 'Title'")
         def t8c():
             resp = call("edit_widget_tree", {
                 "path": wbp, "op": "add_child", "parent": "RootVB",
@@ -382,7 +421,7 @@ def main():
             assert_ok(resp, "edit_widget_tree.add_child")
         step("edit_widget_tree.add_child", t8c)
 
-        header("10d. edit_widget_tree -- set_property Title.text (with compile)")
+        header("11d. edit_widget_tree -- set_property Title.text (with compile)")
         def t8d():
             resp = call("edit_widget_tree", {
                 "path": wbp, "op": "set_property", "widget": "Title",
@@ -393,7 +432,7 @@ def main():
             assert_ok(resp, "edit_widget_tree.set_property")
         step("edit_widget_tree.set_property", t8d)
 
-        header("10e. inspect_widget_tree (AFTER; should show RootVB + Title)")
+        header("11e. inspect_widget_tree (AFTER; should show RootVB + Title)")
         def t8e():
             resp = call("inspect_widget_tree", {"path": wbp})
             show(resp)
@@ -406,7 +445,7 @@ def main():
         step("inspect_widget_tree.after", t8e)
 
     if args.level:
-        header(f"11. load_level_by_path  ({args.level})")
+        header(f"12. load_level_by_path  ({args.level})")
         def t9():
             resp = call("load_level_by_path", {"path": args.level})
             show(resp)

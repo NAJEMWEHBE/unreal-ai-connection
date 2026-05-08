@@ -1,7 +1,7 @@
 {
     "FileVersion": 3,
     "Version": 1,
-    "VersionName": "0.3.0",
+    "VersionName": "0.4.0",
     "EngineVersion": "5.7.0",
     "FriendlyName": "Unreal Claude MCP",
     "Description": "Drive Unreal Engine 5.7 from Claude (or any MCP client) over a localhost TCP socket. Nineteen tools for editor automation: arbitrary Python execution, Blueprint/Widget tree introspection and mutation, viewport screenshots, actor queries, texture import and configuration, and more. Bypasses UE Python reflection limits by calling native C++ APIs directly.",

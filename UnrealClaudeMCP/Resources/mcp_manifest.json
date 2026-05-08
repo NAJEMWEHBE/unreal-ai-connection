@@ -1,6 +1,6 @@
 {
   "name": "UnrealClaudeMCP",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Drive Unreal Engine 5.7 from Claude (or any MCP client) over a local TCP socket. Nineteen generic editor-automation tools that work with any UE 5.7 project.",
   "transport": {
     "type": "tcp",
@@ -139,7 +139,7 @@
     },
     {
       "name": "set_actor_property",
-      "description": "Mutate any UPROPERTY on an actor. v0.3.0 supports primitives (bool/ints/floats/strings), FName/FText, FVector/FVector2D/FRotator/FLinearColor/FColor, enums, and TSoftObjectPtr. USTRUCT/TArray/TMap deferred to v0.4.0.",
+      "description": "Mutate any UPROPERTY on an actor. v0.4.0 supports primitives, all common UE structs, enums, TSoftObjectPtr, plus USTRUCT (recursive)/TArray/TMap (string-keyed)/TSet/FObjectProperty (hard UObject pointers via asset path). Property names accept dotted-path syntax for nested traversal (e.g. 'RootComponent.RelativeLocation'). FInstancedStruct deferred to v0.4.x.",
       "params": {
         "name": "string (required) - actor label OR FName",
         "property": "string (required) - UPROPERTY name",

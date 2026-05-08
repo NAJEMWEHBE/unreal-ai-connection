@@ -35,7 +35,7 @@ UE_PORT = int(os.environ.get("UCMCP_PORT", "18888"))
 
 PROTOCOL_VERSION = "2024-11-05"
 SERVER_NAME = "unreal-claude-mcp"
-SERVER_VERSION = "0.3.0"
+SERVER_VERSION = "0.4.0"
 
 # Mirror of UnrealClaudeMCP/Resources/mcp_manifest.json - kept in sync manually.
 TOOLS = [
@@ -224,7 +224,7 @@ TOOLS = [
     },
     {
         "name": "set_actor_property",
-        "description": "Mutate any UPROPERTY on an actor. v0.3.0 supports primitives (bool/ints/floats/strings), FName/FText, FVector/FVector2D/FRotator/FLinearColor/FColor, enums, and TSoftObjectPtr. USTRUCT/TArray/TMap deferred to v0.4.0.",
+        "description": "Mutate any UPROPERTY on an actor. v0.4.0 supports primitives, all common UE structs, enums, TSoftObjectPtr, plus USTRUCT (recursive)/TArray/TMap (string-keyed)/TSet/FObjectProperty (hard UObject pointers via asset path). Property names accept dotted-path syntax for nested traversal (e.g. 'RootComponent.RelativeLocation'). FInstancedStruct deferred to v0.4.x.",
         "inputSchema": {
             "type": "object",
             "properties": {
