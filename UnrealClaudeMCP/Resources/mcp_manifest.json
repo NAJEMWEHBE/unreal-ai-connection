@@ -1,7 +1,7 @@
 {
   "name": "UnrealClaudeMCP",
-  "version": "0.8.0",
-  "description": "Drive Unreal Engine 5.7 from Claude (or any MCP client) over a local TCP socket. Twenty-eight generic editor-automation tools that work with any UE 5.7 project.",
+  "version": "0.9.0",
+  "description": "Drive Unreal Engine 5.7 from Claude (or any MCP client) over a local TCP socket. Thirty-two generic editor-automation tools that work with any UE 5.7 project.",
   "transport": {
     "type": "tcp",
     "host": "127.0.0.1",
@@ -243,6 +243,43 @@
         "actor_name": "string (required) - actor label or FName"
       },
       "returns": { "ok": "bool", "sequence_path": "string", "binding_guid": "string", "actor_label": "string", "binding_type": "string" }
+    },
+    {
+      "name": "create_material_instance",
+      "description": "Create a UMaterialInstanceConstant asset and set its parent to an existing UMaterial or UMaterialInstance.",
+      "params": {
+        "parent_path": "string (required) - path of the parent UMaterial or UMaterialInstance",
+        "path": "string (required) - destination folder under /Game/",
+        "name": "string (required) - leaf asset name (no '/' or '.')"
+      },
+      "returns": { "ok": "bool", "asset_path": "string", "package_path": "string", "parent_path": "string" }
+    },
+    {
+      "name": "set_mi_parameter",
+      "description": "Override a scalar/vector/texture parameter on a UMaterialInstanceConstant.",
+      "params": {
+        "path": "string (required) - material instance asset path",
+        "parameter": "string (required) - parameter name as declared on the parent material",
+        "type": "string (required) - one of: scalar | vector | texture",
+        "value": "varies by type - scalar: number; vector: {r,g,b,a}; texture: string asset path"
+      },
+      "returns": { "ok": "bool", "path": "string", "parameter": "string", "type": "string", "applied_value": "varies by type" }
+    },
+    {
+      "name": "inspect_material",
+      "description": "List parameter names declared by a UMaterial or UMaterialInstance: scalar, vector, texture, and static-switch parameters.",
+      "params": {
+        "path": "string (required) - material asset path"
+      },
+      "returns": { "ok": "bool", "name": "string", "package_path": "string", "class": "string", "scalar_parameters": "array of string", "vector_parameters": "array of string", "texture_parameters": "array of string", "static_switch_parameters": "array of string" }
+    },
+    {
+      "name": "inspect_material_instance",
+      "description": "Read a UMaterialInstanceConstant's parent and currently-overridden parameter values (scalar/vector/texture).",
+      "params": {
+        "path": "string (required) - material instance asset path"
+      },
+      "returns": { "ok": "bool", "name": "string", "package_path": "string", "parent_path": "string", "scalar_overrides": "object", "vector_overrides": "object", "texture_overrides": "object" }
     }
   ]
 }

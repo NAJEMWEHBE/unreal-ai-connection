@@ -13,7 +13,7 @@ plugin speaks raw JSON-RPC over a local TCP socket (default
 Behaviour:
   - "initialize"             returned synthetically (does NOT hit the UE server)
   - "notifications/*"        consumed silently
-  - "tools/list"             returns a static list mirroring the 28 handlers
+  - "tools/list"             returns a static list mirroring the 32 handlers
   - "tools/call"             unpacks {name, arguments} and forwards to the
                              UE server as the matching method
   - All other methods        proxied as-is
@@ -35,10 +35,11 @@ UE_PORT = int(os.environ.get("UCMCP_PORT", "18888"))
 
 PROTOCOL_VERSION = "2024-11-05"
 SERVER_NAME = "unreal-claude-mcp"
-SERVER_VERSION = "0.8.0"
+SERVER_VERSION = "0.9.0"
 
 # Mirror of UnrealClaudeMCP/Resources/mcp_manifest.json - kept in sync manually.
-# v0.8.0: 28 tools (added inspect_sequence, create_sequence, bind_actor_to_sequence).
+# v0.9.0: 32 tools (added create_material_instance, set_mi_parameter,
+#                   inspect_material, inspect_material_instance).
 TOOLS = [
     {
         "name": "execute_unreal_python",
@@ -360,6 +361,55 @@ TOOLS = [
                 "actor_name": {"type": "string", "description": "Actor label or FName in the current editor world. Hybrid identification: ambiguous labels return ambiguous_actor."},
             },
             "required": ["sequence_path", "actor_name"],
+        },
+    },
+    {
+        "name": "create_material_instance",
+        "description": "Create a UMaterialInstanceConstant asset and set its parent to an existing UMaterial or UMaterialInstance.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "parent_path": {"type": "string", "description": "Path of the parent UMaterial or UMaterialInstance."},
+                "path": {"type": "string", "description": "Destination folder under /Game/."},
+                "name": {"type": "string", "description": "Leaf asset name (no '/' or '.')."},
+            },
+            "required": ["parent_path", "path", "name"],
+        },
+    },
+    {
+        "name": "set_mi_parameter",
+        "description": "Override a scalar/vector/texture parameter on a UMaterialInstanceConstant. Type discriminator: 'scalar' -> number, 'vector' -> {r,g,b,a}, 'texture' -> asset path string.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "Material instance asset path."},
+                "parameter": {"type": "string", "description": "Parameter name as declared on the parent material."},
+                "type": {"type": "string", "enum": ["scalar", "vector", "texture"], "description": "Parameter type discriminator."},
+                "value": {"description": "Value shape varies by type: scalar -> number, vector -> {r,g,b,a}, texture -> string asset path."},
+            },
+            "required": ["path", "parameter", "type", "value"],
+        },
+    },
+    {
+        "name": "inspect_material",
+        "description": "List parameter names declared by a UMaterial or UMaterialInstance: scalar, vector, texture, and static-switch parameters.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "Material asset path (UMaterial or UMaterialInstance)."},
+            },
+            "required": ["path"],
+        },
+    },
+    {
+        "name": "inspect_material_instance",
+        "description": "Read a UMaterialInstanceConstant's parent + currently-overridden parameter values (scalar/vector/texture).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "Material instance asset path."},
+            },
+            "required": ["path"],
         },
     },
 ]

@@ -913,6 +913,141 @@ The binding name is set to the actor's `GetActorLabel()`, which means `inspect_s
 
 ---
 
+## create_material_instance
+
+Create a `UMaterialInstanceConstant` asset and set its parent to an existing `UMaterial` or `UMaterialInstance`.
+
+**Params**
+- `parent_path` (string, required) — path of the parent material or material instance.
+- `path` (string, required) — destination folder under `/Game/`.
+- `name` (string, required) — leaf asset name. No `/` or `.` allowed.
+
+**Result**
+- `ok`, `asset_path`, `package_path`
+- `parent_path` (string) — full path of the parent (echoes back what was set)
+
+**Errors:** `missing_required_field`, `invalid_path`, `invalid_asset_name`, `parent_not_found`, `parent_not_a_material`, `dest_exists`, `create_failed`.
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"create_material_instance","params":{
+  "parent_path": "/Game/Materials/M_Stone",
+  "path": "/Game/Materials/Instances",
+  "name": "MI_Stone_Wet"
+}}
+```
+
+The new instance starts with no parameter overrides; use `set_mi_parameter` to customize it.
+
+---
+
+## set_mi_parameter
+
+Override a scalar/vector/texture parameter on a `UMaterialInstanceConstant`. Single handler with a `type` discriminator — the JSON `value` shape varies by type.
+
+**Params**
+- `path` (string, required) — material instance asset path.
+- `parameter` (string, required) — parameter name as declared on the parent material.
+- `type` (string, required) — one of `"scalar"`, `"vector"`, `"texture"`.
+- `value` (varies by type, required):
+  - `"scalar"` → number, e.g. `0.75`
+  - `"vector"` → object `{r, g, b, a}` (each in `[0, 1]`; `a` defaults to `1.0` if omitted)
+  - `"texture"` → string asset path of a `UTexture`
+
+**Result**
+- `ok`, `path`, `parameter`, `type` — echo back what was set
+- `applied_value` — same shape as input `value` (textures normalized to canonical asset path)
+
+**Errors:** `missing_required_field`, `asset_not_found`, `not_a_material_instance`, `invalid_parameter_type`, `invalid_value_shape`, `texture_not_found`, `parameter_not_applied`.
+
+`parameter_not_applied` fires when UE's setter returns false — typically because the parameter name isn't declared on the parent material. Use `inspect_material` on the parent first to learn what parameters are available.
+
+**Examples**
+
+Scalar:
+```json
+{"jsonrpc":"2.0","id":1,"method":"set_mi_parameter","params":{
+  "path": "/Game/Materials/MI_Stone_Wet",
+  "parameter": "Roughness",
+  "type": "scalar",
+  "value": 0.85
+}}
+```
+
+Vector:
+```json
+{"jsonrpc":"2.0","id":1,"method":"set_mi_parameter","params":{
+  "path": "/Game/Materials/MI_Stone_Wet",
+  "parameter": "BaseColorTint",
+  "type": "vector",
+  "value": {"r": 0.6, "g": 0.6, "b": 0.7}
+}}
+```
+
+Texture:
+```json
+{"jsonrpc":"2.0","id":1,"method":"set_mi_parameter","params":{
+  "path": "/Game/Materials/MI_Stone_Wet",
+  "parameter": "BaseColorMap",
+  "type": "texture",
+  "value": "/Game/Textures/T_Stone_Wet_D"
+}}
+```
+
+---
+
+## inspect_material
+
+List parameter names declared by a `UMaterial` or `UMaterialInstance`. Discovery tool: pair with `find_assets` to find materials, then `inspect_material` to learn what parameters are available, then `set_mi_parameter` to override.
+
+**Params**
+- `path` (string, required) — material asset path. Both forms accepted.
+
+**Result**
+- `name`, `package_path`, `class`
+- `scalar_parameters` (array of string) — sorted alphabetically
+- `vector_parameters` (array of string) — sorted alphabetically
+- `texture_parameters` (array of string) — sorted alphabetically
+- `static_switch_parameters` (array of string) — sorted alphabetically
+
+**Errors:** `missing_required_field`, `asset_not_found`, `not_a_material`.
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"inspect_material","params":{
+  "path": "/Game/Materials/M_Stone"
+}}
+```
+
+Static-switch parameters are listed for visibility but cannot be set via `set_mi_parameter` in v0.9.0 — that mutator is deferred to v0.9.x because it triggers shader recompiles.
+
+---
+
+## inspect_material_instance
+
+Read a `UMaterialInstanceConstant`'s parent and currently-overridden parameter values. Only **overridden** parameters appear in the output — parameters inherited unchanged from the parent are not listed. Pair with `inspect_material` (on the parent path) to see the full set of available parameters.
+
+**Params**
+- `path` (string, required) — material instance asset path.
+
+**Result**
+- `name`, `package_path`
+- `parent_path` (string) — full path of the parent material; empty string if no parent (rare; usually means a partially-initialized asset)
+- `scalar_overrides` (object) — `{parameter_name: number}` map of overridden scalar parameters
+- `vector_overrides` (object) — `{parameter_name: {r, g, b, a}}` map of overridden vector parameters
+- `texture_overrides` (object) — `{parameter_name: asset_path_string}` map of overridden texture parameters; empty string if a texture override exists but the texture pointer is null
+
+**Errors:** `missing_required_field`, `asset_not_found`, `not_a_material_instance`.
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"inspect_material_instance","params":{
+  "path": "/Game/Materials/MI_Stone_Wet"
+}}
+```
+
+---
+
 ## Adding more tools
 
 See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the recipe. Short version: one `.cpp` file in `Source/UnrealClaudeMCP/Private/MCP/Handlers/`, two registration lines in `UnrealClaudeMCPModule.cpp`, one entry in `Resources/mcp_manifest.json`, one entry in `bridge/unreal_claude_mcp_bridge.py`'s `TOOLS` list, rebuild, restart.
