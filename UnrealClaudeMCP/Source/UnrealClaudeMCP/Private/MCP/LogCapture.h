@@ -45,10 +45,30 @@ public:
 
     /**
      * FOutputDevice override — called by FOutputDeviceRedirector on every log
-     * event from any thread.  Protected by Mutex.
+     * event from any thread.  Protected by Mutex + thread-local re-entrancy
+     * guard (see .cpp).
      */
     virtual void Serialize(const TCHAR* V, ELogVerbosity::Type Verbosity,
                            const FName& Category) override;
+
+    /**
+     * Opt in to multi-threaded log dispatch. Without this override (default
+     * returns false), GLog serializes all log calls through a queue and the
+     * game thread can stall waiting on heavy log dispatch — which breaks the
+     * FTSTicker callback that drives our MCPServer dispatch loop.
+     *
+     * Our Serialize() is thread-safe (FCriticalSection + thread-local re-
+     * entrancy guard), so we can safely tell GLog to call us directly from
+     * the originating thread.
+     */
+    virtual bool CanBeUsedOnAnyThread() const override { return true; }
+
+    /**
+     * Same opt-in for the panic / fatal-error log path (UE_LOG with Fatal
+     * verbosity). Our buffer write is short and lock-protected; safe to call
+     * from a panic context.
+     */
+    virtual bool CanBeUsedOnPanicThread() const override { return true; }
 
     /**
      * Copy the ring buffer contents to a flat array (oldest-first).

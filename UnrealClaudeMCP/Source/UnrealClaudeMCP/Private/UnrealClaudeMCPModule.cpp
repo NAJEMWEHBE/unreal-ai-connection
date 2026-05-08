@@ -38,6 +38,9 @@ void FUnrealClaudeMCPModule::StartupModule()
 
     // Register the log capture device before anything else so early log lines
     // (including handler registration messages) are buffered from the start.
+    // CanBeUsedOnAnyThread() = true on the device opts us out of GLog's
+    // serializing queue, which would otherwise stall the game thread under
+    // heavy startup logging and break the FTSTicker dispatch loop.
     GLog->AddOutputDevice(&FUCMCPLogCapture::Get());
 
     FUCMCPHandlerRegistry& Reg = FUCMCPHandlerRegistry::Get();
