@@ -106,9 +106,25 @@ Each handler stays a leaf — these modules just lift cross-cutting concerns to 
 
 Tradeoff: a slow handler will stall the editor's tick. This is acceptable for the current 19 tools (none are long-running). Future handlers that block on disk I/O or the network should dispatch the actual work to a worker thread and return a ticket the client can poll.
 
-## JSON-RPC framing
+## JSON-RPC framing (v0.5.0+)
 
-Each TCP message is one complete JSON object. No length prefix, no newline framing — the dispatcher parses on the assumption that every recv() returns one whole message. This is a simplification, not a wire-protocol commitment. If you push very large payloads through and notice truncation, switch to length-prefixed framing in `FUCMCPServer::TickClients`.
+Every TCP message uses explicit length-prefixed framing. Each frame on the wire is:
+
+```
++--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+
+|     8-byte big-endian uint64 body length     |       N bytes of UTF-8 JSON body         |
++--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+
+```
+
+- The 8-byte prefix encodes the body byte count as an unsigned 64-bit integer in network (big-endian) byte order.
+- The body is the raw UTF-8 JSON-RPC 2.0 object.
+- Length of 0 is invalid. Length > 1 GB is invalid. Both are rejected with `framing_error`.
+
+Both sides (`MCPServer.cpp` via `ReadFramedMessage` / `WriteFramedMessage`, and the bridge via `recv_framed` / `send_framed`) loop on `Recv` / `Send` until the exact byte count is transferred, eliminating the old "one `recv()` = one whole message" assumption.
+
+**Stable error code: `framing_error`** — returned when the length prefix is unreadable, when the declared length exceeds the 1 GB cap, when the declared length is zero, or when body bytes stop arriving before the declared length is met (socket timeout or premature close).
+
+Mixed-version connections (v0.4.0 bridge + v0.5.0 plugin, or vice versa) fail immediately with a framing error on the receiving side — loud, not silent. The bridge and plugin must be upgraded together.
 
 ## Why a Python bridge
 

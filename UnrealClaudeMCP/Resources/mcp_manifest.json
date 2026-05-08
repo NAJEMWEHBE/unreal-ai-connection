@@ -1,12 +1,12 @@
 {
   "name": "UnrealClaudeMCP",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Drive Unreal Engine 5.7 from Claude (or any MCP client) over a local TCP socket. Nineteen generic editor-automation tools that work with any UE 5.7 project.",
   "transport": {
     "type": "tcp",
     "host": "127.0.0.1",
     "port": 18888,
-    "framing": "json-per-message"
+    "framing": "length-prefixed-uint64-be-json"
   },
   "tools": [
     {

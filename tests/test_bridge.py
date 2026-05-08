@@ -285,21 +285,34 @@ def test_handle_tools_call_default_empty_arguments():
 # -------- call_ue: socket-level error paths ----------------------------------
 
 def _make_fake_socket(recv_chunks):
-    """Build a mock socket whose recv() yields the supplied byte chunks then b''."""
+    """Build a mock socket whose recv() yields the supplied byte chunks then b''.
+
+    For the v0.5.0 framed protocol the chunks must include the 8-byte big-endian
+    length prefix followed by the body.  Use _framed(body_bytes) to build them.
+    """
     sock = MagicMock()
     sock.recv.side_effect = list(recv_chunks) + [b""]
     return sock
 
 
+def _framed(body: bytes) -> list:
+    """Return [prefix_bytes, body_bytes] — the two recv() chunks for one framed message."""
+    prefix = len(body).to_bytes(8, byteorder="big", signed=False)
+    return [prefix, body]
+
+
 def test_call_ue_sends_method_and_params_and_returns_result():
-    payload = b'{"jsonrpc":"2.0","id":1,"result":{"ok":true}}'
-    sock = _make_fake_socket([payload])
+    body = b'{"jsonrpc":"2.0","id":1,"result":{"ok":true}}'
+    sock = _make_fake_socket(_framed(body))
     with patch.object(socket, "socket", return_value=sock):
         resp = bridge.call_ue("focus_actor", {"name": "Cube"})
 
-    # Verify what was put on the wire
+    # Verify what was put on the wire (sendall receives prefix+body as one call)
     sock.sendall.assert_called_once()
-    sent = json.loads(sock.sendall.call_args[0][0].decode("utf-8"))
+    sent_bytes = sock.sendall.call_args[0][0]
+    # The first 8 bytes are the length prefix; the rest is the JSON body
+    sent_body = sent_bytes[8:]
+    sent = json.loads(sent_body.decode("utf-8"))
     assert sent["jsonrpc"] == "2.0"
     assert sent["method"] == "focus_actor"
     assert sent["params"] == {"name": "Cube"}
@@ -309,11 +322,12 @@ def test_call_ue_sends_method_and_params_and_returns_result():
 
 def test_call_ue_omits_params_when_empty():
     """Per the bridge contract, an empty params dict should NOT be sent."""
-    payload = b'{"jsonrpc":"2.0","id":1,"result":{}}'
-    sock = _make_fake_socket([payload])
+    body = b'{"jsonrpc":"2.0","id":1,"result":{}}'
+    sock = _make_fake_socket(_framed(body))
     with patch.object(socket, "socket", return_value=sock):
         bridge.call_ue("list_tools", {})
-    sent = json.loads(sock.sendall.call_args[0][0].decode("utf-8"))
+    sent_bytes = sock.sendall.call_args[0][0]
+    sent = json.loads(sent_bytes[8:].decode("utf-8"))
     assert "params" not in sent
 
 
@@ -343,16 +357,20 @@ def test_call_ue_returns_error_on_oserror():
 
 
 def test_call_ue_returns_parse_error_on_non_json_response():
-    sock = _make_fake_socket([b"not json at all }"])
+    body = b"not json at all }"
+    sock = _make_fake_socket(_framed(body))
     with patch.object(socket, "socket", return_value=sock):
         resp = bridge.call_ue("list_tools", {})
     assert resp["error"]["code"] == -32700
 
 
 def test_call_ue_handles_chunked_response():
-    """Server may split a payload across multiple recv() calls; the loop reads
-    until the buffer ends with '}' (or EOF)."""
-    chunks = [b'{"jsonrpc":"2.0",', b'"id":1,', b'"result":{"ok":true}}']
+    """Server may split the body across multiple recv() calls; recv_exact loops
+    until all bytes arrive."""
+    body = b'{"jsonrpc":"2.0","id":1,"result":{"ok":true}}'
+    prefix = len(body).to_bytes(8, byteorder="big", signed=False)
+    # Deliver prefix in one chunk, body in three fragments
+    chunks = [prefix, body[:17], body[17:25], body[25:]]
     sock = _make_fake_socket(chunks)
     with patch.object(socket, "socket", return_value=sock):
         resp = bridge.call_ue("list_tools", {})

@@ -132,7 +132,7 @@ tests/                            Pytest suite for the bridge (no UE required)
 
 | | |
 |---|---|
-| **Latest release** | v0.4.0 — 2026-05-08 |
+| **Latest release** | v0.5.0 — 2026-05-08 |
 | **Tools** | 19 live, smoke-tested end-to-end |
 | **Tested on** | UE 5.7.4 / Windows 11 / Visual Studio 2026 / MSVC 14.50 |
 | **Bridge tests** | 71 pytest cases, ~99% coverage |
