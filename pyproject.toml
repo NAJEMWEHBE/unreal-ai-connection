@@ -1,0 +1,101 @@
+[project]
+name = "unreal-claude-mcp-bridge"
+version = "0.2.0"
+description = "Python bridge for the UnrealClaudeMCP Unreal Engine 5.7 plugin. Translates Claude Code's stdio MCP transport to the plugin's raw JSON-RPC over a local TCP socket."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
+authors = [
+    { name = "HD Media" },
+]
+keywords = [
+    "unreal-engine",
+    "ue5",
+    "ue5.7",
+    "mcp",
+    "model-context-protocol",
+    "claude",
+    "claude-code",
+    "editor-automation",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Plugins",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Multimedia :: Graphics :: 3D Modeling",
+    "Topic :: Software Development :: Libraries",
+]
+
+[project.urls]
+Homepage = "https://github.com/NAJEMWEHBE/UnrealClaudeMCP"
+Repository = "https://github.com/NAJEMWEHBE/UnrealClaudeMCP"
+Issues = "https://github.com/NAJEMWEHBE/UnrealClaudeMCP/issues"
+
+# The bridge has no runtime dependencies beyond the Python stdlib.
+# Dev dependencies (pytest, ruff) are below under [project.optional-dependencies].
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "ruff>=0.5.0",
+]
+
+# ---------------------------------------------------------------------------
+# Tool configuration
+# ---------------------------------------------------------------------------
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = [
+    # Generated / vendored
+    ".git",
+    ".github",
+    "build",
+    "dist",
+    # UE-side artifacts (not Python)
+    "UnrealClaudeMCP/Binaries",
+    "UnrealClaudeMCP/Intermediate",
+    "UnrealClaudeMCP/Saved",
+]
+
+[tool.ruff.lint]
+# Conservative rule set — the bridge is small stdlib-only code; we don't
+# need aggressive lints. This catches real bugs (F, B), enforces import
+# order (I), keeps style consistent (E, W), and modernizes idioms (UP).
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes (real bugs: unused imports, undefined names)
+    "I",   # isort (import order)
+    "B",   # flake8-bugbear (likely bugs and design problems)
+    "UP",  # pyupgrade (use newer syntax where available)
+]
+# E501 (line too long) is delegated to the formatter — it will wrap or warn
+# but doesn't fail the lint.
+ignore = ["E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["unreal_claude_mcp_bridge"]
+
+[tool.ruff.format]
+# Ruff format is roughly black-compatible.
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --strict-markers"
+# The bridge module lives outside conventional package layout; conftest.py
+# inserts the path at collection time. Don't change this without reading
+# tests/conftest.py.
