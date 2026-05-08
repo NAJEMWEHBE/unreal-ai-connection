@@ -792,6 +792,41 @@ Rename an asset's leaf name. The containing folder does not change.
 
 ---
 
+## delete_asset
+
+Delete an asset from the project. By default, refuses if any other package references the asset.
+
+**Params**
+- `path` (string, required) — asset path to delete. Both forms accepted.
+- `force` (bool, optional, default `false`) — when `true`, delete even if referenced.
+
+**Result**
+- `ok` (bool)
+- `deleted_path` (string) — the asset path that was deleted
+
+**Errors:** `missing_required_field`, `asset_not_found`, `has_referencers`, `delete_failed`.
+
+**Safety**
+
+UE's `EditorAssetLibrary::DeleteAsset` is documented as a force-delete that does **not** check referencers — it will happily delete a texture being used by 50 actors and cascade into broken references. The handler runs `IAssetRegistry::GetReferencers` first and refuses unless `force=true`. The `has_referencers` error message lists up to 5 referencer package names so the caller can see what would break.
+
+`force=true` cannot be recovered via Undo. Make sure your source-control checkout has the asset before deleting.
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"delete_asset","params":{
+  "path": "/Game/Textures/T_Stone_OldVariant",
+  "force": false
+}}
+```
+
+If `T_Stone_OldVariant` is referenced by `M_Stone` and `M_StoneWet`, the response is:
+```json
+{"jsonrpc":"2.0","id":1,"error":{"code":-32000,"message":"delete_asset: has_referencers: '/Game/Textures/T_Stone_OldVariant' is referenced by 2 package(s): /Game/Materials/M_Stone, /Game/Materials/M_StoneWet. Set force=true to delete anyway."}}
+```
+
+---
+
 ## Adding more tools
 
 See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the recipe. Short version: one `.cpp` file in `Source/UnrealClaudeMCP/Private/MCP/Handlers/`, two registration lines in `UnrealClaudeMCPModule.cpp`, one entry in `Resources/mcp_manifest.json`, one entry in `bridge/unreal_claude_mcp_bridge.py`'s `TOOLS` list, rebuild, restart.

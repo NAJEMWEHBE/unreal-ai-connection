@@ -206,6 +206,15 @@
         "new_name": "string (required) - new leaf name (no '/' or '.')"
       },
       "returns": { "ok": "bool", "old_path": "string", "new_path": "string" }
+    },
+    {
+      "name": "delete_asset",
+      "description": "Delete an asset. Refuses if referenced by other packages unless force=true. Force-delete cannot be recovered via Undo.",
+      "params": {
+        "path": "string (required) - asset path to delete",
+        "force": "bool (optional, default false) - delete even if referenced"
+      },
+      "returns": { "ok": "bool", "deleted_path": "string" }
     }
   ]
 }

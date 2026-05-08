@@ -313,6 +313,18 @@ TOOLS = [
             "required": ["path", "new_name"],
         },
     },
+    {
+        "name": "delete_asset",
+        "description": "Delete an asset. Refuses if referenced by other packages unless force=true. WARNING: deletion is permanent within the project; force-delete cannot recover via Undo.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "Asset path to delete."},
+                "force": {"type": "boolean", "description": "When true, delete even if referenced (default false)."},
+            },
+            "required": ["path"],
+        },
+    },
 ]
 
 
