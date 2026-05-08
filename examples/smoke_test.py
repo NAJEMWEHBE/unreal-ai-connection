@@ -168,7 +168,7 @@ def main():
         assert_error_code(resp, -32601, "unknown_method")
     step("unknown_method", t0)
 
-    header("1. list_tools (should list 25 tool names)")
+    header("1. list_tools (should list 28 tool names)")
     def t1():
         resp = call("list_tools")
         show(resp)
@@ -176,8 +176,8 @@ def main():
         tools = result.get("tools")
         if not isinstance(tools, list):
             raise SmokeFailure(f"[list_tools] 'tools' not a list: {result}")
-        if len(tools) != 25:
-            raise SmokeFailure(f"[list_tools] expected 25 tools, got {len(tools)}: {tools}")
+        if len(tools) != 28:
+            raise SmokeFailure(f"[list_tools] expected 28 tools, got {len(tools)}: {tools}")
         if result.get("count") != len(tools):
             raise SmokeFailure(f"[list_tools] 'count' ({result.get('count')}) != len(tools) ({len(tools)})")
     step("list_tools", t1)
@@ -552,6 +552,37 @@ def main():
                     f"[delete_asset] expected asset_not_found error, got success: {delete_resp}"
                 )
     step("asset_registry", t_asset_registry)
+
+    # -------- v0.8.0: sequencer scaffolding ---------------------------------
+    # One read-only check: find any LevelSequence in the project and inspect
+    # its structure. If the project has no Level Sequences, log and skip
+    # (no warning) — sequencer is optional content, not all projects use it.
+    def t_sequencer():
+        find_resp = call("find_assets", {
+            "class_path": "/Script/LevelSequence.LevelSequence",
+            "path_under": "/Game/",
+            "limit": 1,
+        })
+        find_res = assert_ok(find_resp, "find_assets.level_sequences")
+        if find_res.get("returned", 0) < 1:
+            print("  [t_sequencer] no Level Sequences in /Game/ — skipping inspect_sequence")
+            return
+
+        first_seq = find_res["assets"][0]
+        inspect_resp = call("inspect_sequence", {"path": first_seq["package_path"]})
+        inspect_res = assert_ok(inspect_resp, "inspect_sequence.first_found")
+        for required_key in ("name", "package_path", "tick_resolution",
+                             "display_rate_fps", "playback_range",
+                             "bindings", "tracks"):
+            if required_key not in inspect_res:
+                raise SmokeFailure(
+                    f"[inspect_sequence] missing key '{required_key}' in result: {inspect_res}"
+                )
+        if not isinstance(inspect_res["bindings"], list):
+            raise SmokeFailure(f"[inspect_sequence] bindings not a list: {inspect_res['bindings']}")
+        if not isinstance(inspect_res["tracks"], list):
+            raise SmokeFailure(f"[inspect_sequence] tracks not a list: {inspect_res['tracks']}")
+    step("sequencer", t_sequencer)
 
     if args.bp:
         header(f"10. inspect_blueprint  ({args.bp})")
