@@ -15,7 +15,6 @@
 #include "Misc/ScopeExit.h"
 #include "Modules/ModuleManager.h"
 #include "PixelFormat.h"
-#include "UObject/Class.h"  // for StaticEnum
 
 class FHandler_ImportTexture : public IUCMCPHandler
 {
@@ -120,7 +119,7 @@ public:
         Result->SetNumberField(TEXT("width"), Imported->GetSizeX());
         Result->SetNumberField(TEXT("height"), Imported->GetSizeY());
         Result->SetStringField(TEXT("format"),
-            StaticEnum<EPixelFormat>()->GetNameStringByValue((int64)Imported->GetPixelFormat()));
+            FString(GetPixelFormatString(Imported->GetPixelFormat())));
         Result->SetStringField(TEXT("message"),
             FString::Printf(TEXT("Imported %dx%d %s as UTexture2D."),
                 Imported->GetSizeX(), Imported->GetSizeY(), *Ext.ToUpper()));
