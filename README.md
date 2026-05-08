@@ -13,6 +13,8 @@ Thirteen editor-automation tools. Zero pixel-clicking. ~50ms round-trip.
 [![MCP](https://img.shields.io/badge/MCP-compatible-7c3aed)](https://modelcontextprotocol.io/)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](#contributing)
 
+![UnrealClaudeMCP — abstract geometric AI core on the left, orange data streams flowing right into a wireframe low-poly 3D landscape with mountains and a glowing river](docs/images/hero-banner.png)
+
 </div>
 
 ---
