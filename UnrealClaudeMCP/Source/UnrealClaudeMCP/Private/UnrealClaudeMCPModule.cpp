@@ -25,6 +25,7 @@ extern TSharedRef<IUCMCPHandler> Make_Handler_SpawnActor();
 extern TSharedRef<IUCMCPHandler> Make_Handler_SetActorTransform();
 extern TSharedRef<IUCMCPHandler> Make_Handler_DeleteActor();
 extern TSharedRef<IUCMCPHandler> Make_Handler_SetActorProperty();
+extern TSharedRef<IUCMCPHandler> Make_Handler_AddComponent();
 
 static constexpr int32 kMCPDefaultPort = 18888;
 
@@ -51,6 +52,7 @@ void FUnrealClaudeMCPModule::StartupModule()
     Reg.Register(Make_Handler_SetActorTransform());
     Reg.Register(Make_Handler_DeleteActor());
     Reg.Register(Make_Handler_SetActorProperty());
+    Reg.Register(Make_Handler_AddComponent());
 
     FUCMCPServer::Get().Start(kMCPDefaultPort);
 }
