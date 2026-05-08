@@ -159,7 +159,7 @@ public:
             bool bOverrideLanded = false;
             for (const FScalarParameterValue& SV : MIC->ScalarParameterValues)
             {
-                if (SV.ParameterInfo.GetName() == ParamFName)
+                if (SV.ParameterInfo.Name == ParamFName)
                 {
                     bOverrideLanded = true;
                     break;
@@ -217,7 +217,7 @@ public:
             bool bVectorLanded = false;
             for (const FVectorParameterValue& VV : MIC->VectorParameterValues)
             {
-                if (VV.ParameterInfo.GetName() == ParamFName)
+                if (VV.ParameterInfo.Name == ParamFName)
                 {
                     bVectorLanded = true;
                     break;
@@ -279,7 +279,7 @@ public:
             bool bTextureLanded = false;
             for (const FTextureParameterValue& TV : MIC->TextureParameterValues)
             {
-                if (TV.ParameterInfo.GetName() == ParamFName)
+                if (TV.ParameterInfo.Name == ParamFName)
                 {
                     bTextureLanded = true;
                     break;

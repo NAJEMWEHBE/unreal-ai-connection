@@ -89,12 +89,13 @@ public:
 
         // Scalar overrides. ScalarParameterValues at MaterialInstance.h:750;
         // FScalarParameterValue at MaterialInstance.h:63 with ParameterInfo
-        // (line 76) and ParameterValue (line 79). FMaterialParameterInfo's
-        // canonical name accessor is GetName() at MaterialParameters.h:123.
+        // (line 76) and ParameterValue (line 79). FMaterialParameterInfo
+        // exposes the parameter name as a public FName field `Name` at
+        // MaterialParameters.h:32 (no accessor method).
         TSharedRef<FJsonObject> ScalarJson = MakeShared<FJsonObject>();
         for (const FScalarParameterValue& SV : MIC->ScalarParameterValues)
         {
-            ScalarJson->SetNumberField(SV.ParameterInfo.GetName().ToString(),
+            ScalarJson->SetNumberField(SV.ParameterInfo.Name.ToString(),
                 static_cast<double>(SV.ParameterValue));
         }
         Out->SetObjectField(TEXT("scalar_overrides"), ScalarJson);
@@ -108,7 +109,7 @@ public:
             ColorJson->SetNumberField(TEXT("g"), VV.ParameterValue.G);
             ColorJson->SetNumberField(TEXT("b"), VV.ParameterValue.B);
             ColorJson->SetNumberField(TEXT("a"), VV.ParameterValue.A);
-            VectorJson->SetObjectField(VV.ParameterInfo.GetName().ToString(), ColorJson);
+            VectorJson->SetObjectField(VV.ParameterInfo.Name.ToString(), ColorJson);
         }
         Out->SetObjectField(TEXT("vector_overrides"), VectorJson);
 
@@ -120,7 +121,7 @@ public:
             const FString AssetPath = TV.ParameterValue
                 ? TV.ParameterValue->GetPathName()
                 : FString();
-            TextureJson->SetStringField(TV.ParameterInfo.GetName().ToString(), AssetPath);
+            TextureJson->SetStringField(TV.ParameterInfo.Name.ToString(), AssetPath);
         }
         Out->SetObjectField(TEXT("texture_overrides"), TextureJson);
 
