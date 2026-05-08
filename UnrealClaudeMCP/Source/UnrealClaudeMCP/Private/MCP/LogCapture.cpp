@@ -61,7 +61,16 @@ void FUCMCPLogCapture::Serialize(const TCHAR* V, ELogVerbosity::Type Verbosity,
 
     // Convert ELogVerbosity to the canonical string names that match the
     // min_verbosity parameter accepted by get_log_lines.
-    switch (Verbosity)
+    //
+    // UE packs flag bits (SetColor, BreakOnLog, etc.) into the upper byte of
+    // ELogVerbosity::Type. We must mask those off with VerbosityMask (= 0xf)
+    // before comparing — otherwise a flagged Warning falls through to the
+    // default branch and gets misclassified as "Log", which causes
+    // get_log_lines's min_verbosity filter to silently drop higher-severity
+    // lines. (Caught by Codex review on v0.6.0 PR #11.)
+    const ELogVerbosity::Type MaskedVerbosity =
+        static_cast<ELogVerbosity::Type>(Verbosity & ELogVerbosity::VerbosityMask);
+    switch (MaskedVerbosity)
     {
         case ELogVerbosity::Fatal:       Entry.Verbosity = TEXT("Fatal");       break;
         case ELogVerbosity::Error:       Entry.Verbosity = TEXT("Error");       break;
