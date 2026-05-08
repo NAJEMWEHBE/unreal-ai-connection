@@ -941,6 +941,61 @@ The new instance starts with no parameter overrides; use `set_mi_parameter` to c
 
 ---
 
+## set_mi_parameter
+
+Override a scalar/vector/texture parameter on a `UMaterialInstanceConstant`. Single handler with a `type` discriminator — the JSON `value` shape varies by type.
+
+**Params**
+- `path` (string, required) — material instance asset path.
+- `parameter` (string, required) — parameter name as declared on the parent material.
+- `type` (string, required) — one of `"scalar"`, `"vector"`, `"texture"`.
+- `value` (varies by type, required):
+  - `"scalar"` → number, e.g. `0.75`
+  - `"vector"` → object `{r, g, b, a}` (each in `[0, 1]`; `a` defaults to `1.0` if omitted)
+  - `"texture"` → string asset path of a `UTexture`
+
+**Result**
+- `ok`, `path`, `parameter`, `type` — echo back what was set
+- `applied_value` — same shape as input `value` (textures normalized to canonical asset path)
+
+**Errors:** `missing_required_field`, `asset_not_found`, `not_a_material_instance`, `invalid_parameter_type`, `invalid_value_shape`, `texture_not_found`, `parameter_not_applied`.
+
+`parameter_not_applied` fires when UE's setter returns false — typically because the parameter name isn't declared on the parent material. Use `inspect_material` on the parent first to learn what parameters are available.
+
+**Examples**
+
+Scalar:
+```json
+{"jsonrpc":"2.0","id":1,"method":"set_mi_parameter","params":{
+  "path": "/Game/Materials/MI_Stone_Wet",
+  "parameter": "Roughness",
+  "type": "scalar",
+  "value": 0.85
+}}
+```
+
+Vector:
+```json
+{"jsonrpc":"2.0","id":1,"method":"set_mi_parameter","params":{
+  "path": "/Game/Materials/MI_Stone_Wet",
+  "parameter": "BaseColorTint",
+  "type": "vector",
+  "value": {"r": 0.6, "g": 0.6, "b": 0.7}
+}}
+```
+
+Texture:
+```json
+{"jsonrpc":"2.0","id":1,"method":"set_mi_parameter","params":{
+  "path": "/Game/Materials/MI_Stone_Wet",
+  "parameter": "BaseColorMap",
+  "type": "texture",
+  "value": "/Game/Textures/T_Stone_Wet_D"
+}}
+```
+
+---
+
 ## Adding more tools
 
 See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the recipe. Short version: one `.cpp` file in `Source/UnrealClaudeMCP/Private/MCP/Handlers/`, two registration lines in `UnrealClaudeMCPModule.cpp`, one entry in `Resources/mcp_manifest.json`, one entry in `bridge/unreal_claude_mcp_bridge.py`'s `TOOLS` list, rebuild, restart.

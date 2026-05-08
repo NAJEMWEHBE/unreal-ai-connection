@@ -375,6 +375,20 @@ TOOLS = [
             "required": ["parent_path", "path", "name"],
         },
     },
+    {
+        "name": "set_mi_parameter",
+        "description": "Override a scalar/vector/texture parameter on a UMaterialInstanceConstant. Type discriminator: 'scalar' -> number, 'vector' -> {r,g,b,a}, 'texture' -> asset path string.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "Material instance asset path."},
+                "parameter": {"type": "string", "description": "Parameter name as declared on the parent material."},
+                "type": {"type": "string", "enum": ["scalar", "vector", "texture"], "description": "Parameter type discriminator."},
+                "value": {"description": "Value shape varies by type: scalar -> number, vector -> {r,g,b,a}, texture -> string asset path."},
+            },
+            "required": ["path", "parameter", "type", "value"],
+        },
+    },
 ]
 
 

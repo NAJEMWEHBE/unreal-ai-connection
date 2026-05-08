@@ -253,6 +253,17 @@
         "name": "string (required) - leaf asset name (no '/' or '.')"
       },
       "returns": { "ok": "bool", "asset_path": "string", "package_path": "string", "parent_path": "string" }
+    },
+    {
+      "name": "set_mi_parameter",
+      "description": "Override a scalar/vector/texture parameter on a UMaterialInstanceConstant.",
+      "params": {
+        "path": "string (required) - material instance asset path",
+        "parameter": "string (required) - parameter name as declared on the parent material",
+        "type": "string (required) - one of: scalar | vector | texture",
+        "value": "varies by type - scalar: number; vector: {r,g,b,a}; texture: string asset path"
+      },
+      "returns": { "ok": "bool", "path": "string", "parameter": "string", "type": "string", "applied_value": "varies by type" }
     }
   ]
 }

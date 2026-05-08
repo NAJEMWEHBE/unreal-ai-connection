@@ -19,8 +19,8 @@ import unreal_claude_mcp_bridge as bridge
 
 # -------- TOOLS schema --------------------------------------------------------
 
-def test_tools_list_has_twentynine_entries():
-    assert len(bridge.TOOLS) == 29
+def test_tools_list_has_thirty_entries():
+    assert len(bridge.TOOLS) == 30
 
 
 def test_each_tool_has_required_mcp_fields():
@@ -47,7 +47,7 @@ def test_tool_names_are_unique_and_match_handlers():
         "get_log_lines", "execute_console_command",
         "inspect_asset", "move_asset", "rename_asset", "delete_asset",
         "inspect_sequence", "create_sequence", "bind_actor_to_sequence",
-        "create_material_instance",
+        "create_material_instance", "set_mi_parameter",
     }
     assert set(names) == expected
 
@@ -128,6 +128,14 @@ def test_create_material_instance_in_tools_catalog():
     t = next((t for t in bridge.TOOLS if t["name"] == "create_material_instance"), None)
     assert t is not None
     assert set(t["inputSchema"]["required"]) == {"parent_path", "path", "name"}
+
+
+def test_set_mi_parameter_in_tools_catalog():
+    """v0.9.0: set_mi_parameter requires path + parameter + type + value."""
+    t = next((t for t in bridge.TOOLS if t["name"] == "set_mi_parameter"), None)
+    assert t is not None
+    assert set(t["inputSchema"]["required"]) == {"path", "parameter", "type", "value"}
+    assert t["inputSchema"]["properties"]["type"]["enum"] == ["scalar", "vector", "texture"]
 
 
 def test_required_params_match_handler_contract():
@@ -316,7 +324,7 @@ def test_handle_tools_list_returns_all_tools():
     resp = bridge.handle({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
     assert resp["id"] == 2
     assert "tools" in resp["result"]
-    assert len(resp["result"]["tools"]) == 29
+    assert len(resp["result"]["tools"]) == 30
 
 
 # -------- handle: tools/call --------------------------------------------------
