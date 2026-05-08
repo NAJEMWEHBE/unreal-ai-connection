@@ -913,6 +913,34 @@ The binding name is set to the actor's `GetActorLabel()`, which means `inspect_s
 
 ---
 
+## create_material_instance
+
+Create a `UMaterialInstanceConstant` asset and set its parent to an existing `UMaterial` or `UMaterialInstance`.
+
+**Params**
+- `parent_path` (string, required) — path of the parent material or material instance.
+- `path` (string, required) — destination folder under `/Game/`.
+- `name` (string, required) — leaf asset name. No `/` or `.` allowed.
+
+**Result**
+- `ok`, `asset_path`, `package_path`
+- `parent_path` (string) — full path of the parent (echoes back what was set)
+
+**Errors:** `missing_required_field`, `invalid_path`, `invalid_asset_name`, `parent_not_found`, `parent_not_a_material`, `dest_exists`, `create_failed`.
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"create_material_instance","params":{
+  "parent_path": "/Game/Materials/M_Stone",
+  "path": "/Game/Materials/Instances",
+  "name": "MI_Stone_Wet"
+}}
+```
+
+The new instance starts with no parameter overrides; use `set_mi_parameter` to customize it.
+
+---
+
 ## Adding more tools
 
 See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the recipe. Short version: one `.cpp` file in `Source/UnrealClaudeMCP/Private/MCP/Handlers/`, two registration lines in `UnrealClaudeMCPModule.cpp`, one entry in `Resources/mcp_manifest.json`, one entry in `bridge/unreal_claude_mcp_bridge.py`'s `TOOLS` list, rebuild, restart.

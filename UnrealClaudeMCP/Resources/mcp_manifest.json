@@ -243,6 +243,16 @@
         "actor_name": "string (required) - actor label or FName"
       },
       "returns": { "ok": "bool", "sequence_path": "string", "binding_guid": "string", "actor_label": "string", "binding_type": "string" }
+    },
+    {
+      "name": "create_material_instance",
+      "description": "Create a UMaterialInstanceConstant asset and set its parent to an existing UMaterial or UMaterialInstance.",
+      "params": {
+        "parent_path": "string (required) - path of the parent UMaterial or UMaterialInstance",
+        "path": "string (required) - destination folder under /Game/",
+        "name": "string (required) - leaf asset name (no '/' or '.')"
+      },
+      "returns": { "ok": "bool", "asset_path": "string", "package_path": "string", "parent_path": "string" }
     }
   ]
 }

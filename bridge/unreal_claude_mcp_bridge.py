@@ -362,6 +362,19 @@ TOOLS = [
             "required": ["sequence_path", "actor_name"],
         },
     },
+    {
+        "name": "create_material_instance",
+        "description": "Create a UMaterialInstanceConstant asset and set its parent to an existing UMaterial or UMaterialInstance.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "parent_path": {"type": "string", "description": "Path of the parent UMaterial or UMaterialInstance."},
+                "path": {"type": "string", "description": "Destination folder under /Game/."},
+                "name": {"type": "string", "description": "Leaf asset name (no '/' or '.')."},
+            },
+            "required": ["parent_path", "path", "name"],
+        },
+    },
 ]
 
 
