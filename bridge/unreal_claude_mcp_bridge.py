@@ -326,6 +326,17 @@ TOOLS = [
             "required": ["path"],
         },
     },
+    {
+        "name": "inspect_sequence",
+        "description": "Read structure of a Level Sequence asset: tracks, sections, bindings, frame rate, playback range.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "Level Sequence asset path (object path or package path)."},
+            },
+            "required": ["path"],
+        },
+    },
 ]
 
 

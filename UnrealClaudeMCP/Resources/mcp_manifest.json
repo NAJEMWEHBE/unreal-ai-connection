@@ -215,6 +215,14 @@
         "force": "bool (optional, default false) - delete even if referenced"
       },
       "returns": { "ok": "bool", "deleted_path": "string" }
+    },
+    {
+      "name": "inspect_sequence",
+      "description": "Read structure of a Level Sequence asset: tracks, sections, bindings, frame rate, playback range.",
+      "params": {
+        "path": "string (required) - Level Sequence asset path"
+      },
+      "returns": { "ok": "bool", "name": "string", "package_path": "string", "tick_resolution": "int", "display_rate_fps": "number", "playback_range": "object", "bindings": "array of object", "tracks": "array of object" }
     }
   ]
 }

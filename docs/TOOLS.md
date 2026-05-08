@@ -827,6 +827,32 @@ If `T_Stone_OldVariant` is referenced by `M_Stone` and `M_StoneWet`, the respons
 
 ---
 
+## inspect_sequence
+
+Read the structure of a Level Sequence asset.
+
+**Params**
+- `path` (string, required) — Level Sequence asset path. Both forms accepted (with or without `.Name` suffix).
+
+**Result**
+- `name`, `package_path` — asset identity
+- `tick_resolution` (int) — internal tick rate (typically 24000 for 24fps display rate × 1000 sub-frame divisor)
+- `display_rate_fps` (number) — sequence's display frame rate (e.g. 24.0, 30.0)
+- `playback_range` — `{start_frames, end_frames}` in **tick units** (divide by `tick_resolution / display_rate_fps` for display frames)
+- `bindings` — array of `{guid, name, type, bound_actor_label?}` entries; `type` is `"possessable"` or `"spawnable"`. `bound_actor_label` is only present for possessables and equals the binding name (which itself was set to the actor's label by `bind_actor_to_sequence`).
+- `tracks` — array of `{name, class, section_count, binding_guid}` entries. Master tracks have `binding_guid: ""`; binding-attached tracks carry their owning binding's GUID.
+
+**Errors:** `missing_required_field`, `asset_not_found`, `not_a_sequence`.
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"inspect_sequence","params":{
+  "path": "/Game/Cinematics/MainCinematic"
+}}
+```
+
+---
+
 ## Adding more tools
 
 See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the recipe. Short version: one `.cpp` file in `Source/UnrealClaudeMCP/Private/MCP/Handlers/`, two registration lines in `UnrealClaudeMCPModule.cpp`, one entry in `Resources/mcp_manifest.json`, one entry in `bridge/unreal_claude_mcp_bridge.py`'s `TOOLS` list, rebuild, restart.
