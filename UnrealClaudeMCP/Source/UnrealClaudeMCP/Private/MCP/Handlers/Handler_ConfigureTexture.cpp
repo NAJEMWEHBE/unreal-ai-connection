@@ -1,8 +1,9 @@
 // Copyright (c) 2026 HD Media. MIT licensed - see LICENSE.
 //
 // configure_texture - adjust SRGB / CompressionSettings / LODGroup / Filter
-// on an existing UTexture asset. Skeleton: full param parsing + asset
-// lookup; the actual property mutation lands in Task 7.
+// on an existing UTexture asset. Validates enums, runs the documented
+// PreEditChange / Modify / set / PostEditChange / UpdateResource /
+// SaveLoadedAsset dance, returns an `applied` map of what changed.
 
 #include "MCP/MCPHandler.h"
 

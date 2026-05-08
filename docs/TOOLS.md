@@ -225,7 +225,7 @@ Import an image file (PNG/JPG/EXR/TGA/BMP/HDR) from disk into the project as a `
 }}
 ```
 
-**Errors:** `source_not_found`, `unsupported_extension`, `invalid_dest_path`, `dest_collision_no_replace`, `import_factory_failed`, `imported_not_a_texture`.
+**Errors:** Returned as JSON-RPC `error.message` strings prefixed with `import_texture: ...`. Possible failure modes include missing/empty `source_path`, missing/empty `dest_path`, `dest_path` not starting with `/Game/`, source file not existing on disk, unsupported file extension (only PNG/JPG/JPEG/EXR/TGA/BMP/HDR are accepted), the import factory rejecting the input, and the imported object not being a `UTexture2D`.
 
 ---
 
@@ -238,7 +238,7 @@ The `applied` object in the result contains *only* the fields the caller actuall
 **Params**
 - `path` (string, required) — UE package path of an existing texture asset, e.g. `/Game/Textures/Environment/T_Stone_D`.
 - `srgb` (bool, optional) — sets `UTexture::SRGB`.
-- `compression` (string enum, optional) — maps to `TextureCompressionSettings`. Accepted values: `Default`, `Normalmap`, `Masks`, `Grayscale`, `Displacementmap`, `VectorDisplacementmap`, `HDR`, `UserInterface2D`, `BC7`, `HalfFloat`, `SingleFloat`, `EncodedReflectionCapture`, `Alpha`, `DistanceFieldFont`, `HDR_Compressed`, `BC4`, `BC5`.
+- `compression` (string enum, optional) — maps to `TextureCompressionSettings`. Accepted values: `Default`, `Normalmap`, `Masks`, `Grayscale`, `Displacementmap`, `VectorDisplacementmap`, `HDR`, `UserInterface2D`, `BC7`, `HalfFloat`, `SingleFloat`, `Alpha`, `DistanceFieldFont`, `HDR_Compressed`, `HDR_F32`.
 - `lod_group` (string enum, optional) — maps to `TextureGroup`. Common values: `World`, `WorldNormalMap`, `WorldSpecular`, `Character`, `CharacterNormalMap`, `CharacterSpecular`, `Weapon`, `WeaponNormalMap`, `WeaponSpecular`, `Vehicle`, `VehicleNormalMap`, `VehicleSpecular`, `Cinematic`, `Effects`, `EffectsNotFiltered`, `Skybox`, `UI`, `Lightmap`, `Shadowmap`, `RenderTarget`, `MobileFlattened`, `Pixels2D`, `HierarchicalLOD`. (Exhaustive list validated against `Engine/Source/Runtime/Engine/Classes/Engine/TextureDefines.h` in UE 5.7.)
 - `filter` (string enum, optional) — maps to `TextureFilter`. Accepted values: `Nearest`, `Bilinear`, `Trilinear`, `Default`.
 - `compress` (bool, optional, default `true`) — whether to call `UpdateResource()` after mutation; set to `false` for batched edits and trigger a rebuild separately.
@@ -271,7 +271,9 @@ The `applied` object in the result contains *only* the fields the caller actuall
 }}
 ```
 
-**Errors:** `asset_not_found`, `asset_not_a_texture`, `no_changes_specified`, `unknown_enum_value`, `save_failed`.
+**Note:** the canonical list of accepted enum values is the parser map in `Handler_ConfigureTexture.cpp`. This document mirrors it but the source is authoritative — UE versions can add or remove enum entries.
+
+**Errors:** Returned as JSON-RPC `error.message` strings prefixed with `configure_texture: ...`. Possible failure modes include missing `path` param, no settings fields provided (`no_changes_specified`), asset not found at `path`, unknown enum value for `compression` / `lod_group` / `filter`, and `save_failed` if the asset cannot be persisted to disk.
 
 ---
 
