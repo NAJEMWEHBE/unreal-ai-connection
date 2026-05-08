@@ -140,7 +140,18 @@ public:
         //
         // SetMaterialInstanceParent verified at MaterialEditingLibrary.h:288.
         UMaterialEditingLibrary::SetMaterialInstanceParent(MIC, Parent);
-        UEditorAssetLibrary::SaveAsset(DestObjectPath, /*bForceSave=*/false);
+
+        // Surface SaveAsset failures explicitly. Same Codex P2 pattern from
+        // v0.8.0 PR #15 — the proactive fix on the v0.9.0 branch (commit
+        // 461ed17) never reached main because PR #16 was merged before that
+        // push, so this is the canonical fix for main.
+        if (!UEditorAssetLibrary::SaveAsset(DestObjectPath, /*bForceSave=*/false))
+        {
+            OutError = FString::Printf(
+                TEXT("create_material_instance: save_failed: UEditorAssetLibrary::SaveAsset returned false for '%s' (likely SCC checkout failure or read-only file)"),
+                *DestObjectPath);
+            return nullptr;
+        }
 
         // --- build result ---------------------------------------------------
 

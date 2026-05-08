@@ -96,6 +96,21 @@ public:
         Out->SetStringField(TEXT("parameter"), ParameterName);
         Out->SetStringField(TEXT("type"), TypeStr);
 
+        // Codex review on PR #16 (P1) flagged that
+        // SetMaterialInstance*ParameterValue's bool return is unreliable —
+        // some UE versions return false even on successful writes, which
+        // would falsely trip a parameter_not_applied error and make the tool
+        // unusable on those engines.
+        //
+        // Better fix than codex's "post-verify by reading back": pre-verify
+        // the parameter is declared on the MIC's parent chain via
+        // Get<Type>ParameterNames BEFORE calling the setter, then call the
+        // setter and ignore its bool. This preserves the "param not declared"
+        // detection (which was the original intent) without depending on the
+        // unreliable bool. The pre-verify call is cheap (single registry
+        // walk) and Get<Type>ParameterNames is verified at
+        // MaterialEditingLibrary.h:357/361/365.
+
         if (TypeStr == TEXT("scalar"))
         {
             // Scalar value must be a number.
@@ -106,18 +121,22 @@ public:
                     (int32)ValueField->Type);
                 return nullptr;
             }
-            const float ScalarValue = static_cast<float>(ValueField->AsNumber());
-            // Verified at MaterialEditingLibrary.h:301; returns false if the
-            // parameter name doesn't exist on the parent material.
-            const bool bApplied = UMaterialEditingLibrary::SetMaterialInstanceScalarParameterValue(
-                MIC, ParamFName, ScalarValue);
-            if (!bApplied)
+
+            TArray<FName> AvailableNames;
+            UMaterialEditingLibrary::GetScalarParameterNames(MIC, AvailableNames);
+            if (!AvailableNames.Contains(ParamFName))
             {
                 OutError = FString::Printf(
                     TEXT("set_mi_parameter: parameter_not_applied: scalar parameter '%s' is not declared on the parent material of '%s'"),
                     *ParameterName, *InputPath);
                 return nullptr;
             }
+
+            const float ScalarValue = static_cast<float>(ValueField->AsNumber());
+            // Verified at MaterialEditingLibrary.h:301. Bool return ignored
+            // intentionally — see header comment above this block.
+            UMaterialEditingLibrary::SetMaterialInstanceScalarParameterValue(
+                MIC, ParamFName, ScalarValue);
             Out->SetNumberField(TEXT("applied_value"), ScalarValue);
         }
         else if (TypeStr == TEXT("vector"))
@@ -141,19 +160,22 @@ public:
             }
             ValueObj->TryGetNumberField(TEXT("a"), A);  // optional
 
-            const FLinearColor Color(
-                static_cast<float>(R), static_cast<float>(G),
-                static_cast<float>(B), static_cast<float>(A));
-            // Verified at MaterialEditingLibrary.h:337.
-            const bool bApplied = UMaterialEditingLibrary::SetMaterialInstanceVectorParameterValue(
-                MIC, ParamFName, Color);
-            if (!bApplied)
+            TArray<FName> AvailableNames;
+            UMaterialEditingLibrary::GetVectorParameterNames(MIC, AvailableNames);
+            if (!AvailableNames.Contains(ParamFName))
             {
                 OutError = FString::Printf(
                     TEXT("set_mi_parameter: parameter_not_applied: vector parameter '%s' is not declared on the parent material of '%s'"),
                     *ParameterName, *InputPath);
                 return nullptr;
             }
+
+            const FLinearColor Color(
+                static_cast<float>(R), static_cast<float>(G),
+                static_cast<float>(B), static_cast<float>(A));
+            // Verified at MaterialEditingLibrary.h:337. Bool return ignored.
+            UMaterialEditingLibrary::SetMaterialInstanceVectorParameterValue(
+                MIC, ParamFName, Color);
             TSharedRef<FJsonObject> AppliedJson = MakeShared<FJsonObject>();
             AppliedJson->SetNumberField(TEXT("r"), R);
             AppliedJson->SetNumberField(TEXT("g"), G);
@@ -182,16 +204,20 @@ public:
                     *TexturePathInput);
                 return nullptr;
             }
-            // Verified at MaterialEditingLibrary.h:310.
-            const bool bApplied = UMaterialEditingLibrary::SetMaterialInstanceTextureParameterValue(
-                MIC, ParamFName, Texture);
-            if (!bApplied)
+
+            TArray<FName> AvailableNames;
+            UMaterialEditingLibrary::GetTextureParameterNames(MIC, AvailableNames);
+            if (!AvailableNames.Contains(ParamFName))
             {
                 OutError = FString::Printf(
                     TEXT("set_mi_parameter: parameter_not_applied: texture parameter '%s' is not declared on the parent material of '%s'"),
                     *ParameterName, *InputPath);
                 return nullptr;
             }
+
+            // Verified at MaterialEditingLibrary.h:310. Bool return ignored.
+            UMaterialEditingLibrary::SetMaterialInstanceTextureParameterValue(
+                MIC, ParamFName, Texture);
             Out->SetStringField(TEXT("applied_value"), Texture->GetPathName());
         }
         else
@@ -203,8 +229,18 @@ public:
         }
 
         // --- save and return -----------------------------------------------
-
-        UEditorAssetLibrary::SaveAsset(ObjectPath, /*bForceSave=*/false);
+        //
+        // Surface SaveAsset failures explicitly. Same Codex P2 pattern from
+        // v0.8.0 PR #15 — the proactive fix on the v0.9.0 branch (commit
+        // 461ed17) never reached main because PR #16 was merged before that
+        // push, so this is the canonical fix for main.
+        if (!UEditorAssetLibrary::SaveAsset(ObjectPath, /*bForceSave=*/false))
+        {
+            OutError = FString::Printf(
+                TEXT("set_mi_parameter: save_failed: UEditorAssetLibrary::SaveAsset returned false for '%s' (likely SCC checkout failure or read-only file). Parameter was applied in memory but not persisted to disk."),
+                *ObjectPath);
+            return nullptr;
+        }
         return Out;
     }
 };
