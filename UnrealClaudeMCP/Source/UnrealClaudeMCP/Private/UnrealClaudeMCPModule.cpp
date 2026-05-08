@@ -18,6 +18,7 @@ extern TSharedRef<IUCMCPHandler> Make_Handler_GetActorsInLevel();
 extern TSharedRef<IUCMCPHandler> Make_Handler_FocusActor();
 extern TSharedRef<IUCMCPHandler> Make_Handler_LoadLevel();
 extern TSharedRef<IUCMCPHandler> Make_Handler_TakeHighResScreenshot();
+extern TSharedRef<IUCMCPHandler> Make_Handler_ImportTexture();
 
 static constexpr int32 kMCPDefaultPort = 18888;
 
@@ -37,6 +38,7 @@ void FUnrealClaudeMCPModule::StartupModule()
     Reg.Register(Make_Handler_FocusActor());
     Reg.Register(Make_Handler_LoadLevel());
     Reg.Register(Make_Handler_TakeHighResScreenshot());
+    Reg.Register(Make_Handler_ImportTexture());
 
     FUCMCPServer::Get().Start(kMCPDefaultPort);
 }
