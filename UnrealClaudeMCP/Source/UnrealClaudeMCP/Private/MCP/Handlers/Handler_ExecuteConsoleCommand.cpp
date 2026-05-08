@@ -11,7 +11,22 @@
 #include "Engine/Engine.h"
 #include "Editor.h"
 #include "Engine/World.h"
-#include "Misc/OutputDeviceString.h"
+#include "Misc/OutputDevice.h"
+
+// Minimal FOutputDevice subclass that accumulates Serialize() text into an
+// FString. UE 5.7 has FStringOutputDevice but the header path is unreliable
+// across UE 5.x branches; defining inline keeps this self-contained.
+class FUCMCPCaptureOutputDevice : public FOutputDevice
+{
+public:
+    FString CapturedText;
+
+    virtual void Serialize(const TCHAR* V, ELogVerbosity::Type /*Verbosity*/, const FName& /*Category*/) override
+    {
+        CapturedText += V;
+        CapturedText += LINE_TERMINATOR;
+    }
+};
 
 class FHandler_ExecuteConsoleCommand : public IUCMCPHandler
 {
@@ -69,14 +84,13 @@ public:
 
         if (bCaptureOutput)
         {
-            // FStringOutputDevice accumulates all Serialize calls into its
-            // OutputString member.  Declared in Misc/OutputDeviceString.h (UE 5.7).
-            FStringOutputDevice OutputDevice;
-            OutputDevice.SetAutoEmitLineTerminator(true);
+            // Use our local FOutputDevice subclass that accumulates Serialize
+            // calls into CapturedText. Defined at the top of this file.
+            FUCMCPCaptureOutputDevice OutputDevice;
 
             GEngine->Exec(World, *Command, OutputDevice);
 
-            CapturedOutput = OutputDevice;
+            CapturedOutput = OutputDevice.CapturedText;
         }
         else
         {
