@@ -489,7 +489,7 @@ Mutate any `UPROPERTY` on an actor by label or FName. Uses the hybrid label-or-F
 - `property` (string, required) — `UPROPERTY` field name (case-sensitive, matches C++ exactly).
 - `value` (any, required) — JSON value coerced to the property's native type.
 
-**Supported types in v0.3.0**
+**Supported types in v0.4.0**
 
 | FProperty C++ type | JSON value shape |
 |---|---|
@@ -507,8 +507,17 @@ Mutate any `UPROPERTY` on an actor by label or FName. Uses the hybrid label-or-F
 | `FColor` | `{r, g, b, a}` (0–255 ints) |
 | Enum (`UEnum`-decorated) | JSON string (enum value name) |
 | `TSoftObjectPtr<T>` | JSON string (asset path) |
+| **USTRUCT** (any reflected struct, recursive) | JSON object — fields coerced individually |
+| **TArray<T>** | JSON array (element-wise) |
+| **TMap<FString \| FName, V>** | JSON object (string keys only in v0.4.0) |
+| **TSet<T>** | JSON array (deduplicated server-side) |
+| **FObjectProperty** (hard UObject*) | JSON string (asset path) — `LoadObject`'d + class-checked |
 
-Types not on this list (USTRUCT, TArray, TMap, FObjectProperty, FInstancedStruct) return `unsupported_property_type` and are deferred to v0.4.0. The error message includes the FProperty class name (e.g. `"StructProperty(MyCustomStruct)"`) so the caller can fall back to `execute_unreal_python`.
+FInstancedStruct is deferred to v0.4.x. The error message for unsupported types includes the FProperty class name (e.g. `"StructProperty(MyCustomStruct)"`) so the caller can fall back to `execute_unreal_python`.
+
+**Property-name path traversal**
+
+The `property` param accepts dotted paths like `"RootComponent.RelativeLocation"` to access nested properties via recursive traversal. Each segment either traverses an `FStructProperty` (accessing the struct's memory directly) or dereferences an `FObjectProperty` pointer. Errors include the path: `path_traversal_null at .RootComponent: cannot continue through null UObject`. Recursion depth is capped at 8 levels.
 
 **Result**
 - `ok` (bool)
@@ -542,8 +551,13 @@ Types not on this list (USTRUCT, TArray, TMap, FObjectProperty, FInstancedStruct
 | `missing_required_field` | `name`, `property`, or `value` was missing. |
 | `actor_not_found` | No actor matches the given name. |
 | `ambiguous_actor` | Label matches multiple actors. Error message lists candidate FNames. |
-| `property_not_found` | No `UPROPERTY` with that name exists on the actor's class. |
-| `unsupported_property_type` | Property exists but its FProperty class is not in the v0.3.0 supported list. The error message includes the FProperty class name. |
+| `field_not_found` | During path traversal, a segment does not exist on the current struct. |
+| `wrong_object_class` | During path traversal, an `FObjectProperty` points to an object of an incompatible class. |
+| `recursion_depth_exceeded` | Path traversal exceeded the 8-level depth limit. |
+| `path_traversal_null` | During path traversal, encountered a null `FObjectProperty` pointer. Error message includes the path segment. |
+| `path_traversal_invalid_type` | Path segment refers to a property that is neither `FStructProperty` nor `FObjectProperty`, blocking further traversal. |
+| `property_not_found` | No `UPROPERTY` with that name exists on the actor's class (when property is not a dotted path). |
+| `unsupported_property_type` | Property exists but its FProperty class is not supported (e.g., FInstancedStruct). The error message includes the FProperty class name. |
 | `value_coercion_failed` | Value could not be coerced to the property type (e.g. string given for an int, range overflow). |
 
 ---
