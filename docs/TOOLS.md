@@ -612,6 +612,82 @@ Attach a new component to an existing actor at runtime by label or FName. Uses t
 
 ---
 
+## get_log_lines
+
+Read recent UE Output Log entries from the in-process ring buffer maintained by `FUCMCPLogCapture`. The buffer holds the last 1000 log lines across all categories. Useful for inspecting errors, warnings, and debug output without opening the UE Output Log panel.
+
+**Params**
+- `count` (int, optional, default `100`) — maximum number of lines to return. Capped at 1000.
+- `category_filter` (string, optional) — case-insensitive substring filter on the log category (e.g. `"LogTemp"` returns all categories containing "LogTemp").
+- `min_verbosity` (string, optional, default `"Log"`) — minimum severity to include. One of `Fatal`, `Error`, `Warning`, `Display`, `Log`, `Verbose`, `VeryVerbose`. Lines at or above this level are included (Fatal is highest severity; VeryVerbose is lowest).
+
+**Result**
+- `ok` (bool)
+- `returned` (int) — number of lines in the response array
+- `lines` (array) — `{timestamp, category, verbosity, message}` per line, in chronological order (oldest first within the filtered set)
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"get_log_lines","params":{
+  "count": 10,
+  "min_verbosity": "Warning"
+}}
+```
+```json
+{"jsonrpc":"2.0","id":1,"result":{
+  "ok": true,
+  "returned": 2,
+  "lines": [
+    {"timestamp": "2026.05.08-13.30.45", "category": "LogTemp", "verbosity": "Warning", "message": "something unexpected"},
+    {"timestamp": "2026.05.08-13.31.02", "category": "LogUCMCP", "verbosity": "Error", "message": "handler error"}
+  ]
+}}
+```
+
+**Errors:** Returned as JSON-RPC `error.message` strings in the format `get_log_lines: <error_code>: <human-readable detail>`. Stable codes:
+
+| Code | Trigger |
+|---|---|
+| `invalid_verbosity` | `min_verbosity` is not one of the seven accepted values. |
+
+---
+
+## execute_console_command
+
+Execute a UE console command in the editor world context and optionally capture its output. Suitable for stat commands (`stat fps`, `stat unit`), CVar mutations (`r.ScreenPercentage 50`), and any other console command the running editor supports. Output is captured via a `FStringOutputDevice` for the duration of the call; it does not permanently redirect the console.
+
+**Params**
+- `command` (string, required) — the console command to execute (e.g. `"stat fps"`, `"r.ScreenPercentage 50"`).
+- `capture_output` (bool, optional, default `true`) — when `true`, captures and returns the command output string. When `false`, output flows to the normal Output Log and the result's `output` field is empty.
+
+**Result**
+- `ok` (bool)
+- `command` (string) — echo of the command that was executed
+- `output` (string) — captured console output, or `""` if `capture_output=false`
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"execute_console_command","params":{
+  "command": "stat fps"
+}}
+```
+```json
+{"jsonrpc":"2.0","id":1,"result":{
+  "ok": true,
+  "command": "stat fps",
+  "output": "Frame: 16.6ms (60 FPS)\n..."
+}}
+```
+
+**Errors:** Returned as JSON-RPC `error.message` strings in the format `execute_console_command: <error_code>: <human-readable detail>`. Stable codes:
+
+| Code | Trigger |
+|---|---|
+| `missing_required_field` | `command` was missing or empty. |
+| `command_execution_failed` | `GEngine` or `GEditor` is null (not running in an editor context). |
+
+---
+
 ## Adding more tools
 
 See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the recipe. Short version: one `.cpp` file in `Source/UnrealClaudeMCP/Private/MCP/Handlers/`, two registration lines in `UnrealClaudeMCPModule.cpp`, one entry in `Resources/mcp_manifest.json`, one entry in `bridge/unreal_claude_mcp_bridge.py`'s `TOOLS` list, rebuild, restart.

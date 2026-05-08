@@ -93,10 +93,11 @@ FUCMCPHandlerRegistry::Get().Register(Make_Handler_Foo());
 
 ## Shared modules (v0.3.0+)
 
-Two helpers extract cross-cutting concerns from multiple handlers. Each lives in `Source/UnrealClaudeMCP/Private/MCP/` (alongside `MCPServer.cpp` etc., not under `Handlers/`):
+Three helpers extract cross-cutting concerns from multiple handlers. Each lives in `Source/UnrealClaudeMCP/Private/MCP/` (alongside `MCPServer.cpp` etc., not under `Handlers/`):
 
 - **`ActorIdentity`** — hybrid label-or-FName actor lookup. Used by `set_actor_transform`, `delete_actor`, `set_actor_property`, `add_component`. Returns `EResolveResult::Ambiguous` with the candidate FNames listed when a label matches multiple actors, so handlers can produce actionable `ambiguous_actor` errors.
 - **`PropertyCoercion`** — JSON ↔ FProperty value bridge. Supports the v0.3.0 type list (primitives, strings, FName/FText, FVector/FVector2D/FRotator/FLinearColor/FColor, enums, TSoftObjectPtr). Used by `spawn_actor.properties`, `set_actor_property`, and `add_component.relative_transform`. Returns `ECoerceResult::Unsupported` with the FProperty class name for types deferred to v0.4.0 (USTRUCT, TArray, TMap, FObjectProperty, FInstancedStruct).
+- **`LogCapture`** (v0.6.0) — `FUCMCPLogCapture : public FOutputDevice`, a thread-safe ring buffer that captures the last 1000 UE Output Log entries. Registered globally via `GLog->AddOutputDevice` in `StartupModule` (before handler registration, so early log lines are captured) and deregistered in `ShutdownModule`. `get_log_lines` reads a snapshot from this buffer. **Thread safety:** `FOutputDeviceRedirector` calls registered output devices from any thread; `FUCMCPLogCapture::Serialize` takes a `FCriticalSection` lock for each write. `GetLines()` copies the ring under the same lock, then releases before filtering — the lock is never held while iterating.
 
 Each handler stays a leaf — these modules just lift cross-cutting concerns to where they can be tested once. The "leaf with bounded responsibility" pattern still holds.
 

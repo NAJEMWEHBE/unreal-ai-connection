@@ -19,8 +19,8 @@ import unreal_claude_mcp_bridge as bridge
 
 # -------- TOOLS schema --------------------------------------------------------
 
-def test_tools_list_has_nineteen_entries():
-    assert len(bridge.TOOLS) == 19
+def test_tools_list_has_twentyone_entries():
+    assert len(bridge.TOOLS) == 21
 
 
 def test_each_tool_has_required_mcp_fields():
@@ -44,6 +44,7 @@ def test_tool_names_are_unique_and_match_handlers():
         "import_texture", "configure_texture",
         "find_assets", "spawn_actor", "set_actor_transform", "delete_actor",
         "set_actor_property", "add_component",
+        "get_log_lines", "execute_console_command",
     }
     assert set(names) == expected
 
@@ -157,6 +158,29 @@ def test_add_component_schema():
     assert props["relative_transform"]["type"] == "object"
 
 
+def test_get_log_lines_schema():
+    tool = next(t for t in bridge.TOOLS if t["name"] == "get_log_lines")
+    schema = tool["inputSchema"]
+    # No required fields — all params are optional.
+    assert "required" not in schema or schema.get("required") == []
+    props = schema["properties"]
+    assert props["count"]["type"] == "integer"
+    assert props["category_filter"]["type"] == "string"
+    assert props["min_verbosity"]["type"] == "string"
+    assert set(props["min_verbosity"]["enum"]) == {
+        "Fatal", "Error", "Warning", "Display", "Log", "Verbose", "VeryVerbose"
+    }
+
+
+def test_execute_console_command_schema():
+    tool = next(t for t in bridge.TOOLS if t["name"] == "execute_console_command")
+    schema = tool["inputSchema"]
+    assert schema["required"] == ["command"]
+    props = schema["properties"]
+    assert props["command"]["type"] == "string"
+    assert props["capture_output"]["type"] == "boolean"
+
+
 # -------- make_response -------------------------------------------------------
 
 def test_make_response_with_result():
@@ -217,7 +241,7 @@ def test_handle_tools_list_returns_all_tools():
     resp = bridge.handle({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
     assert resp["id"] == 2
     assert "tools" in resp["result"]
-    assert len(resp["result"]["tools"]) == 19
+    assert len(resp["result"]["tools"]) == 21
 
 
 # -------- handle: tools/call --------------------------------------------------

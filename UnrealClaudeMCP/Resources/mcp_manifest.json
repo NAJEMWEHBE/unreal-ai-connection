@@ -1,7 +1,7 @@
 {
   "name": "UnrealClaudeMCP",
-  "version": "0.5.0",
-  "description": "Drive Unreal Engine 5.7 from Claude (or any MCP client) over a local TCP socket. Nineteen generic editor-automation tools that work with any UE 5.7 project.",
+  "version": "0.6.0",
+  "description": "Drive Unreal Engine 5.7 from Claude (or any MCP client) over a local TCP socket. Twenty-one generic editor-automation tools that work with any UE 5.7 project.",
   "transport": {
     "type": "tcp",
     "host": "127.0.0.1",
@@ -159,6 +159,25 @@
         "relative_transform": "object (optional)"
       },
       "returns": { "ok": "bool", "actor": "string", "component": "string", "class": "string", "attached_to": "string" }
+    },
+    {
+      "name": "get_log_lines",
+      "description": "Read recent UE Output Log entries from the in-process ring buffer (last 1000 lines). Supports category substring filter and minimum verbosity filter.",
+      "params": {
+        "count": "int (optional, default 100, max 1000) - max lines to return",
+        "category_filter": "string (optional) - case-insensitive substring filter on log category",
+        "min_verbosity": "string (optional, default 'Log') - Fatal | Error | Warning | Display | Log | Verbose | VeryVerbose"
+      },
+      "returns": { "ok": "bool", "returned": "int", "lines": "array of {timestamp, category, verbosity, message}" }
+    },
+    {
+      "name": "execute_console_command",
+      "description": "Execute a UE console command (e.g. 'stat fps', 'r.ScreenPercentage 50') and capture its output.",
+      "params": {
+        "command": "string (required) - console command to execute",
+        "capture_output": "bool (optional, default true) - capture and return command output"
+      },
+      "returns": { "ok": "bool", "command": "string", "output": "string" }
     }
   ]
 }
