@@ -996,6 +996,33 @@ Texture:
 
 ---
 
+## inspect_material
+
+List parameter names declared by a `UMaterial` or `UMaterialInstance`. Discovery tool: pair with `find_assets` to find materials, then `inspect_material` to learn what parameters are available, then `set_mi_parameter` to override.
+
+**Params**
+- `path` (string, required) — material asset path. Both forms accepted.
+
+**Result**
+- `name`, `package_path`, `class`
+- `scalar_parameters` (array of string) — sorted alphabetically
+- `vector_parameters` (array of string) — sorted alphabetically
+- `texture_parameters` (array of string) — sorted alphabetically
+- `static_switch_parameters` (array of string) — sorted alphabetically
+
+**Errors:** `missing_required_field`, `asset_not_found`, `not_a_material`.
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"inspect_material","params":{
+  "path": "/Game/Materials/M_Stone"
+}}
+```
+
+Static-switch parameters are listed for visibility but cannot be set via `set_mi_parameter` in v0.9.0 — that mutator is deferred to v0.9.x because it triggers shader recompiles.
+
+---
+
 ## Adding more tools
 
 See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the recipe. Short version: one `.cpp` file in `Source/UnrealClaudeMCP/Private/MCP/Handlers/`, two registration lines in `UnrealClaudeMCPModule.cpp`, one entry in `Resources/mcp_manifest.json`, one entry in `bridge/unreal_claude_mcp_bridge.py`'s `TOOLS` list, rebuild, restart.

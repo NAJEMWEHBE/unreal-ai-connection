@@ -264,6 +264,14 @@
         "value": "varies by type - scalar: number; vector: {r,g,b,a}; texture: string asset path"
       },
       "returns": { "ok": "bool", "path": "string", "parameter": "string", "type": "string", "applied_value": "varies by type" }
+    },
+    {
+      "name": "inspect_material",
+      "description": "List parameter names declared by a UMaterial or UMaterialInstance: scalar, vector, texture, and static-switch parameters.",
+      "params": {
+        "path": "string (required) - material asset path"
+      },
+      "returns": { "ok": "bool", "name": "string", "package_path": "string", "class": "string", "scalar_parameters": "array of string", "vector_parameters": "array of string", "texture_parameters": "array of string", "static_switch_parameters": "array of string" }
     }
   ]
 }

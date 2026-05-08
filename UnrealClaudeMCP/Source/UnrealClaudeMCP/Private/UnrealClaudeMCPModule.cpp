@@ -38,6 +38,7 @@ extern TSharedRef<IUCMCPHandler> Make_Handler_CreateSequence();
 extern TSharedRef<IUCMCPHandler> Make_Handler_BindActorToSequence();
 extern TSharedRef<IUCMCPHandler> Make_Handler_CreateMaterialInstance();
 extern TSharedRef<IUCMCPHandler> Make_Handler_SetMIParameter();
+extern TSharedRef<IUCMCPHandler> Make_Handler_InspectMaterial();
 
 static constexpr int32 kMCPDefaultPort = 18888;
 
@@ -83,6 +84,7 @@ void FUnrealClaudeMCPModule::StartupModule()
     Reg.Register(Make_Handler_BindActorToSequence());
     Reg.Register(Make_Handler_CreateMaterialInstance());
     Reg.Register(Make_Handler_SetMIParameter());
+    Reg.Register(Make_Handler_InspectMaterial());
 
     FUCMCPServer::Get().Start(kMCPDefaultPort);
 }

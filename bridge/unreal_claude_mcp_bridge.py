@@ -389,6 +389,17 @@ TOOLS = [
             "required": ["path", "parameter", "type", "value"],
         },
     },
+    {
+        "name": "inspect_material",
+        "description": "List parameter names declared by a UMaterial or UMaterialInstance: scalar, vector, texture, and static-switch parameters.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "Material asset path (UMaterial or UMaterialInstance)."},
+            },
+            "required": ["path"],
+        },
+    },
 ]
 
 
