@@ -94,13 +94,19 @@ def _make_fake_socket(recv_chunks):
     return sock
 
 
+def _framed(body: bytes) -> list:
+    """Return [prefix_bytes, body_bytes] — the two recv() chunks for one framed message."""
+    prefix = len(body).to_bytes(8, byteorder="big", signed=False)
+    return [prefix, body]
+
+
 def test_call_ue_handles_response_without_terminating_brace_via_eof():
-    """Server may close the connection without the buffer ending in '}'
-    (e.g. the response is split mid-token); the loop must still exit on EOF
-    and return whatever it got. With invalid JSON, that's a parse error."""
-    sock = _make_fake_socket([b'{"jsonrpc":"2.0",', b'"id":1,', b'"result":{"ok":true']
-                             # note: no closing braces
-                             )
+    """If the socket closes before delivering the full body, recv_exact raises
+    ConnectionError which is caught as OSError -> -32099 (not -32700).
+    With a truncated but technically valid body that's incomplete JSON, we
+    get -32700. We test the latter: a valid frame whose JSON body is incomplete."""
+    body = b'{"jsonrpc":"2.0","id":1,"result":{"ok":true'  # no closing braces
+    sock = _make_fake_socket(_framed(body))
     with patch.object(socket, "socket", return_value=sock):
         resp = bridge.call_ue("list_tools", {})
     assert resp["error"]["code"] == -32700  # parse error
@@ -109,7 +115,8 @@ def test_call_ue_handles_response_without_terminating_brace_via_eof():
 def test_call_ue_handles_invalid_utf8_with_replacement():
     """The bridge decodes with errors='replace', so invalid UTF-8 doesn't
     crash; it surfaces as a parse error if the result isn't valid JSON."""
-    sock = _make_fake_socket([b'{"jsonrpc":"2.0","id":1,"result":"\xff\xfe"}'])
+    body = b'{"jsonrpc":"2.0","id":1,"result":"\xff\xfe"}'
+    sock = _make_fake_socket(_framed(body))
     with patch.object(socket, "socket", return_value=sock):
         resp = bridge.call_ue("list_tools", {})
     # Replacement chars produce valid JSON string content -> success
@@ -120,7 +127,8 @@ def test_call_ue_default_host_port_from_env(monkeypatch):
     """UCMCP_HOST / UCMCP_PORT are read at import time, but the constants
     are exposed and used at runtime - confirm that overriding the
     module-level constants reroutes the connect() call."""
-    sock = _make_fake_socket([b'{"jsonrpc":"2.0","id":1,"result":{}}'])
+    body = b'{"jsonrpc":"2.0","id":1,"result":{}}'
+    sock = _make_fake_socket(_framed(body))
     monkeypatch.setattr(bridge, "UE_HOST", "10.0.0.1")
     monkeypatch.setattr(bridge, "UE_PORT", 9999)
     with patch.object(socket, "socket", return_value=sock):
@@ -129,10 +137,12 @@ def test_call_ue_default_host_port_from_env(monkeypatch):
 
 
 def test_call_ue_payload_includes_jsonrpc_version_and_id():
-    sock = _make_fake_socket([b'{"jsonrpc":"2.0","id":1,"result":{}}'])
+    body = b'{"jsonrpc":"2.0","id":1,"result":{}}'
+    sock = _make_fake_socket(_framed(body))
     with patch.object(socket, "socket", return_value=sock):
         bridge.call_ue("list_tools", {"x": 1})
-    sent = json.loads(sock.sendall.call_args[0][0].decode("utf-8"))
+    sent_bytes = sock.sendall.call_args[0][0]
+    sent = json.loads(sent_bytes[8:].decode("utf-8"))
     assert sent["jsonrpc"] == "2.0"
     assert sent["id"] == 1
     assert sent["method"] == "list_tools"

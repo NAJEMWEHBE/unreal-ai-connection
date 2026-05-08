@@ -35,7 +35,7 @@ UE_PORT = int(os.environ.get("UCMCP_PORT", "18888"))
 
 PROTOCOL_VERSION = "2024-11-05"
 SERVER_NAME = "unreal-claude-mcp"
-SERVER_VERSION = "0.4.0"
+SERVER_VERSION = "0.5.0"
 
 # Mirror of UnrealClaudeMCP/Resources/mcp_manifest.json - kept in sync manually.
 TOOLS = [
@@ -254,6 +254,41 @@ TOOLS = [
 ]
 
 
+# ---------------------------------------------------------------------------
+# Wire-framing helpers  (v0.5.0)
+#
+# Every TCP message is:
+#   <8-byte big-endian uint64 body length> <N bytes of UTF-8 JSON body>
+# ---------------------------------------------------------------------------
+
+def send_framed(sock: socket.socket, body_bytes: bytes) -> None:
+    """Prepend the 8-byte big-endian length prefix and send the whole frame."""
+    length_prefix = len(body_bytes).to_bytes(8, byteorder="big", signed=False)
+    sock.sendall(length_prefix + body_bytes)
+
+
+def recv_exact(sock: socket.socket, n: int) -> bytes:
+    """Read exactly n bytes from sock, accumulating across multiple recv() calls."""
+    buf = bytearray()
+    while len(buf) < n:
+        chunk = sock.recv(n - len(buf))
+        if not chunk:
+            raise ConnectionError(f"socket closed after {len(buf)}/{n} bytes")
+        buf.extend(chunk)
+    return bytes(buf)
+
+
+def recv_framed(sock: socket.socket) -> bytes:
+    """Read one length-prefixed frame and return the body bytes."""
+    length_bytes = recv_exact(sock, 8)
+    length = int.from_bytes(length_bytes, byteorder="big", signed=False)
+    if length == 0:
+        raise ValueError("framing_error: zero-length body")
+    if length > 1024 * 1024 * 1024:
+        raise ValueError(f"framing_error: length {length} exceeds 1 GB cap")
+    return recv_exact(sock, length)
+
+
 def write_msg(obj):
     """Write one MCP message to stdout (newline-delimited)."""
     sys.stdout.write(json.dumps(obj) + "\n")
@@ -278,17 +313,9 @@ def call_ue(method, params):
         msg = {"jsonrpc": "2.0", "id": 1, "method": method}
         if params:
             msg["params"] = params
-        s.sendall(json.dumps(msg).encode("utf-8"))
-        chunks = []
-        while True:
-            data = s.recv(65536)
-            if not data:
-                break
-            chunks.append(data)
-            if data.endswith(b"}"):
-                break
+        send_framed(s, json.dumps(msg).encode("utf-8"))
+        raw = recv_framed(s).decode("utf-8", errors="replace")
         s.close()
-        raw = b"".join(chunks).decode("utf-8", errors="replace")
         return json.loads(raw)
     except (ConnectionRefusedError, socket.timeout, OSError) as e:
         return {

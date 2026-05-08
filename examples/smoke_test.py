@@ -29,6 +29,41 @@ HOST = os.environ.get("UCMCP_HOST", "127.0.0.1")
 PORT = int(os.environ.get("UCMCP_PORT", "18888"))
 
 
+# ---------------------------------------------------------------------------
+# Wire-framing helpers  (v0.5.0)
+#
+# Every TCP message is:
+#   <8-byte big-endian uint64 body length> <N bytes of UTF-8 JSON body>
+# ---------------------------------------------------------------------------
+
+def _send_framed(sock: socket.socket, body_bytes: bytes) -> None:
+    """Prepend the 8-byte big-endian length prefix and send the whole frame."""
+    length_prefix = len(body_bytes).to_bytes(8, byteorder="big", signed=False)
+    sock.sendall(length_prefix + body_bytes)
+
+
+def _recv_exact(sock: socket.socket, n: int) -> bytes:
+    """Read exactly n bytes from sock, accumulating across multiple recv() calls."""
+    buf = bytearray()
+    while len(buf) < n:
+        chunk = sock.recv(n - len(buf))
+        if not chunk:
+            raise ConnectionError(f"socket closed after {len(buf)}/{n} bytes")
+        buf.extend(chunk)
+    return bytes(buf)
+
+
+def _recv_framed(sock: socket.socket) -> bytes:
+    """Read one length-prefixed frame and return the body bytes."""
+    length_bytes = _recv_exact(sock, 8)
+    length = int.from_bytes(length_bytes, byteorder="big", signed=False)
+    if length == 0:
+        raise ValueError("framing_error: zero-length body")
+    if length > 1024 * 1024 * 1024:
+        raise ValueError(f"framing_error: length {length} exceeds 1 GB cap")
+    return _recv_exact(sock, length)
+
+
 def call(method: str, params: dict | None = None, request_id: int = 1) -> dict:
     msg = {"jsonrpc": "2.0", "id": request_id, "method": method}
     if params is not None:
@@ -42,22 +77,15 @@ def call(method: str, params: dict | None = None, request_id: int = 1) -> dict:
     except (ConnectionRefusedError, OSError) as e:
         return {"_error": f"Cannot reach UE at {HOST}:{PORT}: {e}. Is the editor open with UnrealClaudeMCP enabled?"}
 
-    s.sendall(raw)
-
-    chunks = []
-    while True:
-        try:
-            data = s.recv(65536)
-            if not data:
-                break
-            chunks.append(data)
-            if data.endswith(b"}"):
-                break
-        except socket.timeout:
-            break
+    try:
+        _send_framed(s, raw)
+        payload_bytes = _recv_framed(s)
+    except (ConnectionError, ValueError, socket.timeout) as e:
+        s.close()
+        return {"_error": f"framing error: {e}"}
     s.close()
 
-    payload = b"".join(chunks).decode("utf-8", errors="replace")
+    payload = payload_bytes.decode("utf-8", errors="replace")
     if not payload:
         return {"_raw": "", "_error": "empty response"}
     try:
