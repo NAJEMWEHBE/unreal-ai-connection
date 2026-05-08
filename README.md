@@ -4,7 +4,7 @@
 
 **Drive Unreal Engine 5 from Claude Code over a local TCP socket.**
 
-Twenty-eight editor-automation tools. Zero pixel-clicking. ~50ms round-trip.
+Thirty-two editor-automation tools. Zero pixel-clicking. ~50ms round-trip.
 
 [![CI](https://github.com/NAJEMWEHBE/UnrealClaudeMCP/actions/workflows/tests.yml/badge.svg)](https://github.com/NAJEMWEHBE/UnrealClaudeMCP/actions/workflows/tests.yml)
 [![License](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
@@ -74,8 +74,12 @@ The plugin sidesteps these limits by calling UE's native C++ APIs directly insid
 | `inspect_sequence` | Read structure of a Level Sequence: tracks, sections, bindings, frame rate, playback range. |
 | `create_sequence` | Create a new empty Level Sequence asset with a configured display rate and playback range. |
 | `bind_actor_to_sequence` | Add a level actor as a possessable binding to a Level Sequence. |
+| `create_material_instance` | Create a `UMaterialInstanceConstant` asset with a parent material set. |
+| `set_mi_parameter` | Override a scalar/vector/texture parameter on a material instance. Type discriminator picks value shape. |
+| `inspect_material` | List parameter names declared by a `UMaterial` or `UMaterialInstance` (scalar/vector/texture/static-switch). |
+| `inspect_material_instance` | Read a material instance's parent + currently-overridden parameter values. |
 
-Adding a 29th tool is one `.cpp` file plus one line of registration — see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+Adding a 33rd tool is one `.cpp` file plus one line of registration — see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ---
 
@@ -90,7 +94,7 @@ Adding a 29th tool is one `.cpp` file plus one line of registration — see [`do
    ```
    [LogUnrealClaudeMCP] Module started
    LogUCMCPHandler: Registered handler 'execute_unreal_python'
-     ... (28 lines)
+     ... (32 lines)
    [LogUCMCP] Listening on 127.0.0.1:18888
    ```
 5. **Wire Claude Code.** Copy `examples/.mcp.json.example` to your project root as `.mcp.json`, edit the path to point at `bridge/unreal_claude_mcp_bridge.py`, restart Claude Code, and approve the new MCP server.
@@ -107,7 +111,7 @@ The smoke test fires every default-on tool from a plain Python TCP client (not t
 python examples/smoke_test.py
 ```
 
-You'll see twelve sections of JSON output (the twelfth inspects a Level Sequence in the project — read-only; if you don't have any Level Sequences, that step skips with a print and the rest still pass). Last line: *"Smoke test complete."*
+You'll see thirteen sections of JSON output (the thirteenth inspects any `UMaterial` in the project to validate the materials handlers are wired; like the sequencer step, it skips with a print if your project has no Materials). Last line: *"Smoke test complete."*
 
 ---
 
@@ -141,10 +145,10 @@ tests/                            Pytest suite for the bridge (no UE required)
 
 | | |
 |---|---|
-| **Latest release** | v0.8.0 — 2026-05-08 |
-| **Tools** | 28 live, smoke-tested end-to-end |
+| **Latest release** | v0.9.0 — 2026-05-08 |
+| **Tools** | 32 live, smoke-tested end-to-end |
 | **Tested on** | UE 5.7.4 / Windows 11 / Visual Studio 2026 / MSVC 14.50 |
-| **Bridge tests** | 90 pytest cases, ~99% coverage |
+| **Bridge tests** | 98 pytest cases, ~99% coverage |
 | **CI** | GitHub Actions on every push and PR |
 
 ---

@@ -13,7 +13,7 @@ plugin speaks raw JSON-RPC over a local TCP socket (default
 Behaviour:
   - "initialize"             returned synthetically (does NOT hit the UE server)
   - "notifications/*"        consumed silently
-  - "tools/list"             returns a static list mirroring the 28 handlers
+  - "tools/list"             returns a static list mirroring the 32 handlers
   - "tools/call"             unpacks {name, arguments} and forwards to the
                              UE server as the matching method
   - All other methods        proxied as-is
@@ -35,10 +35,11 @@ UE_PORT = int(os.environ.get("UCMCP_PORT", "18888"))
 
 PROTOCOL_VERSION = "2024-11-05"
 SERVER_NAME = "unreal-claude-mcp"
-SERVER_VERSION = "0.8.0"
+SERVER_VERSION = "0.9.0"
 
 # Mirror of UnrealClaudeMCP/Resources/mcp_manifest.json - kept in sync manually.
-# v0.8.0: 28 tools (added inspect_sequence, create_sequence, bind_actor_to_sequence).
+# v0.9.0: 32 tools (added create_material_instance, set_mi_parameter,
+#                   inspect_material, inspect_material_instance).
 TOOLS = [
     {
         "name": "execute_unreal_python",

@@ -168,7 +168,7 @@ def main():
         assert_error_code(resp, -32601, "unknown_method")
     step("unknown_method", t0)
 
-    header("1. list_tools (should list 28 tool names)")
+    header("1. list_tools (should list 32 tool names)")
     def t1():
         resp = call("list_tools")
         show(resp)
@@ -176,8 +176,8 @@ def main():
         tools = result.get("tools")
         if not isinstance(tools, list):
             raise SmokeFailure(f"[list_tools] 'tools' not a list: {result}")
-        if len(tools) != 28:
-            raise SmokeFailure(f"[list_tools] expected 28 tools, got {len(tools)}: {tools}")
+        if len(tools) != 32:
+            raise SmokeFailure(f"[list_tools] expected 32 tools, got {len(tools)}: {tools}")
         if result.get("count") != len(tools):
             raise SmokeFailure(f"[list_tools] 'count' ({result.get('count')}) != len(tools) ({len(tools)})")
     step("list_tools", t1)
@@ -583,6 +583,62 @@ def main():
         if not isinstance(inspect_res["tracks"], list):
             raise SmokeFailure(f"[inspect_sequence] tracks not a list: {inspect_res['tracks']}")
     step("sequencer", t_sequencer)
+
+    # -------- v0.9.0: materials authoring -----------------------------------
+    # One read-only check: find any UMaterial in /Game/, call inspect_material
+    # to verify the parameter-name lists are populated, then call
+    # inspect_material_instance on any UMaterialInstanceConstant if present.
+    # No mutations on the user's project — create_material_instance and
+    # set_mi_parameter need a clean test sandbox to be safe.
+    def t_materials():
+        find_resp = call("find_assets", {
+            "class_path": "/Script/Engine.Material",
+            "path_under": "/Game/",
+            "limit": 1,
+        })
+        find_res = assert_ok(find_resp, "find_assets.materials")
+        if find_res.get("returned", 0) < 1:
+            print("  [t_materials] no Materials in /Game/ — skipping inspect_material")
+            return
+
+        first_mat = find_res["assets"][0]
+        inspect_resp = call("inspect_material", {"path": first_mat["package_path"]})
+        inspect_res = assert_ok(inspect_resp, "inspect_material.first_found")
+        for required_key in ("name", "package_path", "class",
+                             "scalar_parameters", "vector_parameters",
+                             "texture_parameters", "static_switch_parameters"):
+            if required_key not in inspect_res:
+                raise SmokeFailure(
+                    f"[inspect_material] missing key '{required_key}' in result: {inspect_res}"
+                )
+        for arr_key in ("scalar_parameters", "vector_parameters",
+                        "texture_parameters", "static_switch_parameters"):
+            if not isinstance(inspect_res[arr_key], list):
+                raise SmokeFailure(
+                    f"[inspect_material] {arr_key} not a list: {inspect_res[arr_key]}"
+                )
+
+        # If a MaterialInstanceConstant exists, exercise inspect_material_instance.
+        mic_resp = call("find_assets", {
+            "class_path": "/Script/Engine.MaterialInstanceConstant",
+            "path_under": "/Game/",
+            "limit": 1,
+        })
+        mic_res = assert_ok(mic_resp, "find_assets.material_instances")
+        if mic_res.get("returned", 0) < 1:
+            print("  [t_materials] no MaterialInstanceConstants in /Game/ — skipping inspect_material_instance")
+            return
+        first_mic = mic_res["assets"][0]
+        inspect_mic = call("inspect_material_instance", {"path": first_mic["package_path"]})
+        inspect_mic_res = assert_ok(inspect_mic, "inspect_material_instance.first_found")
+        for required_key in ("name", "package_path", "parent_path",
+                             "scalar_overrides", "vector_overrides",
+                             "texture_overrides"):
+            if required_key not in inspect_mic_res:
+                raise SmokeFailure(
+                    f"[inspect_material_instance] missing key '{required_key}' in result: {inspect_mic_res}"
+                )
+    step("materials", t_materials)
 
     if args.bp:
         header(f"10. inspect_blueprint  ({args.bp})")

@@ -1,10 +1,10 @@
 {
     "FileVersion": 3,
     "Version": 1,
-    "VersionName": "0.8.0",
+    "VersionName": "0.9.0",
     "EngineVersion": "5.7.0",
     "FriendlyName": "Unreal Claude MCP",
-    "Description": "Drive Unreal Engine 5.7 from Claude (or any MCP client) over a localhost TCP socket. Twenty-eight tools for editor automation: arbitrary Python execution, Blueprint/Widget tree introspection and mutation, viewport screenshots, actor queries, texture import and configuration, Output Log access, console command execution, asset-registry tag queries, full asset-lifecycle authoring (inspect/move/rename/delete), and Level Sequence introspection + scaffolding (inspect/create/bind-actor). Bypasses UE Python reflection limits by calling native C++ APIs directly.",
+    "Description": "Drive Unreal Engine 5.7 from Claude (or any MCP client) over a localhost TCP socket. Thirty-two tools for editor automation: arbitrary Python execution, Blueprint/Widget tree introspection and mutation, viewport screenshots, actor queries, texture import and configuration, Output Log access, console command execution, asset-registry tag queries, full asset-lifecycle authoring (inspect/move/rename/delete), Level Sequence introspection + scaffolding (inspect/create/bind-actor), and material instance authoring (create/set-parameter/inspect-material/inspect-instance). Bypasses UE Python reflection limits by calling native C++ APIs directly.",
     "Category": "Editor",
     "CreatedBy": "HD Media",
     "CreatedByURL": "https://hdmedia.tv",
