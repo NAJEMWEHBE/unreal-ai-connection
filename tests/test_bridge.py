@@ -19,8 +19,8 @@ import unreal_claude_mcp_bridge as bridge
 
 # -------- TOOLS schema --------------------------------------------------------
 
-def test_tools_list_has_eleven_entries():
-    assert len(bridge.TOOLS) == 11
+def test_tools_list_has_thirteen_entries():
+    assert len(bridge.TOOLS) == 13
 
 
 def test_each_tool_has_required_mcp_fields():
@@ -41,6 +41,7 @@ def test_tool_names_are_unique_and_match_handlers():
         "inspect_widget_tree", "edit_widget_tree", "get_viewport_screenshot",
         "list_tools", "get_actors_in_level", "focus_actor",
         "load_level_by_path", "take_high_res_screenshot",
+        "import_texture", "configure_texture",
     }
     assert set(names) == expected
 
@@ -59,6 +60,33 @@ def test_required_params_match_handler_contract():
     assert by_name["edit_widget_tree"]["inputSchema"]["required"] == ["path", "op"]
     assert by_name["focus_actor"]["inputSchema"]["required"] == ["name"]
     assert by_name["load_level_by_path"]["inputSchema"]["required"] == ["path"]
+
+
+def test_import_texture_schema():
+    tool = next(t for t in bridge.TOOLS if t["name"] == "import_texture")
+    schema = tool["inputSchema"]
+    assert schema["required"] == ["source_path", "dest_path"]
+    props = schema["properties"]
+    assert props["source_path"]["type"] == "string"
+    assert props["dest_path"]["type"] == "string"
+    assert props["dest_name"]["type"] == "string"
+    assert props["replace_existing"]["type"] == "boolean"
+    assert props["automated"]["type"] == "boolean"
+    assert props["save"]["type"] == "boolean"
+
+
+def test_configure_texture_schema():
+    tool = next(t for t in bridge.TOOLS if t["name"] == "configure_texture")
+    schema = tool["inputSchema"]
+    assert schema["required"] == ["path"]
+    props = schema["properties"]
+    assert props["path"]["type"] == "string"
+    assert props["srgb"]["type"] == "boolean"
+    assert props["compression"]["type"] == "string"
+    assert props["lod_group"]["type"] == "string"
+    assert props["filter"]["type"] == "string"
+    assert props["compress"]["type"] == "boolean"
+    assert props["filter"].get("enum") == ["Nearest", "Bilinear", "Trilinear", "Default"]
 
 
 # -------- make_response -------------------------------------------------------
@@ -121,7 +149,7 @@ def test_handle_tools_list_returns_all_tools():
     resp = bridge.handle({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
     assert resp["id"] == 2
     assert "tools" in resp["result"]
-    assert len(resp["result"]["tools"]) == 11
+    assert len(resp["result"]["tools"]) == 13
 
 
 # -------- handle: tools/call --------------------------------------------------

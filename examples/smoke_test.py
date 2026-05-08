@@ -140,7 +140,7 @@ def main():
         assert_error_code(resp, -32601, "unknown_method")
     step("unknown_method", t0)
 
-    header("1. list_tools (should list 11 tool names)")
+    header("1. list_tools (should list 13 tool names)")
     def t1():
         resp = call("list_tools")
         show(resp)
@@ -148,8 +148,8 @@ def main():
         tools = result.get("tools")
         if not isinstance(tools, list):
             raise SmokeFailure(f"[list_tools] 'tools' not a list: {result}")
-        if len(tools) != 11:
-            raise SmokeFailure(f"[list_tools] expected 11 tools, got {len(tools)}: {tools}")
+        if len(tools) != 13:
+            raise SmokeFailure(f"[list_tools] expected 13 tools, got {len(tools)}: {tools}")
         if result.get("count") != len(tools):
             raise SmokeFailure(f"[list_tools] 'count' ({result.get('count')}) != len(tools) ({len(tools)})")
     step("list_tools", t1)
@@ -230,8 +230,55 @@ def main():
             raise SmokeFailure("[get_viewport_screenshot] empty png_base64")
     step("get_viewport_screenshot", t6)
 
+    header("7. texture pipeline round-trip (import + configure + cleanup)")
+    def t_texture():
+        fixture = os.path.abspath(
+            os.path.join(os.path.dirname(__file__), "..",
+                         "tests", "fixtures", "test_texture.png"))
+        if not os.path.exists(fixture):
+            raise SmokeFailure(f"[texture] fixture missing: {fixture}")
+
+        smoke_dest = "/Game/_UnrealClaudeMCPSmoke"
+        asset_name = "T_PipelineSmoke"
+        asset_path = f"{smoke_dest}/{asset_name}.{asset_name}"
+
+        # Import
+        imp = call("import_texture", {
+            "source_path": fixture,
+            "dest_path": smoke_dest,
+            "dest_name": asset_name,
+            "replace_existing": True,
+        })
+        result = assert_ok(imp, "import_texture")
+        if not (result.get("width") == 256 and result.get("height") == 256):
+            raise SmokeFailure(f"[import_texture] unexpected dims: {result}")
+
+        # Configure
+        cfg = call("configure_texture", {
+            "path": asset_path,
+            "srgb": False,
+            "compression": "Normalmap",
+            "lod_group": "WorldNormalMap",
+        })
+        cfg_res = assert_ok(cfg, "configure_texture")
+        applied = cfg_res.get("applied") or {}
+        if applied.get("srgb") is not False:
+            raise SmokeFailure(f"[configure_texture] srgb not applied: {cfg_res}")
+        if applied.get("compression") != "Normalmap":
+            raise SmokeFailure(f"[configure_texture] compression not applied: {cfg_res}")
+
+        # Clean up via execute_unreal_python so we don't leave smoke assets behind
+        cleanup = call("execute_unreal_python", {
+            "code": (
+                "import unreal\n"
+                f"unreal.EditorAssetLibrary.delete_directory('{smoke_dest}')\n"
+            )
+        })
+        assert_ok(cleanup, "texture_pipeline.cleanup")
+    step("texture_pipeline", t_texture)
+
     if args.bp:
-        header(f"7. inspect_blueprint  ({args.bp})")
+        header(f"8. inspect_blueprint  ({args.bp})")
         def t7():
             resp = call("inspect_blueprint", {"path": args.bp})
             show(resp)
@@ -241,14 +288,14 @@ def main():
     if args.widget:
         wbp = args.widget
 
-        header(f"8a. inspect_widget_tree (BEFORE)  ({wbp})")
+        header(f"9a. inspect_widget_tree (BEFORE)  ({wbp})")
         def t8a():
             resp = call("inspect_widget_tree", {"path": wbp})
             show(resp)
             assert_ok(resp, "inspect_widget_tree.before")
         step("inspect_widget_tree.before", t8a)
 
-        header("8b. edit_widget_tree -- set_root VerticalBox")
+        header("9b. edit_widget_tree -- set_root VerticalBox")
         def t8b():
             resp = call("edit_widget_tree", {
                 "path": wbp, "op": "set_root", "class": "VerticalBox", "name": "RootVB",
@@ -257,7 +304,7 @@ def main():
             assert_ok(resp, "edit_widget_tree.set_root")
         step("edit_widget_tree.set_root", t8b)
 
-        header("8c. edit_widget_tree -- add_child TextBlock 'Title'")
+        header("9c. edit_widget_tree -- add_child TextBlock 'Title'")
         def t8c():
             resp = call("edit_widget_tree", {
                 "path": wbp, "op": "add_child", "parent": "RootVB",
@@ -267,7 +314,7 @@ def main():
             assert_ok(resp, "edit_widget_tree.add_child")
         step("edit_widget_tree.add_child", t8c)
 
-        header("8d. edit_widget_tree -- set_property Title.text (with compile)")
+        header("9d. edit_widget_tree -- set_property Title.text (with compile)")
         def t8d():
             resp = call("edit_widget_tree", {
                 "path": wbp, "op": "set_property", "widget": "Title",
@@ -278,7 +325,7 @@ def main():
             assert_ok(resp, "edit_widget_tree.set_property")
         step("edit_widget_tree.set_property", t8d)
 
-        header("8e. inspect_widget_tree (AFTER; should show RootVB + Title)")
+        header("9e. inspect_widget_tree (AFTER; should show RootVB + Title)")
         def t8e():
             resp = call("inspect_widget_tree", {"path": wbp})
             show(resp)
@@ -291,7 +338,7 @@ def main():
         step("inspect_widget_tree.after", t8e)
 
     if args.level:
-        header(f"9. load_level_by_path  ({args.level})")
+        header(f"10. load_level_by_path  ({args.level})")
         def t9():
             resp = call("load_level_by_path", {"path": args.level})
             show(resp)

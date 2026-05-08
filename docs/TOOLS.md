@@ -181,6 +181,102 @@ Trigger UE's `HighResShot` console command. Output goes to `<Project>/Saved/Scre
 
 ---
 
+## import_texture
+
+Import an image file (PNG/JPG/EXR/TGA/BMP/HDR) from disk into the project as a `UTexture2D` asset, using UE's canonical `UAssetImportTask` + `IAssetTools::ImportAssetTasks` path. The factory's settings inference, source-file metadata, and reimport hooks all behave exactly as if you had drag-dropped the file into the Content Browser manually.
+
+**Params**
+- `source_path` (string, required) — absolute filesystem path to the source image.
+- `dest_path` (string, required) — UE package path; must start with `/Game/` (e.g. `/Game/Textures/Environment`).
+- `dest_name` (string, optional) — asset-name override; defaults to the source filename stem.
+- `replace_existing` (bool, optional, default `false`) — overwrite the asset if one already exists at `dest_path/dest_name`.
+- `automated` (bool, optional, default `true`) — suppress modal dialogs; required for non-interactive use.
+- `save` (bool, optional, default `true`) — persist the `.uasset` to disk after import.
+
+**Result**
+- `ok` (bool)
+- `asset_path` (string) — UE package path of the new asset
+- `asset_name` (string)
+- `source_path` (string) — echo of the source argument
+- `width`, `height` (int) — pixel dimensions
+- `format` (string) — `EPixelFormat` name (e.g. `PF_B8G8R8A8`)
+- `message` (string) — human-readable status
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"import_texture","params":{
+  "source_path": "C:/Art/stone_diffuse.png",
+  "dest_path": "/Game/Textures/Environment",
+  "dest_name": "T_Stone_D",
+  "replace_existing": false,
+  "save": true
+}}
+```
+```json
+{"jsonrpc":"2.0","id":1,"result":{
+  "ok": true,
+  "asset_path": "/Game/Textures/Environment/T_Stone_D",
+  "asset_name": "T_Stone_D",
+  "source_path": "C:/Art/stone_diffuse.png",
+  "width": 2048,
+  "height": 2048,
+  "format": "PF_B8G8R8A8",
+  "message": "Imported PNG (2048x2048) as UTexture2D."
+}}
+```
+
+**Errors:** Returned as JSON-RPC `error.message` strings prefixed with `import_texture: ...`. Possible failure modes include missing/empty `source_path`, missing/empty `dest_path`, `dest_path` not starting with `/Game/`, source file not existing on disk, unsupported file extension (only PNG/JPG/JPEG/EXR/TGA/BMP/HDR are accepted), the import factory rejecting the input, and the imported object not being a `UTexture2D`.
+
+---
+
+## configure_texture
+
+Adjust the four most common texture settings — `SRGB`, `CompressionSettings`, `LODGroup`, `Filter` — on an existing `UTexture` asset and persist the change. The handler wraps mutations in the required `PreEditChange` / `Modify` / set / `PostEditChangeProperty` / `UpdateResource` / `SaveLoadedAsset` sequence so that the in-editor preview and the on-disk `.uasset` stay consistent.
+
+The `applied` object in the result contains *only* the fields the caller actually provided in the request. Fields that were not specified in the call do not appear in `applied`, which makes it safe to drive this tool in partial-update loops without accidentally inferring what was left unchanged.
+
+**Params**
+- `path` (string, required) — UE package path of an existing texture asset, e.g. `/Game/Textures/Environment/T_Stone_D`.
+- `srgb` (bool, optional) — sets `UTexture::SRGB`.
+- `compression` (string enum, optional) — maps to `TextureCompressionSettings`. Accepted values: `Default`, `Normalmap`, `Masks`, `Grayscale`, `Displacementmap`, `VectorDisplacementmap`, `HDR`, `UserInterface2D`, `BC7`, `HalfFloat`, `SingleFloat`, `Alpha`, `DistanceFieldFont`, `HDR_Compressed`, `HDR_F32`.
+- `lod_group` (string enum, optional) — maps to `TextureGroup`. Common values: `World`, `WorldNormalMap`, `WorldSpecular`, `Character`, `CharacterNormalMap`, `CharacterSpecular`, `Weapon`, `WeaponNormalMap`, `WeaponSpecular`, `Vehicle`, `VehicleNormalMap`, `VehicleSpecular`, `Cinematic`, `Effects`, `EffectsNotFiltered`, `Skybox`, `UI`, `Lightmap`, `Shadowmap`, `RenderTarget`, `MobileFlattened`, `Pixels2D`, `HierarchicalLOD`. (Exhaustive list validated against `Engine/Source/Runtime/Engine/Classes/Engine/TextureDefines.h` in UE 5.7.)
+- `filter` (string enum, optional) — maps to `TextureFilter`. Accepted values: `Nearest`, `Bilinear`, `Trilinear`, `Default`.
+- `compress` (bool, optional, default `true`) — whether to call `UpdateResource()` after mutation; set to `false` for batched edits and trigger a rebuild separately.
+
+**Result**
+- `ok` (bool)
+- `path` (string) — UE package path of the modified asset
+- `applied` (object) — only the fields that were present in the request, with their applied values
+- `message` (string) — human-readable status, e.g. `"Applied 3 changes; resource rebuilt and saved."`
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"configure_texture","params":{
+  "path": "/Game/Textures/Environment/T_Stone_D",
+  "srgb": false,
+  "compression": "Normalmap",
+  "lod_group": "WorldNormalMap"
+}}
+```
+```json
+{"jsonrpc":"2.0","id":1,"result":{
+  "ok": true,
+  "path": "/Game/Textures/Environment/T_Stone_D",
+  "applied": {
+    "srgb": false,
+    "compression": "Normalmap",
+    "lod_group": "WorldNormalMap"
+  },
+  "message": "Applied 3 changes; resource rebuilt and saved."
+}}
+```
+
+**Note:** the canonical list of accepted enum values is the parser map in `Handler_ConfigureTexture.cpp`. This document mirrors it but the source is authoritative — UE versions can add or remove enum entries.
+
+**Errors:** Returned as JSON-RPC `error.message` strings prefixed with `configure_texture: ...`. Possible failure modes include missing `path` param, no settings fields provided (`no_changes_specified`), asset not found at `path`, unknown enum value for `compression` / `lod_group` / `filter`, and `save_failed` if the asset cannot be persisted to disk.
+
+---
+
 ## Adding more tools
 
 See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the recipe. Short version: one `.cpp` file in `Source/UnrealClaudeMCP/Private/MCP/Handlers/`, two registration lines in `UnrealClaudeMCPModule.cpp`, one entry in `Resources/mcp_manifest.json`, one entry in `bridge/unreal_claude_mcp_bridge.py`'s `TOOLS` list, rebuild, restart.

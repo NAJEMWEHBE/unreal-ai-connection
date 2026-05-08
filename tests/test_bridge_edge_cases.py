@@ -2,7 +2,7 @@
 Edge-case unit tests for the Python bridge. Complements `test_bridge.py`.
 
 Focus: malformed/atypical incoming requests, parameter passthrough across
-ALL 11 tools, and current-behaviour documentation for things outside spec
+ALL 13 tools, and current-behaviour documentation for things outside spec
 (non-dict params, etc.). Like `test_bridge.py`, runs without UE.
 """
 
@@ -15,7 +15,7 @@ import pytest
 import unreal_claude_mcp_bridge as bridge
 
 
-# -------- Parameterised round-trip across all 11 tools -----------------------
+# -------- Parameterised round-trip across all 13 tools -----------------------
 
 @pytest.mark.parametrize("tool", [t["name"] for t in bridge.TOOLS])
 def test_every_tool_routes_through_tools_call(tool):
