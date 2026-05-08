@@ -225,7 +225,17 @@ Import an image file (PNG/JPG/EXR/TGA/BMP/HDR) from disk into the project as a `
 }}
 ```
 
-**Errors:** Returned as JSON-RPC `error.message` strings prefixed with `import_texture: ...`. Possible failure modes include missing/empty `source_path`, missing/empty `dest_path`, `dest_path` not starting with `/Game/`, source file not existing on disk, unsupported file extension (only PNG/JPG/JPEG/EXR/TGA/BMP/HDR are accepted), the import factory rejecting the input, and the imported object not being a `UTexture2D`.
+**Errors:** Returned as JSON-RPC `error.message` strings in the format `import_texture: <error_code>: <human-readable detail>`. Clients can split on `: ` (twice) to extract the stable error code. Stable codes:
+
+| Code | Trigger |
+|---|---|
+| `missing_params` | Request had no `params` object. |
+| `missing_required_field` | `source_path` or `dest_path` was missing or empty. |
+| `invalid_dest_path` | `dest_path` does not start with `/Game/`. |
+| `source_not_found` | `source_path` does not exist on disk. |
+| `unsupported_extension` | File extension not in `{png, jpg, jpeg, exr, tga, bmp, hdr}`. |
+| `import_factory_failed` | UE's `IAssetTools::ImportAssetTasks` produced no imported object (factory rejected the input). |
+| `imported_not_a_texture` | Defensive — the factory returned an object that is not a `UTexture2D`. Should never fire for the texture factory. |
 
 ---
 
@@ -273,7 +283,16 @@ The `applied` object in the result contains *only* the fields the caller actuall
 
 **Note:** the canonical list of accepted enum values is the parser map in `Handler_ConfigureTexture.cpp`. This document mirrors it but the source is authoritative — UE versions can add or remove enum entries.
 
-**Errors:** Returned as JSON-RPC `error.message` strings prefixed with `configure_texture: ...`. Possible failure modes include missing `path` param, no settings fields provided (`no_changes_specified`), asset not found at `path`, unknown enum value for `compression` / `lod_group` / `filter`, and `save_failed` if the asset cannot be persisted to disk.
+**Errors:** Returned as JSON-RPC `error.message` strings in the format `configure_texture: <error_code>: <human-readable detail>`. Stable codes:
+
+| Code | Trigger |
+|---|---|
+| `missing_params` | Request had no `params` object. |
+| `missing_required_field` | `path` was missing or empty. |
+| `no_changes_specified` | None of `srgb` / `compression` / `lod_group` / `filter` were provided. The handler is a mutation tool — calling it with zero changes is treated as caller error, not a successful no-op. |
+| `asset_not_found` | `LoadObject<UTexture>(path)` returned null (asset doesn't exist or isn't a `UTexture` subclass). |
+| `unknown_enum_value` | A string value for `compression` / `lod_group` / `filter` did not match any valid enum. The error message lists the offending field and value. |
+| `save_failed` | `UEditorAssetLibrary::SaveLoadedAsset` returned `false` after mutations were applied in-memory. |
 
 ---
 

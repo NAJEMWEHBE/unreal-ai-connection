@@ -4,6 +4,11 @@
 // on an existing UTexture asset. Validates enums, runs the documented
 // PreEditChange / Modify / set / PostEditChange / UpdateResource /
 // SaveLoadedAsset dance, returns an `applied` map of what changed.
+//
+// Error format: "configure_texture: <error_code>: <human-readable detail>".
+// Stable error codes (parseable by clients): missing_params,
+// missing_required_field, no_changes_specified, asset_not_found,
+// unknown_enum_value, save_failed.
 
 #include "MCP/MCPHandler.h"
 
@@ -101,14 +106,14 @@ public:
     {
         if (!Params.IsValid())
         {
-            OutError = TEXT("configure_texture: missing params");
+            OutError = TEXT("configure_texture: missing_params: request had no params object");
             return nullptr;
         }
 
         FString Path;
         if (!Params->TryGetStringField(TEXT("path"), Path) || Path.IsEmpty())
         {
-            OutError = TEXT("configure_texture: 'path' is required");
+            OutError = TEXT("configure_texture: missing_required_field: 'path' is required");
             return nullptr;
         }
 
@@ -118,7 +123,7 @@ public:
         const bool bHasFilter      = Params->HasField(TEXT("filter"));
         if (!bHasSrgb && !bHasCompression && !bHasLodGroup && !bHasFilter)
         {
-            OutError = TEXT("configure_texture: no_changes_specified - "
+            OutError = TEXT("configure_texture: no_changes_specified: "
                             "provide at least one of srgb / compression / lod_group / filter");
             return nullptr;
         }
@@ -126,7 +131,7 @@ public:
         UTexture* Tex = LoadObject<UTexture>(nullptr, *Path);
         if (!Tex)
         {
-            OutError = FString::Printf(TEXT("configure_texture: asset_not_found at %s"), *Path);
+            OutError = FString::Printf(TEXT("configure_texture: asset_not_found: no asset at '%s'"), *Path);
             return nullptr;
         }
 
@@ -144,7 +149,7 @@ public:
             if (!ParseCompression(CompressionStr, Compression))
             {
                 OutError = FString::Printf(
-                    TEXT("configure_texture: unknown_enum_value 'compression'='%s'"), *CompressionStr);
+                    TEXT("configure_texture: unknown_enum_value: 'compression'='%s' (not a valid TextureCompressionSettings value)"), *CompressionStr);
                 return nullptr;
             }
         }
@@ -153,7 +158,7 @@ public:
             if (!ParseLodGroup(LodGroupStr, LodGroup))
             {
                 OutError = FString::Printf(
-                    TEXT("configure_texture: unknown_enum_value 'lod_group'='%s'"), *LodGroupStr);
+                    TEXT("configure_texture: unknown_enum_value: 'lod_group'='%s' (not a valid TextureGroup value)"), *LodGroupStr);
                 return nullptr;
             }
         }
@@ -162,7 +167,7 @@ public:
             if (!ParseFilter(FilterStr, Filter))
             {
                 OutError = FString::Printf(
-                    TEXT("configure_texture: unknown_enum_value 'filter'='%s'"), *FilterStr);
+                    TEXT("configure_texture: unknown_enum_value: 'filter'='%s' (not in [Nearest, Bilinear, Trilinear, Default])"), *FilterStr);
                 return nullptr;
             }
         }
@@ -190,7 +195,7 @@ public:
 
         if (!UEditorAssetLibrary::SaveLoadedAsset(Tex))
         {
-            OutError = TEXT("configure_texture: save_failed");
+            OutError = TEXT("configure_texture: save_failed: UEditorAssetLibrary::SaveLoadedAsset returned false");
             return nullptr;
         }
 
