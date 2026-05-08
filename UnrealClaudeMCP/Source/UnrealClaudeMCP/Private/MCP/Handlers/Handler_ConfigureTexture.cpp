@@ -137,15 +137,32 @@ public:
 
         // Pre-validate all enum values BEFORE any mutation, so unknown_enum_value
         // can't leave the asset half-modified.
+        //
+        // Codex review on PR #3 (P1) caught a related defect: HasField checks
+        // presence but TryGetBoolField / TryGetStringField only succeed when
+        // the JSON value is the right type. If a caller sent {"srgb": null} or
+        // {"compression": 123}, the parse step silently failed and the field
+        // retained its default (false / TC_Default / etc.), which the mutation
+        // step at the bottom then wrote to the asset. Now we treat a parse
+        // failure on a present field as an explicit invalid_value_type error.
         bool bSrgb = false;
         TextureCompressionSettings Compression = TC_Default;
         TextureGroup LodGroup = TEXTUREGROUP_World;
         TextureFilter Filter = TF_Default;
         FString CompressionStr, LodGroupStr, FilterStr;
 
-        if (bHasSrgb)        Params->TryGetBoolField(TEXT("srgb"), bSrgb);
-        if (bHasCompression && Params->TryGetStringField(TEXT("compression"), CompressionStr))
+        if (bHasSrgb && !Params->TryGetBoolField(TEXT("srgb"), bSrgb))
         {
+            OutError = TEXT("configure_texture: invalid_value_type: 'srgb' must be a boolean");
+            return nullptr;
+        }
+        if (bHasCompression)
+        {
+            if (!Params->TryGetStringField(TEXT("compression"), CompressionStr))
+            {
+                OutError = TEXT("configure_texture: invalid_value_type: 'compression' must be a string");
+                return nullptr;
+            }
             if (!ParseCompression(CompressionStr, Compression))
             {
                 OutError = FString::Printf(
@@ -153,8 +170,13 @@ public:
                 return nullptr;
             }
         }
-        if (bHasLodGroup && Params->TryGetStringField(TEXT("lod_group"), LodGroupStr))
+        if (bHasLodGroup)
         {
+            if (!Params->TryGetStringField(TEXT("lod_group"), LodGroupStr))
+            {
+                OutError = TEXT("configure_texture: invalid_value_type: 'lod_group' must be a string");
+                return nullptr;
+            }
             if (!ParseLodGroup(LodGroupStr, LodGroup))
             {
                 OutError = FString::Printf(
@@ -162,8 +184,13 @@ public:
                 return nullptr;
             }
         }
-        if (bHasFilter && Params->TryGetStringField(TEXT("filter"), FilterStr))
+        if (bHasFilter)
         {
+            if (!Params->TryGetStringField(TEXT("filter"), FilterStr))
+            {
+                OutError = TEXT("configure_texture: invalid_value_type: 'filter' must be a string");
+                return nullptr;
+            }
             if (!ParseFilter(FilterStr, Filter))
             {
                 OutError = FString::Printf(

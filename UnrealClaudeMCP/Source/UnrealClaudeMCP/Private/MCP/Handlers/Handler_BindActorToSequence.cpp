@@ -137,8 +137,19 @@ public:
         Sequence->BindPossessableObject(Guid, *Actor, World);
 
         // --- save the sequence ---------------------------------------------
-
-        UEditorAssetLibrary::SaveAsset(SequenceObjectPath, /*bForceSave=*/false);
+        //
+        // Codex review on PR #15 (P2): the original code ignored SaveAsset's
+        // bool return, so SCC-checkout failures or read-only files would
+        // leave the binding only in-memory while the handler still reported
+        // ok=true. Now we surface save failures explicitly so callers know
+        // the binding was created in memory but not persisted to disk.
+        if (!UEditorAssetLibrary::SaveAsset(SequenceObjectPath, /*bForceSave=*/false))
+        {
+            OutError = FString::Printf(
+                TEXT("bind_actor_to_sequence: save_failed: UEditorAssetLibrary::SaveAsset returned false for '%s' (likely SCC checkout failure or read-only file). Binding was added in memory but not persisted to disk."),
+                *SequenceObjectPath);
+            return nullptr;
+        }
 
         // --- build result ---------------------------------------------------
 

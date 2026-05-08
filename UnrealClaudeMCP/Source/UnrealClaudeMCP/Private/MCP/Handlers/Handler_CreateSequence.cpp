@@ -140,8 +140,18 @@ public:
         // exactly. We use a 1000 denominator for arbitrary user input — this
         // gives ~3 decimal places of precision (30.0 → 30000/1000) and avoids
         // floating-point imprecision in the rational form.
-        const FFrameRate DisplayRate(
-            static_cast<uint32>(FMath::RoundToInt(DisplayRateFps * 1000.0)), 1000);
+        //
+        // Codex review on PR #15 (P1) caught that the original code accepted
+        // any DisplayRateFps > 0 but `RoundToInt(fps * 1000)` quantized tiny
+        // positive values (e.g. 0.0001) to 0, producing an invalid FFrameRate
+        // with numerator 0 — TransformTime then yields NaN-style results and
+        // the saved sequence's playback math is corrupted.
+        //
+        // Fix: clamp the quantized numerator to at least 1. With a 1000
+        // denominator, that's 0.001 fps = 1 frame per 1000 seconds — a sane
+        // floor that nobody legitimately wants to dip below.
+        const uint32 RawNumerator = static_cast<uint32>(FMath::Max(1, FMath::RoundToInt(DisplayRateFps * 1000.0)));
+        const FFrameRate DisplayRate(RawNumerator, 1000);
         Scene->SetDisplayRate(DisplayRate);
 
         // Convert end frames (in display rate) to ticks (in tick resolution).
@@ -153,8 +163,19 @@ public:
         Scene->SetPlaybackRange(0, EndTimeInTicks.FrameNumber.Value);
 
         // --- save -----------------------------------------------------------
-
-        UEditorAssetLibrary::SaveAsset(DestObjectPath, /*bForceSave=*/false);
+        //
+        // Codex review on PR #15 (P2) caught that the original code ignored
+        // SaveAsset's bool return. SCC-checkout failures, read-only files, or
+        // disk errors would leave the asset only in-memory while the handler
+        // still reported ok=true — automation would believe the sequence was
+        // persisted when it wasn't. Now we surface save failures explicitly.
+        if (!UEditorAssetLibrary::SaveAsset(DestObjectPath, /*bForceSave=*/false))
+        {
+            OutError = FString::Printf(
+                TEXT("create_sequence: save_failed: UEditorAssetLibrary::SaveAsset returned false for '%s' (likely SCC checkout failure or read-only file)"),
+                *DestObjectPath);
+            return nullptr;
+        }
 
         // --- build result ---------------------------------------------------
 
