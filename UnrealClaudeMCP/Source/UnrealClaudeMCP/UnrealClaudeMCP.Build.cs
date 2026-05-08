@@ -31,7 +31,11 @@ public class UnrealClaudeMCP : ModuleRules
             "Kismet",
             "EngineSettings",
             "UMG",
-            "UMGEditor"
+            "UMGEditor",
+            // Sequencer (v0.8.0)
+            "LevelSequence",
+            "MovieScene",
+            "MovieSceneTracks"
         });
 
         PrivateDependencyModuleNames.AddRange(new string[]
@@ -39,7 +43,9 @@ public class UnrealClaudeMCP : ModuleRules
             "InputCore",
             "Projects",
             "PropertyEditor",
-            "LevelEditor"
+            "LevelEditor",
+            // Sequencer editor library (v0.8.0)
+            "LevelSequenceEditor"
         });
     }
 }

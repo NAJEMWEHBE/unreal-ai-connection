@@ -13,7 +13,7 @@ plugin speaks raw JSON-RPC over a local TCP socket (default
 Behaviour:
   - "initialize"             returned synthetically (does NOT hit the UE server)
   - "notifications/*"        consumed silently
-  - "tools/list"             returns a static list mirroring the 25 handlers
+  - "tools/list"             returns a static list mirroring the 28 handlers
   - "tools/call"             unpacks {name, arguments} and forwards to the
                              UE server as the matching method
   - All other methods        proxied as-is
@@ -35,11 +35,10 @@ UE_PORT = int(os.environ.get("UCMCP_PORT", "18888"))
 
 PROTOCOL_VERSION = "2024-11-05"
 SERVER_NAME = "unreal-claude-mcp"
-SERVER_VERSION = "0.7.0"
+SERVER_VERSION = "0.8.0"
 
 # Mirror of UnrealClaudeMCP/Resources/mcp_manifest.json - kept in sync manually.
-# v0.7.0: 25 tools (added inspect_asset, move_asset, rename_asset, delete_asset;
-#                   find_assets gained tags + include_tags).
+# v0.8.0: 28 tools (added inspect_sequence, create_sequence, bind_actor_to_sequence).
 TOOLS = [
     {
         "name": "execute_unreal_python",
@@ -324,6 +323,43 @@ TOOLS = [
                 "force": {"type": "boolean", "description": "When true, delete even if referenced (default false)."},
             },
             "required": ["path"],
+        },
+    },
+    {
+        "name": "inspect_sequence",
+        "description": "Read structure of a Level Sequence asset: tracks, sections, bindings, frame rate, playback range.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "Level Sequence asset path (object path or package path)."},
+            },
+            "required": ["path"],
+        },
+    },
+    {
+        "name": "create_sequence",
+        "description": "Create a new Level Sequence asset. Initializes an empty MovieScene with the given display frame rate and playback end-frame.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "Destination folder under /Game/."},
+                "name": {"type": "string", "description": "Leaf asset name (no '/' or '.')."},
+                "display_rate_fps": {"type": "number", "description": "Display frame rate (default 30.0)."},
+                "playback_end_frames": {"type": "integer", "description": "End of playback range in display frames (default 240)."},
+            },
+            "required": ["path", "name"],
+        },
+    },
+    {
+        "name": "bind_actor_to_sequence",
+        "description": "Add a level actor as a possessable binding to a Level Sequence. Creates the binding GUID and wires it to the live actor.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "sequence_path": {"type": "string", "description": "Level Sequence asset path."},
+                "actor_name": {"type": "string", "description": "Actor label or FName in the current editor world. Hybrid identification: ambiguous labels return ambiguous_actor."},
+            },
+            "required": ["sequence_path", "actor_name"],
         },
     },
 ]
