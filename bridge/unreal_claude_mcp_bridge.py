@@ -301,6 +301,18 @@ TOOLS = [
             "required": ["path", "dest_folder"],
         },
     },
+    {
+        "name": "rename_asset",
+        "description": "Rename an asset's leaf name; folder unchanged. UE auto-creates a redirector at the old name.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "Source asset path."},
+                "new_name": {"type": "string", "description": "New leaf name (no '/' or '.')."},
+            },
+            "required": ["path", "new_name"],
+        },
+    },
 ]
 
 

@@ -19,8 +19,8 @@ import unreal_claude_mcp_bridge as bridge
 
 # -------- TOOLS schema --------------------------------------------------------
 
-def test_tools_list_has_twentythree_entries():
-    assert len(bridge.TOOLS) == 23
+def test_tools_list_has_twentyfour_entries():
+    assert len(bridge.TOOLS) == 24
 
 
 def test_each_tool_has_required_mcp_fields():
@@ -45,7 +45,7 @@ def test_tool_names_are_unique_and_match_handlers():
         "find_assets", "spawn_actor", "set_actor_transform", "delete_actor",
         "set_actor_property", "add_component",
         "get_log_lines", "execute_console_command",
-        "inspect_asset", "move_asset",
+        "inspect_asset", "move_asset", "rename_asset",
     }
     assert set(names) == expected
 
@@ -81,6 +81,13 @@ def test_move_asset_in_tools_catalog():
     t = next((t for t in bridge.TOOLS if t["name"] == "move_asset"), None)
     assert t is not None
     assert set(t["inputSchema"]["required"]) == {"path", "dest_folder"}
+
+
+def test_rename_asset_in_tools_catalog():
+    """v0.7.0: rename_asset takes path + new_name, both required."""
+    t = next((t for t in bridge.TOOLS if t["name"] == "rename_asset"), None)
+    assert t is not None
+    assert set(t["inputSchema"]["required"]) == {"path", "new_name"}
 
 
 def test_required_params_match_handler_contract():
@@ -269,7 +276,7 @@ def test_handle_tools_list_returns_all_tools():
     resp = bridge.handle({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
     assert resp["id"] == 2
     assert "tools" in resp["result"]
-    assert len(resp["result"]["tools"]) == 23
+    assert len(resp["result"]["tools"]) == 24
 
 
 # -------- handle: tools/call --------------------------------------------------

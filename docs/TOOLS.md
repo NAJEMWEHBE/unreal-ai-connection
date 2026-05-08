@@ -765,6 +765,33 @@ Move an asset to a different folder. The leaf name does not change.
 
 ---
 
+## rename_asset
+
+Rename an asset's leaf name. The containing folder does not change.
+
+**Params**
+- `path` (string, required) — source asset path. Both forms accepted (with or without `.Name` suffix).
+- `new_name` (string, required) — new leaf name. No `/` or `.` characters allowed.
+
+**Result**
+- `ok` (bool)
+- `old_path` (string) — the source asset path before the rename
+- `new_path` (string) — the destination asset path after the rename
+
+**Errors:** `missing_required_field`, `asset_not_found`, `invalid_asset_name`, `dest_exists`, `rename_failed`.
+
+**Behavior note:** Same redirector behavior as `move_asset`. The old name continues to resolve via the redirector until *Fix Up Redirectors* is run.
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"rename_asset","params":{
+  "path": "/Game/Textures/T_Stone",
+  "new_name": "T_StoneAlbedo"
+}}
+```
+
+---
+
 ## Adding more tools
 
 See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the recipe. Short version: one `.cpp` file in `Source/UnrealClaudeMCP/Private/MCP/Handlers/`, two registration lines in `UnrealClaudeMCPModule.cpp`, one entry in `Resources/mcp_manifest.json`, one entry in `bridge/unreal_claude_mcp_bridge.py`'s `TOOLS` list, rebuild, restart.
