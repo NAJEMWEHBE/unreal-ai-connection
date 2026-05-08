@@ -393,12 +393,25 @@ namespace UCMCP::PropertyCoercion
 
             FScriptArrayHelper Helper(ArrayProp, PropAddr);
             Helper.EmptyAndAddUninitializedValues(AsArr->Num());
+            // Codex review on PR #9 (P1): EmptyAndAddUninitializedValues leaves
+            // every slot's memory uninitialized. The original code initialized
+            // each slot inside the same loop that called SetProperty, so a
+            // mid-loop early return on coercion failure left slots
+            // [k+1 .. N-1] uninitialized — undefined behavior when the
+            // FProperty's owner later destroys those slots.
+            //
+            // Fix: initialize EVERY slot up front (a zero-initialization pass
+            // for the inner property type) BEFORE running the coercion loop.
+            // That way any partial-failure return leaves all slots constructed
+            // and destructible — only the values are different (default-init
+            // for slots not yet coerced, coerced for slots that succeeded).
+            for (int32 i = 0; i < AsArr->Num(); ++i)
+            {
+                ArrayProp->Inner->InitializeValue(Helper.GetRawPtr(i));
+            }
             for (int32 i = 0; i < AsArr->Num(); ++i)
             {
                 void* ElemAddr = Helper.GetRawPtr(i);
-                // Default-construct each element before coercion (EmptyAndAddUninitializedValues
-                // leaves memory uninitialized; inner property may need zero-init).
-                ArrayProp->Inner->InitializeValue(ElemAddr);
                 const FString ElemPath = IndexedPath(CurrentPath, i);
                 FCoerceOutcome ElemOutcome = SetProperty(Container, ArrayProp->Inner, ElemAddr, (*AsArr)[i], ElemPath, Depth + 1);
                 if (ElemOutcome.Result != ECoerceResult::Success)
@@ -429,6 +442,14 @@ namespace UCMCP::PropertyCoercion
                 FCoerceOutcome ElemOutcome = SetProperty(Container, SetProp->ElementProp, ElemAddr, (*AsArr)[i], ElemPath, Depth + 1);
                 if (ElemOutcome.Result != ECoerceResult::Success)
                 {
+                    // Codex review on PR #9 (P1): entries inserted via
+                    // AddDefaultValue_Invalid_NeedsRehash leave the set in an
+                    // invalid hashed state. Empty + rehash before returning so
+                    // any later set lookup/iteration on the property doesn't
+                    // crash on a half-built hash table. The set ends up empty
+                    // (caller treats coercion failure as "no change applied").
+                    Helper.EmptyElements();
+                    Helper.Rehash();
                     return ElemOutcome;
                 }
             }
@@ -478,6 +499,13 @@ namespace UCMCP::PropertyCoercion
                 FCoerceOutcome ValOutcome = SetProperty(Container, MapProp->ValueProp, ValAddr, Pair.Value, ValPath, Depth + 1);
                 if (ValOutcome.Result != ECoerceResult::Success)
                 {
+                    // Codex review on PR #9 (P1): same hash-corruption pattern
+                    // as the TSet branch above. Entries were inserted with
+                    // AddDefaultValue_Invalid_NeedsRehash, so any later map
+                    // lookup would land in undefined territory. Empty + rehash
+                    // before returning to keep the property valid.
+                    Helper.EmptyValues();
+                    Helper.Rehash();
                     return ValOutcome;
                 }
             }
