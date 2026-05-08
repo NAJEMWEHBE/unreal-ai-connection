@@ -145,10 +145,14 @@ public:
         // v0.8.0 PR #15 — the proactive fix on the v0.9.0 branch (commit
         // 461ed17) never reached main because PR #16 was merged before that
         // push, so this is the canonical fix for main.
+        // Gemini review on PR #18: surface that the asset was created in
+        // memory even when the disk write failed, so the caller understands
+        // why a retry would now hit dest_exists (the in-memory package is
+        // still around and would block recreation at the same path).
         if (!UEditorAssetLibrary::SaveAsset(DestObjectPath, /*bForceSave=*/false))
         {
             OutError = FString::Printf(
-                TEXT("create_material_instance: save_failed: UEditorAssetLibrary::SaveAsset returned false for '%s' (likely SCC checkout failure or read-only file)"),
+                TEXT("create_material_instance: save_failed: UEditorAssetLibrary::SaveAsset returned false for '%s' (likely SCC checkout failure or read-only file). The asset was created in memory but not persisted to disk."),
                 *DestObjectPath);
             return nullptr;
         }

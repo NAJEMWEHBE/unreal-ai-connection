@@ -20,6 +20,8 @@
 #include "Dom/JsonValue.h"
 #include "EditorAssetLibrary.h"
 #include "Materials/MaterialInstanceConstant.h"
+#include "Materials/MaterialInstance.h"      // FScalarParameterValue, FVectorParameterValue, FTextureParameterValue
+#include "Materials/MaterialParameters.h"    // FMaterialParameterInfo::GetName()
 #include "Engine/Texture.h"
 #include "MaterialEditingLibrary.h"
 #include "MCP/Handlers/AssetPathUtil.h"
@@ -96,20 +98,32 @@ public:
         Out->SetStringField(TEXT("parameter"), ParameterName);
         Out->SetStringField(TEXT("type"), TypeStr);
 
-        // Codex review on PR #16 (P1) flagged that
-        // SetMaterialInstance*ParameterValue's bool return is unreliable —
-        // some UE versions return false even on successful writes, which
-        // would falsely trip a parameter_not_applied error and make the tool
-        // unusable on those engines.
+        // Two-stage verification of parameter overrides — combines lessons from
+        // both reviewers on PRs #16 and #18.
         //
-        // Better fix than codex's "post-verify by reading back": pre-verify
-        // the parameter is declared on the MIC's parent chain via
-        // Get<Type>ParameterNames BEFORE calling the setter, then call the
-        // setter and ignore its bool. This preserves the "param not declared"
-        // detection (which was the original intent) without depending on the
-        // unreliable bool. The pre-verify call is cheap (single registry
-        // walk) and Get<Type>ParameterNames is verified at
-        // MaterialEditingLibrary.h:357/361/365.
+        // Codex P1 on PR #16: SetMaterialInstance*ParameterValue's bool return
+        // is unreliable — some UE versions return false even on successful
+        // writes, so blanket "if (!bApplied) error" would falsely fail valid
+        // calls.
+        //
+        // Codex P2 on PR #18: pre-verify alone (just GetXxxParameterNames)
+        // proves the name exists somewhere on the chain, but doesn't prove the
+        // setter actually wrote an override — non-global / hidden / non-
+        // applicable parameters can pass the name check yet the setter
+        // legitimately refuses, and we'd silently report success.
+        //
+        // Gemini-style ground truth: the override either lands in
+        // MIC->{Scalar,Vector,Texture}ParameterValues or it doesn't. Reading
+        // those arrays back is independent of the unreliable bool.
+        //
+        // Final approach: PRE-verify cheap (typo catch via GetXxxParameterNames),
+        // call setter, IGNORE bool, then POST-verify by scanning the override
+        // array for our parameter name. Both checks together catch:
+        //   - typos / unknown names (pre-check)
+        //   - valid name but setter refused to apply (post-check)
+        // and don't depend on the unreliable bool return. Verified APIs at
+        // MaterialEditingLibrary.h:357/361/365 (name enumeration) and
+        // MaterialInstance.h:750/754/762 (override-value arrays).
 
         if (TypeStr == TEXT("scalar"))
         {
@@ -137,6 +151,27 @@ public:
             // intentionally — see header comment above this block.
             UMaterialEditingLibrary::SetMaterialInstanceScalarParameterValue(
                 MIC, ParamFName, ScalarValue);
+
+            // Post-verify: scan the override array for our parameter. If it's
+            // not there, the setter refused (e.g., non-global / hidden /
+            // non-applicable parameter). FScalarParameterValue layout verified
+            // at MaterialInstance.h:63 (ParameterInfo + ParameterValue fields).
+            bool bOverrideLanded = false;
+            for (const FScalarParameterValue& SV : MIC->ScalarParameterValues)
+            {
+                if (SV.ParameterInfo.GetName() == ParamFName)
+                {
+                    bOverrideLanded = true;
+                    break;
+                }
+            }
+            if (!bOverrideLanded)
+            {
+                OutError = FString::Printf(
+                    TEXT("set_mi_parameter: parameter_not_applied: scalar parameter '%s' is declared on the parent but the setter did not record an override on '%s' (likely a non-global / hidden / non-applicable parameter)"),
+                    *ParameterName, *InputPath);
+                return nullptr;
+            }
             Out->SetNumberField(TEXT("applied_value"), ScalarValue);
         }
         else if (TypeStr == TEXT("vector"))
@@ -176,6 +211,25 @@ public:
             // Verified at MaterialEditingLibrary.h:337. Bool return ignored.
             UMaterialEditingLibrary::SetMaterialInstanceVectorParameterValue(
                 MIC, ParamFName, Color);
+
+            // Post-verify (see header comment). FVectorParameterValue layout
+            // at MaterialInstance.h:125.
+            bool bVectorLanded = false;
+            for (const FVectorParameterValue& VV : MIC->VectorParameterValues)
+            {
+                if (VV.ParameterInfo.GetName() == ParamFName)
+                {
+                    bVectorLanded = true;
+                    break;
+                }
+            }
+            if (!bVectorLanded)
+            {
+                OutError = FString::Printf(
+                    TEXT("set_mi_parameter: parameter_not_applied: vector parameter '%s' is declared on the parent but the setter did not record an override on '%s' (likely a non-global / hidden / non-applicable parameter)"),
+                    *ParameterName, *InputPath);
+                return nullptr;
+            }
             TSharedRef<FJsonObject> AppliedJson = MakeShared<FJsonObject>();
             AppliedJson->SetNumberField(TEXT("r"), R);
             AppliedJson->SetNumberField(TEXT("g"), G);
@@ -218,6 +272,26 @@ public:
             // Verified at MaterialEditingLibrary.h:310. Bool return ignored.
             UMaterialEditingLibrary::SetMaterialInstanceTextureParameterValue(
                 MIC, ParamFName, Texture);
+
+            // Post-verify (see header comment). FTextureParameterValue layout
+            // at MaterialInstance.h:227 (ParameterInfo + TObjectPtr<UTexture>
+            // ParameterValue at line 240).
+            bool bTextureLanded = false;
+            for (const FTextureParameterValue& TV : MIC->TextureParameterValues)
+            {
+                if (TV.ParameterInfo.GetName() == ParamFName)
+                {
+                    bTextureLanded = true;
+                    break;
+                }
+            }
+            if (!bTextureLanded)
+            {
+                OutError = FString::Printf(
+                    TEXT("set_mi_parameter: parameter_not_applied: texture parameter '%s' is declared on the parent but the setter did not record an override on '%s' (likely a non-global / hidden / non-applicable parameter)"),
+                    *ParameterName, *InputPath);
+                return nullptr;
+            }
             Out->SetStringField(TEXT("applied_value"), Texture->GetPathName());
         }
         else
