@@ -400,6 +400,17 @@ TOOLS = [
             "required": ["path"],
         },
     },
+    {
+        "name": "inspect_material_instance",
+        "description": "Read a UMaterialInstanceConstant's parent + currently-overridden parameter values (scalar/vector/texture).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "Material instance asset path."},
+            },
+            "required": ["path"],
+        },
+    },
 ]
 
 

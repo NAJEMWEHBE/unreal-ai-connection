@@ -1023,6 +1023,31 @@ Static-switch parameters are listed for visibility but cannot be set via `set_mi
 
 ---
 
+## inspect_material_instance
+
+Read a `UMaterialInstanceConstant`'s parent and currently-overridden parameter values. Only **overridden** parameters appear in the output — parameters inherited unchanged from the parent are not listed. Pair with `inspect_material` (on the parent path) to see the full set of available parameters.
+
+**Params**
+- `path` (string, required) — material instance asset path.
+
+**Result**
+- `name`, `package_path`
+- `parent_path` (string) — full path of the parent material; empty string if no parent (rare; usually means a partially-initialized asset)
+- `scalar_overrides` (object) — `{parameter_name: number}` map of overridden scalar parameters
+- `vector_overrides` (object) — `{parameter_name: {r, g, b, a}}` map of overridden vector parameters
+- `texture_overrides` (object) — `{parameter_name: asset_path_string}` map of overridden texture parameters; empty string if a texture override exists but the texture pointer is null
+
+**Errors:** `missing_required_field`, `asset_not_found`, `not_a_material_instance`.
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"inspect_material_instance","params":{
+  "path": "/Game/Materials/MI_Stone_Wet"
+}}
+```
+
+---
+
 ## Adding more tools
 
 See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the recipe. Short version: one `.cpp` file in `Source/UnrealClaudeMCP/Private/MCP/Handlers/`, two registration lines in `UnrealClaudeMCPModule.cpp`, one entry in `Resources/mcp_manifest.json`, one entry in `bridge/unreal_claude_mcp_bridge.py`'s `TOOLS` list, rebuild, restart.
