@@ -296,6 +296,308 @@ The `applied` object in the result contains *only* the fields the caller actuall
 
 ---
 
+## find_assets
+
+Query the UE asset registry by class, path, and optional name substring. This is the discovery tool for level-building workflows: call it first to learn which Static Meshes, Blueprints, or other assets are available before spawning them into the level.
+
+**Params**
+- `class_path` (string, required) — UE class path, e.g. `/Script/Engine.StaticMesh`, `/Script/Engine.Blueprint`, `/Script/Engine.Texture2D`.
+- `path_under` (string, optional, default `/Game/`) — recursive path filter; must start with `/Game/` or `/Engine/`.
+- `name_contains` (string, optional) — case-insensitive substring filter on asset name.
+- `limit` (int, optional, default `100`) — cap result count; max `500` (silently capped).
+
+**Result**
+- `ok` (bool)
+- `matched` (int) — total assets matching the filter before `limit` is applied
+- `returned` (int) — actual count in the response
+- `assets` (array) — `{name, package_path, class}` per asset, sorted by name
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"find_assets","params":{
+  "class_path": "/Script/Engine.StaticMesh",
+  "path_under": "/Engine/BasicShapes/",
+  "limit": 10
+}}
+```
+```json
+{"jsonrpc":"2.0","id":1,"result":{
+  "ok": true,
+  "matched": 5,
+  "returned": 5,
+  "assets": [
+    {"name": "Cone",   "package_path": "/Engine/BasicShapes/Cone",   "class": "StaticMesh"},
+    {"name": "Cube",   "package_path": "/Engine/BasicShapes/Cube",   "class": "StaticMesh"},
+    {"name": "Cylinder","package_path": "/Engine/BasicShapes/Cylinder","class": "StaticMesh"},
+    {"name": "Plane",  "package_path": "/Engine/BasicShapes/Plane",  "class": "StaticMesh"},
+    {"name": "Sphere", "package_path": "/Engine/BasicShapes/Sphere", "class": "StaticMesh"}
+  ]
+}}
+```
+
+**Errors:** Returned as JSON-RPC `error.message` strings in the format `find_assets: <error_code>: <human-readable detail>`. Stable codes:
+
+| Code | Trigger |
+|---|---|
+| `missing_required_field` | `class_path` was missing or empty. |
+| `invalid_class_path` | `class_path` does not resolve to a known UClass. |
+| `invalid_path_filter` | `path_under` does not start with `/Game/` or `/Engine/`. |
+
+---
+
+## spawn_actor
+
+Create an actor in the current editor world at a given location, with optional rotation, label override, and initial properties. The `class_path` accepts both built-in classes (e.g. `/Script/Engine.StaticMeshActor`) and Blueprint-generated classes (note the `_C` suffix for Blueprint classes: `/Game/Blueprints/BP_MyActor.BP_MyActor_C`). Initial properties are applied via `PropertyCoercion` immediately after spawn; if any property fails, the actor is still placed and the error message identifies which property caused the failure.
+
+**Params**
+- `class_path` (string, required) — actor class path.
+- `location` (object, optional, default `{x:0, y:0, z:0}`) — world-space `{x, y, z}` floats.
+- `rotation` (object, optional, default `{pitch:0, yaw:0, roll:0}`) — Euler angles in degrees.
+- `label` (string, optional) — visible name in World Outliner; defaults to UE's auto-name.
+- `properties` (object, optional) — map of `{"PropertyName": value}` applied after spawn.
+
+**Result**
+- `ok` (bool)
+- `name` (string) — unique FName assigned by UE (e.g. `BP_MyActor_C_4`)
+- `label` (string) — World Outliner label
+- `class` (string) — class name
+- `location` (object) — `{x, y, z}`
+- `rotation` (object) — `{pitch, yaw, roll}`
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"spawn_actor","params":{
+  "class_path": "/Script/Engine.StaticMeshActor",
+  "location": {"x": 0, "y": 0, "z": 0},
+  "label": "SmokeCube1"
+}}
+```
+```json
+{"jsonrpc":"2.0","id":1,"result":{
+  "ok": true,
+  "name": "StaticMeshActor_3",
+  "label": "SmokeCube1",
+  "class": "StaticMeshActor",
+  "location": {"x": 0.0, "y": 0.0, "z": 0.0},
+  "rotation": {"pitch": 0.0, "yaw": 0.0, "roll": 0.0}
+}}
+```
+
+**Errors:** Returned as JSON-RPC `error.message` strings in the format `spawn_actor: <error_code>: <human-readable detail>`. Stable codes:
+
+| Code | Trigger |
+|---|---|
+| `missing_required_field` | `class_path` was missing or empty. |
+| `invalid_class_path` | Class not found in the asset registry. |
+| `class_not_spawnable` | Class is abstract, does not derive from `AActor`, or has `bEditorOnly = true`. |
+| `spawn_failed` | `UWorld::SpawnActor` returned null (UE refused for an internal reason). |
+| `property_application_failed` | One of the `properties` entries failed to apply. The actor is still spawned; the message identifies which property failed. Caller can use `delete_actor` for atomic-like cleanup. |
+
+---
+
+## set_actor_transform
+
+Move, rotate, or scale an existing actor by label or FName. Uses the hybrid label-or-FName identification scheme: label match is tried first; if multiple actors share the label, an `ambiguous_actor` error is returned with all matching FNames listed so the caller can retry with the specific FName. Only the fields provided are changed; omitted fields retain their current values.
+
+**Params**
+- `name` (string, required) — actor label or FName.
+- `location` (object, optional) — `{x, y, z}` world-space position; unchanged if omitted.
+- `rotation` (object, optional) — `{pitch, yaw, roll}` in degrees; unchanged if omitted.
+- `scale` (object, optional) — `{x, y, z}` scale multiplier; unchanged if omitted.
+- `relative` (bool, optional, default `false`) — when `true`, deltas are added to the current values instead of replacing them.
+
+**Result**
+- `ok` (bool)
+- `name` (string) — actor FName
+- `applied` (object) — only the fields that were actually changed, with their new values
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"set_actor_transform","params":{
+  "name": "SmokeCube2",
+  "location": {"x": 200, "y": 200, "z": 50},
+  "rotation": {"pitch": 0, "yaw": 45, "roll": 0}
+}}
+```
+```json
+{"jsonrpc":"2.0","id":1,"result":{
+  "ok": true,
+  "name": "StaticMeshActor_4",
+  "applied": {
+    "location": {"x": 200.0, "y": 200.0, "z": 50.0},
+    "rotation": {"pitch": 0.0, "yaw": 45.0, "roll": 0.0}
+  }
+}}
+```
+
+**Errors:** Returned as JSON-RPC `error.message` strings in the format `set_actor_transform: <error_code>: <human-readable detail>`. Stable codes:
+
+| Code | Trigger |
+|---|---|
+| `missing_required_field` | `name` was missing or empty. |
+| `actor_not_found` | No actor matches the given name. |
+| `ambiguous_actor` | Label matches multiple actors. Error message lists candidate FNames. |
+| `no_changes_specified` | None of `location` / `rotation` / `scale` were provided. |
+
+---
+
+## delete_actor
+
+Remove an actor from the current editor world by label or FName. Uses the same hybrid label-or-FName identification scheme as the other write handlers. The optional `force` flag controls whether to proceed when the actor has attached children: without it the call is refused with a `has_children` error, giving the caller a chance to decide what to do with dependents first.
+
+**Params**
+- `name` (string, required) — actor label or FName.
+- `force` (bool, optional, default `false`) — when `false`, refuses deletion if the actor has attached children (`has_children` error). When `true`, deletes anyway; children become detached, mirroring UE's native delete-with-children behavior.
+
+**Result**
+- `ok` (bool)
+- `name` (string) — actor FName
+- `deleted` (bool)
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"delete_actor","params":{
+  "name": "SmokeCube1",
+  "force": true
+}}
+```
+```json
+{"jsonrpc":"2.0","id":1,"result":{
+  "ok": true,
+  "name": "StaticMeshActor_3",
+  "deleted": true
+}}
+```
+
+**Errors:** Returned as JSON-RPC `error.message` strings in the format `delete_actor: <error_code>: <human-readable detail>`. Stable codes:
+
+| Code | Trigger |
+|---|---|
+| `missing_required_field` | `name` was missing or empty. |
+| `actor_not_found` | No actor matches the given name. |
+| `ambiguous_actor` | Label matches multiple actors. Error message lists candidate FNames. |
+| `has_children` | `force=false` and the actor has attached children. |
+
+---
+
+## set_actor_property
+
+Mutate any `UPROPERTY` on an actor by label or FName. Uses the hybrid label-or-FName identification scheme. The property name must match the C++ field name exactly (case-sensitive). The result includes both the `old_value` and `new_value` encoded in the same JSON shape as the input, so changes can be verified or undone.
+
+**Params**
+- `name` (string, required) — actor label or FName.
+- `property` (string, required) — `UPROPERTY` field name (case-sensitive, matches C++ exactly).
+- `value` (any, required) — JSON value coerced to the property's native type.
+
+**Supported types in v0.3.0**
+
+| FProperty C++ type | JSON value shape |
+|---|---|
+| `bool` | JSON bool |
+| `int8`, `int16`, `int32`, `int64` | JSON number (range-checked) |
+| `uint8`, `uint16`, `uint32`, `uint64` | JSON number (range-checked) |
+| `float`, `double` | JSON number |
+| `FString` | JSON string |
+| `FText` | JSON string |
+| `FName` | JSON string |
+| `FVector` | `{x, y, z}` |
+| `FVector2D` | `{x, y}` |
+| `FRotator` | `{pitch, yaw, roll}` |
+| `FLinearColor` | `{r, g, b, a}` (0–1 floats) |
+| `FColor` | `{r, g, b, a}` (0–255 ints) |
+| Enum (`UEnum`-decorated) | JSON string (enum value name) |
+| `TSoftObjectPtr<T>` | JSON string (asset path) |
+
+Types not on this list (USTRUCT, TArray, TMap, FObjectProperty, FInstancedStruct) return `unsupported_property_type` and are deferred to v0.4.0. The error message includes the FProperty class name (e.g. `"StructProperty(MyCustomStruct)"`) so the caller can fall back to `execute_unreal_python`.
+
+**Result**
+- `ok` (bool)
+- `name` (string) — actor FName
+- `property` (string) — property name as given
+- `old_value` (any) — previous value in JSON form
+- `new_value` (any) — applied value in JSON form
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"set_actor_property","params":{
+  "name": "PointLight_2",
+  "property": "Intensity",
+  "value": 12000.0
+}}
+```
+```json
+{"jsonrpc":"2.0","id":1,"result":{
+  "ok": true,
+  "name": "PointLight_2",
+  "property": "Intensity",
+  "old_value": 5000.0,
+  "new_value": 12000.0
+}}
+```
+
+**Errors:** Returned as JSON-RPC `error.message` strings in the format `set_actor_property: <error_code>: <human-readable detail>`. Stable codes:
+
+| Code | Trigger |
+|---|---|
+| `missing_required_field` | `name`, `property`, or `value` was missing. |
+| `actor_not_found` | No actor matches the given name. |
+| `ambiguous_actor` | Label matches multiple actors. Error message lists candidate FNames. |
+| `property_not_found` | No `UPROPERTY` with that name exists on the actor's class. |
+| `unsupported_property_type` | Property exists but its FProperty class is not in the v0.3.0 supported list. The error message includes the FProperty class name. |
+| `value_coercion_failed` | Value could not be coerced to the property type (e.g. string given for an int, range overflow). |
+
+---
+
+## add_component
+
+Attach a new component to an existing actor at runtime by label or FName. Uses the hybrid label-or-FName identification scheme. The `relative_transform` parameter uses the same `{location, rotation, scale}` shape as `set_actor_transform`, expressed relative to the parent component. For `USceneComponent` subclasses the component is attached to the root component by default, or to a named component (and optional socket) via `attach_to` and `socket`.
+
+**Params**
+- `actor_name` (string, required) — label or FName of the host actor.
+- `class_path` (string, required) — component class path, e.g. `/Script/Engine.StaticMeshComponent`, `/Script/Engine.PointLightComponent`.
+- `component_name` (string, optional) — FName for the new component; defaults to UE's auto-name.
+- `attach_to` (string, optional) — name of an existing component on the actor to attach to; defaults to the root component.
+- `socket` (string, optional) — socket name on the parent component.
+- `relative_transform` (object, optional, default identity) — `{location: {x,y,z}, rotation: {pitch,yaw,roll}, scale: {x,y,z}}` relative to the parent.
+
+**Result**
+- `ok` (bool)
+- `actor` (string) — actor FName
+- `component` (string) — new component FName
+- `class` (string) — component class name
+- `attached_to` (string) — parent component name
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"add_component","params":{
+  "actor_name": "SmokeCube1",
+  "class_path": "/Script/Engine.PointLightComponent",
+  "relative_transform": {"location": {"x": 0, "y": 0, "z": 100}}
+}}
+```
+```json
+{"jsonrpc":"2.0","id":1,"result":{
+  "ok": true,
+  "actor": "StaticMeshActor_3",
+  "component": "PointLightComponent_1",
+  "class": "PointLightComponent",
+  "attached_to": "DefaultSceneRoot"
+}}
+```
+
+**Errors:** Returned as JSON-RPC `error.message` strings in the format `add_component: <error_code>: <human-readable detail>`. Stable codes:
+
+| Code | Trigger |
+|---|---|
+| `missing_required_field` | `actor_name` or `class_path` was missing or empty. |
+| `actor_not_found` | No actor matches the given name. |
+| `ambiguous_actor` | Label matches multiple actors. Error message lists candidate FNames. |
+| `invalid_component_class` | Class not found, abstract, or not a `USceneComponent` / `UActorComponent` subclass. |
+| `attach_target_not_found` | `attach_to` was specified but no component with that name exists on the actor. |
+| `socket_not_found` | `socket` was specified but the parent component does not have that socket. |
+
+---
+
 ## Adding more tools
 
 See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the recipe. Short version: one `.cpp` file in `Source/UnrealClaudeMCP/Private/MCP/Handlers/`, two registration lines in `UnrealClaudeMCPModule.cpp`, one entry in `Resources/mcp_manifest.json`, one entry in `bridge/unreal_claude_mcp_bridge.py`'s `TOOLS` list, rebuild, restart.

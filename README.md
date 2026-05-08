@@ -4,7 +4,7 @@
 
 **Drive Unreal Engine 5 from Claude Code over a local TCP socket.**
 
-Thirteen editor-automation tools. Zero pixel-clicking. ~50ms round-trip.
+Nineteen editor-automation tools. Zero pixel-clicking. ~50ms round-trip.
 
 [![CI](https://github.com/NAJEMWEHBE/UnrealClaudeMCP/actions/workflows/tests.yml/badge.svg)](https://github.com/NAJEMWEHBE/UnrealClaudeMCP/actions/workflows/tests.yml)
 [![License](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
@@ -59,8 +59,14 @@ The plugin sidesteps these limits by calling UE's native C++ APIs directly insid
 | `load_level_by_path` | Open a level by package path. |
 | `import_texture` | Bring an image file (PNG / JPG / EXR / TGA / BMP / HDR) from disk into the project as a `UTexture2D` asset via UE's canonical import path. |
 | `configure_texture` | Adjust SRGB / compression / LOD group / filter on an existing texture asset. |
+| `find_assets` | Query the asset registry by class + path + name. Returns matching assets so the LLM can discover what's available to spawn. |
+| `spawn_actor` | Create an actor at a location with optional rotation, label, and initial properties. Class path supports built-ins and Blueprints. |
+| `set_actor_transform` | Move / rotate / scale an existing actor by name. Absolute or relative mode. |
+| `delete_actor` | Remove an actor by name. Force flag overrides children-attached safety check. |
+| `set_actor_property` | Mutate any UPROPERTY on an actor. Supports primitives, FName/FText, vectors, rotators, colors, enums, and TSoftObjectPtr. |
+| `add_component` | Attach a component (UActorComponent / USceneComponent subclass) to an existing actor at runtime, optionally socketed. |
 
-Adding a 14th tool is one `.cpp` file plus one line of registration — see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+Adding a 20th tool is one `.cpp` file plus one line of registration — see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ---
 
@@ -75,7 +81,7 @@ Adding a 14th tool is one `.cpp` file plus one line of registration — see [`do
    ```
    [LogUnrealClaudeMCP] Module started
    LogUCMCPHandler: Registered handler 'execute_unreal_python'
-     ... (13 lines)
+     ... (19 lines)
    [LogUCMCP] Listening on 127.0.0.1:18888
    ```
 5. **Wire Claude Code.** Copy `examples/.mcp.json.example` to your project root as `.mcp.json`, edit the path to point at `bridge/unreal_claude_mcp_bridge.py`, restart Claude Code, and approve the new MCP server.
@@ -92,7 +98,7 @@ The smoke test fires every default-on tool from a plain Python TCP client (not t
 python examples/smoke_test.py
 ```
 
-You'll see eight sections of JSON output (the eighth is a texture-pipeline round-trip that creates and configures a temporary `UTexture2D` then cleans up). Last line: *"Smoke test complete."*
+You'll see nine sections of JSON output (the ninth is a build-a-level round-trip that spawns, transforms, mutates, and cleans up actors). Last line: *"Smoke test complete."*
 
 ---
 
@@ -126,10 +132,10 @@ tests/                            Pytest suite for the bridge (no UE required)
 
 | | |
 |---|---|
-| **Latest release** | v0.2.0 — 2026-05-08 |
-| **Tools** | 13 live, smoke-tested end-to-end |
+| **Latest release** | v0.3.0 — 2026-05-08 |
+| **Tools** | 19 live, smoke-tested end-to-end |
 | **Tested on** | UE 5.7.4 / Windows 11 / Visual Studio 2026 / MSVC 14.50 |
-| **Bridge tests** | 59 pytest cases, ~99% coverage |
+| **Bridge tests** | 71 pytest cases, ~99% coverage |
 | **CI** | GitHub Actions on every push and PR |
 
 ---
