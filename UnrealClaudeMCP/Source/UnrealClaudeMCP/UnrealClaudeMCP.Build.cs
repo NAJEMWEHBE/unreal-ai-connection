@@ -19,6 +19,7 @@ public class UnrealClaudeMCP : ModuleRules
             "EditorScriptingUtilities",
             "EditorSubsystem",
             "AssetRegistry",
+            "AssetTools",
             // MCP server transport
             "Sockets",
             "Networking",
