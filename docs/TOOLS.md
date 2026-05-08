@@ -342,6 +342,27 @@ Query the UE asset registry by class, path, and optional name substring. This is
 | `missing_required_field` | `class_path` was missing or empty. |
 | `invalid_class_path` | `class_path` does not resolve to a known UClass. |
 | `invalid_path_filter` | `path_under` does not start with `/Game/` or `/Engine/`. |
+| `invalid_tag_value` | A `tags` map entry's value is neither a string nor null (v0.7.0). |
+
+### v0.7.0 additions
+
+Two optional parameters extend the v0.4.0 contract without breaking existing callers:
+
+- `tags` (object) — map of tag-name → required-value (string) or `null` (any value). Multiple entries are AND-combined by the asset registry.
+- `include_tags` (bool, default `false`) — when `true`, each returned asset includes a `tags` map of all its registry tags.
+
+Tag values are stringified via UE's `FAssetTagValueRef::AsString()`, so numeric or object-path tags appear as their string representation. Tag names are FName-compared (case-insensitive); tag values are FString-compared (case-sensitive).
+
+**Example — Texture2D assets in `/Game/Textures/` with `LODGroup` tag set to `TEXTUREGROUP_World`, returning the full tag map for each:**
+
+```json
+{"jsonrpc":"2.0","id":1,"method":"find_assets","params":{
+  "class_path": "/Script/Engine.Texture2D",
+  "path_under": "/Game/Textures/",
+  "tags": {"LODGroup": "TEXTUREGROUP_World"},
+  "include_tags": true
+}}
+```
 
 ---
 

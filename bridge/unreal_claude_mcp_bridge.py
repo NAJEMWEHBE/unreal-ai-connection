@@ -169,7 +169,7 @@ TOOLS = [
     },
     {
         "name": "find_assets",
-        "description": "Query the asset registry by class + optional path + optional name substring. Returns matching assets with structured records (name, package_path, class).",
+        "description": "Query the asset registry by class + optional path + optional name substring + optional tag filters. Returns matching assets with structured records (name, package_path, class[, tags]).",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -177,6 +177,8 @@ TOOLS = [
                 "path_under": {"type": "string", "description": "Recursive path filter; defaults to /Game/. Must start with /Game/ or /Engine/."},
                 "name_contains": {"type": "string", "description": "Case-insensitive substring filter on asset name."},
                 "limit": {"type": "integer", "description": "Cap result count. Default 100, max 500."},
+                "tags": {"type": "object", "description": "v0.7.0: map of tag-name -> required-value (string) or null (any value). AND-combined."},
+                "include_tags": {"type": "boolean", "description": "v0.7.0: when true, each result asset includes a 'tags' map of all its registry tags. Default false."},
             },
             "required": ["class_path"],
         },

@@ -55,6 +55,18 @@ def test_edit_widget_tree_schema_includes_compile_flag():
     assert tool["inputSchema"]["properties"]["compile"]["type"] == "boolean"
 
 
+def test_find_assets_schema_includes_tags_and_include_tags():
+    """v0.7.0: find_assets gains optional tags + include_tags fields."""
+    find_assets = next(t for t in bridge.TOOLS if t["name"] == "find_assets")
+    props = find_assets["inputSchema"]["properties"]
+    assert "tags" in props, "find_assets schema must declare 'tags'"
+    assert props["tags"]["type"] == "object"
+    assert "include_tags" in props, "find_assets schema must declare 'include_tags'"
+    assert props["include_tags"]["type"] == "boolean"
+    # Required list unchanged — both new fields are optional.
+    assert find_assets["inputSchema"]["required"] == ["class_path"]
+
+
 def test_required_params_match_handler_contract():
     by_name = {t["name"]: t for t in bridge.TOOLS}
     assert by_name["execute_unreal_python"]["inputSchema"]["required"] == ["code"]

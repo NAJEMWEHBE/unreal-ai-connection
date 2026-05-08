@@ -95,14 +95,16 @@
     },
     {
       "name": "find_assets",
-      "description": "Query the asset registry by class + optional path + optional name substring. Returns matching assets with structured records (name, package_path, class).",
+      "description": "Query the asset registry by class + optional path + optional name substring + optional tag filters. Returns matching assets with structured records (name, package_path, class[, tags]).",
       "params": {
         "class_path": "string (required) - UE class path, e.g. /Script/Engine.StaticMesh",
         "path_under": "string (optional, default /Game/) - recursive path filter",
         "name_contains": "string (optional) - case-insensitive substring filter",
-        "limit": "int (optional, default 100, max 500)"
+        "limit": "int (optional, default 100, max 500)",
+        "tags": "object (optional) - map of tag-name -> exact-match string or null (any value); AND-combined",
+        "include_tags": "bool (optional, default false) - when true, each result asset includes a 'tags' map"
       },
-      "returns": { "ok": "bool", "matched": "int", "returned": "int", "assets": "array of {name, package_path, class}" }
+      "returns": { "ok": "bool", "matched": "int", "returned": "int", "assets": "array of {name, package_path, class[, tags]}" }
     },
     {
       "name": "spawn_actor",
