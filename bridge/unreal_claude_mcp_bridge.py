@@ -160,7 +160,7 @@ TOOLS = [
                 "srgb": {"type": "boolean", "description": "Set UTexture::SRGB."},
                 "compression": {"type": "string", "description": "TextureCompressionSettings enum name (e.g. Default, Normalmap, Masks, BC7, HDR)."},
                 "lod_group": {"type": "string", "description": "TextureGroup enum name (e.g. World, WorldNormalMap, UI, Lightmap)."},
-                "filter": {"type": "string", "description": "TextureFilter enum name: Nearest | Bilinear | Trilinear | Default."},
+                "filter": {"type": "string", "enum": ["Nearest", "Bilinear", "Trilinear", "Default"], "description": "TextureFilter enum name: Nearest | Bilinear | Trilinear | Default."},
                 "compress": {"type": "boolean", "description": "Call UpdateResource() after mutation (default true). Set false for batches."},
             },
             "required": ["path"],

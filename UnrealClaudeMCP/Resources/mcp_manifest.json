@@ -82,7 +82,7 @@
     },
     {
       "name": "configure_texture",
-      "description": "Adjust SRGB/Compression/LODGroup/Filter on an existing UTexture asset and persist the change.",
+      "description": "Adjust SRGB/CompressionSettings/LODGroup/Filter on an existing UTexture asset and persist the change. Triggers UE's standard PreEditChange/PostEditChange flow and rebuilds the GPU resource.",
       "params": {
         "path": "string (required) - UE package path of an existing texture",
         "srgb": "bool (optional)",

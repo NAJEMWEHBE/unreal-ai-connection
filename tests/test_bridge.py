@@ -86,6 +86,7 @@ def test_configure_texture_schema():
     assert props["lod_group"]["type"] == "string"
     assert props["filter"]["type"] == "string"
     assert props["compress"]["type"] == "boolean"
+    assert props["filter"].get("enum") == ["Nearest", "Bilinear", "Trilinear", "Default"]
 
 
 # -------- make_response -------------------------------------------------------
