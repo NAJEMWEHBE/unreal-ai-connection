@@ -168,7 +168,7 @@ def main():
         assert_error_code(resp, -32601, "unknown_method")
     step("unknown_method", t0)
 
-    header("1. list_tools (should list 19 tool names)")
+    header("1. list_tools (should list 21 tool names)")
     def t1():
         resp = call("list_tools")
         show(resp)
@@ -176,8 +176,8 @@ def main():
         tools = result.get("tools")
         if not isinstance(tools, list):
             raise SmokeFailure(f"[list_tools] 'tools' not a list: {result}")
-        if len(tools) != 19:
-            raise SmokeFailure(f"[list_tools] expected 19 tools, got {len(tools)}: {tools}")
+        if len(tools) != 21:
+            raise SmokeFailure(f"[list_tools] expected 21 tools, got {len(tools)}: {tools}")
         if result.get("count") != len(tools):
             raise SmokeFailure(f"[list_tools] 'count' ({result.get('count')}) != len(tools) ({len(tools)})")
     step("list_tools", t1)
@@ -411,6 +411,69 @@ def main():
         delete = call("delete_actor", {"name": actor_name, "force": True})
         assert_ok(delete, "delete_actor.adv")
     step("advanced_property_types", t_advanced_props)
+
+    header("10. observability round-trip (execute_console_command + get_log_lines)")
+    def t_observability():
+        # 1. Execute a benign console command and capture its output.
+        cmd_resp = call("execute_console_command", {
+            "command": "stat fps",
+            "capture_output": True,
+        })
+        cmd_res = assert_ok(cmd_resp, "execute_console_command.stat_fps")
+        if cmd_res.get("command") != "stat fps":
+            raise SmokeFailure(f"[execute_console_command] command echo mismatch: {cmd_res}")
+        # 'stat fps' output may be empty in headless / non-rendered contexts but
+        # the call must succeed (ok=true).
+        if not cmd_res.get("ok"):
+            raise SmokeFailure(f"[execute_console_command] ok is not true: {cmd_res}")
+
+        # 2. Read log lines — the module startup message should be in the buffer.
+        log_resp = call("get_log_lines", {
+            "count": 200,
+            "min_verbosity": "Log",
+        })
+        log_res = assert_ok(log_resp, "get_log_lines.basic")
+        if not isinstance(log_res.get("lines"), list):
+            raise SmokeFailure(f"[get_log_lines] 'lines' not a list: {log_res}")
+        if not isinstance(log_res.get("returned"), int):
+            raise SmokeFailure(f"[get_log_lines] 'returned' not int: {log_res}")
+        # Sanity: returned must match the actual array length.
+        if log_res["returned"] != len(log_res["lines"]):
+            raise SmokeFailure(
+                f"[get_log_lines] returned ({log_res['returned']}) != "
+                f"len(lines) ({len(log_res['lines'])})"
+            )
+
+        # 3. Test category filter: ask only for LogTemp lines (the module might
+        #    not have emitted any but the call must succeed without error).
+        filtered_resp = call("get_log_lines", {
+            "count": 50,
+            "category_filter": "LogUCMCP",
+            "min_verbosity": "Log",
+        })
+        filtered_res = assert_ok(filtered_resp, "get_log_lines.filtered")
+        # All returned lines must match the filter.
+        for line in filtered_res.get("lines", []):
+            if "LogUCMCP" not in line.get("category", ""):
+                raise SmokeFailure(
+                    f"[get_log_lines] category filter not applied: "
+                    f"got category '{line.get('category')}'"
+                )
+
+        # 4. Test invalid verbosity → expect error, NOT a crash.
+        bad_resp = call("get_log_lines", {"min_verbosity": "NotALevel"})
+        if "error" not in bad_resp:
+            raise SmokeFailure(
+                f"[get_log_lines] invalid verbosity should return an error: {bad_resp}"
+            )
+
+        # 5. Test missing required param for execute_console_command.
+        missing_resp = call("execute_console_command", {})
+        if "error" not in missing_resp:
+            raise SmokeFailure(
+                f"[execute_console_command] missing 'command' should return an error: {missing_resp}"
+            )
+    step("observability", t_observability)
 
     if args.bp:
         header(f"10. inspect_blueprint  ({args.bp})")
