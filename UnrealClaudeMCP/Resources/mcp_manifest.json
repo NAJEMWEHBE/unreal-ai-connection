@@ -180,6 +180,14 @@
         "capture_output": "bool (optional, default true) - capture and return command output"
       },
       "returns": { "ok": "bool", "command": "string", "output": "string" }
+    },
+    {
+      "name": "inspect_asset",
+      "description": "Read everything the asset registry knows about a single asset: class, all registry tags, dependency packages, referencer packages, on-disk file size.",
+      "params": {
+        "path": "string (required) - asset path or package path"
+      },
+      "returns": { "ok": "bool", "name": "string", "package_path": "string", "asset_path": "string", "class": "string", "class_path": "string", "tags": "object", "dependencies": "array of string", "referencers": "array of string", "package_size_bytes": "int or null" }
     }
   ]
 }

@@ -709,6 +709,35 @@ Execute a UE console command in the editor world context and optionally capture 
 
 ---
 
+## inspect_asset
+
+Read every fact the asset registry knows about a single asset.
+
+**Params**
+- `path` (string, required) — asset path or package path. Both forms accepted: `/Game/Textures/T_Stone` and `/Game/Textures/T_Stone.T_Stone`.
+
+**Result**
+- `name` — leaf name (no folder, no `.Name` suffix)
+- `package_path` — `/Game/...` form without `.Name`
+- `asset_path` — same path with `.Name` suffix
+- `class` — leaf class name (e.g. `Texture2D`)
+- `class_path` — full class path (e.g. `/Script/Engine.Texture2D`)
+- `tags` (object) — all registry tags coerced to strings via `FAssetTagValueRef::AsString()`
+- `dependencies` (array of string) — package paths this asset hard-references
+- `referencers` (array of string) — package paths that hard-reference this asset
+- `package_size_bytes` — integer (on-disk size in bytes) or `null` (transient/in-memory asset)
+
+**Errors:** `missing_required_field`, `asset_not_found`.
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"inspect_asset","params":{
+  "path": "/Engine/BasicShapes/Cube"
+}}
+```
+
+---
+
 ## Adding more tools
 
 See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the recipe. Short version: one `.cpp` file in `Source/UnrealClaudeMCP/Private/MCP/Handlers/`, two registration lines in `UnrealClaudeMCPModule.cpp`, one entry in `Resources/mcp_manifest.json`, one entry in `bridge/unreal_claude_mcp_bridge.py`'s `TOOLS` list, rebuild, restart.

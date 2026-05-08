@@ -278,6 +278,17 @@ TOOLS = [
             "required": ["command"],
         },
     },
+    {
+        "name": "inspect_asset",
+        "description": "Read everything the asset registry knows about a single asset: class, all registry tags, dependency packages, referencer packages, on-disk file size.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "Asset path or package path (e.g. /Game/Textures/T_Stone or /Game/Textures/T_Stone.T_Stone)."},
+            },
+            "required": ["path"],
+        },
+    },
 ]
 
 
