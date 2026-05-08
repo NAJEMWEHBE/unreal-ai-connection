@@ -640,6 +640,30 @@ def main():
                 )
     step("materials", t_materials)
 
+    # -------- v0.9.1: large-response wire-framing regression guard ---------
+    # The v0.5.0 framing code dropped connections when a single frame's bytes
+    # arrived in chunks across multiple TickClients invocations. This is most
+    # visible on large responses — get_viewport_screenshot returns a base64
+    # PNG that's typically 100KB+ and frequently fragmented by the kernel.
+    # If the v0.9.1 state machine breaks, this step fails first.
+    def t_large_response():
+        resp = call("get_viewport_screenshot", {})
+        res = assert_ok(resp, "get_viewport_screenshot.large_response")
+        png_base64 = res.get("image_base64") or res.get("png_base64") or ""
+        if not isinstance(png_base64, str):
+            raise SmokeFailure(
+                f"[get_viewport_screenshot] image_base64 not a string: type={type(png_base64).__name__}"
+            )
+        # Empty viewport (no level loaded) can return a small PNG. We check
+        # there's *some* base64 payload — the framing concern is about the
+        # response surviving fragmentation, not about screenshot content.
+        if len(png_base64) < 1024:
+            raise SmokeFailure(
+                f"[get_viewport_screenshot] image_base64 suspiciously small "
+                f"({len(png_base64)} chars); large-frame round-trip may have failed"
+            )
+    step("large_response", t_large_response)
+
     if args.bp:
         header(f"10. inspect_blueprint  ({args.bp})")
         def t7():

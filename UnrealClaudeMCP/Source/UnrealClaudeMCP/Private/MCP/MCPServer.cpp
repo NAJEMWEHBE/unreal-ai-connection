@@ -7,133 +7,172 @@
 #include "IPAddress.h"
 #include "Sockets.h"
 #include "SocketSubsystem.h"
+#include "SocketTypes.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogUCMCP, Log, All);
 
 // ---------------------------------------------------------------------------
-// Wire-framing helpers  (v0.5.0)
+// v0.9.1 wire-framing state machine
 //
-// Every message on the TCP wire is:
-//   <8-byte big-endian uint64 body length> <N bytes of UTF-8 JSON body>
+// v0.5.0 added length-prefixed framing (8-byte big-endian length + body) but
+// the helpers used a tight all-or-nothing loop on Recv/Send, treating any
+// `BytesRead == 0` as a fatal disconnect. Codex review on PR #10 (P1 ×2)
+// caught that this is wrong on non-blocking sockets — `BytesRead == 0` with
+// `bOk == true` means "no data right now," which UE itself treats as
+// success-with-retry on streaming sockets (verified at SocketsBSD.cpp).
 //
-// ReadFramedMessage: accumulates the 8-byte prefix then the body.
-// WriteFramedMessage: prepends the 8-byte prefix before sending the body.
+// This rewrite adds per-client read/write state buffered across TickClients
+// invocations. AdvanceRead / AdvanceWrite return a tri-state:
+//   - Complete:   a whole frame is now ready (read) or fully sent (write)
+//   - InProgress: would-block; resume next tick
+//   - Disconnect: real error; drop the client
+//
+// IsWouldBlock disambiguates via ISocketSubsystem::GetLastErrorCode() ==
+// SE_EWOULDBLOCK — same pattern UE 5.7's BSD socket implementation uses.
 // ---------------------------------------------------------------------------
 
-static bool ReadFramedMessage(FSocket* Socket, FString& OutBody, FString& OutError)
+enum class EUCMCPFrameResult : uint8
 {
-    // --- Step 1: read exactly 8 bytes for the length prefix ---
-    uint8 PrefixBuf[8];
-    int32 PrefixAccum = 0;
-    while (PrefixAccum < 8)
-    {
-        int32 BytesRead = 0;
-        const bool bOk = Socket->Recv(
-            PrefixBuf + PrefixAccum,
-            8 - PrefixAccum,
-            BytesRead,
-            ESocketReceiveFlags::None);
-        if (!bOk || BytesRead <= 0)
-        {
-            OutError = TEXT("framing_error: socket closed while reading length prefix");
-            return false;
-        }
-        PrefixAccum += BytesRead;
-    }
+    Complete,
+    InProgress,
+    Disconnect,
+};
 
-    // Decode big-endian uint64
-    uint64 BodyLength = 0;
-    for (int32 i = 0; i < 8; ++i)
+/** True if the most recent socket call's last error is SE_EWOULDBLOCK. */
+static bool IsWouldBlock()
+{
+    ISocketSubsystem* Subsys = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM);
+    if (!Subsys)
     {
-        BodyLength = (BodyLength << 8) | static_cast<uint64>(PrefixBuf[i]);
-    }
-
-    if (BodyLength == 0)
-    {
-        OutError = TEXT("framing_error: zero-length body");
         return false;
     }
-    constexpr uint64 MaxBodyBytes = 1024ULL * 1024ULL * 1024ULL; // 1 GB cap
-    if (BodyLength > MaxBodyBytes)
-    {
-        OutError = FString::Printf(
-            TEXT("framing_error: length %llu exceeds 1 GB cap"), BodyLength);
-        return false;
-    }
-
-    // --- Step 2: read exactly BodyLength bytes ---
-    TArray<uint8> BodyBuf;
-    BodyBuf.SetNumUninitialized(static_cast<int32>(BodyLength));
-    int32 BodyAccum = 0;
-    while (BodyAccum < static_cast<int32>(BodyLength))
-    {
-        int32 BytesRead = 0;
-        const bool bOk = Socket->Recv(
-            BodyBuf.GetData() + BodyAccum,
-            static_cast<int32>(BodyLength) - BodyAccum,
-            BytesRead,
-            ESocketReceiveFlags::None);
-        if (!bOk || BytesRead <= 0)
-        {
-            OutError = TEXT("framing_error: socket closed while reading body");
-            return false;
-        }
-        BodyAccum += BytesRead;
-    }
-
-    // Convert UTF-8 body bytes to FString
-    const FUTF8ToTCHAR Conv(
-        reinterpret_cast<const ANSICHAR*>(BodyBuf.GetData()),
-        static_cast<int32>(BodyLength));
-    OutBody = FString(Conv.Length(), Conv.Get());
-    return true;
+    const ESocketErrors LastError = Subsys->GetLastErrorCode();
+    return LastError == ESocketErrors::SE_EWOULDBLOCK;
 }
 
-static bool WriteFramedMessage(FSocket* Socket, const FString& Body, FString& OutError)
+/**
+ * Advance the per-client read state by whatever bytes are available right now.
+ * Returns Complete only when a full frame has assembled in State.BodyBuf.
+ */
+static EUCMCPFrameResult AdvanceRead(FSocket* Socket, FUCMCPClientReadState& State)
 {
-    // Encode body as UTF-8
+    // --- Phase 1: read the 8-byte big-endian length prefix ---
+    while (State.PrefixAccum < 8)
+    {
+        int32 BytesRead = 0;
+        const bool bOk = Socket->Recv(
+            State.PrefixBuf + State.PrefixAccum,
+            8 - State.PrefixAccum,
+            BytesRead,
+            ESocketReceiveFlags::None);
+        if (!bOk || BytesRead == 0)
+        {
+            return IsWouldBlock() ? EUCMCPFrameResult::InProgress
+                                  : EUCMCPFrameResult::Disconnect;
+        }
+        State.PrefixAccum += BytesRead;
+    }
+
+    // --- Phase 1 → 2 transition: decode prefix, allocate body buffer ---
+    if (State.BodyLength == 0)
+    {
+        uint64 BodyLen = 0;
+        for (int32 i = 0; i < 8; ++i)
+        {
+            BodyLen = (BodyLen << 8) | static_cast<uint64>(State.PrefixBuf[i]);
+        }
+        if (BodyLen == 0)
+        {
+            UE_LOG(LogUCMCP, Warning, TEXT("framing_error: zero-length body"));
+            return EUCMCPFrameResult::Disconnect;
+        }
+        constexpr uint64 MaxBodyBytes = 1024ULL * 1024ULL * 1024ULL; // 1 GB
+        if (BodyLen > MaxBodyBytes)
+        {
+            UE_LOG(LogUCMCP, Warning,
+                TEXT("framing_error: body length %llu exceeds 1 GB cap"), BodyLen);
+            return EUCMCPFrameResult::Disconnect;
+        }
+        State.BodyLength = BodyLen;
+        State.BodyBuf.SetNumUninitialized(static_cast<int32>(BodyLen));
+        State.BodyAccum = 0;
+    }
+
+    // --- Phase 2: read BodyLength bytes ---
+    while (State.BodyAccum < static_cast<int32>(State.BodyLength))
+    {
+        int32 BytesRead = 0;
+        const bool bOk = Socket->Recv(
+            State.BodyBuf.GetData() + State.BodyAccum,
+            static_cast<int32>(State.BodyLength) - State.BodyAccum,
+            BytesRead,
+            ESocketReceiveFlags::None);
+        if (!bOk || BytesRead == 0)
+        {
+            return IsWouldBlock() ? EUCMCPFrameResult::InProgress
+                                  : EUCMCPFrameResult::Disconnect;
+        }
+        State.BodyAccum += BytesRead;
+    }
+
+    return EUCMCPFrameResult::Complete;
+}
+
+/** Build the [8-byte prefix | UTF-8 body] byte array for sending. */
+static void EncodeFrame(const FString& Body, TArray<uint8>& OutBytes)
+{
     const FTCHARToUTF8 Conv(*Body);
     const int32 BodyLen = Conv.Length();
     const uint8* BodyData = reinterpret_cast<const uint8*>(Conv.Get());
 
-    // Build 8-byte big-endian length prefix (PrefixBuf[0] is the MSB)
+    OutBytes.SetNumUninitialized(8 + BodyLen);
     const uint64 LengthVal = static_cast<uint64>(BodyLen);
-    uint8 PrefixBuf[8];
     for (int32 i = 0; i < 8; ++i)
     {
-        PrefixBuf[i] = static_cast<uint8>((LengthVal >> (8 * (7 - i))) & 0xFF);
+        OutBytes[i] = static_cast<uint8>((LengthVal >> (8 * (7 - i))) & 0xFF);
     }
-
-    // --- Send the 8-byte prefix ---
-    int32 PrefixSent = 0;
-    while (PrefixSent < 8)
+    if (BodyLen > 0)
     {
-        int32 BytesSent = 0;
-        const bool bOk = Socket->Send(PrefixBuf + PrefixSent, 8 - PrefixSent, BytesSent);
-        if (!bOk || BytesSent <= 0)
-        {
-            OutError = TEXT("framing_error: socket closed while sending length prefix");
-            return false;
-        }
-        PrefixSent += BytesSent;
+        FMemory::Memcpy(OutBytes.GetData() + 8, BodyData, BodyLen);
     }
-
-    // --- Send the body ---
-    int32 BodySent = 0;
-    while (BodySent < BodyLen)
-    {
-        int32 BytesSent = 0;
-        const bool bOk = Socket->Send(BodyData + BodySent, BodyLen - BodySent, BytesSent);
-        if (!bOk || BytesSent <= 0)
-        {
-            OutError = TEXT("framing_error: socket closed while sending body");
-            return false;
-        }
-        BodySent += BytesSent;
-    }
-
-    return true;
 }
+
+/**
+ * Advance the per-client write state by whatever bytes the OS will accept now.
+ * Returns Complete only when State.PendingBytes has fully drained.
+ */
+static EUCMCPFrameResult AdvanceWrite(FSocket* Socket, FUCMCPClientWriteState& State)
+{
+    while (!State.IsDrained())
+    {
+        const int32 Remaining = State.PendingBytes.Num() - State.BytesSent;
+        int32 BytesSent = 0;
+        const bool bOk = Socket->Send(
+            State.PendingBytes.GetData() + State.BytesSent,
+            Remaining,
+            BytesSent);
+        if (!bOk || BytesSent <= 0)
+        {
+            return IsWouldBlock() ? EUCMCPFrameResult::InProgress
+                                  : EUCMCPFrameResult::Disconnect;
+        }
+        State.BytesSent += BytesSent;
+    }
+    return EUCMCPFrameResult::Complete;
+}
+
+/** Convert a complete read state's body bytes to FString. */
+static FString DecodeBody(const FUCMCPClientReadState& State)
+{
+    const FUTF8ToTCHAR Conv(
+        reinterpret_cast<const ANSICHAR*>(State.BodyBuf.GetData()),
+        static_cast<int32>(State.BodyLength));
+    return FString(Conv.Length(), Conv.Get());
+}
+
+// ---------------------------------------------------------------------------
+// FUCMCPServer
+// ---------------------------------------------------------------------------
 
 FUCMCPServer& FUCMCPServer::Get()
 {
@@ -200,6 +239,8 @@ void FUCMCPServer::Stop()
         }
     }
     ConnectedClients.Empty();
+    ReadStates.Empty();
+    WriteStates.Empty();
     bRunning = false;
     UE_LOG(LogUCMCP, Log, TEXT("Stopped"));
 }
@@ -212,6 +253,10 @@ bool FUCMCPServer::OnConnectionAccepted(FSocket* InSocket, const FIPv4Endpoint& 
     }
     InSocket->SetNonBlocking(true);
     ConnectedClients.Add(InSocket);
+    // Explicit insertions so the per-client state lifetime is visible at the
+    // accept site rather than implicit via FindOrAdd later.
+    ReadStates.Add(InSocket, FUCMCPClientReadState{});
+    WriteStates.Add(InSocket, FUCMCPClientWriteState{});
     UE_LOG(LogUCMCP, Log, TEXT("Client connected from %s (now %d clients)"),
         *InEndpoint.ToString(), ConnectedClients.Num());
     return true;
@@ -224,47 +269,83 @@ bool FUCMCPServer::TickClients(float /*DeltaTime*/)
 
     for (FSocket* Sock : ConnectedClients)
     {
-        if (!Sock)
+        if (!Sock || Sock->GetConnectionState() != SCS_Connected)
         {
             Dropped.Add(Sock);
             continue;
         }
 
-        const ESocketConnectionState State = Sock->GetConnectionState();
-        if (State != SCS_Connected)
+        // Step 1: drain any pending write state first. If a previous tick left
+        // a partial response in flight, push more bytes before reading new
+        // requests — keeps responses ordered ahead of the next read.
+        FUCMCPClientWriteState& W = WriteStates.FindOrAdd(Sock);
+        if (!W.IsDrained())
         {
-            Dropped.Add(Sock);
-            continue;
+            const EUCMCPFrameResult WR = AdvanceWrite(Sock, W);
+            if (WR == EUCMCPFrameResult::Disconnect)
+            {
+                Dropped.Add(Sock);
+                continue;
+            }
+            if (WR == EUCMCPFrameResult::InProgress)
+            {
+                // Still flushing; reads can wait until the response goes out.
+                continue;
+            }
+            // Complete — fall through to reads.
+            W.Reset();
         }
 
-        uint32 Pending = 0;
-        if (!Sock->HasPendingData(Pending) || Pending == 0)
+        // Step 2: drain as many complete read frames as are available this
+        // tick. The 32-frame safety bound prevents one busy client from
+        // monopolizing the tick; fairness across clients comes from the
+        // outer ConnectedClients loop.
+        FUCMCPClientReadState& R = ReadStates.FindOrAdd(Sock);
+        bool bDropAfter = false;
+        for (int32 SafetyBound = 0; SafetyBound < 32; ++SafetyBound)
         {
-            continue;
+            const EUCMCPFrameResult RR = AdvanceRead(Sock, R);
+            if (RR == EUCMCPFrameResult::Disconnect)
+            {
+                bDropAfter = true;
+                break;
+            }
+            if (RR == EUCMCPFrameResult::InProgress)
+            {
+                // No more bytes ready right now; resume next tick.
+                break;
+            }
+
+            // RR == Complete: extract the body, dispatch, queue the response.
+            const FString Body = DecodeBody(R);
+            R.Reset();
+
+            const FString Resp = FUCMCPDispatcher::HandleMessage(Body);
+            if (Resp.IsEmpty())
+            {
+                // Notification — per JSON-RPC spec, no response. Try next frame.
+                continue;
+            }
+
+            EncodeFrame(Resp, W.PendingBytes);
+            W.BytesSent = 0;
+            const EUCMCPFrameResult WR2 = AdvanceWrite(Sock, W);
+            if (WR2 == EUCMCPFrameResult::Disconnect)
+            {
+                bDropAfter = true;
+                break;
+            }
+            if (WR2 == EUCMCPFrameResult::InProgress)
+            {
+                // Response queued but not fully drained; resume next tick.
+                break;
+            }
+            // Send fully drained — clear and keep reading more frames.
+            W.Reset();
         }
 
-        // Read the length-prefixed framed message (v0.5.0 wire format)
-        FString Msg;
-        FString ReadError;
-        if (!ReadFramedMessage(Sock, Msg, ReadError))
+        if (bDropAfter)
         {
-            UE_LOG(LogUCMCP, Warning, TEXT("ReadFramedMessage failed: %s"), *ReadError);
-            Dropped.Add(Sock);
-            continue;
-        }
-
-        const FString Resp = FUCMCPDispatcher::HandleMessage(Msg);
-        if (Resp.IsEmpty())
-        {
-            // Notification - per spec, no response
-            continue;
-        }
-
-        // Write the length-prefixed framed response (v0.5.0 wire format)
-        FString WriteError;
-        if (!WriteFramedMessage(Sock, Resp, WriteError))
-        {
-            UE_LOG(LogUCMCP, Warning, TEXT("WriteFramedMessage failed: %s"), *WriteError);
             Dropped.Add(Sock);
         }
     }
@@ -272,6 +353,8 @@ bool FUCMCPServer::TickClients(float /*DeltaTime*/)
     for (FSocket* Sock : Dropped)
     {
         ConnectedClients.Remove(Sock);
+        ReadStates.Remove(Sock);
+        WriteStates.Remove(Sock);
         if (Sock && Subsystem)
         {
             Sock->Close();
