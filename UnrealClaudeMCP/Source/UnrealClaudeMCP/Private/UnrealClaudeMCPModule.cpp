@@ -29,6 +29,10 @@ extern TSharedRef<IUCMCPHandler> Make_Handler_SetActorProperty();
 extern TSharedRef<IUCMCPHandler> Make_Handler_AddComponent();
 extern TSharedRef<IUCMCPHandler> Make_Handler_GetLogLines();
 extern TSharedRef<IUCMCPHandler> Make_Handler_ExecuteConsoleCommand();
+extern TSharedRef<IUCMCPHandler> Make_Handler_InspectAsset();
+extern TSharedRef<IUCMCPHandler> Make_Handler_MoveAsset();
+extern TSharedRef<IUCMCPHandler> Make_Handler_RenameAsset();
+extern TSharedRef<IUCMCPHandler> Make_Handler_DeleteAsset();
 
 static constexpr int32 kMCPDefaultPort = 18888;
 
@@ -65,6 +69,10 @@ void FUnrealClaudeMCPModule::StartupModule()
     Reg.Register(Make_Handler_AddComponent());
     Reg.Register(Make_Handler_GetLogLines());
     Reg.Register(Make_Handler_ExecuteConsoleCommand());
+    Reg.Register(Make_Handler_InspectAsset());
+    Reg.Register(Make_Handler_MoveAsset());
+    Reg.Register(Make_Handler_RenameAsset());
+    Reg.Register(Make_Handler_DeleteAsset());
 
     FUCMCPServer::Get().Start(kMCPDefaultPort);
 }

@@ -13,7 +13,7 @@ plugin speaks raw JSON-RPC over a local TCP socket (default
 Behaviour:
   - "initialize"             returned synthetically (does NOT hit the UE server)
   - "notifications/*"        consumed silently
-  - "tools/list"             returns a static list mirroring the 21 handlers
+  - "tools/list"             returns a static list mirroring the 25 handlers
   - "tools/call"             unpacks {name, arguments} and forwards to the
                              UE server as the matching method
   - All other methods        proxied as-is
@@ -35,10 +35,11 @@ UE_PORT = int(os.environ.get("UCMCP_PORT", "18888"))
 
 PROTOCOL_VERSION = "2024-11-05"
 SERVER_NAME = "unreal-claude-mcp"
-SERVER_VERSION = "0.6.0"
+SERVER_VERSION = "0.7.0"
 
 # Mirror of UnrealClaudeMCP/Resources/mcp_manifest.json - kept in sync manually.
-# v0.6.0: 21 tools (added get_log_lines, execute_console_command).
+# v0.7.0: 25 tools (added inspect_asset, move_asset, rename_asset, delete_asset;
+#                   find_assets gained tags + include_tags).
 TOOLS = [
     {
         "name": "execute_unreal_python",
@@ -169,7 +170,7 @@ TOOLS = [
     },
     {
         "name": "find_assets",
-        "description": "Query the asset registry by class + optional path + optional name substring. Returns matching assets with structured records (name, package_path, class).",
+        "description": "Query the asset registry by class + optional path + optional name substring + optional tag filters. Returns matching assets with structured records (name, package_path, class[, tags]).",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -177,6 +178,8 @@ TOOLS = [
                 "path_under": {"type": "string", "description": "Recursive path filter; defaults to /Game/. Must start with /Game/ or /Engine/."},
                 "name_contains": {"type": "string", "description": "Case-insensitive substring filter on asset name."},
                 "limit": {"type": "integer", "description": "Cap result count. Default 100, max 500."},
+                "tags": {"type": "object", "description": "v0.7.0: map of tag-name -> required-value (string) or null (any value). AND-combined."},
+                "include_tags": {"type": "boolean", "description": "v0.7.0: when true, each result asset includes a 'tags' map of all its registry tags. Default false."},
             },
             "required": ["class_path"],
         },
@@ -274,6 +277,53 @@ TOOLS = [
                 "capture_output": {"type": "boolean", "description": "When true (default), captures and returns the command output. When false, output flows to the normal Output Log."},
             },
             "required": ["command"],
+        },
+    },
+    {
+        "name": "inspect_asset",
+        "description": "Read everything the asset registry knows about a single asset: class, all registry tags, dependency packages, referencer packages, on-disk file size.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "Asset path or package path (e.g. /Game/Textures/T_Stone or /Game/Textures/T_Stone.T_Stone)."},
+            },
+            "required": ["path"],
+        },
+    },
+    {
+        "name": "move_asset",
+        "description": "Move an asset to a different folder; leaf name unchanged. UE auto-creates a redirector at the source path.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "Source asset path."},
+                "dest_folder": {"type": "string", "description": "Destination folder under /Game/ or /Engine/."},
+            },
+            "required": ["path", "dest_folder"],
+        },
+    },
+    {
+        "name": "rename_asset",
+        "description": "Rename an asset's leaf name; folder unchanged. UE auto-creates a redirector at the old name.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "Source asset path."},
+                "new_name": {"type": "string", "description": "New leaf name (no '/' or '.')."},
+            },
+            "required": ["path", "new_name"],
+        },
+    },
+    {
+        "name": "delete_asset",
+        "description": "Delete an asset. Refuses if referenced by other packages unless force=true. WARNING: deletion is permanent within the project; force-delete cannot recover via Undo.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "Asset path to delete."},
+                "force": {"type": "boolean", "description": "When true, delete even if referenced (default false)."},
+            },
+            "required": ["path"],
         },
     },
 ]
