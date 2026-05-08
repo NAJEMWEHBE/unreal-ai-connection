@@ -168,7 +168,7 @@ def main():
         assert_error_code(resp, -32601, "unknown_method")
     step("unknown_method", t0)
 
-    header("1. list_tools (should list 21 tool names)")
+    header("1. list_tools (should list 25 tool names)")
     def t1():
         resp = call("list_tools")
         show(resp)
@@ -176,8 +176,8 @@ def main():
         tools = result.get("tools")
         if not isinstance(tools, list):
             raise SmokeFailure(f"[list_tools] 'tools' not a list: {result}")
-        if len(tools) != 21:
-            raise SmokeFailure(f"[list_tools] expected 21 tools, got {len(tools)}: {tools}")
+        if len(tools) != 25:
+            raise SmokeFailure(f"[list_tools] expected 25 tools, got {len(tools)}: {tools}")
         if result.get("count") != len(tools):
             raise SmokeFailure(f"[list_tools] 'count' ({result.get('count')}) != len(tools) ({len(tools)})")
     step("list_tools", t1)
@@ -474,6 +474,84 @@ def main():
                 f"[execute_console_command] missing 'command' should return an error: {missing_resp}"
             )
     step("observability", t_observability)
+
+    # -------- v0.7.0: asset registry deep dive ------------------------------
+    # Three sub-checks, all read-only or error-assertion (no mutations on the
+    # user's project):
+    #   1. find_assets with tags + include_tags returns assets with tag maps.
+    #   2. inspect_asset on a known asset returns the full registry record.
+    #   3. delete_asset with force=false on a referenced asset returns the
+    #      has_referencers error (does NOT delete the asset).
+    # rename/move round-trips have side effects on the project, so they are
+    # NOT part of the default smoke. Test those manually if you need to.
+    def t_asset_registry():
+        # 1. find_assets — query for any built-in StaticMesh in /Engine/BasicShapes/
+        #    (always present in any UE project; safe to assume non-empty).
+        find_resp = call("find_assets", {
+            "class_path": "/Script/Engine.StaticMesh",
+            "path_under": "/Engine/BasicShapes/",
+            "include_tags": True,
+            "limit": 5,
+        })
+        find_res = assert_ok(find_resp, "find_assets.tagged_query")
+        if not isinstance(find_res.get("assets"), list):
+            raise SmokeFailure(f"[find_assets] 'assets' not a list: {find_res}")
+        if find_res.get("returned", 0) < 1:
+            raise SmokeFailure(
+                "[find_assets] /Engine/BasicShapes/ returned no StaticMesh "
+                "assets — UE install may be incomplete"
+            )
+        first_asset = find_res["assets"][0]
+        if "tags" not in first_asset:
+            raise SmokeFailure(
+                f"[find_assets] include_tags=True but result has no 'tags' key: {first_asset}"
+            )
+        if not isinstance(first_asset["tags"], dict):
+            raise SmokeFailure(f"[find_assets] 'tags' is not a dict: {first_asset['tags']}")
+
+        # 2. inspect_asset — full registry record on the first asset above.
+        inspect_resp = call("inspect_asset", {"path": first_asset["package_path"]})
+        inspect_res = assert_ok(inspect_resp, "inspect_asset.basic_shape")
+        for required_key in ("name", "package_path", "asset_path", "class",
+                             "class_path", "tags", "dependencies",
+                             "referencers", "package_size_bytes"):
+            if required_key not in inspect_res:
+                raise SmokeFailure(
+                    f"[inspect_asset] missing key '{required_key}' in result: {inspect_res}"
+                )
+        if not isinstance(inspect_res["dependencies"], list):
+            raise SmokeFailure(f"[inspect_asset] dependencies not a list: {inspect_res['dependencies']}")
+        if not isinstance(inspect_res["referencers"], list):
+            raise SmokeFailure(f"[inspect_asset] referencers not a list: {inspect_res['referencers']}")
+
+        # 3. delete_asset safety gate — try to delete a referenced asset with
+        #    force=false. /Engine/BasicShapes meshes are referenced by the
+        #    EditorContent default level and engine examples, so they should
+        #    have non-empty referencers. If they do, expect has_referencers.
+        if len(inspect_res["referencers"]) > 0:
+            delete_resp = call("delete_asset", {
+                "path": first_asset["package_path"],
+                "force": False,
+            })
+            if "error" not in delete_resp:
+                raise SmokeFailure(
+                    f"[delete_asset] expected has_referencers error on referenced "
+                    f"asset, got success: {delete_resp}"
+                )
+            err_msg = delete_resp["error"].get("message", "")
+            if "has_referencers" not in err_msg:
+                raise SmokeFailure(
+                    f"[delete_asset] expected 'has_referencers' in error, got: {err_msg}"
+                )
+        else:
+            # If our chosen asset has no referencers, exercise the error path
+            # via a fake path that doesn't exist.
+            delete_resp = call("delete_asset", {"path": "/Game/__definitely_not_real__"})
+            if "error" not in delete_resp:
+                raise SmokeFailure(
+                    f"[delete_asset] expected asset_not_found error, got success: {delete_resp}"
+                )
+    step("asset_registry", t_asset_registry)
 
     if args.bp:
         header(f"10. inspect_blueprint  ({args.bp})")
