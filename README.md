@@ -2,7 +2,7 @@
 
 **Drive Unreal Engine 5.7 from Claude (or any MCP client) over a local TCP socket.**
 
-A self-contained Unreal Engine 5.7 plugin that runs an MCP (Model Context Protocol) server inside the editor's process. Eleven generic tools exposed today: arbitrary Python execution, project / actor / Blueprint / WidgetTree introspection, widget-tree mutation, viewport screenshots, level loading. A small Python bridge translates between Claude Code's stdio MCP transport and the plugin's raw JSON-RPC over TCP.
+A self-contained Unreal Engine 5.7 plugin that runs an MCP (Model Context Protocol) server inside the editor's process. Thirteen generic tools exposed today: arbitrary Python execution, project / actor / Blueprint / WidgetTree introspection, widget-tree mutation, viewport screenshots, level loading, texture import and configuration. A small Python bridge translates between Claude Code's stdio MCP transport and the plugin's raw JSON-RPC over TCP.
 
 Released under MIT.
 
@@ -31,11 +31,11 @@ examples/
 
 docs/
   INSTALLATION.md               Step-by-step install for a UE 5.7 project
-  TOOLS.md                      What each of the 11 tools does + JSON examples
+  TOOLS.md                      What each of the 13 tools does + JSON examples
   ARCHITECTURE.md               How the pieces fit together + UE 5.7 API gotchas
 ```
 
-## Tools exposed (11)
+## Tools exposed (13)
 
 | Tool | Purpose |
 |---|---|
@@ -50,8 +50,10 @@ docs/
 | `focus_actor` | Select an actor by label and frame the viewport on it. |
 | `load_level_by_path` | Open a level by package path. |
 | `take_high_res_screenshot` | Trigger UE's `HighResShot` console command. |
+| `import_texture` | Bring an image file (PNG/JPG/EXR/TGA/BMP/HDR) into the project as a `UTexture2D` asset via UE's canonical import path. |
+| `configure_texture` | Adjust SRGB / compression / LOD group / filter on an existing texture asset. |
 
-Adding a 12th tool is a single `.cpp` file + one line of registration. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+Adding a 14th tool is a single `.cpp` file + one line of registration. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ## Quick start (for engineers)
 
@@ -62,7 +64,7 @@ Adding a 12th tool is a single `.cpp` file + one line of registration. See [`doc
    ```
    [LogUnrealClaudeMCP] Editor module started
    [LogUnrealClaudeMCP] Registered handler 'execute_unreal_python'
-   ... (11 lines)
+   ... (13 lines)
    [LogUCMCP] Listening on 127.0.0.1:18888
    ```
 5. From any TCP client send a JSON-RPC 2.0 request, e.g.:
@@ -77,8 +79,8 @@ See [`docs/INSTALLATION.md`](docs/INSTALLATION.md) — step-by-step.
 
 ## Status
 
-- v0.1.0 — first public release, 2026-05-07
-- 11 tools live, smoke-tested end-to-end
+- v0.2.0 — texture pipeline, 2026-05-08
+- 13 tools live, smoke-tested end-to-end
 - Tested on UE 5.7.4 / Windows 11 / Visual Studio 2026 Community / MSVC 14.50
 
 ## What this is NOT

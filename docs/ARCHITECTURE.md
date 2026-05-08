@@ -10,7 +10,7 @@ flowchart LR
     subgraph UE["UE Editor process"]
         TCP["FTcpListener<br/>127.0.0.1:18888"]
         Disp["FUCMCPDispatcher<br/>JSON-RPC parse / route"]
-        Reg["FUCMCPHandlerRegistry<br/>(11 handlers)"]
+        Reg["FUCMCPHandlerRegistry<br/>(13 handlers)"]
         Native["UE native C++<br/>UnrealEd · UMG · UMGEditor<br/>PythonScriptPlugin · AssetRegistry"]
     end
 
@@ -95,7 +95,7 @@ FUCMCPHandlerRegistry::Get().Register(Make_Handler_Foo());
 
 `FTSTicker` callbacks run on the game thread. The TCP listener registers a per-tick callback that drains pending bytes, dispatches synchronously, and sends responses. Handlers therefore run on the game thread, where they can safely call any UE editor API.
 
-Tradeoff: a slow handler will stall the editor's tick. This is acceptable for the current 11 tools (none are long-running). Future handlers that block on disk I/O or the network should dispatch the actual work to a worker thread and return a ticket the client can poll.
+Tradeoff: a slow handler will stall the editor's tick. This is acceptable for the current 13 tools (none are long-running). Future handlers that block on disk I/O or the network should dispatch the actual work to a worker thread and return a ticket the client can poll.
 
 ## JSON-RPC framing
 
@@ -116,6 +116,17 @@ If you don't use Claude Code, you don't need the bridge — connect to the TCP s
 `Source/UnrealClaudeMCP/UnrealClaudeMCP.Build.cs`:
 
 ```csharp
+// PublicDependencyModuleNames
+"Core",
+"CoreUObject",
+"Engine",
+"UnrealEd",                       // UAssetImportTask, UTextureFactory, UFactory
+"Slate",
+"SlateCore",
+"EditorScriptingUtilities",       // UEditorAssetLibrary in LoadLevel / SaveLoadedAsset / etc.
+"EditorSubsystem",                // ULevelEditorSubsystem
+"AssetRegistry",                  // GetProjectSummary asset count
+"AssetTools",                     // IAssetTools::ImportAssetTasks
 "Sockets", "Networking",          // TCP listener
 "Json", "JsonUtilities",          // JSON-RPC framing
 "PythonScriptPlugin",             // execute_unreal_python handler
@@ -123,9 +134,12 @@ If you don't use Claude Code, you don't need the bridge — connect to the TCP s
 "Kismet",                         // FBlueprintEditorUtils in EditWidgetTree
 "EngineSettings",                 // UGeneralProjectSettings in GetProjectSummary
 "UMG", "UMGEditor",               // widget classes + WidgetTree
-"AssetRegistry",                  // GetProjectSummary asset count
-"EditorScriptingUtilities",       // UEditorAssetLibrary in LoadLevel / etc.
-"EditorSubsystem",                // ULevelEditorSubsystem
+
+// PrivateDependencyModuleNames
+"InputCore",
+"Projects",
+"PropertyEditor",
+"LevelEditor",
 ```
 
 If a handler references a UE class whose owning module isn't in this list, the link step fails with `LNK2019: unresolved external symbol`. The fix is always to add the right module name. The UE source on disk is the ground truth — find the class declaration, look at the `_API` macro prefix, that names the module.
@@ -167,6 +181,8 @@ These are real bugs / surprises that cost hours to find. Documented here as a de
 - `BlueprintEditorLibrary.reparent_blueprint` crashes UE for `EditorUtilityWidgetBlueprint`. Workaround: delete the asset and recreate with `EditorUtilityWidgetBlueprintFactory.parent_class = <CustomClass>` from inception.
 - `edit_widget_tree`-style mutations require `WT->Modify()` + `WT->MarkPackageDirty()` + `FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(WBP)` + `SaveLoadedAsset(WBP)` to persist. Compile is a separate concern; don't compile per-edit (it crashes when many edits arrive in quick succession). Compile once at the end of a batch via the explicit `compile: true` flag on the last call.
 - `TUniquePtr<T>` defaulted destructors require the type to be complete. If you `=default` the destructor of a class that owns a `TUniquePtr<FTcpListener>` in its header, MSVC errors with "incomplete type". Move the destructor implementation to the `.cpp` so the include for the held type lives there.
+- `UTexture` mutations require the full `PreEditChange(nullptr)` + `Modify()` + set property + `PostEditChangeProperty(emptyEvent)` + (optional `UpdateResource()` for GPU rebuild) + `UEditorAssetLibrary::SaveLoadedAsset(...)` dance. Skipping `UpdateResource()` lets the in-editor preview keep showing the **old** texture even after the new settings are saved to disk; reopening the asset doesn't refresh it because the cached resource is still the pre-edit one. Reference: `Engine/Source/Runtime/Engine/Classes/Engine/Texture.h:1883`.
+- `TextureCompressionSettings` enum names drift across UE versions. UE 5.7 source at `Engine/Source/Runtime/Engine/Classes/Engine/TextureDefines.h` is the only authoritative list. The plan we shipped originally listed `TC_BC4`, `TC_BC5`, and `TEXTUREGROUP_Bake` as valid; none of those exist in UE 5.7. Always verify enum names against the version's source rather than copy-pasting from older docs.
 
 ## License
 
