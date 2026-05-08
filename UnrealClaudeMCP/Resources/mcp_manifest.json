@@ -234,6 +234,15 @@
         "playback_end_frames": "int (optional, default 240)"
       },
       "returns": { "ok": "bool", "asset_path": "string", "package_path": "string", "display_rate_fps": "number", "playback_range": "object" }
+    },
+    {
+      "name": "bind_actor_to_sequence",
+      "description": "Add a level actor as a possessable binding to a Level Sequence.",
+      "params": {
+        "sequence_path": "string (required) - Level Sequence asset path",
+        "actor_name": "string (required) - actor label or FName"
+      },
+      "returns": { "ok": "bool", "sequence_path": "string", "binding_guid": "string", "actor_label": "string", "binding_type": "string" }
     }
   ]
 }

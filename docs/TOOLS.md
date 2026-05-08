@@ -882,6 +882,37 @@ Create a new empty Level Sequence asset.
 
 ---
 
+## bind_actor_to_sequence
+
+Add a level actor as a possessable binding to a Level Sequence.
+
+**Params**
+- `sequence_path` (string, required) — Level Sequence asset path. Both forms accepted.
+- `actor_name` (string, required) — actor label or FName in the current editor world. Hybrid identification: ambiguous labels return `ambiguous_actor` listing all candidates' FNames.
+
+**Result**
+- `ok` (bool)
+- `sequence_path` (string) — normalized asset path
+- `binding_guid` (string) — GUID of the created possessable binding (canonical hyphenated form)
+- `actor_label` (string) — the actor's `GetActorLabel()` value, also stored as the binding's name
+- `binding_type` (string) — always `"possessable"` in v0.8.0
+
+**Errors:** `missing_required_field`, `asset_not_found`, `not_a_sequence`, `actor_not_found`, `ambiguous_actor`, `bind_failed`.
+
+**Behavior note:** v0.8.0 only supports possessables (existing actors). Spawnables — per-sequence-instance actors instantiated from a template — are deferred to v0.8.x. Use `execute_unreal_python` for spawnable workflows in the meantime.
+
+The binding name is set to the actor's `GetActorLabel()`, which means `inspect_sequence` reports it as `bound_actor_label` for round-trip consistency.
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"bind_actor_to_sequence","params":{
+  "sequence_path": "/Game/Cinematics/MainCinematic",
+  "actor_name": "MyHero_Actor"
+}}
+```
+
+---
+
 ## Adding more tools
 
 See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the recipe. Short version: one `.cpp` file in `Source/UnrealClaudeMCP/Private/MCP/Handlers/`, two registration lines in `UnrealClaudeMCPModule.cpp`, one entry in `Resources/mcp_manifest.json`, one entry in `bridge/unreal_claude_mcp_bridge.py`'s `TOOLS` list, rebuild, restart.

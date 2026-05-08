@@ -351,6 +351,18 @@ TOOLS = [
             "required": ["path", "name"],
         },
     },
+    {
+        "name": "bind_actor_to_sequence",
+        "description": "Add a level actor as a possessable binding to a Level Sequence. Creates the binding GUID and wires it to the live actor.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "sequence_path": {"type": "string", "description": "Level Sequence asset path."},
+                "actor_name": {"type": "string", "description": "Actor label or FName in the current editor world. Hybrid identification: ambiguous labels return ambiguous_actor."},
+            },
+            "required": ["sequence_path", "actor_name"],
+        },
+    },
 ]
 
 
