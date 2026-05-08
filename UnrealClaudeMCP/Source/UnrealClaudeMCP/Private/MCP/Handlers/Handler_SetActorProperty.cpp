@@ -73,20 +73,28 @@ public:
             return nullptr;
         }
 
-        FProperty* Prop = UCMCP::PropertyCoercion::FindProperty(Actor, PropertyName);
-        if (!Prop)
+        // v0.4.0: resolve dotted path (e.g. "RootComponent.RelativeLocation").
+        UCMCP::PropertyCoercion::FResolvedProperty Resolved;
         {
-            OutError = FString::Printf(
-                TEXT("set_actor_property: property_not_found: '%s' not on class '%s'"),
-                *PropertyName, *Actor->GetClass()->GetName());
-            return nullptr;
+            UCMCP::PropertyCoercion::FCoerceOutcome ResolveOutcome =
+                UCMCP::PropertyCoercion::ResolvePropertyPath(Actor, PropertyName, Resolved);
+            if (ResolveOutcome.Result != UCMCP::PropertyCoercion::ECoerceResult::Success)
+            {
+                OutError = FString::Printf(TEXT("set_actor_property: %s"), *ResolveOutcome.Detail);
+                return nullptr;
+            }
         }
 
-        // Capture old value before mutation
-        TSharedPtr<FJsonValue> OldValue = UCMCP::PropertyCoercion::GetProperty(Actor, Prop);
+        FProperty* Prop = Resolved.Property;
+
+        // Capture old value before mutation.
+        TSharedPtr<FJsonValue> OldValue = UCMCP::PropertyCoercion::EncodeProperty(
+            Prop, Resolved.PropAddr, TEXT(".") + Resolved.ResolvedPath, 0);
 
         UCMCP::PropertyCoercion::FCoerceOutcome Outcome =
-            UCMCP::PropertyCoercion::SetProperty(Actor, Prop, Value);
+            UCMCP::PropertyCoercion::SetProperty(
+                Actor, Prop, Resolved.PropAddr, Value,
+                TEXT(".") + Resolved.ResolvedPath, 0);
 
         if (Outcome.Result == UCMCP::PropertyCoercion::ECoerceResult::Unsupported)
         {
@@ -103,11 +111,12 @@ public:
             return nullptr;
         }
 
-        // Fire UE's edit cascade for property mutations
+        // Fire UE's edit cascade for property mutations.
         FPropertyChangedEvent ChangedEvent(Prop);
         Actor->PostEditChangeProperty(ChangedEvent);
 
-        TSharedPtr<FJsonValue> NewValue = UCMCP::PropertyCoercion::GetProperty(Actor, Prop);
+        TSharedPtr<FJsonValue> NewValue = UCMCP::PropertyCoercion::EncodeProperty(
+            Prop, Resolved.PropAddr, TEXT(".") + Resolved.ResolvedPath, 0);
 
         TSharedPtr<FJsonObject> Out = MakeShared<FJsonObject>();
         Out->SetBoolField(TEXT("ok"), true);
