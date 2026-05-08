@@ -1,7 +1,14 @@
 // Copyright (c) 2026 HD Media. MIT licensed - see LICENSE.
 //
 // import_texture - import a texture file from disk into the project content
-// browser. Skeleton: real validation + import logic land in subsequent tasks.
+// browser. Validates inputs (source_path / dest_path / extension), runs the
+// canonical UAssetImportTask + IAssetTools::ImportAssetTasks pipeline,
+// returns asset path / dimensions / format.
+//
+// Error format: "import_texture: <error_code>: <human-readable detail>".
+// Stable error codes (parseable by clients): missing_params,
+// missing_required_field, invalid_dest_path, source_not_found,
+// unsupported_extension, import_factory_failed, imported_not_a_texture.
 
 #include "MCP/MCPHandler.h"
 
@@ -25,24 +32,24 @@ public:
     {
         if (!Params.IsValid())
         {
-            OutError = TEXT("import_texture: missing params");
+            OutError = TEXT("import_texture: missing_params: request had no params object");
             return nullptr;
         }
 
         FString SourcePath, DestPath, DestName;
         if (!Params->TryGetStringField(TEXT("source_path"), SourcePath) || SourcePath.IsEmpty())
         {
-            OutError = TEXT("import_texture: 'source_path' is required and must be non-empty");
+            OutError = TEXT("import_texture: missing_required_field: 'source_path' is required and must be non-empty");
             return nullptr;
         }
         if (!Params->TryGetStringField(TEXT("dest_path"), DestPath) || DestPath.IsEmpty())
         {
-            OutError = TEXT("import_texture: 'dest_path' is required and must be non-empty");
+            OutError = TEXT("import_texture: missing_required_field: 'dest_path' is required and must be non-empty");
             return nullptr;
         }
         if (!DestPath.StartsWith(TEXT("/Game/")))
         {
-            OutError = TEXT("import_texture: 'dest_path' must start with /Game/");
+            OutError = FString::Printf(TEXT("import_texture: invalid_dest_path: dest_path '%s' must start with /Game/"), *DestPath);
             return nullptr;
         }
         Params->TryGetStringField(TEXT("dest_name"), DestName);
@@ -55,7 +62,7 @@ public:
         // File existence + extension check
         if (!FPaths::FileExists(SourcePath))
         {
-            OutError = FString::Printf(TEXT("import_texture: source_path not found: %s"), *SourcePath);
+            OutError = FString::Printf(TEXT("import_texture: source_not_found: source path '%s' does not exist on disk"), *SourcePath);
             return nullptr;
         }
         const FString Ext = FPaths::GetExtension(SourcePath, /*bIncludeDot*/ false).ToLower();
@@ -64,7 +71,7 @@ public:
                                                 TEXT("hdr") };
         if (!Allowed.Contains(Ext))
         {
-            OutError = FString::Printf(TEXT("import_texture: unsupported extension '%s'"), *Ext);
+            OutError = FString::Printf(TEXT("import_texture: unsupported_extension: '%s' (supported: png, jpg, jpeg, exr, tga, bmp, hdr)"), *Ext);
             return nullptr;
         }
 
@@ -93,7 +100,7 @@ public:
         if (Task->ImportedObjectPaths.Num() == 0)
         {
             OutError = FString::Printf(
-                TEXT("import_texture: factory rejected the input (source=%s, dest=%s)"),
+                TEXT("import_texture: import_factory_failed: factory rejected the input (source=%s, dest=%s)"),
                 *SourcePath, *DestPath);
             return nullptr;
         }
@@ -107,7 +114,7 @@ public:
         }
         if (!Imported)
         {
-            OutError = TEXT("import_texture: imported object is not a UTexture2D");
+            OutError = TEXT("import_texture: imported_not_a_texture: imported object exists but is not a UTexture2D");
             return nullptr;
         }
 
