@@ -8,6 +8,14 @@
 #include "Dom/JsonObject.h"
 #include "Misc/Paths.h"
 #include "Containers/Set.h"
+#include "AssetImportTask.h"
+#include "AssetToolsModule.h"
+#include "IAssetTools.h"
+#include "Engine/Texture2D.h"
+#include "Misc/ScopeExit.h"
+#include "Modules/ModuleManager.h"
+#include "PixelFormat.h"
+#include "UObject/Class.h"  // for StaticEnum
 
 class FHandler_ImportTexture : public IUCMCPHandler
 {
@@ -61,8 +69,62 @@ public:
             return nullptr;
         }
 
-        OutError = TEXT("import_texture: validation passed; import not yet wired");
-        return nullptr;
+        // Build the import task
+        UAssetImportTask* Task = NewObject<UAssetImportTask>();
+        Task->Filename = SourcePath;
+        Task->DestinationPath = DestPath;
+        if (!DestName.IsEmpty())
+        {
+            Task->DestinationName = DestName;
+        }
+        Task->bReplaceExisting = bReplaceExisting;
+        Task->bAutomated = bAutomated;
+        Task->bSave = bSave;
+        Task->bAsync = false;
+
+        // Keep alive across GC during the import
+        Task->AddToRoot();
+        ON_SCOPE_EXIT { Task->RemoveFromRoot(); };
+
+        // Acquire IAssetTools and run the import (blocks on the game thread; sync mode)
+        FAssetToolsModule& AssetToolsModule =
+            FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools");
+        AssetToolsModule.Get().ImportAssetTasks({ Task });
+
+        if (Task->ImportedObjectPaths.Num() == 0)
+        {
+            OutError = FString::Printf(
+                TEXT("import_texture: factory rejected the input (source=%s, dest=%s)"),
+                *SourcePath, *DestPath);
+            return nullptr;
+        }
+
+        const FString AssetPath = Task->ImportedObjectPaths[0];
+        UTexture2D* Imported = nullptr;
+        for (UObject* Obj : Task->GetObjects())
+        {
+            Imported = Cast<UTexture2D>(Obj);
+            if (Imported) break;
+        }
+        if (!Imported)
+        {
+            OutError = TEXT("import_texture: imported object is not a UTexture2D");
+            return nullptr;
+        }
+
+        TSharedPtr<FJsonObject> Result = MakeShared<FJsonObject>();
+        Result->SetBoolField(TEXT("ok"), true);
+        Result->SetStringField(TEXT("asset_path"), AssetPath);
+        Result->SetStringField(TEXT("asset_name"), Imported->GetName());
+        Result->SetStringField(TEXT("source_path"), SourcePath);
+        Result->SetNumberField(TEXT("width"), Imported->GetSizeX());
+        Result->SetNumberField(TEXT("height"), Imported->GetSizeY());
+        Result->SetStringField(TEXT("format"),
+            StaticEnum<EPixelFormat>()->GetNameStringByValue((int64)Imported->GetPixelFormat()));
+        Result->SetStringField(TEXT("message"),
+            FString::Printf(TEXT("Imported %dx%d %s as UTexture2D."),
+                Imported->GetSizeX(), Imported->GetSizeY(), *Ext.ToUpper()));
+        return Result;
     }
 };
 
