@@ -36,6 +36,16 @@ FUCMCPLogCapture::FUCMCPLogCapture()
 void FUCMCPLogCapture::Serialize(const TCHAR* V, ELogVerbosity::Type Verbosity,
                                  const FName& Category)
 {
+    // Re-entrancy guard: GLog dispatches every log line to every registered
+    // FOutputDevice. If anything inside this Serialize ends up emitting a log
+    // line itself (FString::Printf allocation under heavy debug builds, the
+    // Mutex's debug telemetry, etc.), we'd recurse infinitely / deadlock on
+    // the FCriticalSection. Drop re-entrant calls silently — the deepest call
+    // is the one we want to record, not the synthetic noise on top of it.
+    static thread_local bool bInSerialize = false;
+    if (bInSerialize) { return; }
+    TGuardValue<bool> ReentrancyGuard(bInSerialize, true);
+
     // Build entry outside the lock (string operations are the slow part).
     FUCMCPLogEntry Entry;
 
