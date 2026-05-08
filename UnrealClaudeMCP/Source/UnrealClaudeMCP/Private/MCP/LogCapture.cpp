@@ -34,7 +34,7 @@ FUCMCPLogCapture::FUCMCPLogCapture()
 // ---------------------------------------------------------------------------
 
 void FUCMCPLogCapture::Serialize(const TCHAR* V, ELogVerbosity::Type Verbosity,
-                                 const FName& Category, double /*Time*/)
+                                 const FName& Category)
 {
     // Build entry outside the lock (string operations are the slow part).
     FUCMCPLogEntry Entry;

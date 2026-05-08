@@ -48,7 +48,7 @@ public:
      * event from any thread.  Protected by Mutex.
      */
     virtual void Serialize(const TCHAR* V, ELogVerbosity::Type Verbosity,
-                           const FName& Category, double Time) override;
+                           const FName& Category) override;
 
     /**
      * Copy the ring buffer contents to a flat array (oldest-first).
