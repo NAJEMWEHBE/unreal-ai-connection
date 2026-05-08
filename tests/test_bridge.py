@@ -19,8 +19,8 @@ import unreal_claude_mcp_bridge as bridge
 
 # -------- TOOLS schema --------------------------------------------------------
 
-def test_tools_list_has_twentysix_entries():
-    assert len(bridge.TOOLS) == 26
+def test_tools_list_has_twentyseven_entries():
+    assert len(bridge.TOOLS) == 27
 
 
 def test_each_tool_has_required_mcp_fields():
@@ -46,7 +46,7 @@ def test_tool_names_are_unique_and_match_handlers():
         "set_actor_property", "add_component",
         "get_log_lines", "execute_console_command",
         "inspect_asset", "move_asset", "rename_asset", "delete_asset",
-        "inspect_sequence",
+        "inspect_sequence", "create_sequence",
     }
     assert set(names) == expected
 
@@ -106,6 +106,13 @@ def test_inspect_sequence_in_tools_catalog():
     assert t is not None, "inspect_sequence must be in TOOLS catalog"
     assert "path" in t["inputSchema"]["properties"]
     assert t["inputSchema"]["required"] == ["path"]
+
+
+def test_create_sequence_in_tools_catalog():
+    """v0.8.0: create_sequence requires path + name."""
+    t = next((t for t in bridge.TOOLS if t["name"] == "create_sequence"), None)
+    assert t is not None
+    assert set(t["inputSchema"]["required"]) == {"path", "name"}
 
 
 def test_required_params_match_handler_contract():
@@ -294,7 +301,7 @@ def test_handle_tools_list_returns_all_tools():
     resp = bridge.handle({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
     assert resp["id"] == 2
     assert "tools" in resp["result"]
-    assert len(resp["result"]["tools"]) == 26
+    assert len(resp["result"]["tools"]) == 27
 
 
 # -------- handle: tools/call --------------------------------------------------

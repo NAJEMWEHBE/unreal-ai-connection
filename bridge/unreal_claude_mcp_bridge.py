@@ -337,6 +337,20 @@ TOOLS = [
             "required": ["path"],
         },
     },
+    {
+        "name": "create_sequence",
+        "description": "Create a new Level Sequence asset. Initializes an empty MovieScene with the given display frame rate and playback end-frame.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "Destination folder under /Game/."},
+                "name": {"type": "string", "description": "Leaf asset name (no '/' or '.')."},
+                "display_rate_fps": {"type": "number", "description": "Display frame rate (default 30.0)."},
+                "playback_end_frames": {"type": "integer", "description": "End of playback range in display frames (default 240)."},
+            },
+            "required": ["path", "name"],
+        },
+    },
 ]
 
 

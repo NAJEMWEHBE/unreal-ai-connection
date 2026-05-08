@@ -853,6 +853,35 @@ Read the structure of a Level Sequence asset.
 
 ---
 
+## create_sequence
+
+Create a new empty Level Sequence asset.
+
+**Params**
+- `path` (string, required) — destination folder under `/Game/`.
+- `name` (string, required) — leaf asset name. No `/` or `.` characters allowed.
+- `display_rate_fps` (number, optional, default `30.0`) — sequence display frame rate.
+- `playback_end_frames` (int, optional, default `240`) — end of playback range in **display** frames (not ticks).
+
+**Result**
+- `ok`, `asset_path`, `package_path`
+- `display_rate_fps` (number) — final value applied to the MovieScene (round-tripped through `FFrameRate(N, 1000)`)
+- `playback_range` — `{start_frames, end_frames}` in **tick units** (the conversion uses UE's `FFrameRate::TransformTime`)
+
+**Errors:** `missing_required_field`, `invalid_path`, `invalid_asset_name`, `dest_exists`, `create_failed`.
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"create_sequence","params":{
+  "path": "/Game/Cinematics",
+  "name": "MyNewSequence",
+  "display_rate_fps": 24.0,
+  "playback_end_frames": 144
+}}
+```
+
+---
+
 ## Adding more tools
 
 See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the recipe. Short version: one `.cpp` file in `Source/UnrealClaudeMCP/Private/MCP/Handlers/`, two registration lines in `UnrealClaudeMCPModule.cpp`, one entry in `Resources/mcp_manifest.json`, one entry in `bridge/unreal_claude_mcp_bridge.py`'s `TOOLS` list, rebuild, restart.

@@ -223,6 +223,17 @@
         "path": "string (required) - Level Sequence asset path"
       },
       "returns": { "ok": "bool", "name": "string", "package_path": "string", "tick_resolution": "int", "display_rate_fps": "number", "playback_range": "object", "bindings": "array of object", "tracks": "array of object" }
+    },
+    {
+      "name": "create_sequence",
+      "description": "Create a new Level Sequence asset with display frame rate and playback range.",
+      "params": {
+        "path": "string (required) - destination folder under /Game/",
+        "name": "string (required) - leaf asset name (no '/' or '.')",
+        "display_rate_fps": "number (optional, default 30.0)",
+        "playback_end_frames": "int (optional, default 240)"
+      },
+      "returns": { "ok": "bool", "asset_path": "string", "package_path": "string", "display_rate_fps": "number", "playback_range": "object" }
     }
   ]
 }
