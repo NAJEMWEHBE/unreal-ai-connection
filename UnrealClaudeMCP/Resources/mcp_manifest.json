@@ -1,7 +1,7 @@
 {
   "name": "UnrealClaudeMCP",
   "version": "0.1.0",
-  "description": "Drive Unreal Engine 5.7 from Claude (or any MCP client) over a local TCP socket. Eleven generic editor-automation tools that work with any UE 5.7 project.",
+  "description": "Drive Unreal Engine 5.7 from Claude (or any MCP client) over a local TCP socket. Thirteen generic editor-automation tools that work with any UE 5.7 project.",
   "transport": {
     "type": "tcp",
     "host": "127.0.0.1",
@@ -66,6 +66,32 @@
       "name": "take_high_res_screenshot",
       "description": "Trigger UE's HighResShot. Output to Saved/Screenshots/<Platform>Editor/.",
       "params": { "multiplier": "number (optional, 1..8, default 1)" }
+    },
+    {
+      "name": "import_texture",
+      "description": "Import an image file (PNG/JPG/EXR/TGA/BMP/HDR) from disk into the project as a UTexture2D asset, using the canonical UE asset import pipeline.",
+      "params": {
+        "source_path": "string (required) - absolute filesystem path",
+        "dest_path": "string (required) - UE package path starting with /Game/",
+        "dest_name": "string (optional) - asset-name override",
+        "replace_existing": "bool (optional, default false)",
+        "automated": "bool (optional, default true)",
+        "save": "bool (optional, default true)"
+      },
+      "returns": { "ok": "bool", "asset_path": "string", "asset_name": "string", "source_path": "string", "width": "int", "height": "int", "format": "string", "message": "string" }
+    },
+    {
+      "name": "configure_texture",
+      "description": "Adjust SRGB/Compression/LODGroup/Filter on an existing UTexture asset and persist the change.",
+      "params": {
+        "path": "string (required) - UE package path of an existing texture",
+        "srgb": "bool (optional)",
+        "compression": "string (optional) - TextureCompressionSettings enum name",
+        "lod_group": "string (optional) - TextureGroup enum name",
+        "filter": "string (optional) - Nearest | Bilinear | Trilinear | Default",
+        "compress": "bool (optional, default true)"
+      },
+      "returns": { "ok": "bool", "path": "string", "applied": "object", "message": "string" }
     }
   ]
 }

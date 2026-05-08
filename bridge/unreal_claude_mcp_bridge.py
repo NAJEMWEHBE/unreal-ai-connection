@@ -13,7 +13,7 @@ plugin speaks raw JSON-RPC over a local TCP socket (default
 Behaviour:
   - "initialize"             returned synthetically (does NOT hit the UE server)
   - "notifications/*"        consumed silently
-  - "tools/list"             returns a static list mirroring the 11 handlers
+  - "tools/list"             returns a static list mirroring the 13 handlers
   - "tools/call"             unpacks {name, arguments} and forwards to the
                              UE server as the matching method
   - All other methods        proxied as-is
@@ -132,6 +132,38 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {"multiplier": {"type": "number", "default": 1}},
+        },
+    },
+    {
+        "name": "import_texture",
+        "description": "Import an image file (PNG/JPG/EXR/TGA/BMP/HDR) from disk into the project as a UTexture2D asset, using the canonical UE asset import pipeline.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "source_path": {"type": "string", "description": "Absolute filesystem path to the source image file."},
+                "dest_path": {"type": "string", "description": "UE package path; must start with /Game/ (e.g. /Game/Textures/Environment)."},
+                "dest_name": {"type": "string", "description": "Optional asset-name override; defaults to filename stem."},
+                "replace_existing": {"type": "boolean", "description": "Overwrite existing asset at dest_path/dest_name (default false)."},
+                "automated": {"type": "boolean", "description": "Suppress modal dialogs (default true)."},
+                "save": {"type": "boolean", "description": "Save the .uasset to disk after import (default true)."},
+            },
+            "required": ["source_path", "dest_path"],
+        },
+    },
+    {
+        "name": "configure_texture",
+        "description": "Adjust SRGB/CompressionSettings/LODGroup/Filter on an existing UTexture asset and persist the change. Triggers UE's standard PreEditChange/PostEditChange flow and rebuilds the GPU resource.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "UE package path of the existing texture asset, e.g. /Game/Textures/Environment/T_Stone_D."},
+                "srgb": {"type": "boolean", "description": "Set UTexture::SRGB."},
+                "compression": {"type": "string", "description": "TextureCompressionSettings enum name (e.g. Default, Normalmap, Masks, BC7, HDR)."},
+                "lod_group": {"type": "string", "description": "TextureGroup enum name (e.g. World, WorldNormalMap, UI, Lightmap)."},
+                "filter": {"type": "string", "description": "TextureFilter enum name: Nearest | Bilinear | Trilinear | Default."},
+                "compress": {"type": "boolean", "description": "Call UpdateResource() after mutation (default true). Set false for batches."},
+            },
+            "required": ["path"],
         },
     },
 ]
