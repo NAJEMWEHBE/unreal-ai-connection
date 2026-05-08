@@ -19,8 +19,8 @@ import unreal_claude_mcp_bridge as bridge
 
 # -------- TOOLS schema --------------------------------------------------------
 
-def test_tools_list_has_twentyone_entries():
-    assert len(bridge.TOOLS) == 21
+def test_tools_list_has_twentyfive_entries():
+    assert len(bridge.TOOLS) == 25
 
 
 def test_each_tool_has_required_mcp_fields():
@@ -45,6 +45,7 @@ def test_tool_names_are_unique_and_match_handlers():
         "find_assets", "spawn_actor", "set_actor_transform", "delete_actor",
         "set_actor_property", "add_component",
         "get_log_lines", "execute_console_command",
+        "inspect_asset", "move_asset", "rename_asset", "delete_asset",
     }
     assert set(names) == expected
 
@@ -53,6 +54,49 @@ def test_edit_widget_tree_schema_includes_compile_flag():
     tool = next(t for t in bridge.TOOLS if t["name"] == "edit_widget_tree")
     assert "compile" in tool["inputSchema"]["properties"]
     assert tool["inputSchema"]["properties"]["compile"]["type"] == "boolean"
+
+
+def test_find_assets_schema_includes_tags_and_include_tags():
+    """v0.7.0: find_assets gains optional tags + include_tags fields."""
+    find_assets = next(t for t in bridge.TOOLS if t["name"] == "find_assets")
+    props = find_assets["inputSchema"]["properties"]
+    assert "tags" in props, "find_assets schema must declare 'tags'"
+    assert props["tags"]["type"] == "object"
+    assert "include_tags" in props, "find_assets schema must declare 'include_tags'"
+    assert props["include_tags"]["type"] == "boolean"
+    # Required list unchanged — both new fields are optional.
+    assert find_assets["inputSchema"]["required"] == ["class_path"]
+
+
+def test_inspect_asset_in_tools_catalog():
+    """v0.7.0: inspect_asset is a new handler with required 'path' param."""
+    inspect = next((t for t in bridge.TOOLS if t["name"] == "inspect_asset"), None)
+    assert inspect is not None, "inspect_asset must be in TOOLS catalog"
+    assert "path" in inspect["inputSchema"]["properties"]
+    assert inspect["inputSchema"]["required"] == ["path"]
+
+
+def test_move_asset_in_tools_catalog():
+    """v0.7.0: move_asset takes path + dest_folder, both required."""
+    t = next((t for t in bridge.TOOLS if t["name"] == "move_asset"), None)
+    assert t is not None
+    assert set(t["inputSchema"]["required"]) == {"path", "dest_folder"}
+
+
+def test_rename_asset_in_tools_catalog():
+    """v0.7.0: rename_asset takes path + new_name, both required."""
+    t = next((t for t in bridge.TOOLS if t["name"] == "rename_asset"), None)
+    assert t is not None
+    assert set(t["inputSchema"]["required"]) == {"path", "new_name"}
+
+
+def test_delete_asset_in_tools_catalog():
+    """v0.7.0: delete_asset takes path required + optional force flag."""
+    t = next((t for t in bridge.TOOLS if t["name"] == "delete_asset"), None)
+    assert t is not None
+    assert t["inputSchema"]["required"] == ["path"]
+    assert "force" in t["inputSchema"]["properties"]
+    assert t["inputSchema"]["properties"]["force"]["type"] == "boolean"
 
 
 def test_required_params_match_handler_contract():
@@ -241,7 +285,7 @@ def test_handle_tools_list_returns_all_tools():
     resp = bridge.handle({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
     assert resp["id"] == 2
     assert "tools" in resp["result"]
-    assert len(resp["result"]["tools"]) == 21
+    assert len(resp["result"]["tools"]) == 25
 
 
 # -------- handle: tools/call --------------------------------------------------

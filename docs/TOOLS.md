@@ -342,6 +342,27 @@ Query the UE asset registry by class, path, and optional name substring. This is
 | `missing_required_field` | `class_path` was missing or empty. |
 | `invalid_class_path` | `class_path` does not resolve to a known UClass. |
 | `invalid_path_filter` | `path_under` does not start with `/Game/` or `/Engine/`. |
+| `invalid_tag_value` | A `tags` map entry's value is neither a string nor null (v0.7.0). |
+
+### v0.7.0 additions
+
+Two optional parameters extend the v0.4.0 contract without breaking existing callers:
+
+- `tags` (object) — map of tag-name → required-value (string) or `null` (any value). Multiple entries are AND-combined by the asset registry.
+- `include_tags` (bool, default `false`) — when `true`, each returned asset includes a `tags` map of all its registry tags.
+
+Tag values are stringified via UE's `FAssetTagValueRef::AsString()`, so numeric or object-path tags appear as their string representation. Tag names are FName-compared (case-insensitive); tag values are FString-compared (case-sensitive).
+
+**Example — Texture2D assets in `/Game/Textures/` with `LODGroup` tag set to `TEXTUREGROUP_World`, returning the full tag map for each:**
+
+```json
+{"jsonrpc":"2.0","id":1,"method":"find_assets","params":{
+  "class_path": "/Script/Engine.Texture2D",
+  "path_under": "/Game/Textures/",
+  "tags": {"LODGroup": "TEXTUREGROUP_World"},
+  "include_tags": true
+}}
+```
 
 ---
 
@@ -685,6 +706,124 @@ Execute a UE console command in the editor world context and optionally capture 
 |---|---|
 | `missing_required_field` | `command` was missing or empty. |
 | `command_execution_failed` | `GEngine` or `GEditor` is null (not running in an editor context). |
+
+---
+
+## inspect_asset
+
+Read every fact the asset registry knows about a single asset.
+
+**Params**
+- `path` (string, required) — asset path or package path. Both forms accepted: `/Game/Textures/T_Stone` and `/Game/Textures/T_Stone.T_Stone`.
+
+**Result**
+- `name` — leaf name (no folder, no `.Name` suffix)
+- `package_path` — `/Game/...` form without `.Name`
+- `asset_path` — same path with `.Name` suffix
+- `class` — leaf class name (e.g. `Texture2D`)
+- `class_path` — full class path (e.g. `/Script/Engine.Texture2D`)
+- `tags` (object) — all registry tags coerced to strings via `FAssetTagValueRef::AsString()`
+- `dependencies` (array of string) — package paths this asset hard-references
+- `referencers` (array of string) — package paths that hard-reference this asset
+- `package_size_bytes` — integer (on-disk size in bytes) or `null` (transient/in-memory asset)
+
+**Errors:** `missing_required_field`, `asset_not_found`.
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"inspect_asset","params":{
+  "path": "/Engine/BasicShapes/Cube"
+}}
+```
+
+---
+
+## move_asset
+
+Move an asset to a different folder. The leaf name does not change.
+
+**Params**
+- `path` (string, required) — source asset path. Both forms accepted (with or without `.Name` suffix).
+- `dest_folder` (string, required) — destination folder under `/Game/` or `/Engine/`.
+
+**Result**
+- `ok` (bool)
+- `old_path` (string) — the source asset path before the move
+- `new_path` (string) — the destination asset path after the move
+
+**Errors:** `missing_required_field`, `asset_not_found`, `invalid_dest_folder`, `dest_exists`, `rename_failed`.
+
+**Behavior note:** UE creates a redirector at the source path so existing references in other assets continue to resolve. Redirectors persist until you run *Fix Up Redirectors* in the Content Browser.
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"move_asset","params":{
+  "path": "/Game/Textures/T_Stone",
+  "dest_folder": "/Game/Textures/Environment"
+}}
+```
+
+---
+
+## rename_asset
+
+Rename an asset's leaf name. The containing folder does not change.
+
+**Params**
+- `path` (string, required) — source asset path. Both forms accepted (with or without `.Name` suffix).
+- `new_name` (string, required) — new leaf name. No `/` or `.` characters allowed.
+
+**Result**
+- `ok` (bool)
+- `old_path` (string) — the source asset path before the rename
+- `new_path` (string) — the destination asset path after the rename
+
+**Errors:** `missing_required_field`, `asset_not_found`, `invalid_asset_name`, `dest_exists`, `rename_failed`.
+
+**Behavior note:** Same redirector behavior as `move_asset`. The old name continues to resolve via the redirector until *Fix Up Redirectors* is run.
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"rename_asset","params":{
+  "path": "/Game/Textures/T_Stone",
+  "new_name": "T_StoneAlbedo"
+}}
+```
+
+---
+
+## delete_asset
+
+Delete an asset from the project. By default, refuses if any other package references the asset.
+
+**Params**
+- `path` (string, required) — asset path to delete. Both forms accepted.
+- `force` (bool, optional, default `false`) — when `true`, delete even if referenced.
+
+**Result**
+- `ok` (bool)
+- `deleted_path` (string) — the asset path that was deleted
+
+**Errors:** `missing_required_field`, `asset_not_found`, `has_referencers`, `delete_failed`.
+
+**Safety**
+
+UE's `EditorAssetLibrary::DeleteAsset` is documented as a force-delete that does **not** check referencers — it will happily delete a texture being used by 50 actors and cascade into broken references. The handler runs `IAssetRegistry::GetReferencers` first and refuses unless `force=true`. The `has_referencers` error message lists up to 5 referencer package names so the caller can see what would break.
+
+`force=true` cannot be recovered via Undo. Make sure your source-control checkout has the asset before deleting.
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"delete_asset","params":{
+  "path": "/Game/Textures/T_Stone_OldVariant",
+  "force": false
+}}
+```
+
+If `T_Stone_OldVariant` is referenced by `M_Stone` and `M_StoneWet`, the response is:
+```json
+{"jsonrpc":"2.0","id":1,"error":{"code":-32000,"message":"delete_asset: has_referencers: '/Game/Textures/T_Stone_OldVariant' is referenced by 2 package(s): /Game/Materials/M_Stone, /Game/Materials/M_StoneWet. Set force=true to delete anyway."}}
+```
 
 ---
 

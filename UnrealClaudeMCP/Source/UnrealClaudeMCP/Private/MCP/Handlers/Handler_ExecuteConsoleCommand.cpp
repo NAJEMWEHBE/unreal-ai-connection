@@ -81,21 +81,37 @@ public:
         // --- execute --------------------------------------------------------
 
         FString CapturedOutput;
+        bool bExecOk = false;
 
         if (bCaptureOutput)
         {
             // Use our local FOutputDevice subclass that accumulates Serialize
             // calls into CapturedText. Defined at the top of this file.
             FUCMCPCaptureOutputDevice OutputDevice;
-
-            GEngine->Exec(World, *Command, OutputDevice);
-
+            bExecOk = GEngine->Exec(World, *Command, OutputDevice);
             CapturedOutput = OutputDevice.CapturedText;
         }
         else
         {
             // Route output to the normal Output Log.
-            GEngine->Exec(World, *Command, *GLog);
+            bExecOk = GEngine->Exec(World, *Command, *GLog);
+        }
+
+        // GEngine->Exec returns false when no registered exec handler matched
+        // the command (typically: unknown command, typoed cvar prefix, or
+        // editor-only command in the wrong context). Propagating it as a
+        // success response would let automation make decisions based on
+        // commands UE actually rejected. (Caught by Codex review on v0.6.0
+        // PR #11 — P1 finding.)
+        if (!bExecOk)
+        {
+            OutError = FString::Printf(
+                TEXT("execute_console_command: command_execution_failed: "
+                     "GEngine->Exec returned false for '%s' (likely unrecognized command)%s%s"),
+                *Command,
+                CapturedOutput.IsEmpty() ? TEXT("") : TEXT("; captured output: "),
+                *CapturedOutput);
+            return nullptr;
         }
 
         // --- build result ---------------------------------------------------

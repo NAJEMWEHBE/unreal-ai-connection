@@ -1,10 +1,17 @@
 // Copyright (c) 2026 HD Media. MIT licensed - see LICENSE.
 //
-// find_assets - query the asset registry by class + path + name substring.
+// find_assets - query the asset registry by class + path + name + tags.
 //
 // Error format: "find_assets: <error_code>: <human-readable detail>".
 // Stable error codes (parseable by clients): missing_params,
-// missing_required_field, invalid_class_path, invalid_path_filter.
+// missing_required_field, invalid_class_path, invalid_path_filter,
+// invalid_tag_value (v0.7.0).
+//
+// v0.7.0 additions:
+//   - `tags` (object) — TMultiMap<FName, TOptional<FString>> filter; values
+//     can be a string (exact-match) or null (any-value / tag-presence).
+//   - `include_tags` (bool) — when true, each asset record includes a `tags`
+//     map of all its registry tags.
 
 #include "MCP/MCPHandler.h"
 
@@ -13,6 +20,7 @@
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "AssetRegistry/IAssetRegistry.h"
 #include "AssetRegistry/ARFilter.h"
+#include "AssetRegistry/AssetData.h"
 #include "Modules/ModuleManager.h"
 
 class FHandler_FindAssets : public IUCMCPHandler
@@ -52,6 +60,10 @@ public:
         Params->TryGetNumberField(TEXT("limit"), Limit);
         Limit = FMath::Clamp(Limit, 1, 500);
 
+        // v0.7.0: optional include_tags toggle
+        bool bIncludeTags = false;
+        Params->TryGetBoolField(TEXT("include_tags"), bIncludeTags);
+
         // Build the asset registry filter
         FAssetRegistryModule& Module = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
         IAssetRegistry& Registry = Module.Get();
@@ -60,6 +72,40 @@ public:
         Filter.ClassPaths.Add(FTopLevelAssetPath(ClassPath));
         Filter.PackagePaths.Add(FName(*PathUnder));
         Filter.bRecursivePaths = true;
+
+        // v0.7.0: optional tag-based filter. JSON shape:
+        //   { "tags": { "TagName": "ExactValue", "OtherTag": null } }
+        // null value = any-value (tag-presence test). String value = exact match.
+        // Multiple entries are AND-combined by the asset registry.
+        const TSharedPtr<FJsonObject>* TagsObjPtr = nullptr;
+        if (Params->TryGetObjectField(TEXT("tags"), TagsObjPtr) && TagsObjPtr && (*TagsObjPtr).IsValid())
+        {
+            for (const auto& Pair : (*TagsObjPtr)->Values)
+            {
+                const FString& TagName = Pair.Key;
+                const TSharedPtr<FJsonValue>& Val = Pair.Value;
+                if (!Val.IsValid())
+                {
+                    continue;
+                }
+                const FName TagKey(*TagName);
+                if (Val->Type == EJson::Null)
+                {
+                    Filter.TagsAndValues.Add(TagKey, TOptional<FString>());
+                }
+                else if (Val->Type == EJson::String)
+                {
+                    Filter.TagsAndValues.Add(TagKey, Val->AsString());
+                }
+                else
+                {
+                    OutError = FString::Printf(
+                        TEXT("find_assets: invalid_tag_value: tag '%s' must be a string or null, got json type %d"),
+                        *TagName, (int32)Val->Type);
+                    return nullptr;
+                }
+            }
+        }
 
         TArray<FAssetData> Found;
         Registry.GetAssets(Filter, Found);
@@ -112,6 +158,19 @@ public:
             A->SetStringField(TEXT("name"), Data.AssetName.ToString());
             A->SetStringField(TEXT("package_path"), Data.PackageName.ToString());
             A->SetStringField(TEXT("class"), Data.AssetClassPath.GetAssetName().ToString());
+
+            // v0.7.0: optionally include all registry tags as a string-keyed map.
+            // FAssetTagValueRef::AsString() coerces FName / FString / int32 /
+            // object-path to a string representation regardless of original type.
+            if (bIncludeTags)
+            {
+                TSharedRef<FJsonObject> TagsJson = MakeShared<FJsonObject>();
+                Data.TagsAndValues.ForEach([&TagsJson](const TPair<FName, FAssetTagValueRef>& TagPair) {
+                    TagsJson->SetStringField(TagPair.Key.ToString(), TagPair.Value.AsString());
+                });
+                A->SetObjectField(TEXT("tags"), TagsJson);
+            }
+
             JsonAssets.Add(MakeShared<FJsonValueObject>(A));
         }
 

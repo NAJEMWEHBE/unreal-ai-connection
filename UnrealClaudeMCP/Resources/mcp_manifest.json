@@ -1,7 +1,7 @@
 {
   "name": "UnrealClaudeMCP",
-  "version": "0.6.0",
-  "description": "Drive Unreal Engine 5.7 from Claude (or any MCP client) over a local TCP socket. Twenty-one generic editor-automation tools that work with any UE 5.7 project.",
+  "version": "0.7.0",
+  "description": "Drive Unreal Engine 5.7 from Claude (or any MCP client) over a local TCP socket. Twenty-five generic editor-automation tools that work with any UE 5.7 project.",
   "transport": {
     "type": "tcp",
     "host": "127.0.0.1",
@@ -95,14 +95,16 @@
     },
     {
       "name": "find_assets",
-      "description": "Query the asset registry by class + optional path + optional name substring. Returns matching assets with structured records (name, package_path, class).",
+      "description": "Query the asset registry by class + optional path + optional name substring + optional tag filters. Returns matching assets with structured records (name, package_path, class[, tags]).",
       "params": {
         "class_path": "string (required) - UE class path, e.g. /Script/Engine.StaticMesh",
         "path_under": "string (optional, default /Game/) - recursive path filter",
         "name_contains": "string (optional) - case-insensitive substring filter",
-        "limit": "int (optional, default 100, max 500)"
+        "limit": "int (optional, default 100, max 500)",
+        "tags": "object (optional) - map of tag-name -> exact-match string or null (any value); AND-combined",
+        "include_tags": "bool (optional, default false) - when true, each result asset includes a 'tags' map"
       },
-      "returns": { "ok": "bool", "matched": "int", "returned": "int", "assets": "array of {name, package_path, class}" }
+      "returns": { "ok": "bool", "matched": "int", "returned": "int", "assets": "array of {name, package_path, class[, tags]}" }
     },
     {
       "name": "spawn_actor",
@@ -178,6 +180,41 @@
         "capture_output": "bool (optional, default true) - capture and return command output"
       },
       "returns": { "ok": "bool", "command": "string", "output": "string" }
+    },
+    {
+      "name": "inspect_asset",
+      "description": "Read everything the asset registry knows about a single asset: class, all registry tags, dependency packages, referencer packages, on-disk file size.",
+      "params": {
+        "path": "string (required) - asset path or package path"
+      },
+      "returns": { "ok": "bool", "name": "string", "package_path": "string", "asset_path": "string", "class": "string", "class_path": "string", "tags": "object", "dependencies": "array of string", "referencers": "array of string", "package_size_bytes": "int or null" }
+    },
+    {
+      "name": "move_asset",
+      "description": "Move an asset to a different folder; leaf name unchanged. UE auto-creates a redirector at the source path.",
+      "params": {
+        "path": "string (required) - source asset path",
+        "dest_folder": "string (required) - destination folder under /Game/ or /Engine/"
+      },
+      "returns": { "ok": "bool", "old_path": "string", "new_path": "string" }
+    },
+    {
+      "name": "rename_asset",
+      "description": "Rename an asset's leaf name; folder unchanged. UE auto-creates a redirector at the old name.",
+      "params": {
+        "path": "string (required) - source asset path",
+        "new_name": "string (required) - new leaf name (no '/' or '.')"
+      },
+      "returns": { "ok": "bool", "old_path": "string", "new_path": "string" }
+    },
+    {
+      "name": "delete_asset",
+      "description": "Delete an asset. Refuses if referenced by other packages unless force=true. Force-delete cannot be recovered via Undo.",
+      "params": {
+        "path": "string (required) - asset path to delete",
+        "force": "bool (optional, default false) - delete even if referenced"
+      },
+      "returns": { "ok": "bool", "deleted_path": "string" }
     }
   ]
 }
