@@ -188,6 +188,15 @@
         "path": "string (required) - asset path or package path"
       },
       "returns": { "ok": "bool", "name": "string", "package_path": "string", "asset_path": "string", "class": "string", "class_path": "string", "tags": "object", "dependencies": "array of string", "referencers": "array of string", "package_size_bytes": "int or null" }
+    },
+    {
+      "name": "move_asset",
+      "description": "Move an asset to a different folder; leaf name unchanged. UE auto-creates a redirector at the source path.",
+      "params": {
+        "path": "string (required) - source asset path",
+        "dest_folder": "string (required) - destination folder under /Game/ or /Engine/"
+      },
+      "returns": { "ok": "bool", "old_path": "string", "new_path": "string" }
     }
   ]
 }

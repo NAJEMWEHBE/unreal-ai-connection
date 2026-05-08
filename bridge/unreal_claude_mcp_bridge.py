@@ -289,6 +289,18 @@ TOOLS = [
             "required": ["path"],
         },
     },
+    {
+        "name": "move_asset",
+        "description": "Move an asset to a different folder; leaf name unchanged. UE auto-creates a redirector at the source path.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "Source asset path."},
+                "dest_folder": {"type": "string", "description": "Destination folder under /Game/ or /Engine/."},
+            },
+            "required": ["path", "dest_folder"],
+        },
+    },
 ]
 
 

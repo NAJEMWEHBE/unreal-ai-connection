@@ -738,6 +738,33 @@ Read every fact the asset registry knows about a single asset.
 
 ---
 
+## move_asset
+
+Move an asset to a different folder. The leaf name does not change.
+
+**Params**
+- `path` (string, required) — source asset path. Both forms accepted (with or without `.Name` suffix).
+- `dest_folder` (string, required) — destination folder under `/Game/` or `/Engine/`.
+
+**Result**
+- `ok` (bool)
+- `old_path` (string) — the source asset path before the move
+- `new_path` (string) — the destination asset path after the move
+
+**Errors:** `missing_required_field`, `asset_not_found`, `invalid_dest_folder`, `dest_exists`, `rename_failed`.
+
+**Behavior note:** UE creates a redirector at the source path so existing references in other assets continue to resolve. Redirectors persist until you run *Fix Up Redirectors* in the Content Browser.
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"move_asset","params":{
+  "path": "/Game/Textures/T_Stone",
+  "dest_folder": "/Game/Textures/Environment"
+}}
+```
+
+---
+
 ## Adding more tools
 
 See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the recipe. Short version: one `.cpp` file in `Source/UnrealClaudeMCP/Private/MCP/Handlers/`, two registration lines in `UnrealClaudeMCPModule.cpp`, one entry in `Resources/mcp_manifest.json`, one entry in `bridge/unreal_claude_mcp_bridge.py`'s `TOOLS` list, rebuild, restart.
