@@ -235,8 +235,10 @@ namespace UCMCP::PropertyCoercion
             {
                 return MakeOutcome(ECoerceResult::TypeMismatch, TEXT("expected asset path string"));
             }
+            // FSoftObjectProperty::SetPropertyValue takes FSoftObjectPtr in UE 5.7,
+            // not FSoftObjectPath directly. Wrap to bridge the type gap.
             FSoftObjectPath Path(S);
-            SoftProp->SetPropertyValue(PropAddr, Path);
+            SoftProp->SetPropertyValue(PropAddr, FSoftObjectPtr(Path));
             return MakeOutcome(ECoerceResult::Success);
         }
 
