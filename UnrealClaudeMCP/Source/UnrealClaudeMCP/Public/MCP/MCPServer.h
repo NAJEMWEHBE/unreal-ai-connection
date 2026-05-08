@@ -16,6 +16,56 @@
 class FSocket;
 class FTcpListener;
 
+/**
+ * Per-client read state. Buffers a partial frame across TickClients calls so
+ * a TCP-fragmented message doesn't get mistaken for a closed connection.
+ *
+ * v0.9.1 wire-framing fix (Codex review on PR #10): the v0.5.0 helpers used a
+ * tight loop on Recv that treated `BytesRead == 0` as fatal disconnect, but
+ * non-blocking sockets return `BytesRead == 0` for "no data right now too."
+ * Now each client has dedicated buffers + accumulators that survive across
+ * tick boundaries.
+ */
+struct FUCMCPClientReadState
+{
+    // Phase 1: 8-byte big-endian length prefix
+    uint8 PrefixBuf[8] = {};
+    int32 PrefixAccum = 0;
+
+    // Phase 2: body (size known once PrefixAccum reaches 8)
+    uint64 BodyLength = 0;
+    TArray<uint8> BodyBuf;
+    int32 BodyAccum = 0;
+
+    bool IsHeaderComplete() const { return PrefixAccum >= 8; }
+    bool IsBodyComplete() const
+    {
+        return IsHeaderComplete() && BodyAccum >= static_cast<int32>(BodyLength);
+    }
+    void Reset()
+    {
+        PrefixAccum = 0;
+        BodyLength = 0;
+        BodyBuf.Reset();
+        BodyAccum = 0;
+        FMemory::Memzero(PrefixBuf, sizeof(PrefixBuf));
+    }
+};
+
+/** Per-client write state. Drains pending bytes across ticks. */
+struct FUCMCPClientWriteState
+{
+    TArray<uint8> PendingBytes;     // 8-byte prefix + UTF-8 body, concatenated
+    int32 BytesSent = 0;
+
+    bool IsDrained() const { return BytesSent >= PendingBytes.Num(); }
+    void Reset()
+    {
+        PendingBytes.Reset();
+        BytesSent = 0;
+    }
+};
+
 class UNREALCLAUDEMCP_API FUCMCPServer
 {
 public:
@@ -45,6 +95,13 @@ private:
 
     TUniquePtr<FTcpListener> Listener;
     TArray<FSocket*> ConnectedClients;
+
+    // v0.9.1: per-client partial-frame state. Keys are FSocket* — same lifetime
+    // as ConnectedClients. Cleanup happens in three places: TickClients drop
+    // path, Stop() iteration, destructor (via Stop).
+    TMap<FSocket*, FUCMCPClientReadState> ReadStates;
+    TMap<FSocket*, FUCMCPClientWriteState> WriteStates;
+
     FTSTicker::FDelegateHandle TickerHandle;
     int32 Port = 0;
     bool bRunning = false;

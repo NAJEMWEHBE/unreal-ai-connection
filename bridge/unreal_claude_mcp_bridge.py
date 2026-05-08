@@ -35,11 +35,11 @@ UE_PORT = int(os.environ.get("UCMCP_PORT", "18888"))
 
 PROTOCOL_VERSION = "2024-11-05"
 SERVER_NAME = "unreal-claude-mcp"
-SERVER_VERSION = "0.9.0"
+SERVER_VERSION = "0.9.1"
 
 # Mirror of UnrealClaudeMCP/Resources/mcp_manifest.json - kept in sync manually.
-# v0.9.0: 32 tools (added create_material_instance, set_mi_parameter,
-#                   inspect_material, inspect_material_instance).
+# v0.9.1: 32 tools (no new handlers — wire-framing partial-message state
+#                   machine on the C++ side; bridge wire format unchanged).
 TOOLS = [
     {
         "name": "execute_unreal_python",
