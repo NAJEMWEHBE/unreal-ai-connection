@@ -107,11 +107,18 @@ public:
         }
         Out->SetArrayField(TEXT("referencers"), RefsArray);
 
-        // package_size_bytes: on-disk size of the .uasset file. Returns -1
-        // for transient/in-memory assets — we surface that as JSON null.
-        const FString DiskFilename = FPackageName::LongPackageNameToFilename(
-            PackagePath, FPackageName::GetAssetPackageExtension());
-        const int64 SizeBytes = IFileManager::Get().FileSize(*DiskFilename);
+        // package_size_bytes: on-disk size of the package file. UE stores assets
+        // with two extensions: most asset types are .uasset, but UWorld packages
+        // (levels) are .umap. DoesPackageExist resolves to the right one
+        // automatically and fills OutFilename only when the package is on disk;
+        // transient/in-memory packages return false and we surface JSON null.
+        // (Caught by Codex review on v0.7.0 PR #12 — P2 finding for the .umap case.)
+        FString DiskFilename;
+        int64 SizeBytes = -1;
+        if (FPackageName::DoesPackageExist(PackagePath, &DiskFilename))
+        {
+            SizeBytes = IFileManager::Get().FileSize(*DiskFilename);
+        }
         if (SizeBytes >= 0)
         {
             Out->SetNumberField(TEXT("package_size_bytes"), static_cast<double>(SizeBytes));
