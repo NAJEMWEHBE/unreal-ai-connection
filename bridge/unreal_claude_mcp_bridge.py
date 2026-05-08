@@ -13,7 +13,7 @@ plugin speaks raw JSON-RPC over a local TCP socket (default
 Behaviour:
   - "initialize"             returned synthetically (does NOT hit the UE server)
   - "notifications/*"        consumed silently
-  - "tools/list"             returns a static list mirroring the 13 handlers
+  - "tools/list"             returns a static list mirroring the 19 handlers
   - "tools/call"             unpacks {name, arguments} and forwards to the
                              UE server as the matching method
   - All other methods        proxied as-is
@@ -35,7 +35,7 @@ UE_PORT = int(os.environ.get("UCMCP_PORT", "18888"))
 
 PROTOCOL_VERSION = "2024-11-05"
 SERVER_NAME = "unreal-claude-mcp"
-SERVER_VERSION = "0.2.0"
+SERVER_VERSION = "0.3.0"
 
 # Mirror of UnrealClaudeMCP/Resources/mcp_manifest.json - kept in sync manually.
 TOOLS = [
@@ -164,6 +164,91 @@ TOOLS = [
                 "compress": {"type": "boolean", "description": "Call UpdateResource() after mutation (default true). Set false for batches."},
             },
             "required": ["path"],
+        },
+    },
+    {
+        "name": "find_assets",
+        "description": "Query the asset registry by class + optional path + optional name substring. Returns matching assets with structured records (name, package_path, class).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "class_path": {"type": "string", "description": "UE class path, e.g. /Script/Engine.StaticMesh, /Script/Engine.Blueprint, /Script/Engine.Texture2D."},
+                "path_under": {"type": "string", "description": "Recursive path filter; defaults to /Game/. Must start with /Game/ or /Engine/."},
+                "name_contains": {"type": "string", "description": "Case-insensitive substring filter on asset name."},
+                "limit": {"type": "integer", "description": "Cap result count. Default 100, max 500."},
+            },
+            "required": ["class_path"],
+        },
+    },
+    {
+        "name": "spawn_actor",
+        "description": "Create an actor in the current editor world at a location with optional rotation, label, and initial properties. Class path can be built-in (/Script/Engine.StaticMeshActor) or Blueprint (/Game/Blueprints/BP_X.BP_X_C).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "class_path": {"type": "string", "description": "Actor class path."},
+                "location": {"type": "object", "description": "World-space {x, y, z}. Defaults to {0,0,0}."},
+                "rotation": {"type": "object", "description": "{pitch, yaw, roll} in degrees. Defaults to {0,0,0}."},
+                "label": {"type": "string", "description": "Visible name in World Outliner; defaults to UE auto-naming."},
+                "properties": {"type": "object", "description": "Map of {PropertyName: value} applied immediately after spawn via PropertyCoercion."},
+            },
+            "required": ["class_path"],
+        },
+    },
+    {
+        "name": "set_actor_transform",
+        "description": "Move / rotate / scale an existing actor by name (label or FName). Supports both absolute and relative modes.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Actor label OR FName. If label is ambiguous, returns ambiguous_actor error."},
+                "location": {"type": "object", "description": "{x, y, z}. Omit to leave unchanged."},
+                "rotation": {"type": "object", "description": "{pitch, yaw, roll} in degrees. Omit to leave unchanged."},
+                "scale": {"type": "object", "description": "{x, y, z} multiplier. Omit to leave unchanged."},
+                "relative": {"type": "boolean", "description": "When true, deltas are added to current values instead of replacing. Default false."},
+            },
+            "required": ["name"],
+        },
+    },
+    {
+        "name": "delete_actor",
+        "description": "Remove an actor from the editor world by name (label or FName). Children are detached, not destroyed (UE's default behavior). Force flag overrides the children-attached safety check.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Actor label OR FName."},
+                "force": {"type": "boolean", "description": "When false (default), refuses to delete if children are attached and returns has_children error. When true, deletes anyway."},
+            },
+            "required": ["name"],
+        },
+    },
+    {
+        "name": "set_actor_property",
+        "description": "Mutate any UPROPERTY on an actor. v0.3.0 supports primitives (bool/ints/floats/strings), FName/FText, FVector/FVector2D/FRotator/FLinearColor/FColor, enums, and TSoftObjectPtr. USTRUCT/TArray/TMap deferred to v0.4.0.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Actor label or FName."},
+                "property": {"type": "string", "description": "UPROPERTY name (case-sensitive)."},
+                "value": {"description": "JSON value coerced based on the FProperty type. See docs/TOOLS.md for the supported types table."},
+            },
+            "required": ["name", "property", "value"],
+        },
+    },
+    {
+        "name": "add_component",
+        "description": "Attach a component (UActorComponent or USceneComponent subclass) to an existing actor at runtime, optionally socketed and transformed relative to a parent component.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "actor_name": {"type": "string", "description": "Host actor label or FName."},
+                "class_path": {"type": "string", "description": "Component class path, e.g. /Script/Engine.StaticMeshComponent, /Script/Engine.PointLightComponent."},
+                "component_name": {"type": "string", "description": "FName for the new component; defaults to UE auto-naming."},
+                "attach_to": {"type": "string", "description": "Existing component name to attach as child of; defaults to root component."},
+                "socket": {"type": "string", "description": "Socket name on the parent component."},
+                "relative_transform": {"type": "object", "description": "{location, rotation, scale} relative to the parent component."},
+            },
+            "required": ["actor_name", "class_path"],
         },
     },
 ]
