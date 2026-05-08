@@ -19,8 +19,8 @@ import unreal_claude_mcp_bridge as bridge
 
 # -------- TOOLS schema --------------------------------------------------------
 
-def test_tools_list_has_thirteen_entries():
-    assert len(bridge.TOOLS) == 13
+def test_tools_list_has_nineteen_entries():
+    assert len(bridge.TOOLS) == 19
 
 
 def test_each_tool_has_required_mcp_fields():
@@ -42,6 +42,8 @@ def test_tool_names_are_unique_and_match_handlers():
         "list_tools", "get_actors_in_level", "focus_actor",
         "load_level_by_path", "take_high_res_screenshot",
         "import_texture", "configure_texture",
+        "find_assets", "spawn_actor", "set_actor_transform", "delete_actor",
+        "set_actor_property", "add_component",
     }
     assert set(names) == expected
 
@@ -87,6 +89,72 @@ def test_configure_texture_schema():
     assert props["filter"]["type"] == "string"
     assert props["compress"]["type"] == "boolean"
     assert props["filter"].get("enum") == ["Nearest", "Bilinear", "Trilinear", "Default"]
+
+
+def test_find_assets_schema():
+    tool = next(t for t in bridge.TOOLS if t["name"] == "find_assets")
+    schema = tool["inputSchema"]
+    assert schema["required"] == ["class_path"]
+    props = schema["properties"]
+    assert props["class_path"]["type"] == "string"
+    assert props["path_under"]["type"] == "string"
+    assert props["name_contains"]["type"] == "string"
+    assert props["limit"]["type"] == "integer"
+
+
+def test_spawn_actor_schema():
+    tool = next(t for t in bridge.TOOLS if t["name"] == "spawn_actor")
+    schema = tool["inputSchema"]
+    assert schema["required"] == ["class_path"]
+    props = schema["properties"]
+    assert props["class_path"]["type"] == "string"
+    assert props["location"]["type"] == "object"
+    assert props["rotation"]["type"] == "object"
+    assert props["label"]["type"] == "string"
+    assert props["properties"]["type"] == "object"
+
+
+def test_set_actor_transform_schema():
+    tool = next(t for t in bridge.TOOLS if t["name"] == "set_actor_transform")
+    schema = tool["inputSchema"]
+    assert schema["required"] == ["name"]
+    props = schema["properties"]
+    assert props["name"]["type"] == "string"
+    assert props["location"]["type"] == "object"
+    assert props["rotation"]["type"] == "object"
+    assert props["scale"]["type"] == "object"
+    assert props["relative"]["type"] == "boolean"
+
+
+def test_delete_actor_schema():
+    tool = next(t for t in bridge.TOOLS if t["name"] == "delete_actor")
+    schema = tool["inputSchema"]
+    assert schema["required"] == ["name"]
+    props = schema["properties"]
+    assert props["name"]["type"] == "string"
+    assert props["force"]["type"] == "boolean"
+
+
+def test_set_actor_property_schema():
+    tool = next(t for t in bridge.TOOLS if t["name"] == "set_actor_property")
+    schema = tool["inputSchema"]
+    assert schema["required"] == ["name", "property", "value"]
+    props = schema["properties"]
+    assert props["name"]["type"] == "string"
+    assert props["property"]["type"] == "string"
+
+
+def test_add_component_schema():
+    tool = next(t for t in bridge.TOOLS if t["name"] == "add_component")
+    schema = tool["inputSchema"]
+    assert schema["required"] == ["actor_name", "class_path"]
+    props = schema["properties"]
+    assert props["actor_name"]["type"] == "string"
+    assert props["class_path"]["type"] == "string"
+    assert props["component_name"]["type"] == "string"
+    assert props["attach_to"]["type"] == "string"
+    assert props["socket"]["type"] == "string"
+    assert props["relative_transform"]["type"] == "object"
 
 
 # -------- make_response -------------------------------------------------------
@@ -149,7 +217,7 @@ def test_handle_tools_list_returns_all_tools():
     resp = bridge.handle({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
     assert resp["id"] == 2
     assert "tools" in resp["result"]
-    assert len(resp["result"]["tools"]) == 13
+    assert len(resp["result"]["tools"]) == 19
 
 
 # -------- handle: tools/call --------------------------------------------------

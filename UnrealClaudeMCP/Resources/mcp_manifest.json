@@ -1,7 +1,7 @@
 {
   "name": "UnrealClaudeMCP",
-  "version": "0.2.0",
-  "description": "Drive Unreal Engine 5.7 from Claude (or any MCP client) over a local TCP socket. Thirteen generic editor-automation tools that work with any UE 5.7 project.",
+  "version": "0.3.0",
+  "description": "Drive Unreal Engine 5.7 from Claude (or any MCP client) over a local TCP socket. Nineteen generic editor-automation tools that work with any UE 5.7 project.",
   "transport": {
     "type": "tcp",
     "host": "127.0.0.1",
@@ -92,6 +92,73 @@
         "compress": "bool (optional, default true)"
       },
       "returns": { "ok": "bool", "path": "string", "applied": "object", "message": "string" }
+    },
+    {
+      "name": "find_assets",
+      "description": "Query the asset registry by class + optional path + optional name substring. Returns matching assets with structured records (name, package_path, class).",
+      "params": {
+        "class_path": "string (required) - UE class path, e.g. /Script/Engine.StaticMesh",
+        "path_under": "string (optional, default /Game/) - recursive path filter",
+        "name_contains": "string (optional) - case-insensitive substring filter",
+        "limit": "int (optional, default 100, max 500)"
+      },
+      "returns": { "ok": "bool", "matched": "int", "returned": "int", "assets": "array of {name, package_path, class}" }
+    },
+    {
+      "name": "spawn_actor",
+      "description": "Create an actor in the current editor world at a location with optional rotation, label, and initial properties. Class path can be built-in (/Script/Engine.StaticMeshActor) or Blueprint (/Game/Blueprints/BP_X.BP_X_C).",
+      "params": {
+        "class_path": "string (required) - actor class path",
+        "location": "object (optional, default {0,0,0}) - {x, y, z}",
+        "rotation": "object (optional, default {0,0,0}) - {pitch, yaw, roll}",
+        "label": "string (optional) - World Outliner label",
+        "properties": "object (optional) - {PropertyName: value} applied post-spawn"
+      },
+      "returns": { "ok": "bool", "name": "string", "label": "string", "class": "string", "location": "object", "rotation": "object" }
+    },
+    {
+      "name": "set_actor_transform",
+      "description": "Move / rotate / scale an existing actor by name (label or FName). Supports both absolute and relative modes.",
+      "params": {
+        "name": "string (required) - actor label OR FName",
+        "location": "object (optional)",
+        "rotation": "object (optional)",
+        "scale": "object (optional)",
+        "relative": "bool (optional, default false)"
+      },
+      "returns": { "ok": "bool", "name": "string", "applied": "object" }
+    },
+    {
+      "name": "delete_actor",
+      "description": "Remove an actor from the editor world by name (label or FName). Children are detached, not destroyed (UE's default behavior). Force flag overrides the children-attached safety check.",
+      "params": {
+        "name": "string (required) - actor label OR FName",
+        "force": "bool (optional, default false)"
+      },
+      "returns": { "ok": "bool", "name": "string", "deleted": "bool" }
+    },
+    {
+      "name": "set_actor_property",
+      "description": "Mutate any UPROPERTY on an actor. v0.3.0 supports primitives (bool/ints/floats/strings), FName/FText, FVector/FVector2D/FRotator/FLinearColor/FColor, enums, and TSoftObjectPtr. USTRUCT/TArray/TMap deferred to v0.4.0.",
+      "params": {
+        "name": "string (required) - actor label OR FName",
+        "property": "string (required) - UPROPERTY name",
+        "value": "any (required) - coerced to FProperty type"
+      },
+      "returns": { "ok": "bool", "name": "string", "property": "string", "old_value": "any", "new_value": "any" }
+    },
+    {
+      "name": "add_component",
+      "description": "Attach a component (UActorComponent or USceneComponent subclass) to an existing actor at runtime, optionally socketed and transformed relative to a parent component.",
+      "params": {
+        "actor_name": "string (required) - host actor label or FName",
+        "class_path": "string (required) - component class path",
+        "component_name": "string (optional)",
+        "attach_to": "string (optional, default root)",
+        "socket": "string (optional)",
+        "relative_transform": "object (optional)"
+      },
+      "returns": { "ok": "bool", "actor": "string", "component": "string", "class": "string", "attached_to": "string" }
     }
   ]
 }

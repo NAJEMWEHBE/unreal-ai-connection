@@ -10,7 +10,7 @@ flowchart LR
     subgraph UE["UE Editor process"]
         TCP["FTcpListener<br/>127.0.0.1:18888"]
         Disp["FUCMCPDispatcher<br/>JSON-RPC parse / route"]
-        Reg["FUCMCPHandlerRegistry<br/>(13 handlers)"]
+        Reg["FUCMCPHandlerRegistry<br/>(19 handlers)"]
         Native["UE native C++<br/>UnrealEd · UMG · UMGEditor<br/>PythonScriptPlugin · AssetRegistry"]
     end
 
@@ -91,11 +91,20 @@ extern TSharedRef<IUCMCPHandler> Make_Handler_Foo();
 FUCMCPHandlerRegistry::Get().Register(Make_Handler_Foo());
 ```
 
+## Shared modules (v0.3.0+)
+
+Two helpers extract cross-cutting concerns from multiple handlers. Each lives in `Source/UnrealClaudeMCP/Private/MCP/` (alongside `MCPServer.cpp` etc., not under `Handlers/`):
+
+- **`ActorIdentity`** — hybrid label-or-FName actor lookup. Used by `set_actor_transform`, `delete_actor`, `set_actor_property`, `add_component`. Returns `EResolveResult::Ambiguous` with the candidate FNames listed when a label matches multiple actors, so handlers can produce actionable `ambiguous_actor` errors.
+- **`PropertyCoercion`** — JSON ↔ FProperty value bridge. Supports the v0.3.0 type list (primitives, strings, FName/FText, FVector/FVector2D/FRotator/FLinearColor/FColor, enums, TSoftObjectPtr). Used by `spawn_actor.properties`, `set_actor_property`, and `add_component.relative_transform`. Returns `ECoerceResult::Unsupported` with the FProperty class name for types deferred to v0.4.0 (USTRUCT, TArray, TMap, FObjectProperty, FInstancedStruct).
+
+Each handler stays a leaf — these modules just lift cross-cutting concerns to where they can be tested once. The "leaf with bounded responsibility" pattern still holds.
+
 ## Threading
 
 `FTSTicker` callbacks run on the game thread. The TCP listener registers a per-tick callback that drains pending bytes, dispatches synchronously, and sends responses. Handlers therefore run on the game thread, where they can safely call any UE editor API.
 
-Tradeoff: a slow handler will stall the editor's tick. This is acceptable for the current 13 tools (none are long-running). Future handlers that block on disk I/O or the network should dispatch the actual work to a worker thread and return a ticket the client can poll.
+Tradeoff: a slow handler will stall the editor's tick. This is acceptable for the current 19 tools (none are long-running). Future handlers that block on disk I/O or the network should dispatch the actual work to a worker thread and return a ticket the client can poll.
 
 ## JSON-RPC framing
 

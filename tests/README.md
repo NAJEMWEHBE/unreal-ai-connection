@@ -8,13 +8,13 @@ No Unreal Engine instance required. The TCP socket is mocked. Covers MCP
 protocol surface (`initialize`, `tools/list`, `tools/call`, notifications,
 unknown methods), `call_ue` error paths (connection refused, timeout,
 non-JSON reply, chunked reads, EOF without terminator), parameterised
-round-trips across all 13 tools, and main-loop fault tolerance.
+round-trips across all 19 tools, and main-loop fault tolerance.
 
 Run from the repo root:
 
 ```bash
 pip install pytest pytest-cov
-pytest tests/                                 # 49 tests, < 1 second
+pytest tests/                                 # 71 tests, < 1 second
 pytest tests/ --cov=bridge --cov-report=term-missing   # with coverage
 ```
 

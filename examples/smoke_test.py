@@ -140,7 +140,7 @@ def main():
         assert_error_code(resp, -32601, "unknown_method")
     step("unknown_method", t0)
 
-    header("1. list_tools (should list 13 tool names)")
+    header("1. list_tools (should list 19 tool names)")
     def t1():
         resp = call("list_tools")
         show(resp)
@@ -148,8 +148,8 @@ def main():
         tools = result.get("tools")
         if not isinstance(tools, list):
             raise SmokeFailure(f"[list_tools] 'tools' not a list: {result}")
-        if len(tools) != 13:
-            raise SmokeFailure(f"[list_tools] expected 13 tools, got {len(tools)}: {tools}")
+        if len(tools) != 19:
+            raise SmokeFailure(f"[list_tools] expected 19 tools, got {len(tools)}: {tools}")
         if result.get("count") != len(tools):
             raise SmokeFailure(f"[list_tools] 'count' ({result.get('count')}) != len(tools) ({len(tools)})")
     step("list_tools", t1)
@@ -277,8 +277,76 @@ def main():
         assert_ok(cleanup, "texture_pipeline.cleanup")
     step("texture_pipeline", t_texture)
 
+    header("8. build-a-level round-trip (find_assets + spawn + transform + property + component + delete)")
+    def t_buildalevel():
+        # 1. Discover what's available to spawn (basic shapes from /Engine/)
+        find = call("find_assets", {
+            "class_path": "/Script/Engine.StaticMesh",
+            "path_under": "/Engine/BasicShapes/",
+            "limit": 10,
+        })
+        find_res = assert_ok(find, "find_assets")
+        if find_res.get("returned", 0) == 0:
+            raise SmokeFailure(f"[find_assets] no basic shapes found: {find_res}")
+
+        # 2. Spawn two StaticMeshActors with distinct labels
+        s1 = call("spawn_actor", {
+            "class_path": "/Script/Engine.StaticMeshActor",
+            "location": {"x": 0, "y": 0, "z": 0},
+            "label": "SmokeBuildCube1",
+        })
+        s1_res = assert_ok(s1, "spawn_actor.cube1")
+        cube1_fname = s1_res["name"]
+
+        s2 = call("spawn_actor", {
+            "class_path": "/Script/Engine.StaticMeshActor",
+            "location": {"x": 200, "y": 0, "z": 0},
+            "label": "SmokeBuildCube2",
+        })
+        s2_res = assert_ok(s2, "spawn_actor.cube2")
+
+        # 3. Move + rotate cube2
+        t = call("set_actor_transform", {
+            "name": "SmokeBuildCube2",
+            "location": {"x": 200, "y": 200, "z": 50},
+            "rotation": {"pitch": 0, "yaw": 45, "roll": 0},
+        })
+        t_res = assert_ok(t, "set_actor_transform")
+        if "location" not in (t_res.get("applied") or {}):
+            raise SmokeFailure(f"[set_actor_transform] location not in applied: {t_res}")
+
+        # 4. Set a UPROPERTY on cube1 (bHidden)
+        p = call("set_actor_property", {
+            "name": "SmokeBuildCube1",
+            "property": "bHidden",
+            "value": False,
+        })
+        assert_ok(p, "set_actor_property")
+
+        # 5. Add a PointLightComponent to cube1
+        c = call("add_component", {
+            "actor_name": "SmokeBuildCube1",
+            "class_path": "/Script/Engine.PointLightComponent",
+        })
+        c_res = assert_ok(c, "add_component")
+        if c_res.get("class") != "PointLightComponent":
+            raise SmokeFailure(f"[add_component] unexpected class: {c_res}")
+
+        # 6. Delete both actors (cube1 first with force=true since it has the new component)
+        d1 = call("delete_actor", {"name": "SmokeBuildCube1", "force": True})
+        assert_ok(d1, "delete_actor.cube1")
+        d2 = call("delete_actor", {"name": "SmokeBuildCube2"})
+        assert_ok(d2, "delete_actor.cube2")
+
+        # 7. Verify world is back to baseline (no SmokeBuild* actors remain)
+        actors = call("get_actors_in_level", {"name_contains": "SmokeBuild"})
+        a_res = assert_ok(actors, "get_actors_in_level.cleanup_check")
+        if a_res.get("returned", 0) != 0:
+            raise SmokeFailure(f"[cleanup] residual actors found: {a_res}")
+    step("buildalevel", t_buildalevel)
+
     if args.bp:
-        header(f"8. inspect_blueprint  ({args.bp})")
+        header(f"9. inspect_blueprint  ({args.bp})")
         def t7():
             resp = call("inspect_blueprint", {"path": args.bp})
             show(resp)
@@ -288,14 +356,14 @@ def main():
     if args.widget:
         wbp = args.widget
 
-        header(f"9a. inspect_widget_tree (BEFORE)  ({wbp})")
+        header(f"10a. inspect_widget_tree (BEFORE)  ({wbp})")
         def t8a():
             resp = call("inspect_widget_tree", {"path": wbp})
             show(resp)
             assert_ok(resp, "inspect_widget_tree.before")
         step("inspect_widget_tree.before", t8a)
 
-        header("9b. edit_widget_tree -- set_root VerticalBox")
+        header("10b. edit_widget_tree -- set_root VerticalBox")
         def t8b():
             resp = call("edit_widget_tree", {
                 "path": wbp, "op": "set_root", "class": "VerticalBox", "name": "RootVB",
@@ -304,7 +372,7 @@ def main():
             assert_ok(resp, "edit_widget_tree.set_root")
         step("edit_widget_tree.set_root", t8b)
 
-        header("9c. edit_widget_tree -- add_child TextBlock 'Title'")
+        header("10c. edit_widget_tree -- add_child TextBlock 'Title'")
         def t8c():
             resp = call("edit_widget_tree", {
                 "path": wbp, "op": "add_child", "parent": "RootVB",
@@ -314,7 +382,7 @@ def main():
             assert_ok(resp, "edit_widget_tree.add_child")
         step("edit_widget_tree.add_child", t8c)
 
-        header("9d. edit_widget_tree -- set_property Title.text (with compile)")
+        header("10d. edit_widget_tree -- set_property Title.text (with compile)")
         def t8d():
             resp = call("edit_widget_tree", {
                 "path": wbp, "op": "set_property", "widget": "Title",
@@ -325,7 +393,7 @@ def main():
             assert_ok(resp, "edit_widget_tree.set_property")
         step("edit_widget_tree.set_property", t8d)
 
-        header("9e. inspect_widget_tree (AFTER; should show RootVB + Title)")
+        header("10e. inspect_widget_tree (AFTER; should show RootVB + Title)")
         def t8e():
             resp = call("inspect_widget_tree", {"path": wbp})
             show(resp)
@@ -338,7 +406,7 @@ def main():
         step("inspect_widget_tree.after", t8e)
 
     if args.level:
-        header(f"10. load_level_by_path  ({args.level})")
+        header(f"11. load_level_by_path  ({args.level})")
         def t9():
             resp = call("load_level_by_path", {"path": args.level})
             show(resp)
