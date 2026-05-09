@@ -195,6 +195,8 @@ void FUnrealClaudeMCPModule::StartupModule()
                 Data->SetStringField(TEXT("name"), AssetData.AssetName.ToString());
                 Data->SetStringField(TEXT("class"),
                     AssetData.AssetClassPath.GetAssetName().ToString());
+                Data->SetStringField(TEXT("class_path"),
+                    AssetData.AssetClassPath.ToString());
                 FUCMCPEventBus::Get().Push(TEXT("asset_removed"), Data);
             });
 
@@ -210,6 +212,8 @@ void FUnrealClaudeMCPModule::StartupModule()
                 Data->SetStringField(TEXT("name"), AssetData.AssetName.ToString());
                 Data->SetStringField(TEXT("class"),
                     AssetData.AssetClassPath.GetAssetName().ToString());
+                Data->SetStringField(TEXT("class_path"),
+                    AssetData.AssetClassPath.ToString());
                 FUCMCPEventBus::Get().Push(TEXT("asset_renamed"), Data);
             });
     }
@@ -251,22 +255,21 @@ void FUnrealClaudeMCPModule::StartupModule()
                 FUCMCPEventBus::Get().Push(TEXT("level_post_save"), Data);
             });
 
-        // map_changed -- Editor.h:196/82. Single uint32 flag-bitmap param,
-        // decoded from MapChangeEventFlags (Editor.h:435+):
-        //   1<<0 = NewMap          (new map created/loaded/imported)
-        //   1<<1 = MapRebuild      (rebuild occurred)
-        //   1<<2 = WorldTornDown   (world destroyed/torn down)
-        // Emits both raw int and humanized flag-name array so callers can
-        // filter on either axis without binding to UE's bit values.
+        // map_changed -- Editor.h:196/82. Single uint32 flag-bitmap param.
+        // Test against the named MapChangeEventFlags constants (Editor.h:435+)
+        // rather than literal bit values: stays correct if UE ever renumbers
+        // the flags (unlikely but defensive). Emits both the raw int and a
+        // humanized flag-name array so callers can filter on either axis
+        // without binding to UE's bit values.
         MapChangeHandle = FEditorDelegates::MapChange.AddLambda(
             [](uint32 Flags)
             {
                 TSharedPtr<FJsonObject> Data = MakeShared<FJsonObject>();
                 Data->SetNumberField(TEXT("flags"), static_cast<double>(Flags));
                 TArray<TSharedPtr<FJsonValue>> FlagNames;
-                if (Flags & (1u << 0)) { FlagNames.Add(MakeShared<FJsonValueString>(TEXT("new_map"))); }
-                if (Flags & (1u << 1)) { FlagNames.Add(MakeShared<FJsonValueString>(TEXT("map_rebuild"))); }
-                if (Flags & (1u << 2)) { FlagNames.Add(MakeShared<FJsonValueString>(TEXT("world_torn_down"))); }
+                if (Flags & MapChangeEventFlags::NewMap)        { FlagNames.Add(MakeShared<FJsonValueString>(TEXT("new_map"))); }
+                if (Flags & MapChangeEventFlags::MapRebuild)    { FlagNames.Add(MakeShared<FJsonValueString>(TEXT("map_rebuild"))); }
+                if (Flags & MapChangeEventFlags::WorldTornDown) { FlagNames.Add(MakeShared<FJsonValueString>(TEXT("world_torn_down"))); }
                 Data->SetArrayField(TEXT("flag_names"), FlagNames);
                 FUCMCPEventBus::Get().Push(TEXT("map_changed"), Data);
             });

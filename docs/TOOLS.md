@@ -1331,8 +1331,8 @@ This is the inversion of the rest of the catalog: instead of Claude querying UE 
 | `actor_spawned` | `UEngine::OnLevelActorAdded(AActor*)` | `actor_label`, `actor_name`, `class`, `level` |
 | `actor_deleted` | `UEngine::OnLevelActorDeleted(AActor*)` | `actor_label`, `actor_name`, `class`, `level` |
 | `asset_added` | `IAssetRegistry::OnAssetAdded(const FAssetData&)` (TS_ delegate, fires from background scan threads) | `package_path`, `asset_path`, `name`, `class`, `class_path` |
-| `asset_removed` | `IAssetRegistry::OnAssetRemoved(const FAssetData&)` (TS_) | `package_path`, `asset_path`, `name`, `class` |
-| `asset_renamed` | `IAssetRegistry::OnAssetRenamed(const FAssetData&, const FString&)` (TS_) | `new_asset_path`, `old_asset_path`, `new_package_path`, `name`, `class` |
+| `asset_removed` | `IAssetRegistry::OnAssetRemoved(const FAssetData&)` (TS_) | `package_path`, `asset_path`, `name`, `class`, `class_path` |
+| `asset_renamed` | `IAssetRegistry::OnAssetRenamed(const FAssetData&, const FString&)` (TS_) | `new_asset_path`, `old_asset_path`, `new_package_path`, `name`, `class`, `class_path` |
 | `asset_post_import` | `FEditorDelegates::OnAssetPostImport(UFactory*, UObject*)` | `asset_path`, `name`, `class`, `factory` |
 | `level_post_save` | `FEditorDelegates::PostSaveWorldWithContext(UWorld*, FObjectPostSaveContext)` | `level` |
 | `map_changed` | `FEditorDelegates::MapChange(uint32 MapChangeEventFlags)` | `flags` (raw bitmap), `flag_names` (decoded array — `"new_map"` / `"map_rebuild"` / `"world_torn_down"`) |
