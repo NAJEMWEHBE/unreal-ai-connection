@@ -621,7 +621,9 @@ def main():
             seq_path = find_res["assets"][0]["package_path"]
 
         inspect_resp = call("inspect_sequence", {"path": seq_path})
-        inspect_res = assert_ok(inspect_resp, "inspect_sequence.opt_in")
+        # Label reflects which path produced seq_path so failure messages are diagnostic.
+        inspect_label = "inspect_sequence.opt_in" if args.sequence else "inspect_sequence.found"
+        inspect_res = assert_ok(inspect_resp, inspect_label)
         for required_key in ("name", "package_path", "tick_resolution",
                              "display_rate_fps", "playback_range",
                              "bindings", "tracks"):
@@ -675,8 +677,10 @@ def main():
             mic_path = mic_res["assets"][0]["package_path"]
 
         # 1. inspect_material_instance on the target.
+        # Label reflects which path produced mic_path so failure messages are diagnostic.
+        mic_label = "inspect_material_instance.opt_in" if args.material_instance else "inspect_material_instance.found"
         inspect_mic = call("inspect_material_instance", {"path": mic_path})
-        inspect_mic_res = assert_ok(inspect_mic, "inspect_material_instance.opt_in")
+        inspect_mic_res = assert_ok(inspect_mic, mic_label)
         for required_key in ("name", "package_path", "parent_path",
                              "scalar_overrides", "vector_overrides",
                              "texture_overrides"):

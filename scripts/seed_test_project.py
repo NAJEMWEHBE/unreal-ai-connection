@@ -66,6 +66,12 @@ def _recv_framed(sock: socket.socket) -> bytes:
 
 
 def call(method: str, params: dict | None = None, request_id: int = 1) -> dict:
+    """Send a JSON-RPC call over the framed TCP wire. Returns either the
+    parsed JSON response (success path) or a dict with `_error` (transport
+    failure path: socket refused, timeout, framing, decode). Mirrors the
+    smoke_test.py contract so callers can distinguish transport failures
+    from JSON-RPC error responses without exception handling at every site.
+    """
     msg = {"jsonrpc": "2.0", "id": request_id, "method": method}
     if params is not None:
         msg["params"] = params
@@ -73,14 +79,26 @@ def call(method: str, params: dict | None = None, request_id: int = 1) -> dict:
 
     s = socket.socket()
     s.settimeout(60)  # asset creation can be slow on cold DDC
+
     try:
         s.connect((HOST, PORT))
+    except (ConnectionRefusedError, OSError) as e:
+        s.close()
+        return {"_error": f"Cannot reach UE at {HOST}:{PORT}: {e}. "
+                          f"Is the editor open with UnrealClaudeMCP enabled?"}
+
+    try:
         _send_framed(s, raw)
         payload_bytes = _recv_framed(s)
+    except (ConnectionError, ValueError, socket.timeout) as e:
+        return {"_error": f"framing error: {e}"}
     finally:
         s.close()
 
-    return json.loads(payload_bytes.decode("utf-8"))
+    try:
+        return json.loads(payload_bytes.decode("utf-8"))
+    except json.JSONDecodeError as e:
+        return {"_error": f"decode error: {e}"}
 
 
 # ---------------------------------------------------------------------------
@@ -183,6 +201,10 @@ def main() -> int:
 
     resp = call("execute_unreal_python", {"code": code})
 
+    if "_error" in resp:
+        print(f"ERROR: transport failure: {resp['_error']}", file=sys.stderr)
+        return 2
+
     if "error" in resp:
         print(f"ERROR: execute_unreal_python failed: {resp['error']}", file=sys.stderr)
         return 2
@@ -200,6 +222,9 @@ def main() -> int:
     # ExecuteFile mode does not return script stdout/eval-result through
     # FPythonCommandEx, so we round-trip via the log capture system.
     log_resp = call("get_log_lines", {"count": 200, "category_filter": "LogPython"})
+    if "_error" in log_resp:
+        print(f"ERROR: get_log_lines transport failure: {log_resp['_error']}", file=sys.stderr)
+        return 2
     if "error" in log_resp or "result" not in log_resp:
         print(f"ERROR: get_log_lines failed: {log_resp}", file=sys.stderr)
         return 2
