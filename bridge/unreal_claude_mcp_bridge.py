@@ -573,6 +573,25 @@ TOOLS = [
             "required": ["task_id"],
         },
     },
+    {
+        "name": "exec_python_persistent",
+        "description": "Tier 2 PR #45: like execute_unreal_python but state PERSISTS across calls. Variables, imports, and function/class definitions defined in one call are visible in the next -- letting Claude build up state across turns without re-loading every time. Implemented via UE's FPythonCommandEx with FileExecutionScope=Public (shared globals dict with the editor's Python console). Pairs with reset_python_state. Same output-capture caveat as execute_unreal_python: ExecuteFile mode does not capture stdout via CommandResult; use unreal.log marker + get_log_lines.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "code": {"type": "string", "description": "Python source to execute against the persistent globals dict."},
+            },
+            "required": ["code"],
+        },
+    },
+    {
+        "name": "reset_python_state",
+        "description": "Clear all user-defined names from UE Python's public (shared-with-console) globals dict. Pairs with exec_python_persistent: lets Claude wipe accumulated state and start fresh without restarting the editor. Names starting with '_' (Python dunders + conventional private) are preserved. Imports the user explicitly added (e.g. 'import unreal') ARE cleared -- re-import in the next exec_python_persistent call.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {},
+        },
+    },
 ]
 
 

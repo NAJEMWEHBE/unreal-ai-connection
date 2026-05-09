@@ -1729,6 +1729,76 @@ A subsequent `poll_task` will show `cancel_requested: true` immediately, then tr
 
 ---
 
+## exec_python_persistent
+
+**Tier 2 PR #45.** Like `execute_unreal_python` but state **persists across calls**. Variables, imports, and function/class definitions defined in one call are visible in the next — letting Claude build up state across turns without re-loading every time.
+
+**Implementation:** UE's `FPythonCommandEx` has a `FileExecutionScope` field; the default `Private` (used by `execute_unreal_python`) creates a fresh globals dict per call, while `Public` (used here) shares the dict with the editor's Python console. **The persistent state is just UE's standard console namespace** — same one you'd get if you typed at the editor's `>>>` prompt.
+
+**Why a separate handler instead of an opt-in flag on `execute_unreal_python`:** persistent state is a sticky semantic surprise. A handler that might-or-might-not share globals based on a flag is harder to reason about than two clearly-named variants. The handler name signals the contract.
+
+**Output-capture caveat (same as `execute_unreal_python`, `run_python_file`, `apply_python_to_selection`):** `ExecuteFile` mode does not return stdout / eval-result via `CommandResult`. To round-trip results, emit a marker via `unreal.log("__MARKER__<json>__END__")` and retrieve through `get_log_lines{category_filter:"LogPython"}`.
+
+**Params**
+- `code` (string, required) — Python source to execute against the persistent globals dict.
+
+**Result**
+- `ok` (bool)
+- `output` (string) — `FPythonCommandEx::CommandResult` (typically `"None"` for ExecuteFile; on failure, the Python exception trace)
+- `temp_script` (string) — path to the wrapper script that was written and executed (cleaned up via `ON_SCOPE_EXIT`)
+- `scope` (string) — always `"public"` (echo of the FileExecutionScope used)
+
+**Errors:** `missing_required_field`, `python_unavailable`, `write_failed`.
+
+**Example — build up state across calls**
+
+Call 1:
+```json
+{"jsonrpc":"2.0","id":1,"method":"exec_python_persistent","params":{
+  "code": "import unreal\nactors = unreal.EditorActorSubsystem.get_selected_level_actors()\nprint(f'captured {len(actors)} actors')"
+}}
+```
+
+Call 2 (sees `unreal` import + `actors` variable from call 1):
+```json
+{"jsonrpc":"2.0","id":2,"method":"exec_python_persistent","params":{
+  "code": "for a in actors:\n    a.set_actor_location(unreal.Vector(0, 0, 100), False, False)\nunreal.log(f'__MOVED__{len(actors)}__END__')"
+}}
+```
+
+Then `get_log_lines{category_filter:"LogPython"}` to read the marker.
+
+---
+
+## reset_python_state
+
+Clear all user-defined names from UE Python's public globals dict. Pairs with `exec_python_persistent`: lets Claude wipe accumulated state and start fresh without restarting the editor.
+
+**Preservation rule:** names starting with `_` (Python dunders like `__name__` / `__builtins__`, plus conventional private names) are preserved. Imports the user explicitly added (e.g. `import unreal`) ARE cleared — re-import in the next `exec_python_persistent` call.
+
+**Params:** none.
+
+**Result**
+- `ok` (bool)
+- `scope` (string) — always `"public"`
+- `note` (string) — explanatory text
+
+**Errors:** `python_unavailable`, `reset_failed`.
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"reset_python_state","params":{}}
+```
+```json
+{"jsonrpc":"2.0","id":1,"result":{
+  "ok": true,
+  "scope": "public",
+  "note": "All user-defined names cleared from UE Python's public globals dict..."
+}}
+```
+
+---
+
 ## Adding more tools
 
 See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the recipe. Short version: one `.cpp` file in `Source/UnrealClaudeMCP/Private/MCP/Handlers/`, two registration lines in `UnrealClaudeMCPModule.cpp`, one entry in `Resources/mcp_manifest.json`, one entry in `bridge/unreal_claude_mcp_bridge.py`'s `TOOLS` list, rebuild, restart.
