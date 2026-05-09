@@ -1335,8 +1335,8 @@ This is the inversion of the rest of the catalog: instead of Claude querying UE 
 Future PRs will add `asset_removed`, `asset_renamed`, `asset_post_import`, `level_loaded`, `level_saved`, `blueprint_compiled`, `mi_parameter_changed`, etc., plus a `wait_for_events` long-poll variant for sub-second latency.
 
 **Params**
-- `since_seq` (int, optional, default `-1`) — return events with `seq > since_seq`. `-1` = "from oldest buffered". On the first poll, leave at default to discover the current `next_seq`; on subsequent polls, pass the previous response's `next_seq` to consume only newly-fired events.
-- `max_count` (int, optional, default `100`) — cap returned events. Hard max `1000` (= ring buffer size).
+- `since_seq` (int, optional, default `-1`) — return events with `seq >= since_seq` (**inclusive cursor**). `-1` = "from oldest buffered". On the first poll, leave at default to discover the current `next_seq`; on subsequent polls, pass the previous response's `next_seq` to consume only newly-fired events. Inclusive semantics matter: `next_seq` is the id about to be assigned (not yet pushed), so the next event to fire will land at exactly that seq, and an exclusive filter would silently drop it.
+- `max_count` (int, optional, default `100`) — cap returned events. Hard max `1000` (= ring buffer size). Must be a finite integer; fractional values (e.g. `0.5`) are rejected with `invalid_value_shape` to prevent silent truncation to 0 from corrupting the caller's cursor state.
 - `event_filter` (array of string, optional) — substring filters on event type names (e.g. `["actor_spawned", "asset_"]`). Multiple entries are OR-combined. Empty / omitted = no filter.
 
 **Result**
@@ -1344,7 +1344,7 @@ Future PRs will add `asset_removed`, `asset_renamed`, `asset_post_import`, `leve
 - `next_seq` (int) — the seq the next-fired event would receive. Pass back as `since_seq` on the next poll for steady-state delta consumption.
 - `first_seq_in_buffer` (int) — smallest seq currently in the ring (or `-1` if buffer is empty).
 - `returned` (int) — count of events in `events` (≤ `max_count`).
-- `dropped` (bool) — `true` iff `since_seq` was older than `first_seq_in_buffer - 1`. Indicates the caller missed events between polls (the ring overflowed). Recover by re-syncing whatever editor state matters via the explicit query handlers (`get_actors_in_level`, `find_assets`, etc.) and resume polling with `next_seq` from the response.
+- `dropped` (bool) — `true` iff `since_seq` was below `first_seq_in_buffer` (some events the caller asked for have been evicted from the ring). Recover by re-syncing whatever editor state matters via the explicit query handlers (`get_actors_in_level`, `find_assets`, etc.) and resume polling with `next_seq` from the response.
 - `events` (array) — each entry has `seq` (int), `event` (string event type), `ts` (string `YYYY.MM.DD-HH.MM.SS`), `data` (object with event-specific payload).
 - `note` (string, only when `dropped=true`) — diagnostic explaining the recovery action.
 

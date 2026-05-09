@@ -53,21 +53,32 @@ public:
 
         if (Params.IsValid())
         {
-            // since_seq: numeric. Use AsNumber() through TryGetField rather
-            // than TryGetNumberField -- the latter fails silently on int64
-            // values that don't round-trip through double cleanly. (Doubles
-            // can represent int64 exactly only up to 2^53; in practice our
-            // seqs won't exceed that within any plausible session, but use
-            // the explicit path anyway for clarity.)
+            // since_seq: integer. Schema declares "type": "integer" but JSON
+            // has only one numeric kind (double), so validate explicitly here:
+            // reject non-finite values (NaN/Inf) and reject fractional doubles
+            // (e.g. 5.5) so a typo doesn't silently shift the cursor by half
+            // a seq. Use AsNumber() through TryGetField rather than
+            // TryGetNumberField -- the latter fails silently on int64 values
+            // that don't round-trip through double cleanly (doubles can
+            // represent int64 exactly only up to 2^53; in practice our seqs
+            // won't exceed that within any plausible session, but use the
+            // explicit path for clarity).
             const TSharedPtr<FJsonValue> SinceSeqVal = Params->TryGetField(TEXT("since_seq"));
             if (SinceSeqVal.IsValid())
             {
                 if (SinceSeqVal->Type != EJson::Number)
                 {
-                    OutError = TEXT("poll_events: invalid_value_shape: 'since_seq' must be a number (int64); got non-number JSON type");
+                    OutError = TEXT("poll_events: invalid_value_shape: 'since_seq' must be an integer; got non-number JSON type");
                     return nullptr;
                 }
-                SinceSeq = static_cast<int64>(SinceSeqVal->AsNumber());
+                const double Raw = SinceSeqVal->AsNumber();
+                if (!FMath::IsFinite(Raw) || FMath::TruncToDouble(Raw) != Raw)
+                {
+                    OutError = FString::Printf(
+                        TEXT("poll_events: invalid_value_shape: 'since_seq' must be a finite integer (got %g)"), Raw);
+                    return nullptr;
+                }
+                SinceSeq = static_cast<int64>(Raw);
             }
 
             const TSharedPtr<FJsonValue> MaxCountVal = Params->TryGetField(TEXT("max_count"));
@@ -79,6 +90,17 @@ public:
                     return nullptr;
                 }
                 const double Raw = MaxCountVal->AsNumber();
+                // Reject fractional / non-finite explicitly. Without this,
+                // 0 < Raw < 1 (e.g. 0.5) truncates to 0, which drives the
+                // snapshot into its empty-result branch and returns next_seq=0
+                // -- silently corrupting the caller's cursor state.
+                // (Caught by Codex P2 review on PR #40.)
+                if (!FMath::IsFinite(Raw) || FMath::TruncToDouble(Raw) != Raw)
+                {
+                    OutError = FString::Printf(
+                        TEXT("poll_events: invalid_value_shape: 'max_count' must be a finite integer (got %g)"), Raw);
+                    return nullptr;
+                }
                 if (Raw <= 0)
                 {
                     OutError = FString::Printf(

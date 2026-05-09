@@ -141,7 +141,7 @@ Note: the *initial registry scan* on editor startup will flood `asset_added` for
 
 | Field | Type | Required | Default | Notes |
 |---|---|---|---|---|
-| `since_seq` | int | No | `-1` | Return events with `seq > since_seq`. `-1` means "from the oldest event currently buffered". On the first poll, callers typically pass `-1` to discover the current `next_seq`, then keep polling with the seq from the last response. |
+| `since_seq` | int | No | `-1` | Return events with `seq >= since_seq` (**inclusive cursor**). `-1` means "from the oldest event currently buffered". On the first poll, callers typically pass `-1` to discover the current `next_seq`, then keep polling with the seq from the last response. Inclusive semantics: `next_seq` is the id about to be assigned (not yet pushed), so the next event will arrive at exactly that seq and an exclusive filter would silently drop it. |
 | `max_count` | int | No | `100` | Cap returned events. Hard max `1000` (= ring size). |
 | `event_filter` | array of string | No | `[]` (empty = all) | Substring match against `event` type names. Multiple filters are OR-combined. |
 

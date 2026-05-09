@@ -90,7 +90,7 @@ TArray<FUCMCPEvent> FUCMCPEventBus::Snapshot(
         OutFirstSeqInBuffer = -1;
         // No events ever pushed (or buffer was just constructed). SinceSeq=-1
         // is the "first poll" sentinel and is never considered dropped.
-        OutDropped = (SinceSeq >= 0 && SinceSeq < NextSeq - 1);
+        OutDropped = false;
         return Out;
     }
 
@@ -102,16 +102,23 @@ TArray<FUCMCPEvent> FUCMCPEventBus::Snapshot(
     const FUCMCPEvent& OldestEntry = Ring[StartIndex];
     OutFirstSeqInBuffer = OldestEntry.Seq;
 
-    // Drop detection: caller's since_seq is older than the oldest seq we
-    // still have. They missed events between polls. SinceSeq=-1 (the initial
-    // poll sentinel) is intentionally treated as "no prior position" and is
-    // never reported as dropped.
-    OutDropped = (SinceSeq >= 0 && SinceSeq < OutFirstSeqInBuffer - 1);
+    // Drop detection (inclusive cursor semantics, see comment below): caller's
+    // since_seq is below the oldest seq still buffered, meaning some events
+    // the caller asked for (in the closed interval [since_seq, ...]) have
+    // been evicted. SinceSeq=-1 (the initial-poll sentinel) is intentionally
+    // treated as "no prior position" and is never reported as dropped.
+    OutDropped = (SinceSeq >= 0 && SinceSeq < OutFirstSeqInBuffer);
 
+    // Filter is INCLUSIVE on since_seq: returned events have seq >= since_seq.
+    // The handler's documented client contract is "pass the previous response's
+    // next_seq back as since_seq on the next poll" -- since next_seq is the id
+    // about to be assigned (not yet pushed), the next event's seq will exactly
+    // equal that value, and an exclusive filter would silently drop it.
+    // (Caught by Codex P1 review on PR #40.)
     for (int32 i = 0; i < Count && Out.Num() < MaxCount; ++i)
     {
         const FUCMCPEvent& Entry = Ring[(StartIndex + i) % kRingSize];
-        if (Entry.Seq <= SinceSeq)
+        if (Entry.Seq < SinceSeq)
         {
             continue;  // already-seen
         }

@@ -68,7 +68,12 @@ public:
     void Push(const FString& EventType, TSharedPtr<FJsonObject> Data);
 
     /**
-     * Copy events with seq > SinceSeq into a flat array (oldest-first).
+     * Copy events with seq >= SinceSeq into a flat array (oldest-first).
+     * Inclusive cursor semantics: caller passes the previous response's
+     * OutNextSeq back as SinceSeq on the next poll, and the next-pushed
+     * event (whose seq equals that OutNextSeq value) is correctly returned.
+     * SinceSeq=-1 means "from oldest buffered" (initial-poll sentinel).
+     *
      * If EventFilter is non-empty, only events whose EventType matches at
      * least one filter substring are returned. Capped at MaxCount.
      *
@@ -76,8 +81,8 @@ public:
      * consistent view of the bus's state):
      *   - OutNextSeq           the seq the next-pushed event would receive
      *   - OutFirstSeqInBuffer  the smallest seq currently buffered (or -1 if empty)
-     *   - OutDropped           true iff SinceSeq is older than OutFirstSeqInBuffer-1
-     *                          (caller missed events between polls)
+     *   - OutDropped           true iff SinceSeq is below OutFirstSeqInBuffer
+     *                          (some events the caller asked for were evicted)
      */
     TArray<FUCMCPEvent> Snapshot(
         int64 SinceSeq,
