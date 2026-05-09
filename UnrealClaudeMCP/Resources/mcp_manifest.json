@@ -453,6 +453,14 @@
       "returns": { "ok": "bool", "name": "string", "package_path": "string", "num_lods": "int", "total_vertices": "int", "total_triangles": "int", "lods": "array of {index, vertices, triangles}", "bounds": "{min, max, size, center}", "material_slots": "array of {index, slot_name, material_path}" }
     },
     {
+      "name": "inspect_niagara_system",
+      "description": "Read structural properties of a UNiagaraSystem: emitters, user parameters, system-level settings. C++ handler. Calls EnsureFullyLoaded() before access (UNiagaraSystem uses LazyOnDemand load behavior).",
+      "params": {
+        "path": "string (required) - UE asset path of a UNiagaraSystem"
+      },
+      "returns": { "ok": "bool", "name": "string", "path": "string", "is_looping": "bool", "has_gpu_emitters": "bool", "needs_warmup": "bool", "warmup_tick_count": "int (conditional, when needs_warmup is true)", "warmup_time": "float (conditional, when needs_warmup is true)", "warmup_tick_delta": "float (conditional, when needs_warmup is true)", "emitter_count": "int", "emitters": "array of {name, enabled, mode}", "user_parameter_count": "int", "user_parameters": "array of {name, type}", "effect_type": "string (optional, when set; asset path of the UNiagaraEffectType instance)", "fixed_bounds": "object (optional, when bFixedBounds is true)" }
+    },
+    {
       "name": "get_camera_transform",
       "description": "Read level-editor viewport camera transform. SYNTHETIC bridge-side handler -- composes execute_unreal_python + get_log_lines via marker pattern. Part of language-shim experiment (PR #46).",
       "params": {},
