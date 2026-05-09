@@ -313,6 +313,23 @@
         "skip_save": "bool (optional, default false) - suppress Save-On-Compile auto-save"
       },
       "returns": { "ok": "bool", "path": "string", "status": "string (up_to_date|up_to_date_with_warnings|error|dirty|unknown|being_created)", "saved": "bool", "note": "string (only on error)" }
+    },
+    {
+      "name": "get_console_variable",
+      "description": "Read a UE Console Variable by name; returns value in all four representations (string/int/float/bool) plus type, read-only flag, last-setter, and help text.",
+      "params": {
+        "name": "string (required) - exact CVar name, case-sensitive (e.g. r.ScreenPercentage)"
+      },
+      "returns": { "ok": "bool", "name": "string", "type": "string (int|float|bool|string|unknown)", "read_only": "bool", "set_by": "string", "value_string": "string", "value_int": "number", "value_float": "number", "value_bool": "bool", "help": "string" }
+    },
+    {
+      "name": "set_console_variable",
+      "description": "Mutate a UE Console Variable by name. Polymorphic value (string/number/bool) coerced to string and forwarded at ECVF_SetByConsole priority. Pre-rejects read-only CVars; post-verifies the change landed.",
+      "params": {
+        "name": "string (required) - exact CVar name, case-sensitive",
+        "value": "string | number | bool (required) - new value; coerced to string before Set"
+      },
+      "returns": { "ok": "bool", "name": "string", "type": "string", "requested_value": "string", "value_string": "string", "value_int": "number", "value_float": "number", "value_bool": "bool", "set_by": "string", "note": "string (only when post-set value differs from requested)" }
     }
   ]
 }

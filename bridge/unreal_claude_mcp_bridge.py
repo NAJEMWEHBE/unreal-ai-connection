@@ -457,6 +457,29 @@ TOOLS = [
             "required": ["path"],
         },
     },
+    {
+        "name": "get_console_variable",
+        "description": "Read a UE Console Variable by name. Returns the current value in all four representations (string/int/float/bool), the detected type (int|float|bool|string), the read-only flag, and the human-readable last-setter (e.g. 'Console', 'DeviceProfile'). Distinct from execute_console_command: this reads CVar state directly, never invokes the console exec engine.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Exact CVar name, case-sensitive (e.g. 'r.ScreenPercentage', 'Slate.bAllowToolTips')."},
+            },
+            "required": ["name"],
+        },
+    },
+    {
+        "name": "set_console_variable",
+        "description": "Mutate a UE Console Variable by name. 'value' is polymorphic: string, number, or bool. Issues the change at ECVF_SetByConsole priority (matches user-typed-in-console semantics) so it overrides ini files and code-set values. Pre-rejects ECVF_ReadOnly CVars (those silently no-op after early init) with a clear error, and post-verifies the change landed.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Exact CVar name, case-sensitive."},
+                "value": {"type": ["string", "number", "boolean"], "description": "New value. Numbers and bools are coerced to canonical string form before being passed to IConsoleVariable::Set, which parses against the CVar's declared type."},
+            },
+            "required": ["name", "value"],
+        },
+    },
 ]
 
 
