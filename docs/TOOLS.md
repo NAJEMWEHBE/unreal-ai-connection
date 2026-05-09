@@ -1917,6 +1917,40 @@ Clear all user-defined names from UE Python's public globals dict. Pairs with `e
 
 ---
 
+## inspect_niagara_system
+
+**Tier 3 (PR #51 — first multi-agent PR with explorer-fed Codex prompt).** Read structural properties of a `UNiagaraSystem`: emitters, user-exposed parameters, and system-level settings. Pairs with `inspect_asset` (registry-level metadata) for VFX-pipeline introspection.
+
+**Why C++:** direct access to `UNiagaraSystem`'s emitter handle list, exposed parameter store, and warmup/bounds settings. The Python equivalent would need multi-call FFI through `unreal.NiagaraSystem` and per-emitter handle traversal.
+
+**Why a separate handler from `inspect_blueprint`:** Niagara systems aren't `UBlueprint`s — they're a distinct asset class with their own emitter/parameter model that has no equivalent in regular blueprints.
+
+**Required UE 5.7 discipline:** `UNiagaraSystem` uses `LoadBehavior = LazyOnDemand` (`NiagaraSystem.h:233`). The handler calls `EnsureFullyLoaded()` (`NiagaraSystem.h:526`) immediately after `Cast<UNiagaraSystem>` and before reading any emitters or parameters — otherwise lazy fields return uninitialized data. This is unique to Niagara among the inspect handlers.
+
+**Required Build.cs deps:** `Niagara` and `NiagaraCore` (runtime modules — NOT `NiagaraEditor`, which is a heavy editor-only dep).
+
+**Params**
+- `path` (string, required) — UE asset path of a `UNiagaraSystem`, e.g. `/Game/FX/NS_Fire`.
+
+**Result**
+- `ok`, `name`, `path`
+- `is_looping` (bool) — whether the system loops forever
+- `has_gpu_emitters` (bool) — at least one emitter uses GPU simulation
+- `needs_warmup` (bool); when true, also: `warmup_tick_count`, `warmup_time`, `warmup_tick_delta`
+- `effect_type` (string) — asset path of the `UNiagaraEffectType` instance (e.g. `/Game/FX/EffectTypes/EFT_Hero.EFT_Hero`), omitted when none set
+- `fixed_bounds` (`{ min: {x,y,z}, max: {x,y,z} }`) — only emitted when `bFixedBounds == true`
+- `emitter_count`, `emitters` (array of `{ name, enabled, mode }`) — `mode` is `"Standard"` or `"Stateless"`
+- `user_parameter_count`, `user_parameters` (array of `{ name, type }`) — `type` is the runtime-safe class/struct name (e.g. `"float"`, `"NiagaraBool"`, `"LinearColor"`)
+
+**Errors:** `missing_required_field`, `asset_not_found`, `not_a_niagara_system`.
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"inspect_niagara_system","params":{"path":"/Game/FX/NS_Fire"}}
+```
+
+---
+
 ## get_camera_transform
 
 **Language-shim experiment, PR #46 (Python shim — bridge-side synthetic tool).** Read the level-editor viewport camera's location and rotation.

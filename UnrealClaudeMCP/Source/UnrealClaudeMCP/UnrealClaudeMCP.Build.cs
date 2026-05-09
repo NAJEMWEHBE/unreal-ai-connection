@@ -32,6 +32,8 @@ public class UnrealClaudeMCP : ModuleRules
             "EngineSettings",
             "UMG",
             "UMGEditor",
+            "Niagara",
+            "NiagaraCore",
             // Sequencer (v0.8.0)
             "LevelSequence",
             "MovieScene",
