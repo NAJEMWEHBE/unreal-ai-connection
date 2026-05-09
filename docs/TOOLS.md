@@ -1396,6 +1396,91 @@ Future PRs will add `blueprint_compiled` (no global delegate today; needs per-BP
 
 ---
 
+## wait_for_events
+
+**Tier 2 PR #42 / v0.11.x — bridge-side composition tool.** Repeatedly calls `poll_events` at `poll_interval_ms` cadence until matching events arrive or `timeout_ms` expires. Same buffer, cursor semantics, and event payloads as `poll_events`; adds bounded waiting and a `timed_out` field.
+
+**Why this is implemented in the bridge (Python), not UE (C++):**
+
+The MCP dispatcher runs synchronously inside `FUCMCPServer::TickClients`, which is an `FTSTicker` callback on UE's **game thread**. A C++ wait handler would freeze the same thread that *fires most editor delegates* (`actor_spawned`, `actor_deleted`, `map_changed`, `level_post_save`, etc., all game-thread events). Result: the wait would deterministically time out for game-thread events because the game thread is asleep — the events that should fire during the wait literally cannot fire.
+
+The bridge runs in a separate Python process, so its `time.sleep` doesn't block UE at all. UE's game thread keeps running between polls (each poll is ~1ms under the bus's lock), events fire normally, and the wait actually waits for things that can happen.
+
+This is the first **synthetic tool** — a bridge-side implementation that composes UE handlers (`poll_events` here) into a higher-level operation. Future tools that compose multiple UE handlers without needing new C++ can follow this same pattern.
+
+**When to use `wait_for_events` vs `poll_events`:**
+
+- **`poll_events`** for steady-state polling at human-meaningful intervals (1-2 s). Single round-trip per call.
+- **`wait_for_events`** when you want sub-second latency for a specific reactive workflow ("user dropped a chair → reposition camera within 200 ms"). One MCP call → multiple cheap UE round-trips behind the scenes.
+
+**Params**
+- `timeout_ms` (int, optional, default `500`) — maximum wait in milliseconds. Hard cap `30000` (30 s); over-cap values are silently clamped.
+- `poll_interval_ms` (int, optional, default `100`, range `25-1000`) — bridge-side polling cadence. Lower = faster reaction but more UE round-trips. Below 25 ms the round-trip overhead dominates; above 1 s defeats the long-poll purpose. Out-of-range values are silently clamped to the bracket.
+- `since_seq` (int, optional, default `-1`) — same as `poll_events`: events with `seq >= since_seq` are returned (inclusive cursor).
+- `max_count` (int, optional, default `100`) — cap returned events. Hard max `1000`.
+- `event_filter` (array of string, optional) — substring filters on event type names; OR-combined.
+
+**Result** (same shape as `poll_events`, plus `timed_out`)
+- `ok` (bool)
+- `next_seq` (int) — pass back as `since_seq` on the next call
+- `first_seq_in_buffer` (int) — smallest seq currently buffered (or `-1` if empty)
+- `returned` (int) — count of events in `events`
+- `dropped` (bool) — caller's `since_seq` fell below `first_seq_in_buffer` at some point during the wait
+- `timed_out` (bool) — `true` iff the wait elapsed without any matching events arriving (and `dropped` is also false). Distinguishes "nothing happened" from "I missed events".
+- `events` (array) — same shape as `poll_events`
+- `note` (string, only when `dropped=true`) — diagnostic
+
+**Errors:** `invalid_value_shape` (any of the optional numeric params with non-numeric or non-integer JSON type).
+
+**Example — wait up to 1 second for the next actor_spawned**
+```json
+{"jsonrpc":"2.0","id":1,"method":"wait_for_events","params":{
+  "timeout_ms": 1000,
+  "since_seq": 4523,
+  "event_filter": ["actor_spawned"]
+}}
+```
+```json
+{"jsonrpc":"2.0","id":1,"result":{
+  "ok": true,
+  "next_seq": 4524,
+  "first_seq_in_buffer": 3523,
+  "returned": 1,
+  "dropped": false,
+  "timed_out": false,
+  "events": [
+    {"seq": 4523, "event": "actor_spawned", "ts": "2026.05.09-17.05.42",
+     "data": {"actor_label":"StaticMeshActor_2", "actor_name":"StaticMeshActor_2",
+              "class":"StaticMeshActor", "level":"/Game/Maps/MyMap"}}
+  ]
+}}
+```
+
+**Example — wait that times out (no events fired in the window)**
+```json
+{"jsonrpc":"2.0","id":1,"result":{
+  "ok": true,
+  "next_seq": 4524,
+  "first_seq_in_buffer": 3524,
+  "returned": 0,
+  "dropped": false,
+  "timed_out": true,
+  "events": []
+}}
+```
+
+**Example — fast reaction (low poll interval)**
+```json
+{"jsonrpc":"2.0","id":1,"method":"wait_for_events","params":{
+  "timeout_ms": 5000,
+  "poll_interval_ms": 50,
+  "event_filter": ["asset_post_import"]
+}}
+```
+At 50 ms polling, latency is bounded by ~50 ms + UE round-trip. UE round-trip is typically <5 ms on localhost, so total reaction time is ~55 ms.
+
+---
+
 ## Adding more tools
 
 See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the recipe. Short version: one `.cpp` file in `Source/UnrealClaudeMCP/Private/MCP/Handlers/`, two registration lines in `UnrealClaudeMCPModule.cpp`, one entry in `Resources/mcp_manifest.json`, one entry in `bridge/unreal_claude_mcp_bridge.py`'s `TOOLS` list, rebuild, restart.
