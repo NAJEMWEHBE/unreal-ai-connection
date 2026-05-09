@@ -480,6 +480,18 @@ TOOLS = [
             "required": ["name", "value"],
         },
     },
+    {
+        "name": "poll_events",
+        "description": "Tier 2 entrypoint: drain editor events fired since the caller's last poll. Today UE pushes events from a starter set of delegates (actor_spawned, actor_deleted, asset_added) into a 1000-entry ring buffer (FUCMCPEventBus); this handler returns the slice with seq > since_seq, capped at max_count. First call: pass since_seq=-1 (default) to discover the current next_seq, then poll with the previous response's next_seq for steady-state delta consumption. Response includes 'dropped' flag if the caller's since_seq fell below the oldest buffered event (i.e. buffer overflowed between polls).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "since_seq": {"type": "integer", "description": "Return events with seq > since_seq. Default -1 (from oldest buffered)."},
+                "max_count": {"type": "integer", "description": "Cap returned events. Default 100; hard max 1000 (= ring buffer size)."},
+                "event_filter": {"type": "array", "items": {"type": "string"}, "description": "Substring-match filters on event type names (e.g. ['actor_spawned', 'asset_']). Multiple entries are OR-combined. Empty / omitted means no filter."},
+            },
+        },
+    },
 ]
 
 

@@ -1318,6 +1318,77 @@ Mutate a UE Console Variable by name. The `value` param is polymorphic — accep
 
 ---
 
+## poll_events
+
+**Tier 2 entrypoint (PR #40 / v0.11.0).** Drain editor events fired since the caller's last poll. UE delegates push structured events into a 1000-entry ring buffer (`FUCMCPEventBus`); this handler returns the slice with `seq > since_seq`, capped at `max_count`.
+
+This is the inversion of the rest of the catalog: instead of Claude querying UE state on demand, UE notifies Claude when state changes. Combined with regular polling, it enables reactive flows like "user dropped a chair into the level → reposition camera" or "asset import finished → trigger texture-config pipeline". See [`docs/superpowers/specs/2026-05-09-tier2-event-push-design.md`](superpowers/specs/2026-05-09-tier2-event-push-design.md) for the full Tier 2 multi-PR roadmap.
+
+**Starter event types (this PR):**
+
+| Event | Source | Payload fields |
+|---|---|---|
+| `actor_spawned` | `UEngine::OnLevelActorAdded(AActor*)` | `actor_label`, `actor_name`, `class`, `level` |
+| `actor_deleted` | `UEngine::OnLevelActorDeleted(AActor*)` | `actor_label`, `actor_name`, `class`, `level` |
+| `asset_added` | `IAssetRegistry::OnAssetAdded(const FAssetData&)` (TS_ delegate, fires from background scan threads) | `package_path`, `asset_path`, `name`, `class`, `class_path` |
+
+Future PRs will add `asset_removed`, `asset_renamed`, `asset_post_import`, `level_loaded`, `level_saved`, `blueprint_compiled`, `mi_parameter_changed`, etc., plus a `wait_for_events` long-poll variant for sub-second latency.
+
+**Params**
+- `since_seq` (int, optional, default `-1`) — return events with `seq > since_seq`. `-1` = "from oldest buffered". On the first poll, leave at default to discover the current `next_seq`; on subsequent polls, pass the previous response's `next_seq` to consume only newly-fired events.
+- `max_count` (int, optional, default `100`) — cap returned events. Hard max `1000` (= ring buffer size).
+- `event_filter` (array of string, optional) — substring filters on event type names (e.g. `["actor_spawned", "asset_"]`). Multiple entries are OR-combined. Empty / omitted = no filter.
+
+**Result**
+- `ok` (bool)
+- `next_seq` (int) — the seq the next-fired event would receive. Pass back as `since_seq` on the next poll for steady-state delta consumption.
+- `first_seq_in_buffer` (int) — smallest seq currently in the ring (or `-1` if buffer is empty).
+- `returned` (int) — count of events in `events` (≤ `max_count`).
+- `dropped` (bool) — `true` iff `since_seq` was older than `first_seq_in_buffer - 1`. Indicates the caller missed events between polls (the ring overflowed). Recover by re-syncing whatever editor state matters via the explicit query handlers (`get_actors_in_level`, `find_assets`, etc.) and resume polling with `next_seq` from the response.
+- `events` (array) — each entry has `seq` (int), `event` (string event type), `ts` (string `YYYY.MM.DD-HH.MM.SS`), `data` (object with event-specific payload).
+- `note` (string, only when `dropped=true`) — diagnostic explaining the recovery action.
+
+**Errors:** `invalid_value_shape`.
+
+| Code | Trigger |
+|---|---|
+| `invalid_value_shape` | `since_seq` / `max_count` not numeric, `max_count` ≤ 0, `event_filter` not an array, or `event_filter` element not a string. |
+
+**Behavior notes**
+- The asset-registry initial scan at editor startup floods `asset_added` for every asset in the project. The 1000-entry ring will overflow; subsequent polls with a small `since_seq` will see `dropped=true` until the caller catches up. Workflows that don't care about startup-scan events should poll once after startup with the latest `next_seq` and discard the snapshot, then begin consuming deltas.
+- The bus is type-agnostic: adding new event sources in future PRs means adding lambda subscriptions in `UnrealClaudeMCPModule::StartupModule`, not changing this handler or the bus itself.
+- `IAssetRegistry::OnAssetAdded` is a `TS_` (thread-safe) delegate — it can fire from background threads. The bus's `FCriticalSection` discipline handles this safely.
+
+**Example — first poll (discovery)**
+```json
+{"jsonrpc":"2.0","id":1,"method":"poll_events","params":{}}
+```
+```json
+{"jsonrpc":"2.0","id":1,"result":{
+  "ok": true,
+  "next_seq": 4523,
+  "first_seq_in_buffer": 3523,
+  "returned": 100,
+  "dropped": false,
+  "events": [
+    {"seq": 3523, "event": "asset_added", "ts": "2026.05.09-16.42.01",
+     "data": {"package_path":"/Game/Textures/T_Stone","asset_path":"/Game/Textures/T_Stone.T_Stone",
+              "name":"T_Stone","class":"Texture2D","class_path":"/Script/Engine.Texture2D"}},
+    "..."
+  ]
+}}
+```
+
+**Example — steady-state delta consumption**
+```json
+{"jsonrpc":"2.0","id":2,"method":"poll_events","params":{
+  "since_seq": 4523,
+  "event_filter": ["actor_spawned", "actor_deleted"]
+}}
+```
+
+---
+
 ## Adding more tools
 
 See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the recipe. Short version: one `.cpp` file in `Source/UnrealClaudeMCP/Private/MCP/Handlers/`, two registration lines in `UnrealClaudeMCPModule.cpp`, one entry in `Resources/mcp_manifest.json`, one entry in `bridge/unreal_claude_mcp_bridge.py`'s `TOOLS` list, rebuild, restart.

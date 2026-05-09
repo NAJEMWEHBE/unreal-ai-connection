@@ -4,6 +4,16 @@
 #include "MCP/MCPServer.h"
 #include "MCP/MCPHandler.h"
 #include "MCP/LogCapture.h"
+#include "MCP/EventBus.h"
+
+// Tier 2 event-push delegate sources (PR #40)
+#include "Engine/Engine.h"           // UEngine::OnLevelActorAdded/Deleted (Engine.h:2200/2207)
+#include "Engine/World.h"            // UWorld::GetPathName for actor.level
+#include "GameFramework/Actor.h"     // AActor::GetActorLabel/GetName/GetClass
+#include "AssetRegistry/IAssetRegistry.h"        // OnAssetAdded (IAssetRegistry.h:923, TS_ delegate)
+#include "AssetRegistry/AssetRegistryModule.h"   // FAssetRegistryModule loader
+#include "AssetRegistry/AssetData.h" // FAssetData fields read by the asset_added payload builder
+#include "Dom/JsonObject.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogUnrealClaudeMCP, Log, All);
 
@@ -46,6 +56,7 @@ extern TSharedRef<IUCMCPHandler> Make_Handler_ApplyPythonToSelection();
 extern TSharedRef<IUCMCPHandler> Make_Handler_CompileBlueprint();
 extern TSharedRef<IUCMCPHandler> Make_Handler_GetConsoleVariable();
 extern TSharedRef<IUCMCPHandler> Make_Handler_SetConsoleVariable();
+extern TSharedRef<IUCMCPHandler> Make_Handler_PollEvents();
 
 static constexpr int32 kMCPDefaultPort = 18888;
 
@@ -99,6 +110,73 @@ void FUnrealClaudeMCPModule::StartupModule()
     Reg.Register(Make_Handler_CompileBlueprint());
     Reg.Register(Make_Handler_GetConsoleVariable());
     Reg.Register(Make_Handler_SetConsoleVariable());
+    Reg.Register(Make_Handler_PollEvents());
+
+    // -----------------------------------------------------------------
+    // Tier 2 (PR #40): wire 3 starter delegates into the FUCMCPEventBus.
+    //
+    // Each subscription is a lambda that builds the event-specific JSON
+    // payload and calls Bus.Push. The bus is type-agnostic — adding
+    // new event sources later means adding more lambdas here, no changes
+    // to EventBus.{h,cpp} required.
+    //
+    // Handles are retained on the module so ShutdownModule can detach
+    // before the engine/registry subsystems tear down.
+    // -----------------------------------------------------------------
+
+    if (GEngine)
+    {
+        LevelActorAddedHandle = GEngine->OnLevelActorAdded().AddLambda(
+            [](AActor* Actor)
+            {
+                if (!Actor) { return; }
+                TSharedPtr<FJsonObject> Data = MakeShared<FJsonObject>();
+                Data->SetStringField(TEXT("actor_label"), Actor->GetActorLabel());
+                Data->SetStringField(TEXT("actor_name"), Actor->GetName());
+                Data->SetStringField(TEXT("class"),
+                    Actor->GetClass() ? Actor->GetClass()->GetName() : TEXT(""));
+                UWorld* World = Actor->GetWorld();
+                Data->SetStringField(TEXT("level"),
+                    World ? World->GetPathName() : TEXT(""));
+                FUCMCPEventBus::Get().Push(TEXT("actor_spawned"), Data);
+            });
+
+        LevelActorDeletedHandle = GEngine->OnLevelActorDeleted().AddLambda(
+            [](AActor* Actor)
+            {
+                if (!Actor) { return; }
+                TSharedPtr<FJsonObject> Data = MakeShared<FJsonObject>();
+                Data->SetStringField(TEXT("actor_label"), Actor->GetActorLabel());
+                Data->SetStringField(TEXT("actor_name"), Actor->GetName());
+                Data->SetStringField(TEXT("class"),
+                    Actor->GetClass() ? Actor->GetClass()->GetName() : TEXT(""));
+                UWorld* World = Actor->GetWorld();
+                Data->SetStringField(TEXT("level"),
+                    World ? World->GetPathName() : TEXT(""));
+                FUCMCPEventBus::Get().Push(TEXT("actor_deleted"), Data);
+            });
+    }
+
+    {
+        // OnAssetAdded is a TS_ multicast (IAssetRegistry.h:922) — fires from
+        // background asset-registry scan threads. The bus's locking handles
+        // this; nothing special needed at the call site.
+        IAssetRegistry& AR = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(
+            TEXT("AssetRegistry")).Get();
+        AssetAddedHandle = AR.OnAssetAdded().AddLambda(
+            [](const FAssetData& AssetData)
+            {
+                TSharedPtr<FJsonObject> Data = MakeShared<FJsonObject>();
+                Data->SetStringField(TEXT("package_path"), AssetData.PackageName.ToString());
+                Data->SetStringField(TEXT("asset_path"), AssetData.GetObjectPathString());
+                Data->SetStringField(TEXT("name"), AssetData.AssetName.ToString());
+                Data->SetStringField(TEXT("class"),
+                    AssetData.AssetClassPath.GetAssetName().ToString());
+                Data->SetStringField(TEXT("class_path"),
+                    AssetData.AssetClassPath.ToString());
+                FUCMCPEventBus::Get().Push(TEXT("asset_added"), Data);
+            });
+    }
 
     FUCMCPServer::Get().Start(kMCPDefaultPort);
 }
@@ -106,6 +184,36 @@ void FUnrealClaudeMCPModule::StartupModule()
 void FUnrealClaudeMCPModule::ShutdownModule()
 {
     FUCMCPServer::Get().Stop();
+
+    // Detach Tier 2 event-bus subscriptions before the engine subsystems
+    // we subscribed to tear down. Guard each removal -- in some shutdown
+    // orderings GEngine may already be null even though we're still running.
+    if (GEngine)
+    {
+        if (LevelActorAddedHandle.IsValid())
+        {
+            GEngine->OnLevelActorAdded().Remove(LevelActorAddedHandle);
+            LevelActorAddedHandle.Reset();
+        }
+        if (LevelActorDeletedHandle.IsValid())
+        {
+            GEngine->OnLevelActorDeleted().Remove(LevelActorDeletedHandle);
+            LevelActorDeletedHandle.Reset();
+        }
+    }
+
+    if (AssetAddedHandle.IsValid())
+    {
+        // Use GetModuleChecked here (not LoadModuleChecked) -- shutdown is
+        // not the time to load modules. If AssetRegistry is already gone,
+        // we leak the handle and that's fine (the broadcaster is gone too).
+        if (FAssetRegistryModule* ARModule = FModuleManager::GetModulePtr<FAssetRegistryModule>(
+                TEXT("AssetRegistry")))
+        {
+            ARModule->Get().OnAssetAdded().Remove(AssetAddedHandle);
+        }
+        AssetAddedHandle.Reset();
+    }
 
     // Deregister the log capture device before the module unloads so GLog
     // doesn't call into a dangling pointer.
