@@ -14,18 +14,27 @@ Single source of truth for resuming work on UnrealClaudeMCP in a fresh Claude Co
 
 ## Open work + pending verification
 
-**No open PRs at this time** — the user has merged everything from v0.4.0 through the v0.9.1 wire-framing fix (PRs #11–#20 all merged).
+**Open PRs:**
+- **#23** `fix/sequencer-warnings` — fixes UE 5.7's deprecated `UMovieScene::GetBindings` non-const overload + adds the missing `LevelSequenceEditor` plugin-dep declaration to `.uplugin`. Both surfaced during the runbook execution that produced this revision.
 
-**Critical verification gap:** all merged work since v0.5.0 has been validated via 98/98 pytest (the bridge unit tests) only. The C++ side has not been built and smoke-tested in the user's actual UE editor for the current tip of main. Any "shipped" claim in this doc means exactly that — the code compiles in Claude's understanding of UE 5.7 source headers, but no live binary verification yet on the user's machine.
+**Recent merges:** PR #22 (`fix/material-parameter-info-name`) corrected six hallucinated `FMaterialParameterInfo::GetName()` call sites — the field is `FName Name`, no accessor method exists. v0.9.0 had been unbuildable against UE 5.7 since merge until #22 landed.
 
-**Verification runbook** (5 steps, PowerShell, run on the user's host machine):
+**Verification status:** the runbook below was executed against UE 5.7.4 on 2026-05-09. It surfaced PR #22 (real compile error — `error C2039: 'GetName': is not a member of 'FMaterialParameterInfo'`) plus the two warnings folded into PR #23. Once #23 merges, main will be live-verified for the first time since v0.5.0. **Caveat:** smoke_test.py exercises only 11 of 32 handlers end-to-end — it skips material and sequencer runtime paths because the test project has no `/Game/` materials or Level Sequences (`[t_materials] no Materials in /Game/ — skipping inspect_material`, `[t_sequencer] no Level Sequences in /Game/ — skipping inspect_sequence`). v0.8.0 sequencer + v0.9.0 material handlers therefore have *compile + registration* verification but not *runtime semantics* verification.
+
+**Verification runbook** (6 steps, PowerShell, run on the user's host machine):
+
 1. `cd C:\Users\NINOH\Desktop\UnrealClaudeMCP && git pull origin main`
 2. `taskkill /IM UnrealEditor.exe /F` (Live Coding holds the DLL otherwise; safe if UE isn't running)
-3. `& "F:\UE_5.7\Engine\Build\BatchFiles\Build.bat" UnrealClaudeMCPEditor Win64 Development -project="<full path to host .uproject>"` — must end with `BUILD SUCCESSFUL`
-4. Open the host `.uproject` in UE editor; confirm 32 handlers register in the Output Log
-5. `py -3 examples\smoke_test.py` from the repo root; expect 13 sections + `Smoke test complete - all assertions passed.`
+3. **Sync dev plugin → host plugin.** The host project's `Plugins/UnrealClaudeMCP/` may be a plain copy on this machine, in which case it drifts from the dev tree silently. Verify with `Get-Item <path> | Select-Object LinkType` — a `Junction` or `SymbolicLink` value means it auto-tracks; empty means it's a plain copy and you must sync. To sync:
+   ```
+   robocopy C:\Users\NINOH\Desktop\UnrealClaudeMCP\UnrealClaudeMCP <host-project>\Plugins\UnrealClaudeMCP /MIR /XD Binaries Intermediate .vs /NFL /NDL /NJH /NJS /NP
+   ```
+   Robocopy exit codes 0–7 mean success (1 = files copied, 2 = extras removed by `/MIR`). The `/XD Binaries Intermediate` exclusion preserves the host's UBT cache so step 4 stays incremental.
+4. `& "F:\UE_5.7\Engine\Build\BatchFiles\Build.bat" <HostProjectName>Editor Win64 Development -project="<full path to host .uproject>"` — must end with `Result: Succeeded`. **The target name is `<HostProjectName>Editor`, NOT `<PluginName>Editor`** — UE targets are project-level, not plugin-level. For the canonical `UnrealClaudeMCPTest` host project, that's `UnrealClaudeMCPTestEditor`.
+5. Open the host `.uproject` in UE editor; confirm 32 handlers register in the Output Log. Filter by category `LogUCMCPHandler` and you should see exactly 32 lines `Registered handler '<name>'`. The TCP server then binds `127.0.0.1:18888` (~10s on warm DDC, 1–5 min cold).
+6. `py -3 examples\smoke_test.py` from the repo root; expect 13 sections + `Smoke test complete - all assertions passed.`
 
-The host `.uproject` path varies per user; it lives outside this repo. If the build fails, work backward from the compile error to the most-recent merged spec — most prior defects were spec-level (wrong header path, wrong UE API signature) rather than implementation-level.
+The host `.uproject` path varies per user; it lives outside this repo. If the build fails, work backward from the compile error to the most-recent merged spec — most prior defects were spec-level (wrong header path, wrong UE API signature) rather than implementation-level. PR #22's `FMaterialParameterInfo::GetName()` defect is a recent example: the spec referenced a non-existent accessor that compiled in Claude's *understanding* of UE 5.7 but not in any actual UE 5.7 source tree.
 
 ---
 
