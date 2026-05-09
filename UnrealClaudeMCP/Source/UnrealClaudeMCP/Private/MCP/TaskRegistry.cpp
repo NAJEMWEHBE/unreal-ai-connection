@@ -14,11 +14,12 @@ FUCMCPTaskRegistry& FUCMCPTaskRegistry::Get()
 
 FString FUCMCPTaskRegistry::NowString()
 {
-    const FDateTime Now = FDateTime::Now();
-    return FString::Printf(
-        TEXT("%04d.%02d.%02d-%02d.%02d.%02d"),
-        Now.GetYear(), Now.GetMonth(), Now.GetDay(),
-        Now.GetHour(), Now.GetMinute(), Now.GetSecond());
+    // FDateTime::ToString() defaults to "%Y.%m.%d-%H.%M.%S" -- exactly the
+    // canonical YYYY.MM.DD-HH.MM.SS form LogCapture and EventBus use, so
+    // no explicit format string needed. (Gemini medium-priority on PR #44
+    // suggested this cleanup -- LogCapture.cpp + EventBus.cpp still use
+    // the hand-rolled Printf form; potential follow-up cleanup PR.)
+    return FDateTime::Now().ToString();
 }
 
 bool FUCMCPTaskRegistry::IsTerminal(const FString& Status)

@@ -83,7 +83,12 @@ public:
                 TEXT("start_sleep_task: invalid_value_shape: 'duration_ms' must be > 0 (got %g)"), Raw);
             return nullptr;
         }
-        const int32 DurationMs = FMath::Min(static_cast<int32>(Raw), kMaxDurationMs);
+        // Clamp on the WIDE (double) type BEFORE narrowing to int32. The
+        // reverse order would invoke undefined behavior for Raw > INT_MAX
+        // (the cast result is unspecified -- could overflow to a negative,
+        // wrap, or worse), and the subsequent FMath::Min would compare
+        // against garbage. Caught by Codex P1 + Gemini high-priority on PR #44.
+        const int32 DurationMs = static_cast<int32>(FMath::Min(Raw, static_cast<double>(kMaxDurationMs)));
 
         // --- register task and spawn worker --------------------------------
 
