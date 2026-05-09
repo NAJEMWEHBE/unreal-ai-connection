@@ -1071,17 +1071,24 @@ def synthetic_screenshot_actor(req_id, args):
 
     focus_resp = call_ue("focus_actor", {"name": name})
     if "error" in focus_resp:
+        # Preserve the upstream RPC error code so callers can distinguish
+        # transport-level failures (-32099 UE unreachable, -32700 non-JSON)
+        # from logical focus_actor failures (-32603 internal). Per PR #48
+        # Codex P2 review: hardcoding -32603 here masked retryable
+        # connectivity errors as logical errors.
+        upstream_err = focus_resp["error"]
         return make_response(req_id, error={
-            "code": -32603,
-            "message": f"screenshot_actor: focus_failed: {focus_resp['error'].get('message', '')}",
+            "code": upstream_err.get("code", -32603),
+            "message": f"screenshot_actor: focus_failed: {upstream_err.get('message', '')}",
         })
     focus_result = focus_resp.get("result", {}) or {}
 
     shot_resp = call_ue("get_viewport_screenshot", {})
     if "error" in shot_resp:
+        upstream_err = shot_resp["error"]
         return make_response(req_id, error={
-            "code": -32603,
-            "message": f"screenshot_actor: screenshot_failed: {shot_resp['error'].get('message', '')}",
+            "code": upstream_err.get("code", -32603),
+            "message": f"screenshot_actor: screenshot_failed: {upstream_err.get('message', '')}",
         })
     shot_result = shot_resp.get("result", {}) or {}
 

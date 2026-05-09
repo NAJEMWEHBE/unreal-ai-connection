@@ -50,6 +50,13 @@ namespace
             return TEXT("UpToDateWithWarnings");
         case BS_Dirty:
             return TEXT("Dirty");
+        case BS_Error:
+            // Compile-failed blueprint. PR #52 Gemini medium review: prior
+            // version had no case for BS_Error and silently fell through to
+            // "Unknown" -- masking real compile errors as "this is unknown,
+            // try recompiling" instead of "this failed to compile, look at
+            // the editor's compile log."
+            return TEXT("Error");
         case BS_Unknown:
         default:
             return TEXT("Unknown");

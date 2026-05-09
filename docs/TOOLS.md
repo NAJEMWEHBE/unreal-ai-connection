@@ -1933,12 +1933,12 @@ Clear all user-defined names from UE Python's public globals dict. Pairs with `e
 - `path` (string, required) — UE asset path of a `UNiagaraSystem`, e.g. `/Game/FX/NS_Fire`.
 
 **Result**
-- `ok`, `name`, `path`
+- `ok`, `name`, `package_path`
 - `is_looping` (bool) — whether the system loops forever
 - `has_gpu_emitters` (bool) — at least one emitter uses GPU simulation
 - `needs_warmup` (bool); when true, also: `warmup_tick_count`, `warmup_time`, `warmup_tick_delta`
 - `effect_type` (string) — asset path of the `UNiagaraEffectType` instance (e.g. `/Game/FX/EffectTypes/EFT_Hero.EFT_Hero`), omitted when none set
-- `fixed_bounds` (`{ min: {x,y,z}, max: {x,y,z} }`) — only emitted when `bFixedBounds == true`
+- `fixed_bounds` (`{ min: {x,y,z}, max: {x,y,z}, size: {x,y,z}, center: {x,y,z} }`) — only emitted when `bFixedBounds == true`. Mirrors `inspect_static_mesh`'s bounds shape.
 - `emitter_count`, `emitters` (array of `{ name, enabled, mode }`) — `mode` is `"Standard"` or `"Stateless"`
 - `user_parameter_count`, `user_parameters` (array of `{ name, type }`) — `type` is the runtime-safe class/struct name (e.g. `"float"`, `"NiagaraBool"`, `"LinearColor"`)
 
@@ -1971,7 +1971,7 @@ Clear all user-defined names from UE Python's public globals dict. Pairs with `e
 - `parent_class` (string) — the immediate parent class name (often `AnimInstance` for natively-parented anim BPs)
 - `is_template` (bool) — anim BP templates have no skeleton; affects whether `target_skeleton` is emitted
 - `target_skeleton` (string) — asset path of the `USkeleton`. **Omitted** when `is_template == true` or the skeleton is null.
-- `blueprint_status` (string) — one of `UpToDate` / `UpToDateWithWarnings` / `Dirty` / `Unknown`. Note that `Status` is transient; treat `is_compiled` (below) as the authoritative "compiled data is available" signal.
+- `blueprint_status` (string) — one of `UpToDate` / `UpToDateWithWarnings` / `Dirty` / `Error` / `Unknown`. `Error` means the blueprint failed to compile (look at the editor's compile log). `Status` is transient — treat `is_compiled` (below) as the authoritative "compiled data is available" signal; treat `blueprint_status: Error` as "compile failed; recompile or fix issues."
 - `is_compiled` (bool) — true when `GetAnimBlueprintGeneratedClass()` is non-null. When false, all compiled-data arrays below are empty and the corresponding `*_count` fields are 0.
 - `parent_anim_blueprint` (string) — asset path of the parent anim BP, when this blueprint subclasses another anim BP (rather than a native `UAnimInstance`). **Omitted** when null.
 - `state_machine_count`, `state_machines` (array of `{ name }`)
