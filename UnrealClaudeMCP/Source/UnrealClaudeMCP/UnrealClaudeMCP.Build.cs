@@ -49,6 +49,7 @@ public class UnrealClaudeMCP : ModuleRules
             // Sequencer editor library (v0.8.0)
             "LevelSequenceEditor",
             // Material instance authoring (v0.9.0)
+            "Landscape",
             "MaterialEditor"
         });
     }

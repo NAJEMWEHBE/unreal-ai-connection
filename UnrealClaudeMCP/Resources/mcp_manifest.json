@@ -469,6 +469,15 @@
       "returns": { "ok": "bool", "name": "string", "path": "string", "parent_class": "string", "is_template": "bool", "target_skeleton": "string (conditional, when bIsTemplate is false and TargetSkeleton is set; asset path)", "blueprint_status": "string enum: UpToDate | UpToDateWithWarnings | Dirty | Error | Unknown", "is_compiled": "bool (true when GetAnimBlueprintGeneratedClass is non-null)", "parent_anim_blueprint": "string (conditional, when this blueprint subclasses another anim blueprint; asset path)", "state_machine_count": "int", "state_machines": "array of {name}", "anim_function_count": "int", "anim_functions": "array of {name, implemented}", "sync_group_count": "int", "sync_groups": "array of string" }
     },
     {
+      "name": "inspect_landscape",
+      "description": "Read structural properties of an ALandscape scene actor (not an asset). Component dimensions, total component count, landscape material asset path, world-space loaded bounds, GUID identity. Lookup by actor label and/or LandscapeGuid string.",
+      "params": {
+        "name": "string (optional) - actor label; when omitted with guid, returns the sole landscape if exactly one exists",
+        "guid": "string (optional) - LandscapeGuid OR OriginalLandscapeGuid string"
+      },
+      "returns": { "ok": "bool", "name": "string", "actor_name": "string", "landscape_guid": "string", "original_landscape_guid": "string", "component_size_quads": "int", "subsection_size_quads": "int", "num_subsections": "int", "landscape_material": "string (conditional, when LandscapeMaterial is set; asset path)", "loaded_bounds": "{min, max, size, center}", "streaming_proxy_count": "int", "component_count_total": "int", "has_landscape_info": "bool" }
+    },
+    {
       "name": "get_camera_transform",
       "description": "Read level-editor viewport camera transform. SYNTHETIC bridge-side handler -- composes execute_unreal_python + get_log_lines via marker pattern. Part of language-shim experiment (PR #46).",
       "params": {},

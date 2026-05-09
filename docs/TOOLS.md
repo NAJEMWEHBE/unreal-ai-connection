@@ -1987,6 +1987,44 @@ Clear all user-defined names from UE Python's public globals dict. Pairs with `e
 
 ---
 
+## inspect_landscape
+
+**Tier 3 (PR #53 — first Inspect\* handler that takes an actor reference instead of an asset path).** Read structural properties of an `ALandscape`: component dimensions, total component count across loaded streaming proxies, landscape material asset, world-space bounds, GUID identity (live and original).
+
+**Critical divergence from sibling handlers**: UE landscapes are **scene actors, not standalone `.uasset` files**. There is no `/Game/...` content path for `ALandscape`. The handler accepts `name` (actor label) and/or `guid` (LandscapeGuid string) instead of `path`, and looks the actor up via `TActorIterator<ALandscape>` over the active editor world. With both filters omitted, the handler returns the sole landscape if exactly one exists; if multiple landscapes exist with no filter, the handler errors with `ambiguous_landscape` rather than guessing.
+
+**Why C++:** direct access to `ALandscape` / `ALandscapeProxy` runtime fields and `ULandscapeInfo` aggregation. The Python equivalent would require multi-call FFI and editor-only reflection layers.
+
+**Required Build.cs deps:** `Landscape` (runtime). Do **NOT** add `LandscapeEditor` (editor-only — would break server cooks).
+
+**Params** (all optional)
+- `name` (string) — actor label to match against `Actor->GetActorLabel()`. Empty/missing means "any landscape."
+- `guid` (string) — matches against either `LandscapeGuid` (live, mutates on PIE/instancing) **or** `OriginalLandscapeGuid` (stable). Either matches.
+
+**Result**
+- `ok`, `name` (the actor's label), `actor_name` (the unique FName-style actor name)
+- `landscape_guid`, `original_landscape_guid` — both emitted; the live GUID changes during PIE, the original is stable. Use `original_landscape_guid` for cross-session correlation.
+- `component_size_quads`, `subsection_size_quads`, `num_subsections` — heightmap topology
+- `landscape_material` (string) — asset path of the default `UMaterialInterface`. **Omitted** when null.
+- `loaded_bounds` — `{ min: {x,y,z}, max: {x,y,z}, size: {x,y,z}, center: {x,y,z} }` from `GetLoadedBounds()` (runtime-safe; reflects only currently-loaded streaming proxies in a world-partition setup). Bounds shape matches `inspect_static_mesh` and `inspect_niagara_system`'s `fixed_bounds`.
+- `streaming_proxy_count` (int) — number of `ALandscapeStreamingProxy` actors via `GetSortedStreamingProxies()`. Empty in non-streaming setups.
+- `component_count_total` (int) — sum of `LandscapeComponents.Num()` over all proxies. 0 when `has_landscape_info` is false.
+- `has_landscape_info` (bool) — `true` when `GetLandscapeInfo() != nullptr`. `ULandscapeInfo` is transient and may be null briefly after world load; the handler degrades gracefully (emits 0 / empty for the aggregated counts) rather than failing.
+
+**Errors:** `no_editor_world`, `landscape_not_found`, `ambiguous_landscape`.
+
+**Example — single-landscape world**
+```json
+{"jsonrpc":"2.0","id":1,"method":"inspect_landscape","params":{}}
+```
+
+**Example — by GUID (works against original or live GUID)**
+```json
+{"jsonrpc":"2.0","id":1,"method":"inspect_landscape","params":{"guid":"0123ABCD-..."}}
+```
+
+---
+
 ## get_camera_transform
 
 **Language-shim experiment, PR #46 (Python shim — bridge-side synthetic tool).** Read the level-editor viewport camera's location and rotation.
