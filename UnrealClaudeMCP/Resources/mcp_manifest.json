@@ -296,6 +296,14 @@
         "path": "string (required) - package path under which to recursively fix up, e.g. /Game/ or /Game/Materials"
       },
       "returns": { "ok": "bool", "path": "string", "redirectors_found": "int", "note": "string" }
+    },
+    {
+      "name": "apply_python_to_selection",
+      "description": "Run user Python with `selection` (selected level actors) and `selected_assets` (selected content-browser assets) pre-bound as locals. Convenience wrapper around execute_unreal_python.",
+      "params": {
+        "code": "string (required) - Python source. `selection` and `selected_assets` are pre-bound by the injected boilerplate."
+      },
+      "returns": { "ok": "bool", "output": "string", "temp_script": "string" }
     }
   ]
 }

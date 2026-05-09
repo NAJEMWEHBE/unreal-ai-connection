@@ -75,9 +75,22 @@ public:
         }
 
         // --- enumerate redirectors via the asset registry ------------------
+        //
+        // Force-rescan the path before querying so freshly-created redirectors
+        // (typically the ones move_asset / rename_asset just produced) are
+        // visible to GetAssets. Without this, the registry's cached state can
+        // miss recent file changes and the handler silently no-ops on the
+        // exact workflow it targets. ScanPathsSynchronous at IAssetRegistry.h:787;
+        // bForceRescan=true is the explicit re-scan toggle. Caught by Codex P1
+        // on PR #32 ("Refresh asset registry before querying redirectors") --
+        // matched my own failed live test.
 
         IAssetRegistry& AR = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(
             TEXT("AssetRegistry")).Get();
+
+        TArray<FString> ScanPaths;
+        ScanPaths.Add(PackagePath);
+        AR.ScanPathsSynchronous(ScanPaths, /*bForceRescan=*/ true);
 
         FARFilter Filter;
         Filter.PackagePaths.Add(FName(*PackagePath));
