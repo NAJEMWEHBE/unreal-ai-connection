@@ -1151,6 +1151,45 @@ Both bindings use try/except so a missing API in older Python plugin builds defa
 
 ---
 
+## compile_blueprint
+
+Explicit Blueprint recompile via `FKismetEditorUtilities::CompileBlueprint`. Pairs with `edit_widget_tree`'s `compile=true` flag for users who want to compile a Blueprint **without** mutating it first — e.g. when a BP was modified externally via `execute_unreal_python` and now needs a recompile, or to recover from a `BS_Dirty` state.
+
+**Params**
+- `path` (string, required) — Blueprint asset path, e.g. `/Game/Blueprints/BP_MyActor`.
+- `skip_save` (bool, optional, default `false`) — suppress the project's "Save On Compile" auto-save. Passes `EBlueprintCompileOptions::SkipSave` to UE.
+
+**Result**
+- `ok` (bool) — `true` unless the BP's status is `BS_Error` after compile
+- `path` (string) — package path of the BP that was compiled
+- `status` (string) — one of `up_to_date`, `up_to_date_with_warnings`, `error`, `dirty`, `unknown`, `being_created` (see UE 5.7's `EBlueprintStatus` at `Blueprint.h:41`)
+- `saved` (bool) — whether auto-save was allowed (`!skip_save`)
+- `note` (string, only when `status == "error"`) — pointer to `get_log_lines{category_filter:"LogBlueprint"}` for compile-error detail
+
+**Errors:** `missing_required_field`, `asset_not_found`, `not_a_blueprint`.
+
+**Behavior notes**
+- Default flags = `EBlueprintCompileOptions::None`. The full pipeline runs: skeleton class regen, node expansion, validation, code gen, reinstancing.
+- Compile errors aren't reported in the `result` directly — they're emitted by `FKismetCompilerContext` to `LogBlueprint`. Use `get_log_lines{category_filter:"LogBlueprint", count:50}` afterward to inspect them.
+- Save-On-Compile is a project setting (`Project Settings → Editor → Blueprint`), not a hardcoded behavior. `skip_save:true` gives you the bypass when you want to compile transiently without touching disk.
+
+**Example — compile a BP and check status**
+```json
+{"jsonrpc":"2.0","id":1,"method":"compile_blueprint","params":{
+  "path": "/Game/Blueprints/BP_MyActor"
+}}
+```
+
+**Example — recompile without auto-save (for transient work)**
+```json
+{"jsonrpc":"2.0","id":1,"method":"compile_blueprint","params":{
+  "path": "/Game/Blueprints/BP_MyActor",
+  "skip_save": true
+}}
+```
+
+---
+
 ## Adding more tools
 
 See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the recipe. Short version: one `.cpp` file in `Source/UnrealClaudeMCP/Private/MCP/Handlers/`, two registration lines in `UnrealClaudeMCPModule.cpp`, one entry in `Resources/mcp_manifest.json`, one entry in `bridge/unreal_claude_mcp_bridge.py`'s `TOOLS` list, rebuild, restart.

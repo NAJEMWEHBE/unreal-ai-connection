@@ -304,6 +304,15 @@
         "code": "string (required) - Python source. `selection` and `selected_assets` are pre-bound by the injected boilerplate."
       },
       "returns": { "ok": "bool", "output": "string", "temp_script": "string" }
+    },
+    {
+      "name": "compile_blueprint",
+      "description": "Explicit Blueprint recompile via FKismetEditorUtilities::CompileBlueprint. For BPs that were mutated externally (e.g. via execute_unreal_python) and need a recompile without further mutation.",
+      "params": {
+        "path": "string (required) - Blueprint asset path",
+        "skip_save": "bool (optional, default false) - suppress Save-On-Compile auto-save"
+      },
+      "returns": { "ok": "bool", "path": "string", "status": "string (up_to_date|up_to_date_with_warnings|error|dirty|unknown|being_created)", "saved": "bool", "note": "string (only on error)" }
     }
   ]
 }
