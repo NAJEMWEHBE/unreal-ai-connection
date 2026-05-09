@@ -423,6 +423,17 @@ TOOLS = [
             "required": ["path"],
         },
     },
+    {
+        "name": "fix_up_redirectors",
+        "description": "Cascade-update consumers of UObjectRedirector assets under a folder, then delete the now-redundant redirector .uasset stubs. Cleans up after move_asset / rename_asset workflows. Mirrors the editor's right-click 'Fix Up Redirectors in Folder'.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "Package path under which to recursively fix up redirectors, e.g. '/Game/' or '/Game/Materials'. Required to avoid accidentally rewriting an entire project."},
+            },
+            "required": ["path"],
+        },
+    },
 ]
 
 

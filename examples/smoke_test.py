@@ -213,7 +213,7 @@ def main():
         assert_error_code(resp, -32601, "unknown_method")
     step("unknown_method", t0)
 
-    header("1. list_tools (should list 33 tool names)")
+    header("1. list_tools (should list 34 tool names)")
     def t1():
         resp = call("list_tools")
         show(resp)
@@ -221,8 +221,8 @@ def main():
         tools = result.get("tools")
         if not isinstance(tools, list):
             raise SmokeFailure(f"[list_tools] 'tools' not a list: {result}")
-        if len(tools) != 33:
-            raise SmokeFailure(f"[list_tools] expected 33 tools, got {len(tools)}: {tools}")
+        if len(tools) != 34:
+            raise SmokeFailure(f"[list_tools] expected 34 tools, got {len(tools)}: {tools}")
         if result.get("count") != len(tools):
             raise SmokeFailure(f"[list_tools] 'count' ({result.get('count')}) != len(tools) ({len(tools)})")
     step("list_tools", t1)
