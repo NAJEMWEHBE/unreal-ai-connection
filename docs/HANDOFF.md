@@ -56,13 +56,14 @@ These are explicit user instructions that override default Claude behavior. They
 1. **"Do everything"** — autonomous execution. Don't ask permission to proceed; pick a reasonable path and ship it. The user steps in only when they want to redirect.
 2. **"Don't get hallucinated"** — every UE 5.7 API claim must be grounded in actual source (`F:/UE_5.7/Engine/Source/...` or `F:/UE_5.7/Engine/Plugins/...`). Cite line numbers in spec/commit messages. Past sessions caught real defects (`TC_BC4`, `TEXTUREGROUP_Bake`, `FStringOutputDevice`) by grounding before committing.
 3. **"Use the right tool for the job"** — Python or C++ as fits. Don't dogmatically prefer one. The bridge is Python; the plugin is C++; bespoke per-asset operations route through `execute_unreal_python` rather than getting their own handler.
-4. **"After every PR, check codex and gemini comments"** — both bots review automatically. Standard workflow:
+4. **"After every PR, check codex and gemini comments, then merge yourself"** — both bots review automatically. Standard workflow:
    - Open PR
    - Wait 1–3 minutes for codex (`chatgpt-codex-connector[bot]`) and Gemini (`gemini-code-assist[bot]`) to post
    - `gh api repos/NAJEMWEHBE/UnrealClaudeMCP/pulls/<N>/comments` to fetch inline findings
    - Categorize each finding: **already-fixed** / **valid-and-apply** / **valid-but-better-alternative** / **dismiss-with-rationale**
-   - Apply valid findings (or your better alternative) on a follow-up branch + PR
+   - Apply valid findings (or your better alternative) as new commits on the same branch; push and re-verify. **Pushing the fix commit triggers a new review cycle** — wait for bot comments on the new commits (1–3 min) before merging, so the fixes themselves don't go unreviewed.
    - Document deferrals explicitly in the original PR's description
+   - **Merge the PR yourself** once `gh pr view <N> --json mergeStateStatus,statusCheckRollup` shows clean state and CI is green. Use `gh pr merge <N> --merge` (real merge commit). The merge-strategy choice itself is stylistic; the load-bearing process rule from PR #24's incident is the *timing* one (verify the PR is still open before pushing follow-ups — never push to a closed branch). The orphaned-merge incidents from PR #26 and PR #32 add the corollary: prefer `gh pr merge` over the GitHub UI's merge button so the merge is authoritative against the *current* branch tip rather than a cached one that may miss late commits. When your judgment differs from a bot suggestion and you have source-grounded reasoning, your opinion wins (per the user's directive: *"if you find your opinion is better than them or suitable or more honest and efficient, go with your opinion"*).
 5. **"Make them all"** (used when committing to a roadmap) — when the user authorizes a multi-bundle plan, push through all of them rather than splitting up the commitment.
 
 ---
