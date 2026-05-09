@@ -6,37 +6,37 @@ Single source of truth for resuming work on UnrealClaudeMCP in a fresh Claude Co
 
 ## Project at a glance
 
-**What this is:** An Unreal Engine 5.7 plugin + Python bridge that exposes editor automation to MCP clients (Claude Code, etc.) over a localhost TCP socket. The plugin adds a JSON-RPC server inside the editor; each "handler" is one MCP tool (~150 LoC of C++ in `Source/UnrealClaudeMCP/Private/MCP/Handlers/`). The bridge translates between Claude Code's stdio MCP protocol and the plugin's TCP wire format.
+**What this is:** An Unreal Engine 5.7 plugin + Python bridge that exposes editor automation to **any MCP-compliant client** (Claude Code, Codex CLI, Cursor, Gemini CLI, Continue, …) over a localhost TCP socket. The plugin adds a JSON-RPC server inside the editor; each "handler" is one MCP tool (~150 LoC of C++ in `Source/UnrealClaudeMCP/Private/MCP/Handlers/`). The bridge translates between the client's stdio MCP protocol and the plugin's TCP wire format. **Vendor-neutral by design** — the wire protocol is open MCP (created by Anthropic, but any conforming client works); the project's repo/folder names retain "Claude" for legacy reasons but the capability is universal.
 
-**Where it stands:** v0.12.0 — **52 tools total** (49 UE-side handlers + 3 bridge-side synthetic tools). Tier 1 (ergonomic wins) and **Tier 2 (the autonomy multipliers — editor event push, task tracking, persistent Python REPL)** are fully shipped. The language-shim experiment proposed in PR #37 has run; the conclusions are codified in `docs/LANGUAGE-CHOICE-RETROSPECTIVE.md` and as new directive #7 below.
+**Where it stands:** **60 tools total** (57 UE-side handlers + 3 bridge-side synthetic tools). Tier 1 + Tier 2 fully shipped (Tier 1: ergonomic wins; Tier 2: autonomy multipliers — editor event push, task tracking, persistent Python REPL). **Tier 3 is mid-sprint** — 7 new feature handlers shipped this session (PRs #48-#56) plus 2 cleanup PRs (#53, #57). Animation introspection trio is complete (`inspect_anim_blueprint` + `inspect_skeletal_mesh` + `inspect_anim_montage`, all cross-linked via shared `skeleton` asset path). Asset-introspection coverage now includes static mesh, niagara system, anim BP, skeletal mesh, anim montage, landscape (scene actor, not asset).
 
-**What's NOT in main yet:** nothing in flight. All Tier 2 PRs (#40-#45) and the language-shim experiment (PR #46) are merged. Live verification on the host machine is still pending — see "Verification status" below.
+**What's NOT in main yet:** nothing in flight. All 10 PRs from the 2026-05-09 / 2026-05-10 sprint are merged. Live verification on the host machine is **still pending** — runbook below now expects 57 UE handlers (was 49).
 
 ---
 
 ## Open work + pending verification
 
-**Open PRs:** none. As of end of 2026-05-09 session, every PR opened in this session has merged (PR #38 through PR #46 — 9 PRs, ~5500 LoC total).
+**Open PRs:** none. As of end of 2026-05-10 session, every PR opened in this session has merged (PR #48 through PR #57 — 10 PRs).
 
-**Latest commit on main:** `e8d8bfb` (merge of PR #46).
+**Latest commit on main:** `ed63b41` (merge of cleanup PR #57).
 
-**This session's PRs (chronological, all 2026-05-09):**
+**This sprint's PRs (chronological, 2026-05-09 → 2026-05-10):**
 
-Tier 1 closeout:
-- PR #39 — `get_console_variable` + `set_console_variable` (paired CVar handlers; closes Tier 1 fully). Codex P2 caught precision loss in `%g` truncation; fixed via `%.17g` + integer-detection.
+Tier 3 features (7 new tools):
+- PR #48 — **`screenshot_actor`** (synthetic tool, bridge-side). Composes `focus_actor` + `get_viewport_screenshot`. The two-round-trip composition is structurally *more correct* than a single C++ handler — UE's game thread runs at least one tick between the bridge's separate JSON-RPC requests, so the screenshot captures the post-camera-move frame. Synthetic-tool count: 3 → 4 → 3 (no net change after the cleanup retraction).
+- PR #49 — **`duplicate_asset`** (C++ handler, first Codex co-developed PR). Clean wrap of `UEditorAssetLibrary::DuplicateAsset` for variant scaffolding. Critical UE 5.7 detail: `DuplicateAsset` returns `UObject*` (nullptr on failure), NOT `bool` like `RenameAsset`/`MoveAsset` — `EditorScriptingUtilities` is inconsistent about success-signaling across siblings.
+- PR #50 — **`list_tasks`** (C++ handler, builds on Tier 2's `FUCMCPTaskRegistry`). Adds `Snapshot()` method to the registry; new handler with `status_filter` / `type_filter` / `limit`. First PR with **Sonnet pre-reviewer agent** (caught 2 P1 findings before push).
+- PR #51 — **`inspect_niagara_system`** (C++ handler, UNiagaraSystem introspection). First PR with **Sonnet code-explorer brief** (researched APIs in advance) + Sonnet pre-reviewer + Opus FINAL synthesis review. Critical: `UNiagaraSystem` uses `LoadBehavior=LazyOnDemand` — `EnsureFullyLoaded()` MUST be called before reading emitter handles or exposed parameters.
+- PR #52 — **`inspect_anim_blueprint`** (C++ handler, UAnimBlueprint introspection). 4-agent multi-agent pattern. Cross-links to `inspect_skeletal_mesh` and `inspect_anim_montage` via shared skeleton.
+- PR #53 — **Cleanup PR #1**: 9 bot findings cleared in one batched PR (PRs #48-#52). Real semantic bug: `BS_Error` case missing in `BlueprintStatusToString` — compile-failed BPs were silently mapped to "Unknown".
+- PR #54 — **`inspect_landscape`** (C++ handler, scene-actor introspection — *first Inspect\* handler that takes an actor reference, not an asset path*). Landscapes have no `.uasset`; lookup via `TActorIterator<ALandscape>` + label/GUID match. Adds `Landscape` Build.cs dep (runtime-only, NOT `LandscapeEditor`).
+- PR #55 — **`inspect_skeletal_mesh`** (C++ handler, USkeletalMesh introspection). Method-name trap: skeletal mesh = `GetLODNum()`, static mesh = `GetNumLODs()`. `GetResourceForRendering()` is nullable; null-guard required.
+- PR #56 — **`inspect_anim_montage`** (C++ handler, UAnimMontage introspection — completes the animation introspection trio). Opus-solo PR (Codex usage limit hit). Six `WITH_EDITORONLY_DATA` deprecated fields explicitly avoided.
+- PR #57 — **Cleanup PR #2**: 3 bot findings cleared (PRs #54-#55), 1 Gemini "high" dismissed as false positive (claimed `EditorScriptingUtilities` Build.cs dep was missing — verified at `Build.cs:19`, has been a dep since PR #46).
 
-Tier 2 entrypoint (the autonomy multiplier — UE → Claude callbacks):
-- PR #40 — **`FUCMCPEventBus` ring buffer + `poll_events` handler + 3 starter delegates** (`actor_spawned`, `actor_deleted`, `asset_added`). Architecture: type-agnostic ring (mirrors `LogCapture`), `FCriticalSection` + `thread_local` re-entrancy guard, monotonic int64 seq with drop detection. Codex P1 caught off-by-one cursor (was exclusive `<=`, must be inclusive `<` to match the documented "pass `next_seq` back" contract); Gemini caught early-return-with-garbage-metadata when `MaxCount<=0`. Both addressed; design simpler than the C++/transport alternatives ruled out in the spec.
-- PR #41 — 5 more delegate subscriptions (`asset_removed`, `asset_renamed`, `asset_post_import`, `level_post_save`, `map_changed`). Pure additive; **8 event types total**. Gemini caught missing `class_path` in two payloads + literal bit-shift in `MapChange` flags; both fixed.
-- PR #42 — **`wait_for_events` long-poll**, redesigned as a **bridge-side synthetic tool** after Codex's P1 finding that a UE-side blocking handler would freeze the game thread (which is also where most editor delegates fire — making the wait useless for game-thread events). Set the precedent for `SYNTHETIC_TOOLS` in the bridge.
-- PR #43 — Server-side subscriptions (`register_subscription` / `unsubscribe` / `poll_subscription`). Both bots independently caught the same cursor-advance bug (filter-rejected events were re-scanned on every poll); fixed.
-- PR #44 — **`FUCMCPTaskRegistry` framework + `start_sleep_task` tracer + `poll_task` + `cancel_task`**. Cooperative-cancellation discipline (no safe forced thread termination in UE 5.7). Both bots independently caught cast-before-clamp on `duration_ms`; fixed.
-- PR #45 — **Persistent Python REPL** (`exec_python_persistent` + `reset_python_state`). Implementation collapsed to a one-line change: UE's `FPythonCommandEx` already has `FileExecutionScope::Public` for shared globals. Both bots caught missing temp-file pattern in `reset_python_state`; fixed.
+**12 bot findings cleared across 2 cleanup PRs**, including 2 real semantic bugs (`BS_Error`, `package_path` field-name-vs-shape mismatch). The optimistic-merge rhythm (directive #7) makes this trade explicit: ship faster, accept ~30% findings → cleanup PR.
 
-Language-shim experiment + workflow strategy:
-- PR #46 — **2 C++ handlers (`find_console_variables`, `inspect_static_mesh`) + 2 bridge-side synthetic shims (`get_camera_transform`, `set_camera_transform`)**. Comparison codified in `docs/LANGUAGE-CHOICE-RETROSPECTIVE.md` addendum. Findings: shims win for write-only setters wrapping Python-reachable APIs (~3× shorter LoC); C++ wins for struct access and registry iteration; getter shims pay a "marker-pattern tax". Codex P1 + 4 Gemini findings addressed in the fix commit; one Gemini finding dismissed with rationale (consistency with all other inspect/compile/etc. handlers using `UEditorAssetLibrary::LoadAsset`).
-
-**Verification status:** live verification on the host machine is **still pending**. The runbook below is unchanged in shape from the prior session, but the assertions need bumping (now 49 UE handlers register at startup, not 36; smoke test could exercise the new event/task/REPL surface). When you next have access to the host machine, start there.
+**Verification status:** live verification on the host machine is **still pending**. The runbook below is unchanged in shape, but the assertions need bumping (now **57 UE handlers** register at startup, not 49). When you next have access to the host machine, start there.
 
 **Verification runbook** (6 steps, PowerShell, run on the user's host machine):
 
@@ -48,18 +48,28 @@ Language-shim experiment + workflow strategy:
    ```
    Robocopy exit codes 0–7 mean success. The `/XD Binaries Intermediate` exclusion preserves the host's UBT cache so step 4 stays incremental.
 4. `& "F:\UE_5.7\Engine\Build\BatchFiles\Build.bat" <HostProjectName>Editor Win64 Development -project="<full path to host .uproject>"` — must end with `Result: Succeeded`. The target is `<HostProjectName>Editor`, NOT `<PluginName>Editor`. For the canonical `UnrealClaudeMCPTest` host project, that's `UnrealClaudeMCPTestEditor`.
-5. Open the host `.uproject` in UE editor; confirm **49 UE handlers register** in the Output Log. Filter by `LogUCMCPHandler` and you should see exactly 49 lines `Registered handler '<name>'`. The TCP server then binds `127.0.0.1:18888` (~10s on warm DDC, 1–5 min cold). With the module: `$proc = Start-UCMCPEditor -ProjectPath "<full path>"; $ready = Wait-UCMCPReady; $check = Test-UCMCPHandlers -LogPath "<host-project>\Saved\Logs\<HostProjectName>.log" -ExpectedCount 49`.
-6. **Smoke** — `py -3 examples\smoke_test.py --material-instance /Game/SmokeTest_MI --sequence /Game/SmokeTest_LS`. Note: smoke_test was last updated for 36 handlers; it still works against the registered set but doesn't exercise the new event/task/REPL/camera surface. Adding sections for those is a reasonable post-verification follow-up.
+5. Open the host `.uproject` in UE editor; confirm **57 UE handlers register** in the Output Log. Filter by `LogUCMCPHandler` and you should see exactly 57 lines `Registered handler '<name>'`. The TCP server then binds `127.0.0.1:18888` (~10s on warm DDC, 1–5 min cold). With the module: `$proc = Start-UCMCPEditor -ProjectPath "<full path>"; $ready = Wait-UCMCPReady; $check = Test-UCMCPHandlers -LogPath "<host-project>\Saved\Logs\<HostProjectName>.log" -ExpectedCount 57`.
+6. **Smoke** — `py -3 examples\smoke_test.py --material-instance /Game/SmokeTest_MI --sequence /Game/SmokeTest_LS`. Note: smoke_test was last updated for 36 handlers; it still works against the registered set but doesn't exercise the new Tier 2/3 surface. Extending it to cover events / tasks / Python REPL / inspect_* family is a reasonable post-verification follow-up.
 
-**New live-verification scenarios to spot-check (Tier 2 + experiment surface):**
+**Live-verification scenarios for Tier 2 surface:**
 - `poll_events {}` once after editor startup → returns startup-flood events; subsequent polls with `next_seq` show only newly-fired
 - `spawn_actor Cube` → `poll_events` returns `actor_spawned` with the cube's payload
 - `register_subscription { event_filter: ["actor_spawned"] }` → `spawn_actor` → `poll_subscription` returns the spawn; cursor advances; subsequent poll returns nothing new
 - `start_sleep_task { duration_ms: 5000 }` → returns task_id; `poll_task` shows running; after 5s shows completed with `slept_ms: 5000`. `cancel_task` mid-sleep → 50ms later poll shows cancelled
+- `list_tasks { status_filter: "completed", limit: 10 }` → returns up to 10 completed tasks with `total/matched/returned` counts
 - `exec_python_persistent { code: "x = 5" }` then `exec_python_persistent { code: "unreal.log(f'__X__{x}__END__')" }` → second call sees `x` from first
 - `find_console_variables { prefix: "r.Lumen." }` → returns Lumen CVars
-- `inspect_static_mesh { path: "/Engine/BasicShapes/Cube" }` → returns LOD 0 stats + bounds
-- `get_camera_transform {}` → location + rotation; `set_camera_transform { location: { x:0, y:0, z:1000 }, rotation: { pitch:-90 } }` → camera snaps top-down (rotation.yaw/roll preserved per Codex P1 fix); follow-up `get_camera_transform` confirms
+- `get_camera_transform {}` → location + rotation; `set_camera_transform { location: { x:0, y:0, z:1000 }, rotation: { pitch:-90 } }` → camera snaps top-down; follow-up `get_camera_transform` confirms
+
+**Live-verification scenarios for Tier 3 surface (NEW this sprint):**
+- `screenshot_actor { name: "Cube" }` → returns base64 PNG with `focused`, `loc`, dimensions; viewport reframes on cube before capture
+- `duplicate_asset { path: "/Game/SmokeTest_MI", dest_path: "/Game/SmokeTest_MI_Copy" }` → returns `dest_path` from engine ground-truth (`Duplicated->GetPathName()`)
+- `inspect_static_mesh { path: "/Engine/BasicShapes/Cube" }` → returns LOD 0 stats + bounds `{min, max, size, center}` (not just min/max — cleanup PR #53 expanded shape)
+- `inspect_niagara_system { path: "/Game/FX/NS_Foo" }` → returns emitters, user parameters, warmup, fixed_bounds; **`package_path`** field (NOT `path`)
+- `inspect_anim_blueprint { path: "/Game/Animation/ABP_Hero" }` → returns parent class, target_skeleton (asset path), state machines, anim functions, sync groups, `blueprint_status` (incl. `Error` case)
+- `inspect_landscape {}` → returns the sole landscape; or with `name`/`guid` filter to disambiguate. **Errors `ambiguous_landscape` whenever Matches > 1**, regardless of filter (PR #57 hardening).
+- `inspect_skeletal_mesh { path: "/Game/Characters/Hero/SK_Hero" }` → LOD geometry via `GetResourceForRendering->LODRenderData`, skeleton path (cross-link to `inspect_anim_blueprint::target_skeleton`), bones, materials, **valid morph targets only** (nulls filtered after PR #57)
+- `inspect_anim_montage { path: "/Game/Animation/AM_Attack" }` → composite sections with start/end times, slot tracks, notifies, frame_rate as `{numerator, denominator}`
 
 ---
 
@@ -80,6 +90,9 @@ These are explicit user instructions that override default Claude behavior. They
    - **Pipeline concurrency**: the moment PR N is pushed, start PR N+1 on a fresh branch (filling the bot-review wait window with productive work). Mind branch conflicts on common files (module.cpp, bridge.py, tests/test_bridge.py, manifest.json, TOOLS.md).
    - **Fix-while-write**: Codex addresses bot findings on PR N while Claude is implementing PR N+1; saves the context-switch cost. Requires Codex to know the established patterns.
    See `~/.claude/projects/<project>/memory/codex-collaboration-model.md` for the full pattern. **Verify the Codex tooling is reachable on session start** (`ToolSearch query="codex"` or `Bash codex --help`); if not, ask the user how to invoke it before guessing.
+9. **(NEW 2026-05-10)** **"Multi-agent fleet, not just Codex+Claude."** The Tier 3 sprint expanded the agent fleet: Codex stays for C++ specialty; **Sonnet code-explorer** runs *one PR ahead* researching UE 5.7 APIs (during Codex's wall-clock wait window for the current PR); **Sonnet code-reviewer** can pre-review staged Python work; **Opus does the FINAL synthesis review** of Codex's C++ + Python wiring read together as one coherent change before commit. Strict role assignment per model strength: Opus on synthesis review (highest reasoning quality), Codex on C++, Sonnet on read-only research/review. **Critical:** the `general-purpose` Sonnet subagent's `Edit`/`Write` calls do NOT persist to the host working tree (sandbox isolation) — never delegate Python coding to it; Opus does Python directly when not delegated to Codex. See `~/.claude/projects/<project>/memory/feedback_multi_agent_workflow.md` for the full pattern + lesson log.
+10. **(NEW 2026-05-10)** **"Vendor-neutral MCP — supports all clients, not just Claude Code."** The protocol is open MCP; Codex CLI, Cursor, Gemini CLI, Continue, etc. all work without code changes. Tool descriptions, manifest entries, and docs MUST use vendor-neutral language ("the LLM client", "the AI agent", or just describe what the tool does). DO NOT rename the repo / plugin folder / bridge filename — those are decorative legacy. DO surface multi-client support in `README` / `docs` when convenient. See `~/.claude/projects/<project>/memory/feedback_vendor_neutral_mcp.md`.
+11. **(NEW 2026-05-10)** **"Opus does the review."** When the user says "review", that's Opus reviewing the AGGREGATE — Codex's C++ + Sonnet's contributions + the explorer brief — together as one coherent PR, against UE 5.7 source, sibling patterns, and the bot-finding catalog. Opus may also code (especially small fixes, or when Codex is unavailable). The synthesis review catches cross-language semantic gaps that single-language reviews miss — caught real bugs on PR #51 (`effect_type` field-vs-consumer mismatch), PR #54 (ambiguity guard not firing on filtered queries), PR #55 (`package_path` shape mismatch). **Verify cross-language coherence:** every field declared in the manifest's `returns` block must be emitted by the C++ in the matching shape, and field NAMES must imply consistent SHAPES across sibling handlers (the `package_path` lesson).
 
 ---
 
@@ -116,6 +129,18 @@ These are the bugs that bit prior sessions. Don't re-discover them.
 | **(NEW 2026-05-09)** **Off-by-one cursor on poll-with-pass-next-seq-back contracts.** If your handler documents "pass `next_seq` back as `since_seq` for the next poll" AND the filter is exclusive (`>`), the very next event (whose seq exactly equals the previous `next_seq`) is silently skipped on every poll — deterministic event loss with `dropped=false`. | Use **inclusive** cursor semantics: filter `seq < since_seq` to skip (return `seq >= since_seq`). Drop detection: `since_seq < first_seq_in_buffer`. See `EventBus.cpp::Snapshot`. |
 | **(NEW 2026-05-09)** **`set_*` handlers with optional fields default-to-zero is destructive.** If a setter has optional `location`/`rotation`/etc. fields and defaults missing fields to `0`, callers supplying only one side silently snap the other to origin/identity. | Either reject partial-update calls explicitly, OR read the current state first and preserve omitted sides. PR #46's `set_camera_transform` does the latter (extra round-trip cost on partial updates, full updates skip the read). |
 | **(NEW 2026-05-09)** **`UEditorAssetLibrary::LoadAsset` is the established pattern across all inspect/compile/move/rename/delete handlers.** Even if `LoadObject<UObject>` would technically avoid the `EditorScriptingUtilities` dependency, that dep is already declared in `Build.cs` for many other handlers — switching one handler creates a precedent inconsistency. | Follow the established pattern. Per directive #4, when source-grounded reasoning supports your judgment, your opinion overrides bot suggestions. PR #46 dismissed Gemini's `LoadObject` suggestion for `Handler_InspectStaticMesh` on this basis. |
+| **(NEW 2026-05-10)** **`GetClass()->GetName()` returns the CLASS taxonomy, not the instance/asset identity.** PR #51's `effect_type` was emitting `"NiagaraEffectType"` for every result regardless of which effect type was set. | For asset references in result fields, use **`Asset->GetPathName()`** — the engine ground-truth asset path. Never `GetClass()->GetName()` for asset identity. PR #51 fix; applied to every Inspect* handler since. |
+| **(NEW 2026-05-10)** **Switch on a UE enum requires enumerating the COMPLETE value set, not just the prevalent ones.** `BlueprintStatusToString` was missing `BS_Error` and silently mapped compile-failed BPs to `"Unknown"` — masking real errors. | When mapping a UE enum to strings, **enumerate every value the enum can take** (check the enum declaration). The `default` case is for forward compat with future-version additions, not a substitute for handling current values. PR #52 → cleanup PR #53. |
+| **(NEW 2026-05-10)** **Field-name-to-shape contract is cross-handler.** `inspect_static_mesh::package_path` returns the suffix-free package path; if `inspect_skeletal_mesh::package_path` returns the object path (with `.Name` suffix), callers parsing both get structurally different strings under the same name. | When emitting a field, verify its shape matches sibling handlers using the same field name. Specifically: `package_path` = suffix-free; `bounds` / `fixed_bounds` / `loaded_bounds` = `{min, max, size, center}` (NOT just `{min, max}`); `*_path` fields = `GetPathName()`. PR #55 fix; PR #57 caught the same issue on `inspect_landscape::loaded_bounds`. |
+| **(NEW 2026-05-10)** **Bounds shape convention is `{min, max, size, center}` across all Inspect* handlers.** `inspect_static_mesh` set the precedent (PR #46); cleanup PR #53 expanded `inspect_niagara_system::fixed_bounds` to match; every handler since (skeletal mesh, landscape) ships with this shape. | Use `Bounds.GetSize()` and `Bounds.GetCenter()` (FBox) or `FBoxSphereBounds.GetBox()` first then derive — and emit all four fields. Don't ship `{min, max}`-only or sibling consistency breaks. |
+| **(NEW 2026-05-10)** **Synthetic tools must preserve upstream RPC error codes.** `synthetic_screenshot_actor` was rewrapping every `call_ue` failure as `-32603`, masking transport-level codes (`-32099` UE unreachable, `-32700` non-JSON). Clients couldn't distinguish retryable connectivity errors from logical errors. | When a synthetic tool's underlying `call_ue` returns an error, propagate `upstream_err.get("code", -32603)` rather than hardcoding `-32603`. Keep the enriched semantic message prefix (e.g. `"screenshot_actor: focus_failed: ..."`) but pass the original code through. See `synthetic_get_camera_transform` for the canonical pattern. PR #48 → cleanup PR #53. |
+| **(NEW 2026-05-10)** **TArray of TObjectPtr can have null entries** (deleted-but-unsaved morph targets, reimport scenarios, partial-load states). Emitting empty strings for nulls AND counting them in the size field gives `count=5, names=["A","","C","",""]` — confusing semantics. | Filter nulls when iterating; report count of valid entries only. PR #55 → cleanup PR #57 (morph_target_count fix). |
+| **(NEW 2026-05-10)** **For UE actor lookup**: actor labels are conventionally case-INSENSITIVE; LandscapeGuid string formats vary (braces, hyphens). | Use `FString::Equals(NameFilter, ESearchCase::IgnoreCase)` for label match; parse GUID filter via `FGuid::Parse(...)` ONCE outside the loop, then compare native FGuid (exact, format-independent). PR #54 → cleanup PR #57. |
+| **(NEW 2026-05-10)** **Ambiguous lookup must error EVEN WITH a filter.** `inspect_landscape` only checked ambiguity when no filter; with duplicate actor labels or GUID collisions, a filtered query silently returned `Matches[0]` — but `TActorIterator` order is not stable, so the same request could return different actors across sessions. | Always error on `Matches.Num() > 1`, regardless of filter. Surface the filter values in the error message so the caller knows what to tighten. PR #54 → cleanup PR #57. |
+| **(NEW 2026-05-10)** **`UEditorAssetLibrary` lives in `EditorScriptingUtilities` module. That dep is ALREADY in `Build.cs:19`** — has been since PR #46. | Don't "fix" missing-Build.cs-dep findings without verifying via grep first. PR #55 Gemini "high" was a false positive based on PR text alone (Gemini didn't read Build.cs). |
+| **(NEW 2026-05-10)** **`dotnet.exe` Application Error popup (CLR exception `0xe0434352`)** = Codex's sandbox running UnrealBuildTool (UBT is .NET-based) and getting blocked from writing `~/AppData/Local/UnrealEngine/...`. The popup is annoying but harmless to the actual file output. | Bake an explicit "DO NOT run UBT / RunUAT / BuildPlugin" instruction at the top of every Codex prompt. Compilation runs on the host machine per the verification runbook, not in Codex's sandbox. See `memory/reference_codex_dotnet_ubt_crash.md`. |
+| **(NEW 2026-05-10)** **`general-purpose` Sonnet subagent file writes do NOT persist to the host working tree** (sandbox isolation). The agent's summary will report success, but `git status` will show no changes. | Don't delegate Python coding to `general-purpose` Sonnet; either Codex (via codex-rescue, which does persist) or Opus directly. Read-only Sonnet agents (code-explorer / code-reviewer) work fine — they output via summary, not file writes. See `memory/feedback_multi_agent_workflow.md`. |
+| **(NEW 2026-05-10)** **Codex CLI has metered usage; ~5+ heavy C++ dispatches per session can exhaust the daily quota.** Reset is on a clock (e.g. "try again at 3:14 AM"), not on demand. | Detect via short `duration_ms` (~280s) + result text mentioning "Upgrade to Pro" / "purchase more credits". Recovery: wait, upgrade tier, or have Opus take over the C++ for bounded work (Opus + explorer brief + sibling pattern is fully viable). See `memory/reference_codex_usage_limits.md`. |
 
 ### Vertical-slice task decomposition
 
@@ -296,35 +321,47 @@ These are real items either explicitly deferred or obvious follow-ups. **None ar
 
 ## Autonomy roadmap
 
-Surfaces beyond the current 52 tools that would meaningfully expand "Claude → Unreal" autonomy.
+Surfaces beyond the current 60 tools that would meaningfully expand "Unreal automation from any LLM client" autonomy.
 
-**Tier 1 (ergonomic wins):** ✅ FULLY SHIPPED
-- All 5 originally-proposed Tier 1 handlers landed across PRs #31-#39.
+**Tier 1 (ergonomic wins):** ✅ FULLY SHIPPED (PRs #31-#39)
 
-**Tier 2 (autonomy multipliers):** ✅ FULLY SHIPPED
-- ✅ Editor event push — `FUCMCPEventBus` + `poll_events` + 8 event types + `wait_for_events` + subscriptions (PRs #40-#43)
-- ✅ Long-running task tracking — `FUCMCPTaskRegistry` + `start_sleep_task` / `poll_task` / `cancel_task` (PR #44)
-- ✅ Persistent Python REPL — `exec_python_persistent` + `reset_python_state` via `FileExecutionScope::Public` (PR #45)
+**Tier 2 (autonomy multipliers):** ✅ FULLY SHIPPED (PRs #40-#46)
 
-**Tier 3 (coverage expansion — none started):**
-- ⏳ Asset diff tool, multi-editor coordination, Niagara/Animation/Landscape openers, workspace state save/restore, watch_log, build farm integration via task tracking, automation test hooks, screenshot_actor, duplicate_asset, bulk asset operations
+**Tier 3 (coverage expansion):** 🟡 IN PROGRESS (7 features + 2 cleanup PRs shipped 2026-05-09 / 2026-05-10)
+- ✅ `screenshot_actor` (PR #48 — synthetic)
+- ✅ `duplicate_asset` (PR #49)
+- ✅ `list_tasks` (PR #50 — builds on FUCMCPTaskRegistry)
+- ✅ `inspect_niagara_system` (PR #51)
+- ✅ `inspect_anim_blueprint` (PR #52)
+- ✅ `inspect_landscape` (PR #54 — scene actor, not asset)
+- ✅ `inspect_skeletal_mesh` (PR #55)
+- ✅ `inspect_anim_montage` (PR #56 — completes animation introspection trio)
+- ⏳ `inspect_widget_blueprint` extension (sibling to `inspect_blueprint` for Widget BPs)
+- ⏳ Asset diff tool: `diff_asset(path_a, path_b)`
+- ⏳ Bulk asset operations: `bulk_delete_assets`, `bulk_move_assets` (partial-success error handling non-trivial)
+- ⏳ Subscription TTL / Task TTL (Tier 2 follow-ups)
+- ⏳ More event types: `blueprint_compiled`, `mi_parameter_changed`
 - ⏳ Sequencer keyframe authoring, Movie Render Queue (via task tracking)
 - ⏳ Material graph editing (multi-PR)
+- ⏳ Build farm integration: `cook_project`, `package_project` (via task tracking)
+- ⏳ Automation test hooks: `run_automation_tests(filter)`
 
-**The natural NEXT move** (per the autonomy ladder): **a multi-PR Tier 3 sprint using the Codex collaboration model from directive #8.** This is the first time we have a co-developer; pick a target with several similar-shaped handlers (e.g. the openers — `inspect_niagara_system` / `inspect_anim_blueprint` / `inspect_landscape`) so the parallelism advantage is obvious from the first PR. Realistic estimate per the speed analysis: prior Tier 2's 6 PRs took ~3 hours sequentially; the same surface with pipeline parallelism could be ~1.5 hours.
+**The natural NEXT move:** continue the Inspect* family with `inspect_widget_blueprint` (siblings: complete the BP-family coverage), OR pivot to Tier 3 surfaces beyond Inspect* (asset diff, bulk ops, sequencer authoring). The multi-agent collaboration is now stable and well-tested — sprints of 3-5 PRs per agent rotation are sustainable. **Mind the Codex usage limit** (directive-supplemental finding): batch Codex-heavy work or rotate to Opus-direct C++ when budget runs low.
 
 ---
 
 ## How to resume in a fresh session
 
-1. Open a new Claude Code session in the same repo.
+1. Open a new session in the same repo (any MCP client — this works in Claude Code, Codex CLI, Cursor, Gemini CLI, etc.).
 2. Send: *"Read `docs/HANDOFF.md` and continue from there. The user is in autonomy mode — pick the next reasonable thing to do."*
-3. **Verify Codex tooling** (per directive #8): `ToolSearch query="codex"` and/or `Bash codex --help`. If reachable, the new collaboration model is live; if not, fall back to solo work and ask the user how to invoke the plugin.
-4. The fresh session reads this doc, absorbs the directives, sees 52 tools shipped, and proceeds.
+3. **Verify Codex tooling** (per directive #8): `ToolSearch query="codex"` and/or `Bash codex --help`. If reachable, the multi-agent collaboration model is live; if not, fall back to Opus-solo or ask the user how to invoke.
+4. **Verify the multi-agent fleet** (per directive #9): the explorer / reviewer subagents are usable in any session via the Agent tool with `subagent_type: "feature-dev:code-explorer"` / `"feature-dev:code-reviewer"` and `model: "sonnet"`. The `general-purpose` subagent works for research but **NOT for file writes** (sandbox isolation — see trap table).
+5. The fresh session reads this doc, absorbs the directives, sees **60 tools shipped**, and proceeds.
 
 For specific resumption:
-- *"Live-verify everything that landed in 2026-05-09's continuation"* → run the runbook at the top of this doc with the bumped 49-handler assertion + spot-check the new event/task/REPL/camera surface
-- *"Start Tier 3 with a co-developer task"* → pick `duplicate_asset` or `screenshot_actor` as the first delegated piece
+- *"Live-verify everything that landed in the 2026-05-09 / 2026-05-10 sprint"* → run the runbook at the top with the **57-handler assertion** + spot-check the new Tier 3 surface (full scenario list above)
+- *"Continue Tier 3 with the next handler"* → pick from the Tier 3 ⏳ list; `inspect_widget_blueprint` is the natural family-completion candidate
+- *"Run the multi-agent workflow"* → directive #9 + `memory/feedback_multi_agent_workflow.md`. Default pattern: dispatch Codex (C++) + Sonnet explorer (PR N+1 research) in parallel; do Python directly; Opus final synthesis review.
 - *"Continue from a specific deferred item"* → pick from the deferred-work section
 
 ---
@@ -346,3 +383,20 @@ For specific resumption:
 **What worked this session:** vertical slices. Source-grounded UE 5.7 API verification. Bot reviews on every PR (8 real bugs caught). Pre-empting known bug classes during integration (the trap table now has 6 new entries from this session's findings). Honest dismissal of one bot suggestion with rationale (LoadObject vs LoadAsset on PR #46). Redesign-don't-patch when the architectural critique is right (PR #42 wait_for_events moved from C++ to bridge).
 
 **What to watch:** my own propensity to repeat the same bug class across PRs (cast-before-clamp + missing temp-file pattern were both flagged twice in different PRs before I internalized the discipline). The trap table is the long-term mitigation. **Live verification is still pending** — host machine has not exercised the Tier 2 surface yet. Build-correctness risk is real for new C++ subsystems (EventBus, TaskRegistry); spec-level grounding helps but only live build proves it.
+
+**Session 2026-05-09 / 2026-05-10 (Tier 3 opening sprint + multi-agent expansion):**
+- 10 PRs merged: #48-#52 (5 features), #53 (cleanup), #54-#56 (3 features), #57 (cleanup). Tool count 52 → 60.
+- **Multi-agent fleet expanded** (directive #9): Codex (C++ specialty), Sonnet code-explorer (one PR ahead, API research), Sonnet code-reviewer (pre-merge review of staged work), Opus (FINAL synthesis review + integration). 4-agent pattern proved out on PRs #51-#52 and #54-#55. Sonnet `general-purpose` subagent for Python coding **does not persist writes** — discovered on PR #52, documented in trap table; Opus does Python directly going forward.
+- **Vendor-neutral framing** (directive #10): repo description updated, docs use vendor-neutral language. The protocol IS vendor-neutral (open MCP); the rebrand is decorative — Codex CLI, Cursor, Gemini CLI, etc. work without code changes.
+- **Opus-as-final-reviewer** (directive #11): caught real cross-language bugs that single-language reviews missed: PR #51's `effect_type` field-vs-consumer mismatch, PR #54's ambiguity guard not firing on filtered queries, PR #55's `package_path` shape inconsistency.
+- **12 bot findings cleared across 2 cleanup PRs** (#53, #57). Real semantic bugs caught: `BS_Error` enum case missing in `BlueprintStatusToString`, `package_path` returning object path not package path. One Gemini "high" dismissed as false positive (`EditorScriptingUtilities` Build.cs dep claimed missing, verified present).
+- **Codex usage limit hit mid-sprint** after ~8 dispatches (between PR #55 and #56). PR #56 was Opus-solo using the explorer brief in context — viable substitution path proved out.
+- **Animation introspection trio complete** — `inspect_anim_blueprint` + `inspect_skeletal_mesh` + `inspect_anim_montage` all cross-link via shared `skeleton` asset path. Emergent value: callers can stitch a complete pipeline view of an animated character through the three handlers.
+- **Cross-handler conventions now load-bearing**: bounds shape `{min, max, size, center}`; field names imply shapes (`package_path` = suffix-free; `*_path` fields = `GetPathName()`); enum-to-string switches enumerate the COMPLETE value set. New traps in the table.
+- **Two new memory files** for multi-agent operational lessons: `feedback_multi_agent_workflow.md` (role assignment, dispatch timing, sandbox-isolation gotcha), `feedback_vendor_neutral_mcp.md` (don't bake "Claude" into descriptions / docs). Plus `reference_codex_dotnet_ubt_crash.md` and `reference_codex_usage_limits.md` for operational-failure recovery.
+
+**The user's working style update:** even more speed-oriented than the prior session captured. Hits "go next" / "continue the workflow" repeatedly across the sprint. Will accept a small batch of post-merge findings as the cost of optimistic shipping. Treats Sonnet/Opus/Codex as a fleet to coordinate, not separate tools — explicitly authorized "use multiple agents in parallel; you do the FINAL review." Has expressed multiple times that vendor-specific language ("Claude Code") in docs / tool descriptions is *not* OK going forward.
+
+**What worked this sprint:** multi-agent rhythm (explorer one PR ahead → Codex implements → Opus reviews) shipped 7 features + 2 cleanups in ~6-8 hours. Trap-table pre-emption captured ~80% of would-be findings. Synthesis-review pass at Opus (cross-language) caught bugs that single-language pre-review didn't. Cleanup-PR cadence (~5 features → 1 cleanup) proved sustainable. **Honest dismissal of bot findings with rationale** continues to be valuable: Gemini's "missing Build.cs dep" was wrong; verifying via grep before "fixing" saved a no-op edit.
+
+**What to watch in the next session:** **live verification is STILL pending** — 13 new handlers (49 → 57) have shipped without a host build. Build risk is real, particularly for the new Niagara / Anim / Landscape / SkeletalMesh / AnimMontage handlers that touch unfamiliar UE module surfaces. Run the verification runbook at the top of this doc as the highest-priority next session start. Codex usage limits are real and will recur — plan accordingly.
