@@ -225,14 +225,33 @@ TArray<FUCMCPEvent> FUCMCPEventBus::PollSubscription(
     OutFirstSeqInBuffer = Ring[StartIndex].Seq;
     OutDropped = (Sub->NextSeq < OutFirstSeqInBuffer);
 
-    int64 HighestDeliveredSeq = Sub->NextSeq - 1;
-    for (int32 i = 0; i < Count && Out.Num() < MaxCount; ++i)
+    // Track the highest seq we INSPECTED, not just delivered. Filters are
+    // immutable for a subscription's lifetime (PR #43 design), so an event
+    // rejected by the filter on this poll will never match on any future
+    // poll either -- safe to skip it forever. This avoids O(N) rescan on
+    // every poll for subscriptions with selective filters (e.g. a sub
+    // filtered to "actor_spawned" while 100s of asset_added events fire
+    // would otherwise re-inspect the rejected events on every call).
+    // (Caught independently by Codex P2 and Gemini high-priority on PR #43.)
+    int64 LastInspectedSeq = Sub->NextSeq - 1;
+    for (int32 i = 0; i < Count; ++i)
     {
         const FUCMCPEvent& Entry = Ring[(StartIndex + i) % kRingSize];
         if (Entry.Seq < Sub->NextSeq)
         {
             continue;  // already-delivered to this subscriber
         }
+
+        // Stop here if we've hit MaxCount -- the unscanned events must
+        // remain available for the next poll. Critical: break BEFORE
+        // updating LastInspectedSeq, so the cursor doesn't advance past
+        // an event we never actually inspected.
+        if (Out.Num() >= MaxCount)
+        {
+            break;
+        }
+
+        LastInspectedSeq = Entry.Seq;
 
         // Apply per-sub event-type filter (substring match on EventType).
         if (Sub->EventFilter.Num() > 0)
@@ -250,16 +269,9 @@ TArray<FUCMCPEvent> FUCMCPEventBus::PollSubscription(
         }
 
         Out.Add(Entry);
-        HighestDeliveredSeq = Entry.Seq;
     }
 
-    // Advance the per-sub cursor past the highest delivered seq. Note:
-    // even if filter rejected events between Sub->NextSeq and the highest
-    // matched event, we don't advance past unmatched ones -- a later
-    // call with a different filter could legitimately want them. The
-    // server-side cursor strictly tracks "what THIS subscription has
-    // received under its own filter".
-    Sub->NextSeq = HighestDeliveredSeq + 1;
+    Sub->NextSeq = LastInspectedSeq + 1;
 
     return Out;
 }
