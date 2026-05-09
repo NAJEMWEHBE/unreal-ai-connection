@@ -674,6 +674,17 @@ TOOLS = [
         },
     },
     {
+        "name": "inspect_skeletal_mesh",
+        "description": "Read structural properties of a USkeletalMesh asset: per-LOD vertex / triangle / section counts, bounding box (min/max/size/center) + sphere radius, target USkeleton, total + raw bone counts, material slots, morph targets (count + names), clothing assets, physics asset. C++ handler; no new Build.cs deps (Engine module covers it). Mirrors inspect_static_mesh's bounds shape for cross-handler consistency.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "UE asset path of a USkeletalMesh, e.g. /Game/Characters/Hero/SK_Hero."},
+            },
+            "required": ["path"],
+        },
+    },
+    {
         "name": "get_camera_transform",
         "description": "Read the level-editor viewport camera transform. SYNTHETIC bridge-side handler (PR #46 language-shim experiment): composes execute_unreal_python + get_log_lines via the marker pattern. Returns { location: {x,y,z}, rotation: {pitch,yaw,roll} }.",
         "inputSchema": {

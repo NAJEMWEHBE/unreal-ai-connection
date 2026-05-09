@@ -2025,6 +2025,44 @@ Clear all user-defined names from UE Python's public globals dict. Pairs with `e
 
 ---
 
+## inspect_skeletal_mesh
+
+**Tier 3 (PR #55).** Read structural properties of a `USkeletalMesh`: per-LOD vertex / triangle / section counts, bounding box + sphere radius, target `USkeleton`, total + raw bone counts, material slots, morph targets, clothing assets, physics asset. Pairs with `inspect_static_mesh` (its non-skinned counterpart) and `inspect_anim_blueprint` (which references the same skeleton).
+
+**Why C++:** direct field access on `USkeletalMesh` and indirection through `GetResourceForRendering()->LODRenderData` for per-LOD geometry data — the Python equivalent would be multi-call FFI through `unreal.SkeletalMesh` + per-LOD reflection lookups, which UE 5.7's reflection layer doesn't expose cleanly.
+
+**Required Build.cs deps:** **none** — the runtime `Engine` module (already present) provides `USkeletalMesh`, `FSkeletalMeshRenderData`, `FReferenceSkeleton`, `UMorphTarget`, `UPhysicsAsset`, `UClothingAssetBase`. No new entries needed.
+
+**API name trap:** Skeletal mesh uses `GetLODNum()`, **not** `GetNumLODs()` (which is what the static-mesh sibling uses). Easy to mix up.
+
+**Critical defensive check:** `GetResourceForRendering()` can return `nullptr` on uninitialized meshes. The handler null-guards every access — when null, `num_lods` is 0 and `lods` is empty.
+
+**Params**
+- `path` (string, required) — UE asset path of a `USkeletalMesh`, e.g. `/Game/Characters/Hero/SK_Hero`.
+
+**Result**
+- `ok`, `name`, `package_path` (note: `package_path`, NOT `path` — sibling-consistent per cleanup PR #53)
+- `num_lods`, `total_vertices`, `total_triangles` (sums across all LODs)
+- `lods` (array of `{ index, vertices, triangles, section_count }`)
+- `bounds` (`{ min: {x,y,z}, max: {x,y,z}, size: {x,y,z}, center: {x,y,z} }`) — matches `inspect_static_mesh` and `inspect_niagara_system`'s `fixed_bounds` shape
+- `sphere_radius` (float) — from `FBoxSphereBounds.SphereRadius`; the imported-bounds sphere
+- `skeleton` (string) — asset path of the `USkeleton`. **Omitted** when `GetSkeleton()` returns null.
+- `bone_count` (int) — `FReferenceSkeleton::GetNum()` (includes virtual bones)
+- `raw_bone_count` (int) — `FReferenceSkeleton::GetRawBoneNum()` (imported only; excludes virtual)
+- `material_slots` (array of `{ index, slot_name, material_path }`) — `slot_name` is the FName from `FSkeletalMaterial`
+- `morph_target_count`, `morph_targets` (array of strings)
+- `has_clothing_assets` (bool — cached via `HasActiveClothingAssets()`), `clothing_asset_count` (int)
+- `physics_asset` (string) — asset path. **Omitted** when `GetPhysicsAsset()` returns null.
+
+**Errors:** `missing_required_field`, `asset_not_found`, `not_a_skeletal_mesh`.
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"inspect_skeletal_mesh","params":{"path":"/Game/Characters/Hero/SK_Hero"}}
+```
+
+---
+
 ## get_camera_transform
 
 **Language-shim experiment, PR #46 (Python shim — bridge-side synthetic tool).** Read the level-editor viewport camera's location and rotation.

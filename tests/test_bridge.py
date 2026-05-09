@@ -23,7 +23,7 @@ def test_tools_list_size():
     # Cross-checked against the manifest in test_manifest_sync.py; the absolute
     # number bumps with each new tool. Function name kept count-agnostic so
     # it doesn't drift behind the assertion (per Sonnet pre-review on PR #50).
-    assert len(bridge.TOOLS) == 58
+    assert len(bridge.TOOLS) == 59
 
 
 def test_each_tool_has_required_mcp_fields():
@@ -74,6 +74,7 @@ def test_tool_names_are_unique_and_match_handlers():
         "inspect_niagara_system",
         "inspect_anim_blueprint",
         "inspect_landscape",
+        "inspect_skeletal_mesh",
         "get_camera_transform",
         "set_camera_transform",
         "screenshot_actor",
@@ -315,6 +316,16 @@ def test_inspect_landscape_in_tools_catalog():
     assert props["guid"]["type"] == "string"
     # Critical: this handler does NOT take a 'path' field (diverges from siblings)
     assert "path" not in props
+
+
+def test_inspect_skeletal_mesh_in_tools_catalog():
+    """Tier 3: inspect_skeletal_mesh requires path. Returns LOD geometry
+    (via GetResourceForRendering->LODRenderData), bones, materials, morphs,
+    clothing, physics asset. Bounds shape matches sibling Inspect* handlers."""
+    t = next((t for t in bridge.TOOLS if t["name"] == "inspect_skeletal_mesh"), None)
+    assert t is not None
+    assert t["inputSchema"]["required"] == ["path"]
+    assert t["inputSchema"]["properties"]["path"]["type"] == "string"
 
 
 def test_get_camera_transform_is_synthetic():
@@ -880,7 +891,7 @@ def test_handle_tools_list_returns_all_tools():
     resp = bridge.handle({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
     assert resp["id"] == 2
     assert "tools" in resp["result"]
-    assert len(resp["result"]["tools"]) == 58
+    assert len(resp["result"]["tools"]) == 59
 
 
 # -------- handle: tools/call --------------------------------------------------
