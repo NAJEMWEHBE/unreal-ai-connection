@@ -17,10 +17,18 @@ import unreal_claude_mcp_bridge as bridge
 
 # -------- Parameterised round-trip across all 19 tools -----------------------
 
-@pytest.mark.parametrize("tool", [t["name"] for t in bridge.TOOLS])
+@pytest.mark.parametrize(
+    "tool",
+    [t["name"] for t in bridge.TOOLS if t["name"] not in bridge.SYNTHETIC_TOOLS],
+)
 def test_every_tool_routes_through_tools_call(tool):
     """tools/call with each registered tool name forwards to call_ue with
-    the exact name and the exact arguments dict."""
+    the exact name and the exact arguments dict.
+
+    Synthetic tools (bridge-side compositions like wait_for_events) are
+    excluded -- they intentionally don't follow the simple forward-to-UE
+    pattern. Their behavior is exercised by the dedicated tests in
+    test_bridge.py (test_wait_for_events_*)."""
     args = {"sentinel": tool}  # unique per tool
     with patch.object(bridge, "call_ue", return_value={"result": {}}) as m:
         resp = bridge.handle({

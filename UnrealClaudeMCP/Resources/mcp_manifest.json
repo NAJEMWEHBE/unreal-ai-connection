@@ -343,14 +343,15 @@
     },
     {
       "name": "wait_for_events",
-      "description": "Block briefly until matching editor events arrive, or timeout_ms expires. Same response shape and cursor semantics as poll_events; adds a bounded wait. Caveat: dispatcher runs on game thread, so wait freezes editor for up to timeout_ms. Default 500ms; hard cap 5000ms (clamped, not rejected, on over-cap).",
+      "description": "Bridge-side composition: repeatedly polls UE's poll_events until matching events arrive or timeout_ms expires. Implemented in the bridge (Python) rather than UE C++ so the wait runs in a separate process, leaving UE's game thread free to actually fire game-thread events during the wait.",
       "params": {
-        "timeout_ms": "int (optional, default 500, hard cap 5000) - max wait in ms",
+        "timeout_ms": "int (optional, default 500, hard cap 30000) - max wait in ms",
+        "poll_interval_ms": "int (optional, default 100, range 25-1000) - bridge-side polling cadence",
         "since_seq": "int (optional, default -1) - inclusive cursor",
         "max_count": "int (optional, default 100, max 1000) - cap returned events",
         "event_filter": "array of string (optional) - substring filters on event type"
       },
-      "returns": { "ok": "bool", "next_seq": "int", "first_seq_in_buffer": "int", "returned": "int", "dropped": "bool", "timed_out": "bool", "events": "array of {seq, event, ts, data}", "note": "string (only when timeout was clamped or dropped)" }
+      "returns": { "ok": "bool", "next_seq": "int", "first_seq_in_buffer": "int", "returned": "int", "dropped": "bool", "timed_out": "bool", "events": "array of {seq, event, ts, data}", "note": "string (only when dropped=true)" }
     }
   ]
 }

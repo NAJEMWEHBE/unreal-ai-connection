@@ -237,17 +237,168 @@ def test_poll_events_in_tools_catalog():
 
 
 def test_wait_for_events_in_tools_catalog():
-    """v0.11.x (Tier 2 PR #42): wait_for_events shares poll_events's cursor +
-    filter shape and adds an optional timeout_ms (int). All params optional."""
+    """v0.11.x (Tier 2 PR #42): wait_for_events is a SYNTHETIC tool served
+    bridge-side (composes poll_events); shares poll_events's cursor + filter
+    shape and adds optional timeout_ms (int) + poll_interval_ms (int). All
+    params optional."""
     t = next((t for t in bridge.TOOLS if t["name"] == "wait_for_events"), None)
     assert t is not None
     assert "required" not in t["inputSchema"] or t["inputSchema"].get("required") == []
     props = t["inputSchema"]["properties"]
     assert props["timeout_ms"]["type"] == "integer"
+    assert props["poll_interval_ms"]["type"] == "integer"
     assert props["since_seq"]["type"] == "integer"
     assert props["max_count"]["type"] == "integer"
     assert props["event_filter"]["type"] == "array"
     assert props["event_filter"]["items"]["type"] == "string"
+
+
+def test_wait_for_events_is_synthetic():
+    """The handler is bridge-side (no UE round-trip per outer call) -- it
+    must be registered in SYNTHETIC_TOOLS and bound to the corresponding
+    function so tools/call hits the bridge path, not call_ue."""
+    assert "wait_for_events" in bridge.SYNTHETIC_TOOLS
+    assert bridge.SYNTHETIC_TOOLS["wait_for_events"] is bridge.synthetic_wait_for_events
+
+
+def test_wait_for_events_returns_immediately_on_first_match():
+    """When poll_events returns events on the very first call, wait_for_events
+    must NOT sleep -- return immediately. Validates the no-stall fast path."""
+    fake_ue_resp = {
+        "jsonrpc": "2.0", "id": 1,
+        "result": {
+            "ok": True, "next_seq": 5, "first_seq_in_buffer": 0,
+            "returned": 1, "dropped": False,
+            "events": [{"seq": 4, "event": "actor_spawned", "ts": "x", "data": {}}],
+        },
+    }
+    with patch.object(bridge, "call_ue", return_value=fake_ue_resp) as m, \
+         patch.object(bridge.time, "sleep") as sleep_mock:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 99, "method": "tools/call",
+            "params": {"name": "wait_for_events", "arguments": {"timeout_ms": 1000}},
+        })
+    # call_ue called exactly once; no sleeps (events available immediately)
+    m.assert_called_once_with("poll_events", {})
+    sleep_mock.assert_not_called()
+    # Response is wrapped MCP tools/call, with timed_out=false
+    assert resp["id"] == 99
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert body["timed_out"] is False
+    assert body["events"][0]["event"] == "actor_spawned"
+
+
+def test_wait_for_events_polls_until_match():
+    """Two empty polls then a match -- caller should see the matched events,
+    timed_out=false, and exactly 3 call_ue invocations."""
+    empty = {"jsonrpc": "2.0", "id": 1,
+             "result": {"ok": True, "next_seq": 0, "first_seq_in_buffer": -1,
+                        "returned": 0, "dropped": False, "events": []}}
+    matched = {"jsonrpc": "2.0", "id": 1,
+               "result": {"ok": True, "next_seq": 1, "first_seq_in_buffer": 0,
+                          "returned": 1, "dropped": False,
+                          "events": [{"seq": 0, "event": "asset_added", "ts": "x", "data": {}}]}}
+    with patch.object(bridge, "call_ue", side_effect=[empty, empty, matched]) as m, \
+         patch.object(bridge.time, "sleep") as sleep_mock, \
+         patch.object(bridge.time, "monotonic", side_effect=[0.0, 0.05, 0.10, 0.15, 0.20]):
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 7, "method": "tools/call",
+            "params": {"name": "wait_for_events",
+                       "arguments": {"timeout_ms": 5000, "poll_interval_ms": 50}},
+        })
+    assert m.call_count == 3
+    # Two sleeps between three polls
+    assert sleep_mock.call_count == 2
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert body["timed_out"] is False
+    assert body["events"][0]["event"] == "asset_added"
+
+
+def test_wait_for_events_times_out_returns_timed_out_true():
+    """When deadline passes with no events, response.timed_out must be true
+    and events must be empty."""
+    empty = {"jsonrpc": "2.0", "id": 1,
+             "result": {"ok": True, "next_seq": 5, "first_seq_in_buffer": 0,
+                        "returned": 0, "dropped": False, "events": []}}
+    # monotonic sequence: start=0, after 1st poll=0.6 (past 500ms deadline)
+    with patch.object(bridge, "call_ue", return_value=empty), \
+         patch.object(bridge.time, "sleep"), \
+         patch.object(bridge.time, "monotonic", side_effect=[0.0, 0.6, 0.7]):
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 8, "method": "tools/call",
+            "params": {"name": "wait_for_events", "arguments": {"timeout_ms": 500}},
+        })
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert body["timed_out"] is True
+    assert body["events"] == []
+
+
+def test_wait_for_events_dropped_short_circuits():
+    """If poll_events returns dropped=true, the wait should return immediately
+    (don't keep polling -- the caller needs to re-sync regardless)."""
+    dropped_resp = {"jsonrpc": "2.0", "id": 1,
+                    "result": {"ok": True, "next_seq": 100, "first_seq_in_buffer": 50,
+                               "returned": 0, "dropped": True, "events": [],
+                               "note": "..."}}
+    with patch.object(bridge, "call_ue", return_value=dropped_resp) as m, \
+         patch.object(bridge.time, "sleep") as sleep_mock:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 9, "method": "tools/call",
+            "params": {"name": "wait_for_events",
+                       "arguments": {"since_seq": 5, "timeout_ms": 5000}},
+        })
+    m.assert_called_once()
+    sleep_mock.assert_not_called()
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert body["dropped"] is True
+    assert body["timed_out"] is False  # dropped takes precedence over timed_out
+
+
+def test_wait_for_events_clamps_out_of_range_params():
+    """timeout_ms > 30000 and poll_interval_ms < 25 are silently clamped to
+    the bracket (not rejected). Verified by checking the deadline math: the
+    handler must use the clamped values internally."""
+    matched = {"jsonrpc": "2.0", "id": 1,
+               "result": {"ok": True, "next_seq": 1, "first_seq_in_buffer": 0,
+                          "returned": 1, "dropped": False,
+                          "events": [{"seq": 0, "event": "x", "ts": "x", "data": {}}]}}
+    with patch.object(bridge, "call_ue", return_value=matched), \
+         patch.object(bridge.time, "sleep"):
+        # Should not raise -- clamping is silent
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 10, "method": "tools/call",
+            "params": {"name": "wait_for_events",
+                       "arguments": {"timeout_ms": 999999, "poll_interval_ms": 5}},
+        })
+    assert "result" in resp
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert body["timed_out"] is False
+
+
+def test_wait_for_events_rejects_non_integer_timeout():
+    """Non-integer timeout_ms must produce an error (not silently truncate)."""
+    resp = bridge.handle({
+        "jsonrpc": "2.0", "id": 11, "method": "tools/call",
+        "params": {"name": "wait_for_events", "arguments": {"timeout_ms": 1.5}},
+    })
+    assert "error" in resp
+    assert resp["error"]["code"] == -32602
+
+
+def test_wait_for_events_propagates_ue_error():
+    """If poll_events errors out, the bridge must surface it (not swallow it
+    or keep polling)."""
+    err_resp = {"jsonrpc": "2.0", "id": 1,
+                "error": {"code": -32099, "message": "UE down"}}
+    with patch.object(bridge, "call_ue", return_value=err_resp) as m, \
+         patch.object(bridge.time, "sleep") as sleep_mock:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 12, "method": "tools/call",
+            "params": {"name": "wait_for_events", "arguments": {}},
+        })
+    m.assert_called_once()
+    sleep_mock.assert_not_called()
+    assert resp["error"]["code"] == -32099
 
 
 def test_required_params_match_handler_contract():

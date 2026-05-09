@@ -1398,34 +1398,39 @@ Future PRs will add `blueprint_compiled` (no global delegate today; needs per-BP
 
 ## wait_for_events
 
-**Tier 2 PR #42 / v0.11.x.** Block briefly until matching editor events arrive, or `timeout_ms` expires. Same response shape, buffer, and cursor semantics as `poll_events`; just adds a bounded wait when the buffer has nothing new yet. If matching events are already buffered, returns immediately (no sleep at all).
+**Tier 2 PR #42 / v0.11.x — bridge-side composition tool.** Repeatedly calls `poll_events` at `poll_interval_ms` cadence until matching events arrive or `timeout_ms` expires. Same buffer, cursor semantics, and event payloads as `poll_events`; adds bounded waiting and a `timed_out` field.
 
-**Architectural caveat (load-bearing):**
+**Why this is implemented in the bridge (Python), not UE (C++):**
 
-The MCP dispatcher runs synchronously inside `FUCMCPServer::TickClients`, which is an `FTSTicker` callback on UE's **game thread**. A handler that waits for N ms therefore freezes the editor for up to N ms — visible to the user as cursor jitter, UI input lag, and viewport stutter. Until the dispatcher is refactored to support truly async handlers (a future bundle), `wait_for_events` enforces a **5000 ms hard cap** on `timeout_ms`. The default 500 ms is a reasonable balance between sub-second latency and editor responsiveness; values above the cap are silently clamped (with a `note` field surfacing the clamp).
+The MCP dispatcher runs synchronously inside `FUCMCPServer::TickClients`, which is an `FTSTicker` callback on UE's **game thread**. A C++ wait handler would freeze the same thread that *fires most editor delegates* (`actor_spawned`, `actor_deleted`, `map_changed`, `level_post_save`, etc., all game-thread events). Result: the wait would deterministically time out for game-thread events because the game thread is asleep — the events that should fire during the wait literally cannot fire.
 
-**When to use this vs `poll_events`:**
+The bridge runs in a separate Python process, so its `time.sleep` doesn't block UE at all. UE's game thread keeps running between polls (each poll is ~1ms under the bus's lock), events fire normally, and the wait actually waits for things that can happen.
 
-- **Use `poll_events`** for steady-state polling at human-meaningful intervals (1-2 s). Zero editor stall.
-- **Use `wait_for_events`** when you need sub-second latency for a specific reactive workflow ("user dropped a chair → reposition camera within 200 ms"), and the editor stall during the wait is acceptable.
+This is the first **synthetic tool** — a bridge-side implementation that composes UE handlers (`poll_events` here) into a higher-level operation. Future tools that compose multiple UE handlers without needing new C++ can follow this same pattern.
+
+**When to use `wait_for_events` vs `poll_events`:**
+
+- **`poll_events`** for steady-state polling at human-meaningful intervals (1-2 s). Single round-trip per call.
+- **`wait_for_events`** when you want sub-second latency for a specific reactive workflow ("user dropped a chair → reposition camera within 200 ms"). One MCP call → multiple cheap UE round-trips behind the scenes.
 
 **Params**
-- `timeout_ms` (int, optional, default `500`) — maximum wait in milliseconds. Hard cap `5000`; over-cap requests are clamped (not rejected) with a `note` in the response. Internally polls in 50 ms slices via `FPlatformProcess::Sleep`.
+- `timeout_ms` (int, optional, default `500`) — maximum wait in milliseconds. Hard cap `30000` (30 s); over-cap values are silently clamped.
+- `poll_interval_ms` (int, optional, default `100`, range `25-1000`) — bridge-side polling cadence. Lower = faster reaction but more UE round-trips. Below 25 ms the round-trip overhead dominates; above 1 s defeats the long-poll purpose. Out-of-range values are silently clamped to the bracket.
 - `since_seq` (int, optional, default `-1`) — same as `poll_events`: events with `seq >= since_seq` are returned (inclusive cursor).
 - `max_count` (int, optional, default `100`) — cap returned events. Hard max `1000`.
 - `event_filter` (array of string, optional) — substring filters on event type names; OR-combined.
 
 **Result** (same shape as `poll_events`, plus `timed_out`)
 - `ok` (bool)
-- `next_seq` (int) — pass back as `since_seq` on the next poll
+- `next_seq` (int) — pass back as `since_seq` on the next call
 - `first_seq_in_buffer` (int) — smallest seq currently buffered (or `-1` if empty)
 - `returned` (int) — count of events in `events`
-- `dropped` (bool) — caller's `since_seq` fell below `first_seq_in_buffer`
-- `timed_out` (bool) — `true` iff the wait elapsed without any matching events arriving (and `dropped` is also false). Distinguishes "nothing happened in the wait window" from "I missed events".
+- `dropped` (bool) — caller's `since_seq` fell below `first_seq_in_buffer` at some point during the wait
+- `timed_out` (bool) — `true` iff the wait elapsed without any matching events arriving (and `dropped` is also false). Distinguishes "nothing happened" from "I missed events".
 - `events` (array) — same shape as `poll_events`
-- `note` (string, only when `timeout_ms` was clamped or `dropped=true`) — diagnostic
+- `note` (string, only when `dropped=true`) — diagnostic
 
-**Errors:** `invalid_value_shape` (any of the optional params with the wrong type / non-finite / negative `timeout_ms`).
+**Errors:** `invalid_value_shape` (any of the optional numeric params with non-numeric or non-integer JSON type).
 
 **Example — wait up to 1 second for the next actor_spawned**
 ```json
@@ -1451,7 +1456,7 @@ The MCP dispatcher runs synchronously inside `FUCMCPServer::TickClients`, which 
 }}
 ```
 
-**Example — wait that times out**
+**Example — wait that times out (no events fired in the window)**
 ```json
 {"jsonrpc":"2.0","id":1,"result":{
   "ok": true,
@@ -1464,19 +1469,15 @@ The MCP dispatcher runs synchronously inside `FUCMCPServer::TickClients`, which 
 }}
 ```
 
-**Example — over-cap timeout, clamped**
+**Example — fast reaction (low poll interval)**
 ```json
 {"jsonrpc":"2.0","id":1,"method":"wait_for_events","params":{
-  "timeout_ms": 30000
+  "timeout_ms": 5000,
+  "poll_interval_ms": 50,
+  "event_filter": ["asset_post_import"]
 }}
 ```
-```json
-{"jsonrpc":"2.0","id":1,"result":{
-  "ok": true, "next_seq": 5001, "first_seq_in_buffer": 4001, "returned": 0,
-  "dropped": false, "timed_out": true, "events": [],
-  "note": "Requested timeout_ms exceeded the hard cap of 5000 ms (single-threaded dispatcher freezes the editor game thread during the wait); clamped."
-}}
-```
+At 50 ms polling, latency is bounded by ~50 ms + UE round-trip. UE round-trip is typically <5 ms on localhost, so total reaction time is ~55 ms.
 
 ---
 

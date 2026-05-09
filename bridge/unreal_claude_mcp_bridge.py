@@ -29,6 +29,7 @@ import json
 import os
 import socket
 import sys
+import time
 
 UE_HOST = os.environ.get("UCMCP_HOST", "127.0.0.1")
 UE_PORT = int(os.environ.get("UCMCP_PORT", "18888"))
@@ -494,11 +495,12 @@ TOOLS = [
     },
     {
         "name": "wait_for_events",
-        "description": "Block briefly until matching editor events arrive, or timeout_ms expires. Same response shape, buffer, and cursor semantics as poll_events; just adds a bounded wait when the buffer has nothing new. Caveat: the dispatcher runs synchronously on UE's game thread, so the wait freezes the editor for up to timeout_ms. Default 500ms; hard cap 5000ms (clamped with a 'note' if exceeded). Use only when sub-second event latency truly matters; the default 500ms is a reasonable balance between latency and editor responsiveness.",
+        "description": "Bridge-side composition of poll_events: repeatedly polls UE every poll_interval_ms until matching events arrive or timeout_ms expires. Implemented in the bridge (not as a UE handler) so the wait runs in this Python process -- UE's game thread keeps running between polls and game-thread events (actor_spawned, map_changed, etc.) actually fire during the wait. Same response shape and cursor semantics as poll_events, plus a 'timed_out' field. Default timeout 500ms; hard cap 30000ms (30s).",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "timeout_ms": {"type": "integer", "description": "Maximum time to wait in milliseconds. Default 500; hard cap 5000 (over-cap requests are clamped, not rejected). Sleeps in 50ms slices internally."},
+                "timeout_ms": {"type": "integer", "description": "Maximum time to wait in milliseconds. Default 500; hard cap 30000 (over-cap requests are clamped, not rejected)."},
+                "poll_interval_ms": {"type": "integer", "description": "Bridge-side polling cadence in milliseconds. Default 100; min 25; max 1000. Lower values reduce latency at the cost of more frequent UE round-trips."},
                 "since_seq": {"type": "integer", "description": "Same as poll_events: events with seq >= since_seq are returned. Default -1 (from oldest buffered)."},
                 "max_count": {"type": "integer", "description": "Cap returned events. Default 100; hard max 1000."},
                 "event_filter": {"type": "array", "items": {"type": "string"}, "description": "Substring-match filters on event type names; OR-combined."},
@@ -588,6 +590,91 @@ def call_ue(method, params):
         }
 
 
+def _wrap_tool_result(req_id, result_obj):
+    """Wrap a result object as an MCP tools/call response (JSON-stringified into a text block)."""
+    return make_response(req_id, {
+        "content": [{"type": "text", "text": json.dumps(result_obj, indent=2)}],
+        "isError": False,
+    })
+
+
+def synthetic_wait_for_events(req_id, args):
+    """Bridge-side wait_for_events. Polls UE's poll_events handler at
+    poll_interval_ms cadence until matching events arrive or timeout_ms
+    expires. Lives in the bridge (not UE) because:
+
+      - UE's MCP dispatcher runs on the game thread (FTSTicker callback).
+        A C++ wait handler would freeze the same thread that fires most
+        editor delegates -- the wait would deterministically time out
+        for game-thread events because the game thread is asleep.
+      - This Python loop runs in the bridge's separate OS process. UE's
+        game thread keeps running between polls (each poll is ~1ms under
+        the bus's lock), so events actually fire during the wait.
+
+    Latency is bounded by poll_interval_ms (default 100ms). Caller-supplied
+    timeout_ms is clamped to [0, 30000]; poll_interval_ms is clamped to
+    [25, 1000] (faster than 25ms is wasteful given network round-trip
+    overhead; slower than 1s defeats the purpose of long-poll).
+    """
+    # --- Validate + clamp params ---
+    def _coerce_int(name, default, lo, hi):
+        v = args.get(name, default)
+        if not isinstance(v, (int, float)) or isinstance(v, bool):
+            return None, f"wait_for_events: '{name}' must be a number, got {type(v).__name__}"
+        if v != int(v):
+            return None, f"wait_for_events: '{name}' must be an integer, got {v}"
+        v = int(v)
+        if v < lo or v > hi:
+            v_clamped = max(lo, min(hi, v))
+            return v_clamped, None  # clamp silently
+        return v, None
+
+    timeout_ms, err = _coerce_int("timeout_ms", 500, 0, 30000)
+    if err:
+        return make_response(req_id, error={"code": -32602, "message": err})
+
+    poll_interval_ms, err = _coerce_int("poll_interval_ms", 100, 25, 1000)
+    if err:
+        return make_response(req_id, error={"code": -32602, "message": err})
+
+    # --- Forward args (minus our local-only ones) to UE's poll_events ---
+    poll_args = {k: v for k, v in args.items() if k not in ("timeout_ms", "poll_interval_ms")}
+
+    deadline = time.monotonic() + (timeout_ms / 1000.0)
+    poll_interval_s = poll_interval_ms / 1000.0
+    last_result = None
+
+    while True:
+        ue_resp = call_ue("poll_events", poll_args)
+        if "error" in ue_resp:
+            return make_response(req_id, error=ue_resp["error"])
+
+        last_result = ue_resp.get("result", {}) or {}
+        events = last_result.get("events", []) or []
+        dropped = last_result.get("dropped", False)
+
+        # Match conditions: events arrived, OR caller missed events
+        # between polls (dropped state needs to be surfaced regardless),
+        # OR the deadline has passed.
+        if events or dropped:
+            last_result["timed_out"] = False
+            return _wrap_tool_result(req_id, last_result)
+
+        if time.monotonic() >= deadline:
+            last_result["timed_out"] = True
+            return _wrap_tool_result(req_id, last_result)
+
+        time.sleep(poll_interval_s)
+
+
+# Map of tool-name -> bridge-side synthetic implementation. These are
+# tools that don't have a corresponding UE handler -- the bridge composes
+# existing UE handlers (or implements pure-protocol logic) to serve them.
+SYNTHETIC_TOOLS = {
+    "wait_for_events": synthetic_wait_for_events,
+}
+
+
 def handle(req):
     method = req.get("method", "")
     req_id = req.get("id")
@@ -613,16 +700,17 @@ def handle(req):
         if not tool_name:
             return make_response(req_id, error={"code": -32602, "message": "tools/call missing 'name'"})
 
+        # Synthetic tools are served bridge-side without a UE round-trip
+        # (or, in wait_for_events's case, with multiple UE round-trips
+        # composed into one logical operation).
+        if tool_name in SYNTHETIC_TOOLS:
+            return SYNTHETIC_TOOLS[tool_name](req_id, tool_args)
+
         ue_resp = call_ue(tool_name, tool_args)
         if "error" in ue_resp:
             return make_response(req_id, error=ue_resp["error"])
 
-        # MCP tools/call expects content array. We wrap the result JSON as one text block.
-        result_text = json.dumps(ue_resp.get("result", {}), indent=2)
-        return make_response(req_id, {
-            "content": [{"type": "text", "text": result_text}],
-            "isError": False,
-        })
+        return _wrap_tool_result(req_id, ue_resp.get("result", {}))
 
     # Unknown method
     if req_id is not None:
