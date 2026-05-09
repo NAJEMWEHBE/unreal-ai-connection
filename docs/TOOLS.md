@@ -792,6 +792,33 @@ Rename an asset's leaf name. The containing folder does not change.
 
 ---
 
+## duplicate_asset
+
+Copy an asset to a new path. The source asset is preserved at its original location; the duplicate is created at `dest_path`.
+
+**Params**
+- `path` (string, required) — source asset path. Both forms accepted (with or without `.Name` suffix).
+- `dest_path` (string, required) — destination asset path. Must not already exist.
+
+**Result**
+- `ok` (bool)
+- `src_path` (string) — the source asset path (normalized)
+- `dest_path` (string) — the new asset path (normalized)
+
+**Errors:** `missing_required_field`, `asset_not_found`, `dest_exists`, `duplicate_failed`.
+
+**Behavior note:** Unlike `move_asset` and `rename_asset`, no redirector is created — duplication is a copy, not a relocation, so existing references continue to point at the source. Callers that want to switch references to the duplicate must update them explicitly. Like `save_asset`, a `duplicate_failed` error is most often a Source Control checkout failure or a destination folder that's read-only.
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"duplicate_asset","params":{
+  "path": "/Game/Textures/T_Stone",
+  "dest_path": "/Game/Textures/Variants/T_Stone_Mossy"
+}}
+```
+
+---
+
 ## delete_asset
 
 Delete an asset from the project. By default, refuses if any other package references the asset.

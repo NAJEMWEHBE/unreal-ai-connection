@@ -318,6 +318,18 @@ TOOLS = [
         },
     },
     {
+        "name": "duplicate_asset",
+        "description": "Copy an asset to a new path. Source asset is preserved; destination must not already exist. No redirector is created (callers reference the duplicate by its new path).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "Source asset path."},
+                "dest_path": {"type": "string", "description": "Destination asset path (must not exist)."},
+            },
+            "required": ["path", "dest_path"],
+        },
+    },
+    {
         "name": "delete_asset",
         "description": "Delete an asset. Refuses if referenced by other packages unless force=true. WARNING: deletion is permanent within the project; force-delete cannot recover via Undo.",
         "inputSchema": {
