@@ -17,6 +17,11 @@
 
 #include "MCP/MCPHandler.h"
 #include "IPythonScriptPlugin.h"
+#include "Misc/Paths.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Guid.h"
+#include "Misc/ScopeExit.h"
+#include "HAL/FileManager.h"
 
 class FHandler_ResetPythonState : public IUCMCPHandler
 {
@@ -48,8 +53,39 @@ public:
             "except NameError:\n"
             "    pass\n");
 
+        // ExecuteFile mode tries to resolve Cmd.Command as a file path FIRST
+        // (see the comment at the top of Handler_ExecutePython.cpp). Multi-
+        // line Python source can confuse that heuristic; the canonical safe
+        // path -- shared by execute_unreal_python, run_python_file,
+        // apply_python_to_selection, and exec_python_persistent -- is to
+        // write the source to a real temp .py file and pass that path.
+        // (Caught by Codex P1 + Gemini high-priority on PR #45 -- both
+        // bots converged on the same fix.)
+        const FString TempDir = FPaths::Combine(
+            FPaths::ProjectIntermediateDir(),
+            TEXT("UnrealClaudeMCPPython")
+        );
+        IFileManager::Get().MakeDirectory(*TempDir, /*Tree=*/true);
+
+        const FString TempPath = FPaths::Combine(
+            TempDir,
+            *FString::Printf(TEXT("reset_state_%s.py"), *FGuid::NewGuid().ToString(EGuidFormats::Short))
+        );
+
+        if (!FFileHelper::SaveStringToFile(ResetCode, *TempPath, FFileHelper::EEncodingOptions::ForceUTF8))
+        {
+            OutError = FString::Printf(
+                TEXT("reset_python_state: reset_failed: could not write temp script to '%s'"), *TempPath);
+            return nullptr;
+        }
+
+        ON_SCOPE_EXIT
+        {
+            IFileManager::Get().Delete(*TempPath, /*RequireExists=*/false);
+        };
+
         FPythonCommandEx Cmd;
-        Cmd.Command = ResetCode;
+        Cmd.Command = TempPath;
         Cmd.ExecutionMode = EPythonCommandExecutionMode::ExecuteFile;
         // Public scope is the entire point -- we MUST be acting on the
         // same globals dict that exec_python_persistent uses.
