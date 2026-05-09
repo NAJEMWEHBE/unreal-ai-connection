@@ -76,6 +76,7 @@ extern TSharedRef<IUCMCPHandler> Make_Handler_ResetPythonState();
 extern TSharedRef<IUCMCPHandler> Make_Handler_FindConsoleVariables();
 extern TSharedRef<IUCMCPHandler> Make_Handler_InspectStaticMesh();
 extern TSharedRef<IUCMCPHandler> Make_Handler_InspectNiagaraSystem();
+extern TSharedRef<IUCMCPHandler> Make_Handler_InspectAnimBlueprint();
 
 static constexpr int32 kMCPDefaultPort = 18888;
 
@@ -143,6 +144,7 @@ void FUnrealClaudeMCPModule::StartupModule()
     Reg.Register(Make_Handler_FindConsoleVariables());
     Reg.Register(Make_Handler_InspectStaticMesh());
     Reg.Register(Make_Handler_InspectNiagaraSystem());
+    Reg.Register(Make_Handler_InspectAnimBlueprint());
 
     // -----------------------------------------------------------------
     // Tier 2 (PR #40): wire 3 starter delegates into the FUCMCPEventBus.
