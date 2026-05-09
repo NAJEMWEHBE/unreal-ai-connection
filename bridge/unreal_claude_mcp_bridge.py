@@ -26,6 +26,7 @@ Override host/port via env: UCMCP_HOST, UCMCP_PORT.
 """
 
 import json
+import math
 import os
 import socket
 import sys
@@ -833,7 +834,11 @@ def synthetic_get_camera_transform(req_id, args):
             "message": f"get_camera_transform: python_failed: {output}",
         })
 
-    log_resp = call_ue("get_log_lines", {"category_filter": "LogPython", "count": 200})
+    # Fetch the FULL ring (1000 lines) -- the LogCapture ring's capacity. A
+    # smaller window risked missing the marker if >window LogPython lines
+    # arrived between our exec and our read. (Caught by Codex P2 + Gemini
+    # medium on PR #46, both bots converged on the same fix.)
+    log_resp = call_ue("get_log_lines", {"category_filter": "LogPython", "count": 1000})
     if "error" in log_resp:
         return make_response(req_id, error=log_resp["error"])
 
@@ -868,20 +873,31 @@ def synthetic_get_camera_transform(req_id, args):
 def synthetic_set_camera_transform(req_id, args):
     """Bridge-side shim: set the level-editor viewport camera transform.
 
-    Simpler than the get shim because there's no result to round-trip --
-    just one UE round-trip via execute_unreal_python. Validates the param
-    shape locally before constructing the Python (so a bad input fails
-    fast instead of crossing the wire to a Python TypeError).
-    """
-    location = args.get("location") or {}
-    rotation = args.get("rotation") or {}
+    Partial-update semantics: if the caller omits 'location' (or 'rotation'),
+    the omitted side is preserved at its current value rather than reset
+    to (0,0,0). Without this, calls supplying only one side would silently
+    snap the other to the world origin -- destructive surprise. (Caught
+    by Codex P1 on PR #46.)
 
-    if not isinstance(location, dict):
+    Implementation: when an omitted side is detected, run get_camera_transform
+    first to read the current value (one extra round-trip), then forward
+    the full set call. This is a second-order cost of going synthetic --
+    in C++ we'd have direct access to UnrealEditorSubsystem's current state.
+    """
+    location = args.get("location")
+    rotation = args.get("rotation")
+
+    if location is None and rotation is None:
+        # Both omitted -- treat as a no-op read. Return the current camera
+        # state without mutating anything.
+        return synthetic_get_camera_transform(req_id, {})
+
+    if location is not None and not isinstance(location, dict):
         return make_response(req_id, error={
             "code": -32602,
             "message": "set_camera_transform: 'location' must be an object {x, y, z}",
         })
-    if not isinstance(rotation, dict):
+    if rotation is not None and not isinstance(rotation, dict):
         return make_response(req_id, error={
             "code": -32602,
             "message": "set_camera_transform: 'rotation' must be an object {pitch, yaw, roll}",
@@ -889,13 +905,51 @@ def synthetic_set_camera_transform(req_id, args):
 
     def _num(d, fld, default=0.0):
         v = d.get(fld, default)
+        # bool is a subclass of int in Python; reject explicitly so
+        # set_camera_transform({"location":{"x":True}}) doesn't silently
+        # become x=1.0. NaN/Infinity rejected so they don't generate
+        # malformed Python like 'unreal.Vector(nan, ...)'.
+        # (Gemini medium on PR #46.)
         if not isinstance(v, (int, float)) or isinstance(v, bool):
             raise ValueError(f"'{fld}' must be a number, got {type(v).__name__}")
+        if not math.isfinite(v):
+            raise ValueError(f"'{fld}' must be a finite number, got {v}")
         return float(v)
 
+    # Read current camera state if we need to preserve either side. Extra
+    # round-trip on partial updates -- the cost of the preservation
+    # semantics. For full updates (both location AND rotation supplied),
+    # we skip the read entirely.
+    current_loc = None
+    current_rot = None
+    if location is None or rotation is None:
+        get_resp_envelope = synthetic_get_camera_transform(0, {})
+        if "error" in get_resp_envelope:
+            return make_response(req_id, error={
+                "code": -32603,
+                "message": (f"set_camera_transform: failed to read current camera state for "
+                            f"partial-update preservation: {get_resp_envelope['error'].get('message', '')}"),
+            })
+        try:
+            inner = json.loads(get_resp_envelope["result"]["content"][0]["text"])
+            current_loc = inner.get("location") or {}
+            current_rot = inner.get("rotation") or {}
+        except (KeyError, IndexError, json.JSONDecodeError) as e:
+            return make_response(req_id, error={
+                "code": -32603,
+                "message": f"set_camera_transform: failed to parse current camera state: {e}",
+            })
+
     try:
-        lx = _num(location, "x"); ly = _num(location, "y"); lz = _num(location, "z")
-        rp = _num(rotation, "pitch"); ry = _num(rotation, "yaw"); rr = _num(rotation, "roll")
+        if location is not None:
+            lx = _num(location, "x"); ly = _num(location, "y"); lz = _num(location, "z")
+        else:
+            lx = float(current_loc.get("x", 0)); ly = float(current_loc.get("y", 0)); lz = float(current_loc.get("z", 0))
+
+        if rotation is not None:
+            rp = _num(rotation, "pitch"); ry = _num(rotation, "yaw"); rr = _num(rotation, "roll")
+        else:
+            rp = float(current_rot.get("pitch", 0)); ry = float(current_rot.get("yaw", 0)); rr = float(current_rot.get("roll", 0))
     except ValueError as e:
         return make_response(req_id, error={
             "code": -32602,
@@ -922,6 +976,10 @@ def synthetic_set_camera_transform(req_id, args):
         "ok": True,
         "location": {"x": lx, "y": ly, "z": lz},
         "rotation": {"pitch": rp, "yaw": ry, "roll": rr},
+        "preserved": {
+            "location": location is None,
+            "rotation": rotation is None,
+        },
     })
 
 

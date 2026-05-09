@@ -85,8 +85,11 @@ public:
         const int32 NumLODs = Mesh->GetNumLODs();
         TArray<TSharedPtr<FJsonValue>> LodArray;
         LodArray.Reserve(NumLODs);
-        int32 TotalVertices = 0;
-        int32 TotalTriangles = 0;
+        // int64 accumulators -- per-LOD counts are int32, but the total
+        // across many LODs on a high-poly mesh could theoretically exceed
+        // INT32_MAX. Cheap defensive change. (Gemini medium on PR #46.)
+        int64 TotalVertices = 0;
+        int64 TotalTriangles = 0;
         for (int32 i = 0; i < NumLODs; ++i)
         {
             const int32 V = Mesh->GetNumVertices(i);
