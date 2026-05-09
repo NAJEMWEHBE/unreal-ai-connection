@@ -16,6 +16,18 @@ The level-load test is also opt-in for the same reason:
 
     py examples\smoke_test.py --level /Game/Maps/MyMap
 
+The materials and sequencer runtime paths can be exercised end-to-end by
+pointing at seeded fixtures (run scripts/seed_test_project.py first to
+create them under /Game/SmokeTest_*):
+
+    py examples\smoke_test.py --material-instance /Game/SmokeTest_MI \\
+                              --sequence          /Game/SmokeTest_LS
+
+When --material-instance is provided, the test additionally exercises
+set_mi_parameter (writes a scalar override and confirms it lands in the
+post-set inspect_material_instance.scalar_overrides map) -- this is the
+runtime check for PR #22's FMaterialParameterInfo.Name fix.
+
 Override host/port via env: UCMCP_HOST, UCMCP_PORT.
 """
 
@@ -145,11 +157,44 @@ def assert_error_code(resp: dict, code: int, label: str) -> None:
         raise SmokeFailure(f"[{label}] expected error {code}, got {actual}: {resp['error']}")
 
 
+def _validate_inspect_material_shape(inspect_res: dict) -> None:
+    """Shared shape-check for inspect_material results.
+
+    Used both by the find_assets-fallback path and the --material-instance
+    opt-in path (which re-inspects the parent of the user-provided MI).
+    """
+    for required_key in ("name", "package_path", "class",
+                         "scalar_parameters", "vector_parameters",
+                         "texture_parameters", "static_switch_parameters"):
+        if required_key not in inspect_res:
+            raise SmokeFailure(
+                f"[inspect_material] missing key '{required_key}' in result: {inspect_res}"
+            )
+    for arr_key in ("scalar_parameters", "vector_parameters",
+                    "texture_parameters", "static_switch_parameters"):
+        if not isinstance(inspect_res[arr_key], list):
+            raise SmokeFailure(
+                f"[inspect_material] {arr_key} not a list: {inspect_res[arr_key]}"
+            )
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--widget", help="Widget BP asset path to mutate (creates RootVB+Title)")
     ap.add_argument("--level", help="Level package path to load")
     ap.add_argument("--bp", help="Blueprint asset path to inspect")
+    ap.add_argument(
+        "--material-instance",
+        dest="material_instance",
+        help=("UMaterialInstanceConstant path to exercise inspect_material, "
+              "inspect_material_instance, and set_mi_parameter end-to-end. "
+              "Run scripts/seed_test_project.py to create /Game/SmokeTest_MI."),
+    )
+    ap.add_argument(
+        "--sequence",
+        help=("ULevelSequence path to exercise inspect_sequence end-to-end. "
+              "Run scripts/seed_test_project.py to create /Game/SmokeTest_LS."),
+    )
     args = ap.parse_args()
 
     failures: list[str] = []
@@ -558,19 +603,25 @@ def main():
     # its structure. If the project has no Level Sequences, log and skip
     # (no warning) — sequencer is optional content, not all projects use it.
     def t_sequencer():
-        find_resp = call("find_assets", {
-            "class_path": "/Script/LevelSequence.LevelSequence",
-            "path_under": "/Game/",
-            "limit": 1,
-        })
-        find_res = assert_ok(find_resp, "find_assets.level_sequences")
-        if find_res.get("returned", 0) < 1:
-            print("  [t_sequencer] no Level Sequences in /Game/ — skipping inspect_sequence")
-            return
+        # Opt-in path (--sequence) skips find_assets; otherwise pick whatever
+        # Level Sequence happens to be in /Game/ and skip on empty.
+        if args.sequence:
+            seq_path = args.sequence
+        else:
+            find_resp = call("find_assets", {
+                "class_path": "/Script/LevelSequence.LevelSequence",
+                "path_under": "/Game/",
+                "limit": 1,
+            })
+            find_res = assert_ok(find_resp, "find_assets.level_sequences")
+            if find_res.get("returned", 0) < 1:
+                print("  [t_sequencer] no Level Sequences in /Game/ — skipping inspect_sequence "
+                      "(seed with scripts/seed_test_project.py or pass --sequence)")
+                return
+            seq_path = find_res["assets"][0]["package_path"]
 
-        first_seq = find_res["assets"][0]
-        inspect_resp = call("inspect_sequence", {"path": first_seq["package_path"]})
-        inspect_res = assert_ok(inspect_resp, "inspect_sequence.first_found")
+        inspect_resp = call("inspect_sequence", {"path": seq_path})
+        inspect_res = assert_ok(inspect_resp, "inspect_sequence.opt_in")
         for required_key in ("name", "package_path", "tick_resolution",
                              "display_rate_fps", "playback_range",
                              "bindings", "tracks"):
@@ -591,52 +642,96 @@ def main():
     # No mutations on the user's project — create_material_instance and
     # set_mi_parameter need a clean test sandbox to be safe.
     def t_materials():
-        find_resp = call("find_assets", {
-            "class_path": "/Script/Engine.Material",
-            "path_under": "/Game/",
-            "limit": 1,
-        })
-        find_res = assert_ok(find_resp, "find_assets.materials")
-        if find_res.get("returned", 0) < 1:
-            print("  [t_materials] no Materials in /Game/ — skipping inspect_material")
-            return
+        # Opt-in path (--material-instance) provides the MI directly and
+        # also unlocks the set_mi_parameter mutation step. Without it we
+        # fall back to find_assets and only exercise inspect (no mutations
+        # on a user's project).
+        mic_path = args.material_instance
+        if mic_path is None:
+            find_resp = call("find_assets", {
+                "class_path": "/Script/Engine.Material",
+                "path_under": "/Game/",
+                "limit": 1,
+            })
+            find_res = assert_ok(find_resp, "find_assets.materials")
+            if find_res.get("returned", 0) < 1:
+                print("  [t_materials] no Materials in /Game/ — skipping inspect_material "
+                      "(seed with scripts/seed_test_project.py or pass --material-instance)")
+                return
+            first_mat = find_res["assets"][0]
+            inspect_resp = call("inspect_material", {"path": first_mat["package_path"]})
+            inspect_res = assert_ok(inspect_resp, "inspect_material.first_found")
+            _validate_inspect_material_shape(inspect_res)
 
-        first_mat = find_res["assets"][0]
-        inspect_resp = call("inspect_material", {"path": first_mat["package_path"]})
-        inspect_res = assert_ok(inspect_resp, "inspect_material.first_found")
-        for required_key in ("name", "package_path", "class",
-                             "scalar_parameters", "vector_parameters",
-                             "texture_parameters", "static_switch_parameters"):
-            if required_key not in inspect_res:
-                raise SmokeFailure(
-                    f"[inspect_material] missing key '{required_key}' in result: {inspect_res}"
-                )
-        for arr_key in ("scalar_parameters", "vector_parameters",
-                        "texture_parameters", "static_switch_parameters"):
-            if not isinstance(inspect_res[arr_key], list):
-                raise SmokeFailure(
-                    f"[inspect_material] {arr_key} not a list: {inspect_res[arr_key]}"
-                )
+            mic_resp = call("find_assets", {
+                "class_path": "/Script/Engine.MaterialInstanceConstant",
+                "path_under": "/Game/",
+                "limit": 1,
+            })
+            mic_res = assert_ok(mic_resp, "find_assets.material_instances")
+            if mic_res.get("returned", 0) < 1:
+                print("  [t_materials] no MaterialInstanceConstants in /Game/ — skipping inspect_material_instance")
+                return
+            mic_path = mic_res["assets"][0]["package_path"]
 
-        # If a MaterialInstanceConstant exists, exercise inspect_material_instance.
-        mic_resp = call("find_assets", {
-            "class_path": "/Script/Engine.MaterialInstanceConstant",
-            "path_under": "/Game/",
-            "limit": 1,
-        })
-        mic_res = assert_ok(mic_resp, "find_assets.material_instances")
-        if mic_res.get("returned", 0) < 1:
-            print("  [t_materials] no MaterialInstanceConstants in /Game/ — skipping inspect_material_instance")
-            return
-        first_mic = mic_res["assets"][0]
-        inspect_mic = call("inspect_material_instance", {"path": first_mic["package_path"]})
-        inspect_mic_res = assert_ok(inspect_mic, "inspect_material_instance.first_found")
+        # 1. inspect_material_instance on the target.
+        inspect_mic = call("inspect_material_instance", {"path": mic_path})
+        inspect_mic_res = assert_ok(inspect_mic, "inspect_material_instance.opt_in")
         for required_key in ("name", "package_path", "parent_path",
                              "scalar_overrides", "vector_overrides",
                              "texture_overrides"):
             if required_key not in inspect_mic_res:
                 raise SmokeFailure(
                     f"[inspect_material_instance] missing key '{required_key}' in result: {inspect_mic_res}"
+                )
+        parent_path = inspect_mic_res["parent_path"]
+        if not parent_path:
+            raise SmokeFailure(
+                f"[inspect_material_instance] '{mic_path}' has no parent_path -- "
+                f"cannot exercise inspect_material round-trip"
+            )
+
+        # 2. inspect_material on the discovered parent.
+        parent_resp = call("inspect_material", {"path": parent_path})
+        parent_res = assert_ok(parent_resp, "inspect_material.parent_of_mic")
+        _validate_inspect_material_shape(parent_res)
+
+        # 3. set_mi_parameter round-trip -- only when the user opted in
+        #    (--material-instance) so we never mutate a discovered project asset.
+        #    This is the runtime exercise of the FMaterialParameterInfo.Name
+        #    fix from PR #22 (Handler_SetMIParameter.cpp post-verify scan).
+        if args.material_instance:
+            scalar_params = parent_res.get("scalar_parameters", [])
+            if not scalar_params:
+                print("  [t_materials] parent material has no scalar parameters -- "
+                      "skipping set_mi_parameter round-trip")
+                return
+            param_name = scalar_params[0]
+            test_value = 0.7
+            set_resp = call("set_mi_parameter", {
+                "path": mic_path,
+                "parameter": param_name,
+                "type": "scalar",
+                "value": test_value,
+            })
+            set_res = assert_ok(set_resp, "set_mi_parameter.scalar")
+            if set_res.get("ok") is not True:
+                raise SmokeFailure(f"[set_mi_parameter] returned ok != true: {set_res}")
+
+            # Re-inspect and confirm the override landed on the field name.
+            recheck = call("inspect_material_instance", {"path": mic_path})
+            recheck_res = assert_ok(recheck, "inspect_material_instance.after_set")
+            scalar_overrides = recheck_res.get("scalar_overrides", {})
+            if param_name not in scalar_overrides:
+                raise SmokeFailure(
+                    f"[set_mi_parameter] override key '{param_name}' missing from "
+                    f"scalar_overrides after set: {scalar_overrides}"
+                )
+            actual = scalar_overrides[param_name]
+            if abs(actual - test_value) > 0.001:
+                raise SmokeFailure(
+                    f"[set_mi_parameter] override value mismatch: "
+                    f"got {actual}, expected {test_value}"
                 )
     step("materials", t_materials)
 
