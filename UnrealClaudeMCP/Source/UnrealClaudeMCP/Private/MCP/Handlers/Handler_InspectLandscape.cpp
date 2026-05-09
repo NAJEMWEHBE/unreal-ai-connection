@@ -90,7 +90,14 @@ public:
 
         const bool bHasNameFilter = !NameFilter.IsEmpty();
         const bool bHasGuidFilter = !GuidFilter.IsEmpty();
-        const bool bHasFilter = bHasNameFilter || bHasGuidFilter;
+
+        // Parse the GUID filter once before the loop (PR #54 Gemini medium
+        // review): string-comparison-in-loop was both inefficient AND
+        // format-sensitive (sensitive to braces/hyphens/case). FGuid::Parse
+        // is tolerant of common formats; FGuid's operator!= is exact and
+        // format-independent.
+        FGuid FilterGuid;
+        const bool bGuidParsed = bHasGuidFilter && FGuid::Parse(GuidFilter, FilterGuid);
 
         TArray<ALandscape*> Matches;
         int32 TotalLandscapes = 0;
@@ -104,17 +111,19 @@ public:
 
             ++TotalLandscapes;
 
-            if (bHasNameFilter && Landscape->GetActorLabel() != NameFilter)
+            // Case-insensitive label comparison (PR #54 Gemini medium): UE
+            // editor actor labels are typically treated as case-insensitive
+            // by users; case-sensitive == was brittle for typed input.
+            if (bHasNameFilter && !Landscape->GetActorLabel().Equals(NameFilter, ESearchCase::IgnoreCase))
             {
                 continue;
             }
 
             if (bHasGuidFilter)
             {
-                const FString LandscapeGuid = Landscape->GetLandscapeGuid().ToString();
-                const FString OriginalLandscapeGuid = Landscape->GetOriginalLandscapeGuid().ToString();
-                if (!LandscapeGuid.Equals(GuidFilter, ESearchCase::IgnoreCase)
-                    && !OriginalLandscapeGuid.Equals(GuidFilter, ESearchCase::IgnoreCase))
+                if (!bGuidParsed
+                    || (Landscape->GetLandscapeGuid() != FilterGuid
+                        && Landscape->GetOriginalLandscapeGuid() != FilterGuid))
                 {
                     continue;
                 }
@@ -138,11 +147,17 @@ public:
             return nullptr;
         }
 
-        if (!bHasFilter && Matches.Num() > 1)
+        // Always reject ambiguity, even when a filter is supplied (PR #54
+        // Codex P2 review): with duplicate actor labels or GUID collisions
+        // on duplicate-pasted landscapes, a filtered query can still match
+        // multiple actors. TActorIterator's ordering is not a stable API
+        // contract, so silently picking Matches[0] would give callers
+        // nondeterministic results across sessions for the same request.
+        if (Matches.Num() > 1)
         {
             OutError = FString::Printf(
-                TEXT("inspect_landscape: ambiguous_landscape: found %d landscapes; provide 'name' or 'guid'"),
-                Matches.Num());
+                TEXT("inspect_landscape: ambiguous_landscape: found %d landscapes matching name='%s' guid='%s'; tighten the filter"),
+                Matches.Num(), *NameFilter, *GuidFilter);
             return nullptr;
         }
 

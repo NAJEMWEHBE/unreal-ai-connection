@@ -169,14 +169,22 @@ public:
         }
 
         // --- morph targets -----------------------------------------------
+        // GetMorphTargets() can contain null entries (e.g. when a morph
+        // was deleted but the mesh wasn't saved, or during reimport).
+        // Skip nulls entirely so morph_targets contains only valid names
+        // and morph_target_count reflects only valid entries -- matches
+        // what an LLM consumer expects from an "introspection of valid
+        // morph targets" handler. PR #55 Gemini medium review.
 
         const TArray<TObjectPtr<UMorphTarget>>& MorphTargets = Mesh->GetMorphTargets(); // SkeletalMesh.h:1981
         TArray<TSharedPtr<FJsonValue>> MorphTargetArray;
         MorphTargetArray.Reserve(MorphTargets.Num());
         for (const TObjectPtr<UMorphTarget>& MorphTarget : MorphTargets)
         {
-            MorphTargetArray.Add(MakeShared<FJsonValueString>(
-                MorphTarget ? MorphTarget->GetName() : TEXT("")));
+            if (MorphTarget)
+            {
+                MorphTargetArray.Add(MakeShared<FJsonValueString>(MorphTarget->GetName()));
+            }
         }
 
         // --- response ----------------------------------------------------
@@ -200,7 +208,9 @@ public:
         Out->SetNumberField(TEXT("bone_count"), static_cast<double>(RefSkeleton.GetNum()));
         Out->SetNumberField(TEXT("raw_bone_count"), static_cast<double>(RefSkeleton.GetRawBoneNum()));
         Out->SetArrayField(TEXT("material_slots"), MatArray);
-        Out->SetNumberField(TEXT("morph_target_count"), static_cast<double>(MorphTargets.Num()));
+        // morph_target_count reflects valid (non-null) entries only -- matches
+        // the morph_targets array's filtered length. (PR #55 Gemini medium.)
+        Out->SetNumberField(TEXT("morph_target_count"), static_cast<double>(MorphTargetArray.Num()));
         Out->SetArrayField(TEXT("morph_targets"), MorphTargetArray);
         Out->SetBoolField(TEXT("has_clothing_assets"), Mesh->HasActiveClothingAssets()); // SkeletalMesh.h:2326
         Out->SetNumberField(TEXT("clothing_asset_count"),
