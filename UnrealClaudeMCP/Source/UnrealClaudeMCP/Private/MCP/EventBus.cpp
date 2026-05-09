@@ -3,6 +3,7 @@
 #include "MCP/EventBus.h"
 
 #include "Misc/DateTime.h"
+#include "Misc/Guid.h"
 #include "Misc/ScopeLock.h"
 
 // ---------------------------------------------------------------------------
@@ -142,6 +143,123 @@ TArray<FUCMCPEvent> FUCMCPEventBus::Snapshot(
 
         Out.Add(Entry);
     }
+
+    return Out;
+}
+
+// ---------------------------------------------------------------------------
+// Subscription API (PR #43)
+// ---------------------------------------------------------------------------
+//
+// Subscriptions are bus-side state holding a cursor + filter so clients can
+// poll without tracking since_seq. The implementation reuses the same lock
+// and the same ring for the actual event read; the only new state is the
+// per-sub cursor, which advances atomically with each PollSubscription call.
+
+FString FUCMCPEventBus::RegisterSubscription(const TArray<FString>& EventFilter, int64& OutInitialNextSeq)
+{
+    // FGuid is cryptographically random; collision probability between
+    // session restarts is effectively zero. ToString() produces the
+    // canonical hyphenated 36-char form (e.g. "5C2D...-...").
+    const FString Id = FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphens);
+
+    FUCMCPSubscription Sub;
+    Sub.Id = Id;
+    Sub.EventFilter = EventFilter;
+
+    FScopeLock Lock(&Mutex);
+    // The cursor starts at the bus's current NextSeq -- subscribers see
+    // events fired AFTER subscription, not historical ones. This avoids
+    // the asset-registry initial-scan flood being delivered to every
+    // newly-created subscription.
+    Sub.NextSeq = NextSeq;
+    OutInitialNextSeq = NextSeq;
+    Subscriptions.Add(Id, MoveTemp(Sub));
+    return Id;
+}
+
+bool FUCMCPEventBus::Unsubscribe(const FString& SubscriptionId)
+{
+    FScopeLock Lock(&Mutex);
+    return Subscriptions.Remove(SubscriptionId) > 0;
+}
+
+TArray<FUCMCPEvent> FUCMCPEventBus::PollSubscription(
+    const FString& SubscriptionId,
+    int32 MaxCount,
+    int64& OutNextSeq,
+    int64& OutFirstSeqInBuffer,
+    bool& OutDropped,
+    bool& OutFound)
+{
+    TArray<FUCMCPEvent> Out;
+    OutFound = false;
+
+    FScopeLock Lock(&Mutex);
+
+    FUCMCPSubscription* Sub = Subscriptions.Find(SubscriptionId);
+    if (!Sub)
+    {
+        // Unknown id: return empty + OutFound=false. Caller turns this
+        // into a not_found error. Other out-params left as-is so the
+        // caller can choose whether to surface them.
+        return Out;
+    }
+    OutFound = true;
+
+    // Reuse the snapshot logic by inlining a filtered scan. Drop detection
+    // mirrors Snapshot: if the sub's cursor is below the oldest buffered
+    // seq, some events the sub asked for were evicted.
+    OutNextSeq = NextSeq;
+
+    if (Count == 0)
+    {
+        OutFirstSeqInBuffer = -1;
+        OutDropped = false;
+        return Out;
+    }
+
+    Out.Reserve(FMath::Max(0, FMath::Min(MaxCount, kRingSize)));
+
+    const int32 StartIndex = (Count < kRingSize) ? 0 : Head;
+    OutFirstSeqInBuffer = Ring[StartIndex].Seq;
+    OutDropped = (Sub->NextSeq < OutFirstSeqInBuffer);
+
+    int64 HighestDeliveredSeq = Sub->NextSeq - 1;
+    for (int32 i = 0; i < Count && Out.Num() < MaxCount; ++i)
+    {
+        const FUCMCPEvent& Entry = Ring[(StartIndex + i) % kRingSize];
+        if (Entry.Seq < Sub->NextSeq)
+        {
+            continue;  // already-delivered to this subscriber
+        }
+
+        // Apply per-sub event-type filter (substring match on EventType).
+        if (Sub->EventFilter.Num() > 0)
+        {
+            bool bMatched = false;
+            for (const FString& F : Sub->EventFilter)
+            {
+                if (!F.IsEmpty() && Entry.EventType.Contains(F))
+                {
+                    bMatched = true;
+                    break;
+                }
+            }
+            if (!bMatched) { continue; }
+        }
+
+        Out.Add(Entry);
+        HighestDeliveredSeq = Entry.Seq;
+    }
+
+    // Advance the per-sub cursor past the highest delivered seq. Note:
+    // even if filter rejected events between Sub->NextSeq and the highest
+    // matched event, we don't advance past unmatched ones -- a later
+    // call with a different filter could legitimately want them. The
+    // server-side cursor strictly tracks "what THIS subscription has
+    // received under its own filter".
+    Sub->NextSeq = HighestDeliveredSeq + 1;
 
     return Out;
 }

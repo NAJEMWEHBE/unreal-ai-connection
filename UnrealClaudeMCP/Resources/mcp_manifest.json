@@ -352,6 +352,31 @@
         "event_filter": "array of string (optional) - substring filters on event type"
       },
       "returns": { "ok": "bool", "next_seq": "int", "first_seq_in_buffer": "int", "returned": "int", "dropped": "bool", "timed_out": "bool", "events": "array of {seq, event, ts, data}", "note": "string (only when dropped=true)" }
+    },
+    {
+      "name": "register_subscription",
+      "description": "Create a server-side cursor + filter on FUCMCPEventBus. Returns a subscription_id pairs with poll_subscription / unsubscribe. Cursor starts at the bus's current next_seq (subscribers see events fired AFTER subscription).",
+      "params": {
+        "event_filter": "array of string (optional) - substring filters on event type; OR-combined"
+      },
+      "returns": { "ok": "bool", "subscription_id": "string", "initial_next_seq": "int", "event_filter": "array of string" }
+    },
+    {
+      "name": "unsubscribe",
+      "description": "Remove a subscription. Idempotent: unknown ids return ok=true with was_present=false, so blanket shutdown unsubscribes are safe.",
+      "params": {
+        "subscription_id": "string (required) - id from register_subscription"
+      },
+      "returns": { "ok": "bool", "subscription_id": "string", "was_present": "bool" }
+    },
+    {
+      "name": "poll_subscription",
+      "description": "Drain events for a subscription. Per-sub cursor advances atomically -- successful poll never returns the same events twice. No since_seq / event_filter params (both are server-side state).",
+      "params": {
+        "subscription_id": "string (required) - id from register_subscription",
+        "max_count": "int (optional, default 100, max 1000) - cap returned events"
+      },
+      "returns": { "ok": "bool", "subscription_id": "string", "next_seq": "int", "first_seq_in_buffer": "int", "returned": "int", "dropped": "bool", "events": "array of {seq, event, ts, data}", "note": "string (only when dropped=true)" }
     }
   ]
 }

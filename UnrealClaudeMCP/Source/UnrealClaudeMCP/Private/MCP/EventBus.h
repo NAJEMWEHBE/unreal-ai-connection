@@ -33,6 +33,23 @@ struct FUCMCPEvent
 };
 
 /**
+ * One server-side subscription (PR #43). Holds a per-subscriber cursor +
+ * filter so clients can poll without managing seqs themselves. Subscription
+ * IDs are FGuid strings (e.g. "5C2D...:..."), cryptographically random
+ * and distinct across server restarts.
+ *
+ * Lifecycle: PR #43 is no-TTL; subscriptions live until explicit Unsubscribe.
+ * If orphan accumulation becomes observable in real workflows, a future PR
+ * will add inactivity-TTL cleanup.
+ */
+struct FUCMCPSubscription
+{
+    FString Id;                             // FGuid::NewGuid().ToString()
+    int64 NextSeq = 0;                      // next seq to return; advances on PollSubscription
+    TArray<FString> EventFilter;            // same substring-match semantics as poll_events
+};
+
+/**
  * Process-singleton ring buffer of editor events. Thread-safe: Push may be
  * called from any thread (IAssetRegistry::OnAssetAdded fires from background
  * scan threads), and Snapshot may be called concurrently from the game thread
@@ -92,6 +109,31 @@ public:
         int64& OutFirstSeqInBuffer,
         bool& OutDropped) const;
 
+    // ----- Subscription API (PR #43) ------------------------------------
+    //
+    // Server-side cursor + filter so clients don't have to track since_seq.
+    // Subscriptions persist on the bus until explicit Unsubscribe (no TTL
+    // in PR #43; will revisit if orphan accumulation becomes observable).
+
+    /** Register a new subscription. Returns the new sub_id and sets
+     *  OutInitialNextSeq to the bus's current next seq (= "subscription
+     *  starts here; events fired after this point are visible"). */
+    FString RegisterSubscription(const TArray<FString>& EventFilter, int64& OutInitialNextSeq);
+
+    /** Remove a subscription. Returns true if the sub existed (false = unknown id). */
+    bool Unsubscribe(const FString& SubscriptionId);
+
+    /** Drain events for a subscription, advancing its cursor to OutNextSeq.
+     *  Returns false in OutFound if the subscription id is unknown (the other
+     *  out-params are unchanged in that case). Same drop semantics as Snapshot. */
+    TArray<FUCMCPEvent> PollSubscription(
+        const FString& SubscriptionId,
+        int32 MaxCount,
+        int64& OutNextSeq,
+        int64& OutFirstSeqInBuffer,
+        bool& OutDropped,
+        bool& OutFound);
+
 private:
     FUCMCPEventBus();
 
@@ -102,4 +144,7 @@ private:
     int32 Head  = 0;       // next write position (wraps modulo kRingSize)
     int32 Count = 0;       // entries filled (capped at kRingSize)
     int64 NextSeq = 0;     // monotonically increasing; assigned on each Push
+
+    // PR #43: server-side subscription registry. Map from sub_id -> state.
+    TMap<FString, FUCMCPSubscription> Subscriptions;
 };

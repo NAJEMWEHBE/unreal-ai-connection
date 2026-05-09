@@ -1481,6 +1481,120 @@ At 50 ms polling, latency is bounded by ~50 ms + UE round-trip. UE round-trip is
 
 ---
 
+## register_subscription
+
+**Tier 2 PR #43.** Create a server-side cursor + filter on the `FUCMCPEventBus`. Returns a `subscription_id` (FGuid string) that pairs with `poll_subscription` (drain matched events) and `unsubscribe` (release). The cursor starts at the bus's current `next_seq` — subscribers see events fired **after** subscription, not historical ones (avoids the asset-registry initial-scan flood being delivered to every newly-created subscription).
+
+**Why use subscriptions vs `poll_events`:**
+- `poll_events` makes the client manage `since_seq` across calls; if the client loses cursor state (restart, crash), it has to re-sync.
+- `register_subscription` + `poll_subscription` puts the cursor on the server. The client just calls `poll_subscription` with the id and gets only events it hasn't seen.
+- The filter is also server-side — no need to re-send it on every poll. Modest wire-savings for filter-heavy workflows.
+
+**Lifecycle (PR #43):** subscriptions live until explicit `unsubscribe`. **No TTL** in PR #43 — orphan subscriptions accumulate if clients don't clean up. If observable in real workflows, a follow-up PR will add inactivity-based cleanup.
+
+**Params**
+- `event_filter` (array of string, optional) — substring filters on event type names; OR-combined. Empty / omitted = no filter.
+
+**Result**
+- `ok` (bool)
+- `subscription_id` (string) — FGuid in canonical hyphenated form (e.g. `"5C2D8F1A-..."`); pass to `poll_subscription` and `unsubscribe`
+- `initial_next_seq` (int) — the seq the next-fired event would receive, captured at subscription time
+- `event_filter` (array of string) — echo of the supplied filter
+
+**Errors:** `invalid_value_shape`.
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"register_subscription","params":{
+  "event_filter": ["actor_spawned", "asset_added"]
+}}
+```
+```json
+{"jsonrpc":"2.0","id":1,"result":{
+  "ok": true,
+  "subscription_id": "5C2D8F1A-1234-5678-9ABC-DEF012345678",
+  "initial_next_seq": 4523,
+  "event_filter": ["actor_spawned", "asset_added"]
+}}
+```
+
+---
+
+## unsubscribe
+
+Remove a subscription created via `register_subscription`. **Idempotent**: calling on an unknown id returns `ok=true` with `was_present=false` rather than an error, so callers can blanket-unsubscribe on shutdown without worrying about partial state.
+
+**Params**
+- `subscription_id` (string, required) — id returned by `register_subscription`.
+
+**Result**
+- `ok` (bool)
+- `subscription_id` (string) — echo
+- `was_present` (bool) — `true` if the subscription existed (and was removed); `false` if the id was unknown
+
+**Errors:** `missing_required_field`.
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"unsubscribe","params":{
+  "subscription_id": "5C2D8F1A-..."
+}}
+```
+
+---
+
+## poll_subscription
+
+Drain events for a server-side subscription. The per-sub cursor advances atomically with the read — a successful poll never returns the same events twice. No `since_seq` param (cursor is server-side); no `event_filter` param (filter was set at `register_subscription` time and is immutable for that sub — re-register if you need a different filter).
+
+**Params**
+- `subscription_id` (string, required) — id returned by `register_subscription`.
+- `max_count` (int, optional, default `100`) — cap returned events. Hard max `1000`.
+
+**Result** (same per-event shape as `poll_events`)
+- `ok` (bool)
+- `subscription_id` (string) — echo
+- `next_seq` (int) — bus's current next seq (informational; subscription cursor is server-managed)
+- `first_seq_in_buffer` (int) — smallest seq in the ring (or `-1` if empty)
+- `returned` (int) — count of events in `events`
+- `dropped` (bool) — subscription cursor fell below `first_seq_in_buffer` between polls (events the sub asked for were evicted)
+- `events` (array)
+- `note` (string, only when `dropped=true`) — recovery hint
+
+**Errors:** `missing_required_field`, `invalid_value_shape`, `subscription_not_found`.
+
+| Code | Trigger |
+|---|---|
+| `missing_required_field` | `subscription_id` missing or empty. |
+| `invalid_value_shape` | `max_count` non-numeric, fractional, non-finite, or ≤ 0. |
+| `subscription_not_found` | The id is not in the registry (never created, already unsubscribed, or editor restarted between subscription and poll). |
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"poll_subscription","params":{
+  "subscription_id": "5C2D8F1A-..."
+}}
+```
+```json
+{"jsonrpc":"2.0","id":1,"result":{
+  "ok": true,
+  "subscription_id": "5C2D8F1A-...",
+  "next_seq": 4530,
+  "first_seq_in_buffer": 3530,
+  "returned": 3,
+  "dropped": false,
+  "events": [
+    {"seq": 4527, "event": "actor_spawned", "ts": "...", "data": {"actor_label":"...", ...}},
+    {"seq": 4528, "event": "asset_added",   "ts": "...", "data": {"package_path":"...", ...}},
+    {"seq": 4529, "event": "actor_spawned", "ts": "...", "data": {"actor_label":"...", ...}}
+  ]
+}}
+```
+
+A subsequent `poll_subscription` call with the same id (and no new events fired in between) will return `returned: 0`, `events: []` — the cursor advanced past seq 4529 on the previous call, so there's nothing new to deliver.
+
+---
+
 ## Adding more tools
 
 See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the recipe. Short version: one `.cpp` file in `Source/UnrealClaudeMCP/Private/MCP/Handlers/`, two registration lines in `UnrealClaudeMCPModule.cpp`, one entry in `Resources/mcp_manifest.json`, one entry in `bridge/unreal_claude_mcp_bridge.py`'s `TOOLS` list, rebuild, restart.
