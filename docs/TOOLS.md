@@ -1756,6 +1756,48 @@ A subsequent `poll_task` will show `cancel_requested: true` immediately, then tr
 
 ---
 
+## list_tasks
+
+Enumerate all tasks in the `FUCMCPTaskRegistry` with optional filters and a limit. The natural complement to `poll_task` — answers "what's running right now?" without requiring callers to remember every `task_id`.
+
+**Atomic snapshot.** The full task set is captured under the registry's lock so the result is internally consistent (no half-mutated entries from a worker transition mid-call). Filtering and limiting happen post-snapshot, so they don't extend the lock-hold time.
+
+**Params** (all optional)
+- `status_filter` (string, enum) — one of `"pending"` / `"running"` / `"completed"` / `"cancelled"` / `"failed"`. If absent, all statuses are returned.
+- `type_filter` (string) — exact-match filter on task type (e.g. `"sleep"`). If absent, all types are returned.
+- `limit` (integer) — max items to return. Default `100`. Clamped to `[1, 500]`.
+
+**Result**
+- `ok` (bool)
+- `total` (int) — total tasks in the registry **before** any filter
+- `matched` (int) — count after `status_filter` + `type_filter` (AND-combined)
+- `returned` (int) — count after `limit` (`returned ≤ matched ≤ total`)
+- `tasks` (array) — each entry mirrors `poll_task`'s shape: `{ task_id, type, status, start_time, end_time, cancel_requested, result?, error? }`. `result` is omitted when null; `error` is omitted when empty.
+
+**Errors:** `unknown_status_value` (status_filter not in the enum), `invalid_value_shape` (limit not a finite integer).
+
+**Behavior notes**
+- The invariant is `returned ≤ matched ≤ total`. Filters reduce `total` to `matched`; the limit reduces `matched` to `returned`. With no filters and no truncation, all three are equal — to detect truncation specifically, compare `returned == matched` rather than relying on a strict inequality.
+- Tasks accumulate indefinitely (no TTL in PR #44 framework). On long-lived editor sessions, expect `total` to grow until the editor restarts.
+- Mirrors `find_assets`'s `total/matched/returned/assets` convention.
+
+**Example — running tasks only**
+```json
+{"jsonrpc":"2.0","id":1,"method":"list_tasks","params":{
+  "status_filter": "running"
+}}
+```
+
+**Example — at most 10 sleep tasks of any status**
+```json
+{"jsonrpc":"2.0","id":1,"method":"list_tasks","params":{
+  "type_filter": "sleep",
+  "limit": 10
+}}
+```
+
+---
+
 ## exec_python_persistent
 
 **Tier 2 PR #45.** Like `execute_unreal_python` but state **persists across calls**. Variables, imports, and function/class definitions defined in one call are visible in the next — letting Claude build up state across turns without re-loading every time.

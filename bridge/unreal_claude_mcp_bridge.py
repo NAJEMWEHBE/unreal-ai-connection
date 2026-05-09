@@ -588,6 +588,18 @@ TOOLS = [
         },
     },
     {
+        "name": "list_tasks",
+        "description": "Enumerate all tasks in the FUCMCPTaskRegistry with optional status / type filters and a limit. Atomic snapshot under the registry's lock so the result is internally consistent. Returns total/matched/returned counts plus task records mirroring poll_task's shape.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "status_filter": {"type": "string", "enum": ["pending", "running", "completed", "cancelled", "failed"], "description": "Optional. If set, only tasks with this status are returned."},
+                "type_filter": {"type": "string", "description": "Optional. Exact-match filter on task type (e.g. 'sleep')."},
+                "limit": {"type": "integer", "description": "Optional. Max items to return. Default 100; clamped to [1, 500]."},
+            },
+        },
+    },
+    {
         "name": "exec_python_persistent",
         "description": "Tier 2 PR #45: like execute_unreal_python but state PERSISTS across calls. Variables, imports, and function/class definitions defined in one call are visible in the next -- letting Claude build up state across turns without re-loading every time. Implemented via UE's FPythonCommandEx with FileExecutionScope=Public (shared globals dict with the editor's Python console). Pairs with reset_python_state. Same output-capture caveat as execute_unreal_python: ExecuteFile mode does not capture stdout via CommandResult; use unreal.log marker + get_log_lines.",
         "inputSchema": {

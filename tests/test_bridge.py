@@ -19,8 +19,11 @@ import unreal_claude_mcp_bridge as bridge
 
 # -------- TOOLS schema --------------------------------------------------------
 
-def test_tools_list_has_fiftytwo_entries():
-    assert len(bridge.TOOLS) == 54
+def test_tools_list_size():
+    # Cross-checked against the manifest in test_manifest_sync.py; the absolute
+    # number bumps with each new tool. Function name kept count-agnostic so
+    # it doesn't drift behind the assertion (per Sonnet pre-review on PR #50).
+    assert len(bridge.TOOLS) == 55
 
 
 def test_each_tool_has_required_mcp_fields():
@@ -63,6 +66,7 @@ def test_tool_names_are_unique_and_match_handlers():
         "start_sleep_task",
         "poll_task",
         "cancel_task",
+        "list_tasks",
         "exec_python_persistent",
         "reset_python_state",
         "find_console_variables",
@@ -434,6 +438,28 @@ def test_cancel_task_in_tools_catalog():
     assert t is not None
     assert t["inputSchema"]["required"] == ["task_id"]
     assert t["inputSchema"]["properties"]["task_id"]["type"] == "string"
+
+
+def test_list_tasks_in_tools_catalog():
+    """Tier 3: list_tasks enumerates the FUCMCPTaskRegistry. All params
+    optional; status_filter is enum-constrained; limit is integer-typed."""
+    t = next((t for t in bridge.TOOLS if t["name"] == "list_tasks"), None)
+    assert t is not None
+    # No required fields — every param is optional
+    assert "required" not in t["inputSchema"] or t["inputSchema"].get("required") == []
+    props = t["inputSchema"]["properties"]
+    # status_filter is an enum locked to the 5 documented status strings
+    assert props["status_filter"]["type"] == "string"
+    assert set(props["status_filter"]["enum"]) == {
+        "pending", "running", "completed", "cancelled", "failed"
+    }
+    # type_filter is a free-form string (no enum — task types are open-ended)
+    assert props["type_filter"]["type"] == "string"
+    assert "enum" not in props["type_filter"]
+    # limit is integer-typed in the JSON schema (the C++ side still defends
+    # against fractional doubles via cast-after-clamp; this just shapes the
+    # client expectation)
+    assert props["limit"]["type"] == "integer"
 
 
 def test_register_subscription_in_tools_catalog():
@@ -817,7 +843,7 @@ def test_handle_tools_list_returns_all_tools():
     resp = bridge.handle({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
     assert resp["id"] == 2
     assert "tools" in resp["result"]
-    assert len(resp["result"]["tools"]) == 54
+    assert len(resp["result"]["tools"]) == 55
 
 
 # -------- handle: tools/call --------------------------------------------------

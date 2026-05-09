@@ -70,6 +70,7 @@ extern TSharedRef<IUCMCPHandler> Make_Handler_PollSubscription();
 extern TSharedRef<IUCMCPHandler> Make_Handler_StartSleepTask();
 extern TSharedRef<IUCMCPHandler> Make_Handler_PollTask();
 extern TSharedRef<IUCMCPHandler> Make_Handler_CancelTask();
+extern TSharedRef<IUCMCPHandler> Make_Handler_ListTasks();
 extern TSharedRef<IUCMCPHandler> Make_Handler_ExecPythonPersistent();
 extern TSharedRef<IUCMCPHandler> Make_Handler_ResetPythonState();
 extern TSharedRef<IUCMCPHandler> Make_Handler_FindConsoleVariables();
@@ -135,6 +136,7 @@ void FUnrealClaudeMCPModule::StartupModule()
     Reg.Register(Make_Handler_StartSleepTask());
     Reg.Register(Make_Handler_PollTask());
     Reg.Register(Make_Handler_CancelTask());
+    Reg.Register(Make_Handler_ListTasks());
     Reg.Register(Make_Handler_ExecPythonPersistent());
     Reg.Register(Make_Handler_ResetPythonState());
     Reg.Register(Make_Handler_FindConsoleVariables());
