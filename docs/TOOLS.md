@@ -1078,6 +1078,42 @@ Or relative to the editor's CWD (typically the project root):
 
 ---
 
+## fix_up_redirectors
+
+Cascade-update consumers of `UObjectRedirector` assets under a folder, then delete the redirector `.uasset` stubs. This is the programmatic equivalent of right-clicking a folder in the Content Browser and selecting "Fix Up Redirectors in Folder" — the standard cleanup after `move_asset` / `rename_asset` operations or any project-wide reorganization that leaves stale path stubs behind.
+
+**Params**
+- `path` (string, required) — package path under which to recursively scan, e.g. `/Game/` or `/Game/Materials`. Required (no default) so a typo or missing param can't accidentally rewrite the entire project.
+
+**Result**
+- `ok` (bool) — `true` on dispatch success
+- `path` (string) — the path that was scanned (with trailing slash normalized off)
+- `redirectors_found` (int) — number of `UObjectRedirector` assets enumerated and queued for fixup
+- `note` (string) — reminder that fixup may complete asynchronously when source-control is active. Use `IAssetTools::IsFixupReferencersInProgress()` from a follow-up `execute_unreal_python` call (or wait briefly) before assuming all redirectors are removed.
+
+**Errors:** `missing_required_field`, `invalid_path`.
+
+**Behavior notes**
+- Uses `ERedirectFixupMode::DeleteFixedUpRedirectors` (the editor's default) — successfully-redirected stubs are deleted; only stubs whose consumers couldn't be updated remain.
+- `bCheckoutDialogPrompt = false` — no interactive UI; runs silently against any non-read-only files.
+- Returns `redirectors_found = 0` if the path exists but contains none — that's a success state, not an error.
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"fix_up_redirectors","params":{
+  "path": "/Game/Materials"
+}}
+```
+
+Or for the whole `/Game/` tree (typical post-bulk-rename cleanup):
+```json
+{"jsonrpc":"2.0","id":1,"method":"fix_up_redirectors","params":{
+  "path": "/Game/"
+}}
+```
+
+---
+
 ## Adding more tools
 
 See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the recipe. Short version: one `.cpp` file in `Source/UnrealClaudeMCP/Private/MCP/Handlers/`, two registration lines in `UnrealClaudeMCPModule.cpp`, one entry in `Resources/mcp_manifest.json`, one entry in `bridge/unreal_claude_mcp_bridge.py`'s `TOOLS` list, rebuild, restart.

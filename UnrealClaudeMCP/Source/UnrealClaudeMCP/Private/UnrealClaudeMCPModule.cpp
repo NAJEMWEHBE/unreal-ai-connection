@@ -41,6 +41,7 @@ extern TSharedRef<IUCMCPHandler> Make_Handler_SetMIParameter();
 extern TSharedRef<IUCMCPHandler> Make_Handler_InspectMaterial();
 extern TSharedRef<IUCMCPHandler> Make_Handler_InspectMaterialInstance();
 extern TSharedRef<IUCMCPHandler> Make_Handler_RunPythonFile();
+extern TSharedRef<IUCMCPHandler> Make_Handler_FixUpRedirectors();
 
 static constexpr int32 kMCPDefaultPort = 18888;
 
@@ -89,6 +90,7 @@ void FUnrealClaudeMCPModule::StartupModule()
     Reg.Register(Make_Handler_InspectMaterial());
     Reg.Register(Make_Handler_InspectMaterialInstance());
     Reg.Register(Make_Handler_RunPythonFile());
+    Reg.Register(Make_Handler_FixUpRedirectors());
 
     FUCMCPServer::Get().Start(kMCPDefaultPort);
 }

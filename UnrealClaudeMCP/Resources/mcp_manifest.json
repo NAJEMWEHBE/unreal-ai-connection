@@ -288,6 +288,14 @@
         "path": "string (required) - filesystem path to a .py file (absolute or relative to editor CWD, typically the project root)"
       },
       "returns": { "ok": "bool", "output": "string", "path": "string (resolved absolute path)" }
+    },
+    {
+      "name": "fix_up_redirectors",
+      "description": "Cascade-update consumers of UObjectRedirector assets under a folder, then delete the redirector stubs. Cleans up after move_asset / rename_asset.",
+      "params": {
+        "path": "string (required) - package path under which to recursively fix up, e.g. /Game/ or /Game/Materials"
+      },
+      "returns": { "ok": "bool", "path": "string", "redirectors_found": "int", "note": "string" }
     }
   ]
 }
