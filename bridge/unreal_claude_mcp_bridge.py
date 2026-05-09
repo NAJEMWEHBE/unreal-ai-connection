@@ -635,6 +635,17 @@ TOOLS = [
             },
         },
     },
+    {
+        "name": "screenshot_actor",
+        "description": "Frame the editor viewport on an actor (by label or unique name) and capture a focused PNG screenshot. SYNTHETIC bridge-side handler: composes focus_actor + get_viewport_screenshot. Returns base64 PNG plus the focused actor's identity and world location.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Actor label or unique name to focus on."},
+            },
+            "required": ["name"],
+        },
+    },
 ]
 
 
@@ -983,6 +994,67 @@ def synthetic_set_camera_transform(req_id, args):
     })
 
 
+def synthetic_screenshot_actor(req_id, args):
+    """Bridge-side composition: frame the viewport on an actor, then capture
+    a screenshot. Useful for asset-pipeline thumbnail generation and for
+    giving the LLM "look at this specific thing" context.
+
+    Composition:
+      1. focus_actor {name} -- selects + frames the viewport on the actor
+      2. get_viewport_screenshot {} -- captures the (now-framed) viewport
+         as base64 PNG
+
+    Synthetic rather than C++ because both UE handlers already exist; a
+    C++ handler would just duplicate their logic. Per the
+    LANGUAGE-CHOICE-RETROSPECTIVE.md decision flow, this is a clean win
+    for the synthetic-tool pattern (composition of existing handlers, no
+    new UE-side state, no marker-pattern fragility).
+
+    Note on timing: the camera-move-then-capture sequence is structurally
+    correct only because the two call_ue() calls are separate JSON-RPC
+    round-trips with at least one UE tick between them. A single C++
+    handler doing both ops in one game-thread call would race the
+    camera move against the readback.
+    """
+    name = args.get("name")
+    if not isinstance(name, str) or not name:
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "screenshot_actor: missing_required_field: 'name' must be a non-empty string",
+        })
+
+    focus_resp = call_ue("focus_actor", {"name": name})
+    if "error" in focus_resp:
+        return make_response(req_id, error={
+            "code": -32603,
+            "message": f"screenshot_actor: focus_failed: {focus_resp['error'].get('message', '')}",
+        })
+    focus_result = focus_resp.get("result", {}) or {}
+
+    shot_resp = call_ue("get_viewport_screenshot", {})
+    if "error" in shot_resp:
+        return make_response(req_id, error={
+            "code": -32603,
+            "message": f"screenshot_actor: screenshot_failed: {shot_resp['error'].get('message', '')}",
+        })
+    shot_result = shot_resp.get("result", {}) or {}
+
+    return _wrap_tool_result(req_id, {
+        "ok": True,
+        "focused": focus_result.get("focused"),
+        "name": focus_result.get("name"),
+        "loc": {
+            "x": focus_result.get("loc_x"),
+            "y": focus_result.get("loc_y"),
+            "z": focus_result.get("loc_z"),
+        },
+        "width": shot_result.get("width"),
+        "height": shot_result.get("height"),
+        "png_bytes": shot_result.get("png_bytes"),
+        "png_base64": shot_result.get("png_base64"),
+    })
+
+
 # Map of tool-name -> bridge-side synthetic implementation. These are
 # tools that don't have a corresponding UE handler -- the bridge composes
 # existing UE handlers (or implements pure-protocol logic) to serve them.
@@ -990,6 +1062,7 @@ SYNTHETIC_TOOLS = {
     "wait_for_events": synthetic_wait_for_events,
     "get_camera_transform": synthetic_get_camera_transform,
     "set_camera_transform": synthetic_set_camera_transform,
+    "screenshot_actor": synthetic_screenshot_actor,
 }
 
 

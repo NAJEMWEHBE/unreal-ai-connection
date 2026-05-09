@@ -1900,6 +1900,39 @@ At least one of `location` / `rotation` should be provided in practice; both omi
 
 ---
 
+## screenshot_actor
+
+Frame the level-editor viewport on a specific actor and capture a focused PNG screenshot. Useful for asset-pipeline thumbnail generation and for giving the LLM a visual of one specific thing in the scene.
+
+**Bridge-side synthetic tool.** Composes two existing handlers — no new C++ handler. The two-round-trip composition is structurally correct because UE's game thread runs at least one tick between the bridge's separate JSON-RPC requests, so the screenshot captures the post-move frame, not a pre-move frame mid-camera-animation. A single C++ handler doing both ops in one game-thread call would race the camera move against the readback.
+
+**Composition**
+1. `focus_actor { name }` — selects the actor and frames the viewport on it
+2. `get_viewport_screenshot {}` — captures the (now-framed) viewport as base64 PNG
+
+**Params**
+- `name` (string, required) — actor label or unique name to focus on. Same matching rules as `focus_actor`.
+
+**Result**
+- `ok` (bool)
+- `focused` (string) — the actor label that was focused
+- `name` (string) — the actor's unique name
+- `loc` (`{ x, y, z }`) — the focused actor's world location
+- `width`, `height` (int) — viewport dimensions in pixels
+- `png_bytes` (int) — size of the encoded PNG
+- `png_base64` (string) — the PNG, base64-encoded inline
+
+**Errors:** `missing_required_field`, `focus_failed` (actor not found, no GEditor, no editor world), `screenshot_failed` (no active viewport, ReadPixels failed, viewport size zero).
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"screenshot_actor","params":{
+  "name": "MyHeroBP"
+}}
+```
+
+---
+
 ## Adding more tools
 
 See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the recipe. Short version: one `.cpp` file in `Source/UnrealClaudeMCP/Private/MCP/Handlers/`, two registration lines in `UnrealClaudeMCPModule.cpp`, one entry in `Resources/mcp_manifest.json`, one entry in `bridge/unreal_claude_mcp_bridge.py`'s `TOOLS` list, rebuild, restart.

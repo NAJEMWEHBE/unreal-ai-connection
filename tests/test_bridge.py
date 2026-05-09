@@ -20,7 +20,7 @@ import unreal_claude_mcp_bridge as bridge
 # -------- TOOLS schema --------------------------------------------------------
 
 def test_tools_list_has_fiftytwo_entries():
-    assert len(bridge.TOOLS) == 52
+    assert len(bridge.TOOLS) == 53
 
 
 def test_each_tool_has_required_mcp_fields():
@@ -69,6 +69,7 @@ def test_tool_names_are_unique_and_match_handlers():
         "inspect_static_mesh",
         "get_camera_transform",
         "set_camera_transform",
+        "screenshot_actor",
     }
     assert set(names) == expected
 
@@ -290,6 +291,102 @@ def test_set_camera_transform_is_synthetic():
     assert props["rotation"]["type"] == "object"
     assert "set_camera_transform" in bridge.SYNTHETIC_TOOLS
     assert bridge.SYNTHETIC_TOOLS["set_camera_transform"] is bridge.synthetic_set_camera_transform
+
+
+def test_screenshot_actor_is_synthetic():
+    """screenshot_actor is a SYNTHETIC bridge-side handler that composes
+    focus_actor + get_viewport_screenshot. Requires only 'name'."""
+    t = next((t for t in bridge.TOOLS if t["name"] == "screenshot_actor"), None)
+    assert t is not None
+    assert t["inputSchema"]["required"] == ["name"]
+    assert t["inputSchema"]["properties"]["name"]["type"] == "string"
+    assert "screenshot_actor" in bridge.SYNTHETIC_TOOLS
+    assert bridge.SYNTHETIC_TOOLS["screenshot_actor"] is bridge.synthetic_screenshot_actor
+
+
+def test_screenshot_actor_happy_path():
+    """When focus_actor and get_viewport_screenshot both succeed, the
+    synthetic must compose their results: focus identity + screenshot bytes."""
+    focus_resp = {"jsonrpc": "2.0", "id": 1, "result": {
+        "focused": "MyCube_Label", "name": "StaticMeshActor_3",
+        "loc_x": 100.0, "loc_y": 200.0, "loc_z": 50.0,
+    }}
+    shot_resp = {"jsonrpc": "2.0", "id": 1, "result": {
+        "width": 1920, "height": 1080,
+        "png_bytes": 4242, "png_base64": "iVBORw0KGgo=",
+    }}
+    with patch.object(bridge, "call_ue", side_effect=[focus_resp, shot_resp]) as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 11, "method": "tools/call",
+            "params": {"name": "screenshot_actor", "arguments": {"name": "MyCube_Label"}},
+        })
+    # Composition: focus_actor first, then get_viewport_screenshot
+    assert m.call_count == 2
+    assert m.call_args_list[0].args == ("focus_actor", {"name": "MyCube_Label"})
+    assert m.call_args_list[1].args == ("get_viewport_screenshot", {})
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert body["ok"] is True
+    assert body["focused"] == "MyCube_Label"
+    assert body["name"] == "StaticMeshActor_3"
+    assert body["loc"] == {"x": 100.0, "y": 200.0, "z": 50.0}
+    assert body["width"] == 1920 and body["height"] == 1080
+    assert body["png_bytes"] == 4242
+    assert body["png_base64"] == "iVBORw0KGgo="
+
+
+def test_screenshot_actor_propagates_focus_error():
+    """If focus_actor fails (actor not found, no GEditor, etc.), the synthetic
+    must surface a focus_failed error and NOT call get_viewport_screenshot."""
+    err_resp = {"jsonrpc": "2.0", "id": 1, "error": {
+        "code": -32603, "message": "Actor not found: BadName",
+    }}
+    with patch.object(bridge, "call_ue", side_effect=[err_resp]) as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 12, "method": "tools/call",
+            "params": {"name": "screenshot_actor", "arguments": {"name": "BadName"}},
+        })
+    # Only focus_actor was called; screenshot was not attempted
+    assert m.call_count == 1
+    assert m.call_args_list[0].args == ("focus_actor", {"name": "BadName"})
+    assert "error" in resp
+    assert "focus_failed" in resp["error"]["message"]
+    assert "Actor not found: BadName" in resp["error"]["message"]
+
+
+def test_screenshot_actor_propagates_screenshot_error():
+    """If focus succeeds but the screenshot fails (no active viewport, ReadPixels
+    returns false, etc.), the synthetic must surface a screenshot_failed error."""
+    focus_resp = {"jsonrpc": "2.0", "id": 1, "result": {
+        "focused": "Cube", "name": "Cube_0",
+        "loc_x": 0.0, "loc_y": 0.0, "loc_z": 0.0,
+    }}
+    shot_err = {"jsonrpc": "2.0", "id": 1, "error": {
+        "code": -32603, "message": "No active viewport (open a level)",
+    }}
+    with patch.object(bridge, "call_ue", side_effect=[focus_resp, shot_err]) as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 13, "method": "tools/call",
+            "params": {"name": "screenshot_actor", "arguments": {"name": "Cube"}},
+        })
+    assert m.call_count == 2
+    assert "error" in resp
+    assert "screenshot_failed" in resp["error"]["message"]
+    assert "No active viewport" in resp["error"]["message"]
+
+
+def test_screenshot_actor_rejects_missing_name():
+    """Validation runs BEFORE any UE round-trip (cheaper failure path).
+    Missing/empty/non-string 'name' must be caught upfront."""
+    for bad_args in [{}, {"name": ""}, {"name": None}, {"name": 42}]:
+        with patch.object(bridge, "call_ue") as m:
+            resp = bridge.handle({
+                "jsonrpc": "2.0", "id": 14, "method": "tools/call",
+                "params": {"name": "screenshot_actor", "arguments": bad_args},
+            })
+        # No call_ue invocation — validation rejected the request immediately
+        m.assert_not_called()
+        assert "error" in resp
+        assert "missing_required_field" in resp["error"]["message"]
 
 
 def test_exec_python_persistent_in_tools_catalog():
@@ -713,7 +810,7 @@ def test_handle_tools_list_returns_all_tools():
     resp = bridge.handle({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
     assert resp["id"] == 2
     assert "tools" in resp["result"]
-    assert len(resp["result"]["tools"]) == 52
+    assert len(resp["result"]["tools"]) == 53
 
 
 # -------- handle: tools/call --------------------------------------------------
