@@ -1396,6 +1396,90 @@ Future PRs will add `blueprint_compiled` (no global delegate today; needs per-BP
 
 ---
 
+## wait_for_events
+
+**Tier 2 PR #42 / v0.11.x.** Block briefly until matching editor events arrive, or `timeout_ms` expires. Same response shape, buffer, and cursor semantics as `poll_events`; just adds a bounded wait when the buffer has nothing new yet. If matching events are already buffered, returns immediately (no sleep at all).
+
+**Architectural caveat (load-bearing):**
+
+The MCP dispatcher runs synchronously inside `FUCMCPServer::TickClients`, which is an `FTSTicker` callback on UE's **game thread**. A handler that waits for N ms therefore freezes the editor for up to N ms — visible to the user as cursor jitter, UI input lag, and viewport stutter. Until the dispatcher is refactored to support truly async handlers (a future bundle), `wait_for_events` enforces a **5000 ms hard cap** on `timeout_ms`. The default 500 ms is a reasonable balance between sub-second latency and editor responsiveness; values above the cap are silently clamped (with a `note` field surfacing the clamp).
+
+**When to use this vs `poll_events`:**
+
+- **Use `poll_events`** for steady-state polling at human-meaningful intervals (1-2 s). Zero editor stall.
+- **Use `wait_for_events`** when you need sub-second latency for a specific reactive workflow ("user dropped a chair → reposition camera within 200 ms"), and the editor stall during the wait is acceptable.
+
+**Params**
+- `timeout_ms` (int, optional, default `500`) — maximum wait in milliseconds. Hard cap `5000`; over-cap requests are clamped (not rejected) with a `note` in the response. Internally polls in 50 ms slices via `FPlatformProcess::Sleep`.
+- `since_seq` (int, optional, default `-1`) — same as `poll_events`: events with `seq >= since_seq` are returned (inclusive cursor).
+- `max_count` (int, optional, default `100`) — cap returned events. Hard max `1000`.
+- `event_filter` (array of string, optional) — substring filters on event type names; OR-combined.
+
+**Result** (same shape as `poll_events`, plus `timed_out`)
+- `ok` (bool)
+- `next_seq` (int) — pass back as `since_seq` on the next poll
+- `first_seq_in_buffer` (int) — smallest seq currently buffered (or `-1` if empty)
+- `returned` (int) — count of events in `events`
+- `dropped` (bool) — caller's `since_seq` fell below `first_seq_in_buffer`
+- `timed_out` (bool) — `true` iff the wait elapsed without any matching events arriving (and `dropped` is also false). Distinguishes "nothing happened in the wait window" from "I missed events".
+- `events` (array) — same shape as `poll_events`
+- `note` (string, only when `timeout_ms` was clamped or `dropped=true`) — diagnostic
+
+**Errors:** `invalid_value_shape` (any of the optional params with the wrong type / non-finite / negative `timeout_ms`).
+
+**Example — wait up to 1 second for the next actor_spawned**
+```json
+{"jsonrpc":"2.0","id":1,"method":"wait_for_events","params":{
+  "timeout_ms": 1000,
+  "since_seq": 4523,
+  "event_filter": ["actor_spawned"]
+}}
+```
+```json
+{"jsonrpc":"2.0","id":1,"result":{
+  "ok": true,
+  "next_seq": 4524,
+  "first_seq_in_buffer": 3523,
+  "returned": 1,
+  "dropped": false,
+  "timed_out": false,
+  "events": [
+    {"seq": 4523, "event": "actor_spawned", "ts": "2026.05.09-17.05.42",
+     "data": {"actor_label":"StaticMeshActor_2", "actor_name":"StaticMeshActor_2",
+              "class":"StaticMeshActor", "level":"/Game/Maps/MyMap"}}
+  ]
+}}
+```
+
+**Example — wait that times out**
+```json
+{"jsonrpc":"2.0","id":1,"result":{
+  "ok": true,
+  "next_seq": 4524,
+  "first_seq_in_buffer": 3524,
+  "returned": 0,
+  "dropped": false,
+  "timed_out": true,
+  "events": []
+}}
+```
+
+**Example — over-cap timeout, clamped**
+```json
+{"jsonrpc":"2.0","id":1,"method":"wait_for_events","params":{
+  "timeout_ms": 30000
+}}
+```
+```json
+{"jsonrpc":"2.0","id":1,"result":{
+  "ok": true, "next_seq": 5001, "first_seq_in_buffer": 4001, "returned": 0,
+  "dropped": false, "timed_out": true, "events": [],
+  "note": "Requested timeout_ms exceeded the hard cap of 5000 ms (single-threaded dispatcher freezes the editor game thread during the wait); clamped."
+}}
+```
+
+---
+
 ## Adding more tools
 
 See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the recipe. Short version: one `.cpp` file in `Source/UnrealClaudeMCP/Private/MCP/Handlers/`, two registration lines in `UnrealClaudeMCPModule.cpp`, one entry in `Resources/mcp_manifest.json`, one entry in `bridge/unreal_claude_mcp_bridge.py`'s `TOOLS` list, rebuild, restart.

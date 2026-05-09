@@ -492,6 +492,19 @@ TOOLS = [
             },
         },
     },
+    {
+        "name": "wait_for_events",
+        "description": "Block briefly until matching editor events arrive, or timeout_ms expires. Same response shape, buffer, and cursor semantics as poll_events; just adds a bounded wait when the buffer has nothing new. Caveat: the dispatcher runs synchronously on UE's game thread, so the wait freezes the editor for up to timeout_ms. Default 500ms; hard cap 5000ms (clamped with a 'note' if exceeded). Use only when sub-second event latency truly matters; the default 500ms is a reasonable balance between latency and editor responsiveness.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "timeout_ms": {"type": "integer", "description": "Maximum time to wait in milliseconds. Default 500; hard cap 5000 (over-cap requests are clamped, not rejected). Sleeps in 50ms slices internally."},
+                "since_seq": {"type": "integer", "description": "Same as poll_events: events with seq >= since_seq are returned. Default -1 (from oldest buffered)."},
+                "max_count": {"type": "integer", "description": "Cap returned events. Default 100; hard max 1000."},
+                "event_filter": {"type": "array", "items": {"type": "string"}, "description": "Substring-match filters on event type names; OR-combined."},
+            },
+        },
+    },
 ]
 
 

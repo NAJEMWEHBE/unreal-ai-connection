@@ -19,8 +19,8 @@ import unreal_claude_mcp_bridge as bridge
 
 # -------- TOOLS schema --------------------------------------------------------
 
-def test_tools_list_has_thirtynine_entries():
-    assert len(bridge.TOOLS) == 39
+def test_tools_list_has_forty_entries():
+    assert len(bridge.TOOLS) == 40
 
 
 def test_each_tool_has_required_mcp_fields():
@@ -56,6 +56,7 @@ def test_tool_names_are_unique_and_match_handlers():
         "get_console_variable",
         "set_console_variable",
         "poll_events",
+        "wait_for_events",
     }
     assert set(names) == expected
 
@@ -229,6 +230,20 @@ def test_poll_events_in_tools_catalog():
     # All fields optional -- "required" should be absent or empty.
     assert "required" not in t["inputSchema"] or t["inputSchema"].get("required") == []
     props = t["inputSchema"]["properties"]
+    assert props["since_seq"]["type"] == "integer"
+    assert props["max_count"]["type"] == "integer"
+    assert props["event_filter"]["type"] == "array"
+    assert props["event_filter"]["items"]["type"] == "string"
+
+
+def test_wait_for_events_in_tools_catalog():
+    """v0.11.x (Tier 2 PR #42): wait_for_events shares poll_events's cursor +
+    filter shape and adds an optional timeout_ms (int). All params optional."""
+    t = next((t for t in bridge.TOOLS if t["name"] == "wait_for_events"), None)
+    assert t is not None
+    assert "required" not in t["inputSchema"] or t["inputSchema"].get("required") == []
+    props = t["inputSchema"]["properties"]
+    assert props["timeout_ms"]["type"] == "integer"
     assert props["since_seq"]["type"] == "integer"
     assert props["max_count"]["type"] == "integer"
     assert props["event_filter"]["type"] == "array"
@@ -421,7 +436,7 @@ def test_handle_tools_list_returns_all_tools():
     resp = bridge.handle({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
     assert resp["id"] == 2
     assert "tools" in resp["result"]
-    assert len(resp["result"]["tools"]) == 39
+    assert len(resp["result"]["tools"]) == 40
 
 
 # -------- handle: tools/call --------------------------------------------------
