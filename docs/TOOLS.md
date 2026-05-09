@@ -1190,6 +1190,134 @@ Explicit Blueprint recompile via `FKismetEditorUtilities::CompileBlueprint`. Pai
 
 ---
 
+## get_console_variable
+
+Read a single UE Console Variable by name. Returns the current value in all four representations (string / int / float / bool), the detected type, the read-only flag, the human-readable last-setter (e.g. `"Console"`, `"DeviceProfile"`, `"ProjectSetting"`), and the help text from the CVar's registration.
+
+Distinct from `execute_console_command`: this reads CVar state directly via `IConsoleManager::FindConsoleVariable`, never invokes the console exec engine. Use this when you want the CVar's value without side effects, or when you want type metadata that an Exec call can't surface.
+
+**Params**
+- `name` (string, required) — exact CVar name, case-sensitive (e.g. `"r.ScreenPercentage"`, `"Slate.bAllowToolTips"`).
+
+**Result**
+- `ok` (bool)
+- `name` (string) — echo of the requested CVar name
+- `type` (string) — one of `int`, `float`, `bool`, `string`, `unknown`. Derived from `IConsoleVariable::IsVariable*()`.
+- `read_only` (bool) — `(GetFlags() & ECVF_ReadOnly) != 0`. Read-only CVars only accept `set_console_variable` during very early init.
+- `set_by` (string) — humanized last-setter, derived from `GetConsoleVariableSetByName(GetFlags())`. One of `Constructor`, `Scalability`, `GameSetting`, `ProjectSetting`, `SystemSettingsIni`, `PluginLowPriority`, `DeviceProfile`, `PluginHighPriority`, `GameOverride`, `ConsoleVariablesIni`, `Hotfix`, `Preview`, `Commandline`, `Code`, `Console`.
+- `value_string` (string) — `GetString()`
+- `value_int` (number) — `GetInt()`, coerced from underlying type
+- `value_float` (number) — `GetFloat()`, coerced from underlying type
+- `value_bool` (bool) — `GetBool()`, coerced from underlying type
+- `help` (string) — `GetHelp()` text, or `""` if none
+
+**Errors:** `missing_required_field`, `cvar_not_found`.
+
+| Code | Trigger |
+|---|---|
+| `missing_required_field` | `name` was missing or empty. |
+| `cvar_not_found` | `IConsoleManager::FindConsoleVariable` returned null. The error message points to `execute_console_command` for cases where the name is actually a console *command* rather than a CVar. |
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"get_console_variable","params":{
+  "name": "r.ScreenPercentage"
+}}
+```
+```json
+{"jsonrpc":"2.0","id":1,"result":{
+  "ok": true,
+  "name": "r.ScreenPercentage",
+  "type": "float",
+  "read_only": false,
+  "set_by": "Console",
+  "value_string": "100",
+  "value_int": 100,
+  "value_float": 100.0,
+  "value_bool": true,
+  "help": "To render in lower resolution and upscale for better performance..."
+}}
+```
+
+---
+
+## set_console_variable
+
+Mutate a UE Console Variable by name. The `value` param is polymorphic — accepts JSON `string`, `number`, or `boolean` — and is coerced to the canonical string form (`"42"`, `"1.5"`, `"1"`/`"0"` for bool) before being passed to `IConsoleVariable::Set`. UE's underlying parser handles type coercion against the CVar's declared type on the receiving side.
+
+**SetBy priority:** all `Set` calls are issued at `ECVF_SetByConsole` priority — the highest tier (matches "user typed it in the editor console" semantics). This guarantees the call overrides values set by ini files, scalability profiles, code defaults, etc., rather than being silently dropped by UE's priority arbitration.
+
+**Pre-rejection:** CVars with the `ECVF_ReadOnly` flag (`r.RHIThreadEnable`, `r.SkinCache.CompileShaders`, etc.) only accept `Set` during very early initialization. After editor startup, they silently no-op. Rather than letting that disappear, the handler returns a `read_only` error early.
+
+**Post-verify:** after the `Set`, the handler reads the value back via `GetString()` and includes both the requested and the actual landed value. A mismatch (rare with `ECVF_SetByConsole` but possible — e.g. a CVar with a custom on-set callback that rejects certain values) is surfaced as a `note` field, not an error, since UE accepted the request.
+
+**Params**
+- `name` (string, required) — exact CVar name, case-sensitive.
+- `value` (string | number | bool, required) — new value. JSON numbers and bools are formatted to canonical strings before being passed to UE. To set a string CVar, send a JSON string; to set a numeric CVar, send a JSON number; to set a bool CVar, send a JSON bool (or `0`/`1` as a number).
+
+**Result**
+- `ok` (bool)
+- `name` (string)
+- `type` (string) — one of `int`, `float`, `bool`, `string`, `unknown`
+- `requested_value` (string) — the canonical string form that was passed to `IConsoleVariable::Set`
+- `value_string` / `value_int` / `value_float` / `value_bool` — the post-set values in all four representations
+- `set_by` (string) — humanized post-set last-setter (typically `"Console"` since that's what we set)
+- `note` (string, only when post-set value differs from requested) — diagnostic explaining the mismatch
+
+**Errors:** `missing_required_field`, `cvar_not_found`, `read_only`, `invalid_value_type`.
+
+| Code | Trigger |
+|---|---|
+| `missing_required_field` | `name` or `value` missing/empty. |
+| `cvar_not_found` | `IConsoleManager::FindConsoleVariable` returned null. |
+| `read_only` | The CVar has `ECVF_ReadOnly`. The error message points to `DefaultEngine.ini` `[ConsoleVariables]` and Scalability/DeviceProfile inis as the legitimate setting sites. |
+| `invalid_value_type` | `value` is a JSON object, array, or null. Only string / number / bool are accepted. |
+
+**Example — set a numeric CVar**
+```json
+{"jsonrpc":"2.0","id":1,"method":"set_console_variable","params":{
+  "name": "r.ScreenPercentage",
+  "value": 75
+}}
+```
+```json
+{"jsonrpc":"2.0","id":1,"result":{
+  "ok": true,
+  "name": "r.ScreenPercentage",
+  "type": "float",
+  "requested_value": "75",
+  "value_string": "75",
+  "value_int": 75,
+  "value_float": 75.0,
+  "value_bool": true,
+  "set_by": "Console"
+}}
+```
+
+**Example — set a bool CVar**
+```json
+{"jsonrpc":"2.0","id":1,"method":"set_console_variable","params":{
+  "name": "Slate.bAllowToolTips",
+  "value": false
+}}
+```
+
+**Example — read-only rejection**
+```json
+{"jsonrpc":"2.0","id":1,"method":"set_console_variable","params":{
+  "name": "r.SkinCache.CompileShaders",
+  "value": 1
+}}
+```
+```json
+{"jsonrpc":"2.0","id":1,"error":{
+  "code": -32603,
+  "message": "set_console_variable: read_only: 'r.SkinCache.CompileShaders' has the ECVF_ReadOnly flag and only accepts changes during early initialization. Set it via DefaultEngine.ini ([ConsoleVariables] section) or a Scalability/DeviceProfile ini for persistent config."
+}}
+```
+
+---
+
 ## Adding more tools
 
 See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the recipe. Short version: one `.cpp` file in `Source/UnrealClaudeMCP/Private/MCP/Handlers/`, two registration lines in `UnrealClaudeMCPModule.cpp`, one entry in `Resources/mcp_manifest.json`, one entry in `bridge/unreal_claude_mcp_bridge.py`'s `TOOLS` list, rebuild, restart.

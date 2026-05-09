@@ -19,8 +19,8 @@ import unreal_claude_mcp_bridge as bridge
 
 # -------- TOOLS schema --------------------------------------------------------
 
-def test_tools_list_has_thirtysix_entries():
-    assert len(bridge.TOOLS) == 36
+def test_tools_list_has_thirtyeight_entries():
+    assert len(bridge.TOOLS) == 38
 
 
 def test_each_tool_has_required_mcp_fields():
@@ -53,6 +53,8 @@ def test_tool_names_are_unique_and_match_handlers():
         "fix_up_redirectors",
         "apply_python_to_selection",
         "compile_blueprint",
+        "get_console_variable",
+        "set_console_variable",
     }
     assert set(names) == expected
 
@@ -195,6 +197,27 @@ def test_compile_blueprint_in_tools_catalog():
     assert props["path"]["type"] == "string"
     assert "skip_save" in props
     assert props["skip_save"]["type"] == "boolean"
+
+
+def test_get_console_variable_in_tools_catalog():
+    """v0.10.1: get_console_variable takes a single required 'name'."""
+    t = next((t for t in bridge.TOOLS if t["name"] == "get_console_variable"), None)
+    assert t is not None
+    assert t["inputSchema"]["required"] == ["name"]
+    props = t["inputSchema"]["properties"]
+    assert props["name"]["type"] == "string"
+
+
+def test_set_console_variable_in_tools_catalog():
+    """v0.10.1: set_console_variable takes 'name' + polymorphic 'value'
+    (string|number|bool); both required."""
+    t = next((t for t in bridge.TOOLS if t["name"] == "set_console_variable"), None)
+    assert t is not None
+    assert set(t["inputSchema"]["required"]) == {"name", "value"}
+    props = t["inputSchema"]["properties"]
+    assert props["name"]["type"] == "string"
+    # The polymorphic value field uses JSON Schema's union-type list.
+    assert set(props["value"]["type"]) == {"string", "number", "boolean"}
 
 
 def test_required_params_match_handler_contract():
@@ -383,7 +406,7 @@ def test_handle_tools_list_returns_all_tools():
     resp = bridge.handle({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
     assert resp["id"] == 2
     assert "tools" in resp["result"]
-    assert len(resp["result"]["tools"]) == 36
+    assert len(resp["result"]["tools"]) == 38
 
 
 # -------- handle: tools/call --------------------------------------------------
