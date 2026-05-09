@@ -94,6 +94,14 @@ public:
      */
     bool GetTask(const FString& TaskId, FUCMCPTaskInfo& OutInfo) const;
 
+    /**
+     * Atomically snapshot all tasks. The output array is populated under the
+     * lock so the snapshot is internally consistent (no half-mutated entries).
+     * Order is unspecified (TMap iteration order). Filtering and limiting are
+     * the caller's responsibility -- this method always returns the full set.
+     */
+    void Snapshot(TArray<FUCMCPTaskInfo>& OutInfos) const;
+
 private:
     FUCMCPTaskRegistry() = default;
 

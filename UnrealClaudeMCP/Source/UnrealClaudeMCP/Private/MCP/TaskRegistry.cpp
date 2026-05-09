@@ -151,3 +151,19 @@ bool FUCMCPTaskRegistry::GetTask(const FString& TaskId, FUCMCPTaskInfo& OutInfo)
     }
     return false;
 }
+
+void FUCMCPTaskRegistry::Snapshot(TArray<FUCMCPTaskInfo>& OutInfos) const
+{
+    FScopeLock Lock(&Mutex);
+    OutInfos.Reset();
+    OutInfos.Reserve(Tasks.Num());
+    for (const TPair<FString, FRecord>& Pair : Tasks)
+    {
+        FUCMCPTaskInfo Info = Pair.Value.Info;
+        if (Pair.Value.CancellationFlag.IsValid())
+        {
+            Info.bCancelRequested = Pair.Value.CancellationFlag->Load();
+        }
+        OutInfos.Add(MoveTemp(Info));
+    }
+}

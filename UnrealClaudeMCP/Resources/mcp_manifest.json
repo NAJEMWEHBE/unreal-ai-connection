@@ -412,6 +412,16 @@
       "returns": { "ok": "bool", "task_id": "string", "accepted": "bool", "note": "string" }
     },
     {
+      "name": "list_tasks",
+      "description": "Enumerate tasks in the registry with optional status/type filters and a limit. Atomic snapshot. Mirrors find_assets's total/matched/returned convention.",
+      "params": {
+        "status_filter": "string (optional) - one of pending | running | completed | cancelled | failed",
+        "type_filter": "string (optional) - exact-match task type",
+        "limit": "int (optional, default 100, clamped 1..500)"
+      },
+      "returns": { "ok": "bool", "total": "int", "matched": "int", "returned": "int", "tasks": "array of {task_id, type, status, start_time, end_time, cancel_requested, result?, error?}" }
+    },
+    {
       "name": "exec_python_persistent",
       "description": "Like execute_unreal_python but state PERSISTS across calls. Implemented via FPythonCommandEx with FileExecutionScope=Public (shared globals dict with the editor's Python console). Pairs with reset_python_state.",
       "params": {
