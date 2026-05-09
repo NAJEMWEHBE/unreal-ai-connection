@@ -445,6 +445,18 @@ TOOLS = [
             "required": ["code"],
         },
     },
+    {
+        "name": "compile_blueprint",
+        "description": "Explicit Blueprint recompile via FKismetEditorUtilities::CompileBlueprint. Use when a BP has been mutated externally (e.g. via execute_unreal_python) and needs to be recompiled without further mutation. Pairs with edit_widget_tree's compile=true flag.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "Blueprint asset path, e.g. /Game/Blueprints/BP_MyActor"},
+                "skip_save": {"type": "boolean", "description": "Suppress the project's Save-On-Compile auto-save behavior (default false)."},
+            },
+            "required": ["path"],
+        },
+    },
 ]
 
 
