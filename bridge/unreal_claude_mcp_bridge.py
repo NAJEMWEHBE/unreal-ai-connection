@@ -663,6 +663,17 @@ TOOLS = [
         },
     },
     {
+        "name": "inspect_landscape",
+        "description": "Read structural properties of an ALandscape (a SCENE ACTOR, not an asset): component dimensions, total component count across loaded streaming proxies, landscape material, world-space bounds, both LandscapeGuid (mutates on PIE/instancing) and OriginalLandscapeGuid (stable). Lookup by actor label or GUID; if neither is given and exactly one landscape exists, that one is returned. Diverges from sibling Inspect* handlers (which take asset paths) because UE landscapes have no .uasset.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Actor label of the landscape. Optional. If omitted alongside guid, returns the only landscape if exactly one exists."},
+                "guid": {"type": "string", "description": "LandscapeGuid OR OriginalLandscapeGuid string. Optional. Either matches."},
+            },
+        },
+    },
+    {
         "name": "get_camera_transform",
         "description": "Read the level-editor viewport camera transform. SYNTHETIC bridge-side handler (PR #46 language-shim experiment): composes execute_unreal_python + get_log_lines via the marker pattern. Returns { location: {x,y,z}, rotation: {pitch,yaw,roll} }.",
         "inputSchema": {

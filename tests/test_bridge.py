@@ -23,7 +23,7 @@ def test_tools_list_size():
     # Cross-checked against the manifest in test_manifest_sync.py; the absolute
     # number bumps with each new tool. Function name kept count-agnostic so
     # it doesn't drift behind the assertion (per Sonnet pre-review on PR #50).
-    assert len(bridge.TOOLS) == 57
+    assert len(bridge.TOOLS) == 58
 
 
 def test_each_tool_has_required_mcp_fields():
@@ -73,6 +73,7 @@ def test_tool_names_are_unique_and_match_handlers():
         "inspect_static_mesh",
         "inspect_niagara_system",
         "inspect_anim_blueprint",
+        "inspect_landscape",
         "get_camera_transform",
         "set_camera_transform",
         "screenshot_actor",
@@ -298,6 +299,22 @@ def test_inspect_anim_blueprint_in_tools_catalog():
     assert t is not None
     assert t["inputSchema"]["required"] == ["path"]
     assert t["inputSchema"]["properties"]["path"]["type"] == "string"
+
+
+def test_inspect_landscape_in_tools_catalog():
+    """Tier 3: inspect_landscape diverges from siblings -- takes optional
+    name AND/OR guid (NOT a 'path'), since landscapes are scene actors not
+    assets. With both omitted, the handler returns the sole landscape if
+    exactly one exists."""
+    t = next((t for t in bridge.TOOLS if t["name"] == "inspect_landscape"), None)
+    assert t is not None
+    # No required fields -- both name and guid are optional
+    assert "required" not in t["inputSchema"] or t["inputSchema"].get("required") == []
+    props = t["inputSchema"]["properties"]
+    assert props["name"]["type"] == "string"
+    assert props["guid"]["type"] == "string"
+    # Critical: this handler does NOT take a 'path' field (diverges from siblings)
+    assert "path" not in props
 
 
 def test_get_camera_transform_is_synthetic():
@@ -863,7 +880,7 @@ def test_handle_tools_list_returns_all_tools():
     resp = bridge.handle({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
     assert resp["id"] == 2
     assert "tools" in resp["result"]
-    assert len(resp["result"]["tools"]) == 57
+    assert len(resp["result"]["tools"]) == 58
 
 
 # -------- handle: tools/call --------------------------------------------------
