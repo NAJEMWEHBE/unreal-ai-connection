@@ -72,14 +72,16 @@ TArray<FUCMCPEvent> FUCMCPEventBus::Snapshot(
     bool& OutDropped) const
 {
     TArray<FUCMCPEvent> Out;
-    if (MaxCount <= 0)
-    {
-        OutNextSeq = 0;
-        OutFirstSeqInBuffer = -1;
-        OutDropped = false;
-        return Out;
-    }
-    Out.Reserve(FMath::Min(MaxCount, kRingSize));
+    // Don't early-return on non-positive MaxCount: the metadata (OutNextSeq,
+    // OutFirstSeqInBuffer, OutDropped) must still be populated accurately so
+    // callers asking "what's the bus state?" with MaxCount=0 don't get garbage
+    // (the early return would have set OutNextSeq=0, which a client would
+    // mistake for "buffer empty" and reset its cursor). The loop below
+    // correctly handles MaxCount<=0 via its `Out.Num() < MaxCount` guard --
+    // the loop body never runs and Out stays empty. Reserve clamps to
+    // non-negative because TArray::Reserve(<negative>) is undefined.
+    // (Caught by Gemini medium-priority review on PR #40.)
+    Out.Reserve(FMath::Max(0, FMath::Min(MaxCount, kRingSize)));
 
     FScopeLock Lock(&Mutex);
 
