@@ -19,8 +19,8 @@ import unreal_claude_mcp_bridge as bridge
 
 # -------- TOOLS schema --------------------------------------------------------
 
-def test_tools_list_has_fortyeight_entries():
-    assert len(bridge.TOOLS) == 48
+def test_tools_list_has_fiftytwo_entries():
+    assert len(bridge.TOOLS) == 52
 
 
 def test_each_tool_has_required_mcp_fields():
@@ -65,6 +65,10 @@ def test_tool_names_are_unique_and_match_handlers():
         "cancel_task",
         "exec_python_persistent",
         "reset_python_state",
+        "find_console_variables",
+        "inspect_static_mesh",
+        "get_camera_transform",
+        "set_camera_transform",
     }
     assert set(names) == expected
 
@@ -242,6 +246,50 @@ def test_poll_events_in_tools_catalog():
     assert props["max_count"]["type"] == "integer"
     assert props["event_filter"]["type"] == "array"
     assert props["event_filter"]["items"]["type"] == "string"
+
+
+def test_find_console_variables_in_tools_catalog():
+    """v0.12.0 (language-shim experiment, PR #46): find_console_variables
+    is a C++ handler with optional prefix + limit."""
+    t = next((t for t in bridge.TOOLS if t["name"] == "find_console_variables"), None)
+    assert t is not None
+    assert "required" not in t["inputSchema"] or t["inputSchema"].get("required") == []
+    props = t["inputSchema"]["properties"]
+    assert props["prefix"]["type"] == "string"
+    assert props["limit"]["type"] == "integer"
+
+
+def test_inspect_static_mesh_in_tools_catalog():
+    """v0.12.0 (language-shim experiment, PR #46): inspect_static_mesh
+    requires path."""
+    t = next((t for t in bridge.TOOLS if t["name"] == "inspect_static_mesh"), None)
+    assert t is not None
+    assert t["inputSchema"]["required"] == ["path"]
+    assert t["inputSchema"]["properties"]["path"]["type"] == "string"
+
+
+def test_get_camera_transform_is_synthetic():
+    """v0.12.0 (language-shim experiment, PR #46): get_camera_transform
+    is a SYNTHETIC bridge-side handler that composes execute_unreal_python
+    + get_log_lines via marker pattern."""
+    t = next((t for t in bridge.TOOLS if t["name"] == "get_camera_transform"), None)
+    assert t is not None
+    assert "required" not in t["inputSchema"] or t["inputSchema"].get("required") == []
+    assert "get_camera_transform" in bridge.SYNTHETIC_TOOLS
+    assert bridge.SYNTHETIC_TOOLS["get_camera_transform"] is bridge.synthetic_get_camera_transform
+
+
+def test_set_camera_transform_is_synthetic():
+    """v0.12.0 (language-shim experiment, PR #46): set_camera_transform
+    is a SYNTHETIC bridge-side handler with optional location + rotation."""
+    t = next((t for t in bridge.TOOLS if t["name"] == "set_camera_transform"), None)
+    assert t is not None
+    assert "required" not in t["inputSchema"] or t["inputSchema"].get("required") == []
+    props = t["inputSchema"]["properties"]
+    assert props["location"]["type"] == "object"
+    assert props["rotation"]["type"] == "object"
+    assert "set_camera_transform" in bridge.SYNTHETIC_TOOLS
+    assert bridge.SYNTHETIC_TOOLS["set_camera_transform"] is bridge.synthetic_set_camera_transform
 
 
 def test_exec_python_persistent_in_tools_catalog():
@@ -665,7 +713,7 @@ def test_handle_tools_list_returns_all_tools():
     resp = bridge.handle({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
     assert resp["id"] == 2
     assert "tools" in resp["result"]
-    assert len(resp["result"]["tools"]) == 48
+    assert len(resp["result"]["tools"]) == 52
 
 
 # -------- handle: tools/call --------------------------------------------------

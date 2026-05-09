@@ -415,6 +415,38 @@
       "description": "Clear all user-defined names from UE Python's public globals dict. Pairs with exec_python_persistent. Names starting with '_' (dunders + conventional private) are preserved.",
       "params": {},
       "returns": { "ok": "bool", "scope": "string (= 'public')", "note": "string" }
+    },
+    {
+      "name": "find_console_variables",
+      "description": "Prefix-search IConsoleManager registry; returns matching CVar names + types + read-only flags. C++ handler -- direct iteration of UE's internal registry. Part of language-shim experiment (PR #46).",
+      "params": {
+        "prefix": "string (optional, default empty) - case-sensitive prefix filter",
+        "limit": "int (optional, default 100, max 1000) - cap returned variables"
+      },
+      "returns": { "ok": "bool", "prefix": "string", "limit": "int", "returned": "int", "variables": "array of {name, type, read_only}", "note": "string (only when result count hit the cap)" }
+    },
+    {
+      "name": "inspect_static_mesh",
+      "description": "Read structural properties of a UStaticMesh: LOD count, per-LOD vertex/triangle counts, bounding box, material slots. C++ handler. Part of language-shim experiment (PR #46).",
+      "params": {
+        "path": "string (required) - UE asset path of a UStaticMesh"
+      },
+      "returns": { "ok": "bool", "name": "string", "package_path": "string", "num_lods": "int", "total_vertices": "int", "total_triangles": "int", "lods": "array of {index, vertices, triangles}", "bounds": "{min, max, size, center}", "material_slots": "array of {index, slot_name, material_path}" }
+    },
+    {
+      "name": "get_camera_transform",
+      "description": "Read level-editor viewport camera transform. SYNTHETIC bridge-side handler -- composes execute_unreal_python + get_log_lines via marker pattern. Part of language-shim experiment (PR #46).",
+      "params": {},
+      "returns": { "ok": "bool", "location": "{x, y, z}", "rotation": "{pitch, yaw, roll}" }
+    },
+    {
+      "name": "set_camera_transform",
+      "description": "Set level-editor viewport camera transform. SYNTHETIC bridge-side handler. Single execute_unreal_python round-trip. Part of language-shim experiment (PR #46).",
+      "params": {
+        "location": "object (optional) - {x, y, z}; missing fields default to 0",
+        "rotation": "object (optional) - {pitch, yaw, roll}; missing fields default to 0"
+      },
+      "returns": { "ok": "bool", "location": "{x, y, z}", "rotation": "{pitch, yaw, roll}" }
     }
   ]
 }
