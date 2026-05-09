@@ -19,4 +19,11 @@ private:
     FDelegateHandle LevelActorAddedHandle;
     FDelegateHandle LevelActorDeletedHandle;
     FDelegateHandle AssetAddedHandle;
+
+    // Tier 2 (PR #41): additional editor-event delegate handles.
+    FDelegateHandle AssetRemovedHandle;
+    FDelegateHandle AssetRenamedHandle;
+    FDelegateHandle AssetPostImportHandle;
+    FDelegateHandle PostSaveWorldHandle;
+    FDelegateHandle MapChangeHandle;
 };
