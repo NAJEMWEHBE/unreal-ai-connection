@@ -36,6 +36,7 @@
 #include "Dom/JsonObject.h"
 #include "Dom/JsonValue.h"
 #include "HAL/IConsoleManager.h"
+#include "Math/UnrealMathUtility.h"
 
 namespace
 {
@@ -68,11 +69,36 @@ namespace
             return true;
 
         case EJson::Number:
-            // %g emits clean integer form for integer-valued doubles
-            // ("42" not "42.000000") and concise float form for fractions
-            // ("1.5" not "1.500000"). UE's CVar string parser handles both.
-            OutString = FString::Printf(TEXT("%g"), Value->AsNumber());
+        {
+            // Numeric inputs need lossless conversion — UE's float CVar parser
+            // round-trips through this string. `%g`'s default 6 significant
+            // digits would silently truncate caller-supplied precision (e.g.
+            // 0.123456789 -> "0.123457" -> 0.123457), invisibly mistuning
+            // float CVars while reporting success. Caught by Codex P2 on PR #39.
+            //
+            // For integer-valued doubles in the IEEE 754 exact-int range
+            // (|x| < 2^53), format as int64 to avoid trailing ".0" / scientific
+            // notation / FP-representation noise. Otherwise use %.17g — the
+            // IEEE 754 round-trip precision for double — to preserve every
+            // bit the caller could have meant. The cost (e.g. 0.1 emitting
+            // as "0.10000000000000001" because 0.1 has no exact binary
+            // representation) is a cosmetic exposure of the FP rep, not a
+            // correctness loss; the value UE receives matches the value the
+            // caller's JSON parser handed us.
+            const double Num = Value->AsNumber();
+            constexpr double kMaxExactInt = 9007199254740992.0;  // 2^53
+            if (FMath::IsFinite(Num)
+                && FMath::FloorToDouble(Num) == Num
+                && FMath::Abs(Num) < kMaxExactInt)
+            {
+                OutString = FString::Printf(TEXT("%lld"), static_cast<int64>(Num));
+            }
+            else
+            {
+                OutString = FString::Printf(TEXT("%.17g"), Num);
+            }
             return true;
+        }
 
         case EJson::Boolean:
             OutString = Value->AsBool() ? TEXT("1") : TEXT("0");
