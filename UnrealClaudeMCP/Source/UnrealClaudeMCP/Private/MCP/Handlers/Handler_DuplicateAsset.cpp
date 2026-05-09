@@ -70,7 +70,11 @@ public:
         TSharedPtr<FJsonObject> Out = MakeShared<FJsonObject>();
         Out->SetBoolField(TEXT("ok"), true);
         Out->SetStringField(TEXT("src_path"), SourceObjectPath);
-        Out->SetStringField(TEXT("dest_path"), DestObjectPath);
+        // Use the engine's ground-truth path -- if UE sanitized or adjusted the
+        // destination during DuplicateAsset, GetPathName reflects the actual
+        // result. Per PR #49 Gemini medium review: trusting DestObjectPath
+        // here would lie to callers when the engine adjusted it.
+        Out->SetStringField(TEXT("dest_path"), Duplicated->GetPathName());
         return Out;
     }
 };

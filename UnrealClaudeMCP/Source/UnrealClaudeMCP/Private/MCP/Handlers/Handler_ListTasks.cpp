@@ -90,13 +90,24 @@ public:
             Limit = static_cast<int32>(FMath::Clamp(Raw, 1.0, 500.0));
         }
 
+        // Validate type_filter shape consistently with status_filter (PR #50
+        // Codex P2 + Gemini medium review): silently ignoring non-string
+        // values let clients with malformed filters get unexpectedly broad
+        // result sets instead of an actionable error.
         FString TypeFilter;
         bool bHasTypeFilter = false;
         if (Params.IsValid())
         {
             const TSharedPtr<FJsonValue> TypeValue = Params->TryGetField(TEXT("type_filter"));
-            if (TypeValue.IsValid() && TypeValue->Type == EJson::String)
+            if (TypeValue.IsValid() && TypeValue->Type != EJson::Null)
             {
+                if (TypeValue->Type != EJson::String)
+                {
+                    OutError = FString::Printf(
+                        TEXT("list_tasks: invalid_value_shape: 'type_filter' must be a string (got json type %d)"),
+                        static_cast<int32>(TypeValue->Type));
+                    return nullptr;
+                }
                 TypeFilter = TypeValue->AsString();
                 bHasTypeFilter = true;
             }
@@ -106,8 +117,15 @@ public:
         FUCMCPTaskRegistry::Get().Snapshot(AllInfos);
         const int32 Total = AllInfos.Num();
 
-        TArray<FUCMCPTaskInfo> Matched;
-        Matched.Reserve(AllInfos.Num());
+        // Single-pass filter + count + emit (PR #50 Gemini perf review).
+        // Prior implementation copied AllInfos -> Matched -> Returned -> JSON;
+        // this version filters, counts matches, and emits JSON in one pass.
+        // Limit-respecting truncation stops emitting JSON beyond Limit while
+        // continuing to count matches (so the 'matched' count is exact).
+        int32 MatchedCount = 0;
+        TArray<TSharedPtr<FJsonValue>> TasksJson;
+        TasksJson.Reserve(FMath::Min(Total, Limit));
+
         for (const FUCMCPTaskInfo& Info : AllInfos)
         {
             if (bHasStatusFilter && Info.Status != StatusFilter)
@@ -118,47 +136,36 @@ public:
             {
                 continue;
             }
-            Matched.Add(Info);
-        }
-        const int32 MatchedCount = Matched.Num();
 
-        TArray<FUCMCPTaskInfo> Returned;
-        const int32 ReturnedCount = FMath::Min(MatchedCount, Limit);
-        Returned.Reserve(ReturnedCount);
-        for (int32 i = 0; i < ReturnedCount; ++i)
-        {
-            Returned.Add(Matched[i]);
-        }
-
-        TArray<TSharedPtr<FJsonValue>> TasksJson;
-        TasksJson.Reserve(Returned.Num());
-        for (const FUCMCPTaskInfo& Info : Returned)
-        {
-            TSharedRef<FJsonObject> Task = MakeShared<FJsonObject>();
-            Task->SetStringField(TEXT("task_id"), Info.Id);
-            Task->SetStringField(TEXT("type"), Info.Type);
-            Task->SetStringField(TEXT("status"), Info.Status);
-            Task->SetStringField(TEXT("start_time"), Info.StartTime);
-            Task->SetStringField(TEXT("end_time"), Info.EndTime);
-            Task->SetBoolField(TEXT("cancel_requested"), Info.bCancelRequested);
-
-            if (Info.Result.IsValid())
+            if (MatchedCount < Limit)
             {
-                Task->SetObjectField(TEXT("result"), Info.Result);
-            }
-            if (!Info.Error.IsEmpty())
-            {
-                Task->SetStringField(TEXT("error"), Info.Error);
-            }
+                TSharedRef<FJsonObject> Task = MakeShared<FJsonObject>();
+                Task->SetStringField(TEXT("task_id"), Info.Id);
+                Task->SetStringField(TEXT("type"), Info.Type);
+                Task->SetStringField(TEXT("status"), Info.Status);
+                Task->SetStringField(TEXT("start_time"), Info.StartTime);
+                Task->SetStringField(TEXT("end_time"), Info.EndTime);
+                Task->SetBoolField(TEXT("cancel_requested"), Info.bCancelRequested);
 
-            TasksJson.Add(MakeShared<FJsonValueObject>(Task));
+                if (Info.Result.IsValid())
+                {
+                    Task->SetObjectField(TEXT("result"), Info.Result);
+                }
+                if (!Info.Error.IsEmpty())
+                {
+                    Task->SetStringField(TEXT("error"), Info.Error);
+                }
+
+                TasksJson.Add(MakeShared<FJsonValueObject>(Task));
+            }
+            ++MatchedCount;
         }
 
         TSharedPtr<FJsonObject> Out = MakeShared<FJsonObject>();
         Out->SetBoolField(TEXT("ok"), true);
         Out->SetNumberField(TEXT("total"), Total);
         Out->SetNumberField(TEXT("matched"), MatchedCount);
-        Out->SetNumberField(TEXT("returned"), Returned.Num());
+        Out->SetNumberField(TEXT("returned"), TasksJson.Num());
         Out->SetArrayField(TEXT("tasks"), TasksJson);
         return Out;
     }

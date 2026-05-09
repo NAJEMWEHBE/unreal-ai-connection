@@ -130,7 +130,9 @@ public:
         TSharedPtr<FJsonObject> Out = MakeShared<FJsonObject>();
         Out->SetBoolField(TEXT("ok"), true);
         Out->SetStringField(TEXT("name"), System->GetName());
-        Out->SetStringField(TEXT("path"), ObjectPath);
+        // Renamed from "path" to "package_path" for consistency with
+        // inspect_static_mesh and inspect_asset. PR #51 Gemini medium review.
+        Out->SetStringField(TEXT("package_path"), ObjectPath);
         Out->SetBoolField(TEXT("is_looping"), System->IsLooping());
         Out->SetBoolField(TEXT("has_gpu_emitters"), System->HasAnyGPUEmitters());
 
@@ -145,10 +147,14 @@ public:
 
         if (System->bFixedBounds)
         {
+            // Mirror inspect_static_mesh's bounds shape (min, max, size, center)
+            // for sibling consistency. PR #51 Gemini medium review.
             const FBox Bounds = System->GetFixedBounds();
             TSharedPtr<FJsonObject> BoundsObj = MakeShared<FJsonObject>();
             BoundsObj->SetObjectField(TEXT("min"), VectorToJson(Bounds.Min));
             BoundsObj->SetObjectField(TEXT("max"), VectorToJson(Bounds.Max));
+            BoundsObj->SetObjectField(TEXT("size"), VectorToJson(Bounds.GetSize()));
+            BoundsObj->SetObjectField(TEXT("center"), VectorToJson(Bounds.GetCenter()));
             Out->SetObjectField(TEXT("fixed_bounds"), BoundsObj);
         }
 

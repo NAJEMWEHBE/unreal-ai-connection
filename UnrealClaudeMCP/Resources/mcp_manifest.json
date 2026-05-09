@@ -458,7 +458,7 @@
       "params": {
         "path": "string (required) - UE asset path of a UNiagaraSystem"
       },
-      "returns": { "ok": "bool", "name": "string", "path": "string", "is_looping": "bool", "has_gpu_emitters": "bool", "needs_warmup": "bool", "warmup_tick_count": "int (conditional, when needs_warmup is true)", "warmup_time": "float (conditional, when needs_warmup is true)", "warmup_tick_delta": "float (conditional, when needs_warmup is true)", "emitter_count": "int", "emitters": "array of {name, enabled, mode}", "user_parameter_count": "int", "user_parameters": "array of {name, type}", "effect_type": "string (optional, when set; asset path of the UNiagaraEffectType instance)", "fixed_bounds": "object (optional, when bFixedBounds is true)" }
+      "returns": { "ok": "bool", "name": "string", "package_path": "string", "is_looping": "bool", "has_gpu_emitters": "bool", "needs_warmup": "bool", "warmup_tick_count": "int (conditional, when needs_warmup is true)", "warmup_time": "float (conditional, when needs_warmup is true)", "warmup_tick_delta": "float (conditional, when needs_warmup is true)", "emitter_count": "int", "emitters": "array of {name, enabled, mode}", "user_parameter_count": "int", "user_parameters": "array of {name, type}", "effect_type": "string (optional, when set; asset path of the UNiagaraEffectType instance)", "fixed_bounds": "object (optional, when bFixedBounds is true) - {min, max, size, center}" }
     },
     {
       "name": "inspect_anim_blueprint",
@@ -466,7 +466,7 @@
       "params": {
         "path": "string (required) - UE asset path of a UAnimBlueprint"
       },
-      "returns": { "ok": "bool", "name": "string", "path": "string", "parent_class": "string", "is_template": "bool", "target_skeleton": "string (conditional, when bIsTemplate is false and TargetSkeleton is set; asset path)", "blueprint_status": "string enum: UpToDate | UpToDateWithWarnings | Dirty | Unknown", "is_compiled": "bool (true when GetAnimBlueprintGeneratedClass is non-null)", "parent_anim_blueprint": "string (conditional, when this blueprint subclasses another anim blueprint; asset path)", "state_machine_count": "int", "state_machines": "array of {name}", "anim_function_count": "int", "anim_functions": "array of {name, implemented}", "sync_group_count": "int", "sync_groups": "array of string" }
+      "returns": { "ok": "bool", "name": "string", "path": "string", "parent_class": "string", "is_template": "bool", "target_skeleton": "string (conditional, when bIsTemplate is false and TargetSkeleton is set; asset path)", "blueprint_status": "string enum: UpToDate | UpToDateWithWarnings | Dirty | Error | Unknown", "is_compiled": "bool (true when GetAnimBlueprintGeneratedClass is non-null)", "parent_anim_blueprint": "string (conditional, when this blueprint subclasses another anim blueprint; asset path)", "state_machine_count": "int", "state_machines": "array of {name}", "anim_function_count": "int", "anim_functions": "array of {name, implemented}", "sync_group_count": "int", "sync_groups": "array of string" }
     },
     {
       "name": "get_camera_transform",
