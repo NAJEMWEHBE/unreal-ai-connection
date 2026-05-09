@@ -208,6 +208,15 @@
       "returns": { "ok": "bool", "old_path": "string", "new_path": "string" }
     },
     {
+      "name": "duplicate_asset",
+      "description": "Copy an asset to a new path. Source asset is preserved; destination must not already exist. No redirector is created (callers reference the duplicate by its new path).",
+      "params": {
+        "path": "string (required) - source asset path",
+        "dest_path": "string (required) - destination asset path (must not exist)"
+      },
+      "returns": { "ok": "bool", "src_path": "string", "dest_path": "string" }
+    },
+    {
       "name": "delete_asset",
       "description": "Delete an asset. Refuses if referenced by other packages unless force=true. Force-delete cannot be recovered via Undo.",
       "params": {

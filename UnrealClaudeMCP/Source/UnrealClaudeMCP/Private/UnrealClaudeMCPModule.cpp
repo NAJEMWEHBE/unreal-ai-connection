@@ -48,6 +48,7 @@ extern TSharedRef<IUCMCPHandler> Make_Handler_ExecuteConsoleCommand();
 extern TSharedRef<IUCMCPHandler> Make_Handler_InspectAsset();
 extern TSharedRef<IUCMCPHandler> Make_Handler_MoveAsset();
 extern TSharedRef<IUCMCPHandler> Make_Handler_RenameAsset();
+extern TSharedRef<IUCMCPHandler> Make_Handler_DuplicateAsset();
 extern TSharedRef<IUCMCPHandler> Make_Handler_DeleteAsset();
 extern TSharedRef<IUCMCPHandler> Make_Handler_InspectSequence();
 extern TSharedRef<IUCMCPHandler> Make_Handler_CreateSequence();
@@ -112,6 +113,7 @@ void FUnrealClaudeMCPModule::StartupModule()
     Reg.Register(Make_Handler_InspectAsset());
     Reg.Register(Make_Handler_MoveAsset());
     Reg.Register(Make_Handler_RenameAsset());
+    Reg.Register(Make_Handler_DuplicateAsset());
     Reg.Register(Make_Handler_DeleteAsset());
     Reg.Register(Make_Handler_InspectSequence());
     Reg.Register(Make_Handler_CreateSequence());

@@ -20,7 +20,7 @@ import unreal_claude_mcp_bridge as bridge
 # -------- TOOLS schema --------------------------------------------------------
 
 def test_tools_list_has_fiftytwo_entries():
-    assert len(bridge.TOOLS) == 53
+    assert len(bridge.TOOLS) == 54
 
 
 def test_each_tool_has_required_mcp_fields():
@@ -45,7 +45,7 @@ def test_tool_names_are_unique_and_match_handlers():
         "find_assets", "spawn_actor", "set_actor_transform", "delete_actor",
         "set_actor_property", "add_component",
         "get_log_lines", "execute_console_command",
-        "inspect_asset", "move_asset", "rename_asset", "delete_asset",
+        "inspect_asset", "move_asset", "rename_asset", "duplicate_asset", "delete_asset",
         "inspect_sequence", "create_sequence", "bind_actor_to_sequence",
         "create_material_instance", "set_mi_parameter", "inspect_material",
         "inspect_material_instance",
@@ -112,6 +112,13 @@ def test_rename_asset_in_tools_catalog():
     t = next((t for t in bridge.TOOLS if t["name"] == "rename_asset"), None)
     assert t is not None
     assert set(t["inputSchema"]["required"]) == {"path", "new_name"}
+
+
+def test_duplicate_asset_in_tools_catalog():
+    """duplicate_asset takes path + dest_path, both required."""
+    t = next((t for t in bridge.TOOLS if t["name"] == "duplicate_asset"), None)
+    assert t is not None
+    assert set(t["inputSchema"]["required"]) == {"path", "dest_path"}
 
 
 def test_delete_asset_in_tools_catalog():
@@ -810,7 +817,7 @@ def test_handle_tools_list_returns_all_tools():
     resp = bridge.handle({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
     assert resp["id"] == 2
     assert "tools" in resp["result"]
-    assert len(resp["result"]["tools"]) == 53
+    assert len(resp["result"]["tools"]) == 54
 
 
 # -------- handle: tools/call --------------------------------------------------
