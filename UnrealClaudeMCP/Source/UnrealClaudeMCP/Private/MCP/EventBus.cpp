@@ -3,6 +3,7 @@
 #include "MCP/EventBus.h"
 
 #include "Misc/DateTime.h"
+#include "Misc/Guid.h"
 #include "Misc/ScopeLock.h"
 
 // ---------------------------------------------------------------------------
@@ -142,6 +143,135 @@ TArray<FUCMCPEvent> FUCMCPEventBus::Snapshot(
 
         Out.Add(Entry);
     }
+
+    return Out;
+}
+
+// ---------------------------------------------------------------------------
+// Subscription API (PR #43)
+// ---------------------------------------------------------------------------
+//
+// Subscriptions are bus-side state holding a cursor + filter so clients can
+// poll without tracking since_seq. The implementation reuses the same lock
+// and the same ring for the actual event read; the only new state is the
+// per-sub cursor, which advances atomically with each PollSubscription call.
+
+FString FUCMCPEventBus::RegisterSubscription(const TArray<FString>& EventFilter, int64& OutInitialNextSeq)
+{
+    // FGuid is cryptographically random; collision probability between
+    // session restarts is effectively zero. ToString() produces the
+    // canonical hyphenated 36-char form (e.g. "5C2D...-...").
+    const FString Id = FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphens);
+
+    FUCMCPSubscription Sub;
+    Sub.Id = Id;
+    Sub.EventFilter = EventFilter;
+
+    FScopeLock Lock(&Mutex);
+    // The cursor starts at the bus's current NextSeq -- subscribers see
+    // events fired AFTER subscription, not historical ones. This avoids
+    // the asset-registry initial-scan flood being delivered to every
+    // newly-created subscription.
+    Sub.NextSeq = NextSeq;
+    OutInitialNextSeq = NextSeq;
+    Subscriptions.Add(Id, MoveTemp(Sub));
+    return Id;
+}
+
+bool FUCMCPEventBus::Unsubscribe(const FString& SubscriptionId)
+{
+    FScopeLock Lock(&Mutex);
+    return Subscriptions.Remove(SubscriptionId) > 0;
+}
+
+TArray<FUCMCPEvent> FUCMCPEventBus::PollSubscription(
+    const FString& SubscriptionId,
+    int32 MaxCount,
+    int64& OutNextSeq,
+    int64& OutFirstSeqInBuffer,
+    bool& OutDropped,
+    bool& OutFound)
+{
+    TArray<FUCMCPEvent> Out;
+    OutFound = false;
+
+    FScopeLock Lock(&Mutex);
+
+    FUCMCPSubscription* Sub = Subscriptions.Find(SubscriptionId);
+    if (!Sub)
+    {
+        // Unknown id: return empty + OutFound=false. Caller turns this
+        // into a not_found error. Other out-params left as-is so the
+        // caller can choose whether to surface them.
+        return Out;
+    }
+    OutFound = true;
+
+    // Reuse the snapshot logic by inlining a filtered scan. Drop detection
+    // mirrors Snapshot: if the sub's cursor is below the oldest buffered
+    // seq, some events the sub asked for were evicted.
+    OutNextSeq = NextSeq;
+
+    if (Count == 0)
+    {
+        OutFirstSeqInBuffer = -1;
+        OutDropped = false;
+        return Out;
+    }
+
+    Out.Reserve(FMath::Max(0, FMath::Min(MaxCount, kRingSize)));
+
+    const int32 StartIndex = (Count < kRingSize) ? 0 : Head;
+    OutFirstSeqInBuffer = Ring[StartIndex].Seq;
+    OutDropped = (Sub->NextSeq < OutFirstSeqInBuffer);
+
+    // Track the highest seq we INSPECTED, not just delivered. Filters are
+    // immutable for a subscription's lifetime (PR #43 design), so an event
+    // rejected by the filter on this poll will never match on any future
+    // poll either -- safe to skip it forever. This avoids O(N) rescan on
+    // every poll for subscriptions with selective filters (e.g. a sub
+    // filtered to "actor_spawned" while 100s of asset_added events fire
+    // would otherwise re-inspect the rejected events on every call).
+    // (Caught independently by Codex P2 and Gemini high-priority on PR #43.)
+    int64 LastInspectedSeq = Sub->NextSeq - 1;
+    for (int32 i = 0; i < Count; ++i)
+    {
+        const FUCMCPEvent& Entry = Ring[(StartIndex + i) % kRingSize];
+        if (Entry.Seq < Sub->NextSeq)
+        {
+            continue;  // already-delivered to this subscriber
+        }
+
+        // Stop here if we've hit MaxCount -- the unscanned events must
+        // remain available for the next poll. Critical: break BEFORE
+        // updating LastInspectedSeq, so the cursor doesn't advance past
+        // an event we never actually inspected.
+        if (Out.Num() >= MaxCount)
+        {
+            break;
+        }
+
+        LastInspectedSeq = Entry.Seq;
+
+        // Apply per-sub event-type filter (substring match on EventType).
+        if (Sub->EventFilter.Num() > 0)
+        {
+            bool bMatched = false;
+            for (const FString& F : Sub->EventFilter)
+            {
+                if (!F.IsEmpty() && Entry.EventType.Contains(F))
+                {
+                    bMatched = true;
+                    break;
+                }
+            }
+            if (!bMatched) { continue; }
+        }
+
+        Out.Add(Entry);
+    }
+
+    Sub->NextSeq = LastInspectedSeq + 1;
 
     return Out;
 }

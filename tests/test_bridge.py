@@ -19,8 +19,8 @@ import unreal_claude_mcp_bridge as bridge
 
 # -------- TOOLS schema --------------------------------------------------------
 
-def test_tools_list_has_forty_entries():
-    assert len(bridge.TOOLS) == 40
+def test_tools_list_has_fortythree_entries():
+    assert len(bridge.TOOLS) == 43
 
 
 def test_each_tool_has_required_mcp_fields():
@@ -57,6 +57,9 @@ def test_tool_names_are_unique_and_match_handlers():
         "set_console_variable",
         "poll_events",
         "wait_for_events",
+        "register_subscription",
+        "unsubscribe",
+        "poll_subscription",
     }
     assert set(names) == expected
 
@@ -234,6 +237,36 @@ def test_poll_events_in_tools_catalog():
     assert props["max_count"]["type"] == "integer"
     assert props["event_filter"]["type"] == "array"
     assert props["event_filter"]["items"]["type"] == "string"
+
+
+def test_register_subscription_in_tools_catalog():
+    """v0.11.x (Tier 2 PR #43): register_subscription takes optional
+    event_filter (array of string)."""
+    t = next((t for t in bridge.TOOLS if t["name"] == "register_subscription"), None)
+    assert t is not None
+    assert "required" not in t["inputSchema"] or t["inputSchema"].get("required") == []
+    props = t["inputSchema"]["properties"]
+    assert props["event_filter"]["type"] == "array"
+    assert props["event_filter"]["items"]["type"] == "string"
+
+
+def test_unsubscribe_in_tools_catalog():
+    """v0.11.x (Tier 2 PR #43): unsubscribe requires subscription_id."""
+    t = next((t for t in bridge.TOOLS if t["name"] == "unsubscribe"), None)
+    assert t is not None
+    assert t["inputSchema"]["required"] == ["subscription_id"]
+    assert t["inputSchema"]["properties"]["subscription_id"]["type"] == "string"
+
+
+def test_poll_subscription_in_tools_catalog():
+    """v0.11.x (Tier 2 PR #43): poll_subscription requires subscription_id;
+    optional max_count (int)."""
+    t = next((t for t in bridge.TOOLS if t["name"] == "poll_subscription"), None)
+    assert t is not None
+    assert t["inputSchema"]["required"] == ["subscription_id"]
+    props = t["inputSchema"]["properties"]
+    assert props["subscription_id"]["type"] == "string"
+    assert props["max_count"]["type"] == "integer"
 
 
 def test_wait_for_events_in_tools_catalog():
@@ -587,7 +620,7 @@ def test_handle_tools_list_returns_all_tools():
     resp = bridge.handle({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
     assert resp["id"] == 2
     assert "tools" in resp["result"]
-    assert len(resp["result"]["tools"]) == 40
+    assert len(resp["result"]["tools"]) == 43
 
 
 # -------- handle: tools/call --------------------------------------------------

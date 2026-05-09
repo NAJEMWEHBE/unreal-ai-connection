@@ -507,6 +507,39 @@ TOOLS = [
             },
         },
     },
+    {
+        "name": "register_subscription",
+        "description": "Tier 2 PR #43: create a server-side cursor + filter on the FUCMCPEventBus. Returns a subscription_id (FGuid string) usable with poll_subscription (drain matched events) and unsubscribe (release). The cursor starts at the bus's current next_seq -- subscribers see events fired AFTER subscription, not historical ones. PR #43 ships subscriptions WITHOUT TTL: they live until explicit unsubscribe.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "event_filter": {"type": "array", "items": {"type": "string"}, "description": "Substring-match filters on event type names; OR-combined. Empty / omitted means no filter."},
+            },
+        },
+    },
+    {
+        "name": "unsubscribe",
+        "description": "Remove a subscription created via register_subscription. Idempotent: calling on an unknown id returns ok=true with was_present=false rather than an error, so callers can blanket-unsubscribe on shutdown without worrying about partial state.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "subscription_id": {"type": "string", "description": "Subscription id returned by register_subscription."},
+            },
+            "required": ["subscription_id"],
+        },
+    },
+    {
+        "name": "poll_subscription",
+        "description": "Drain events for a server-side subscription. Per-sub cursor advances atomically with the read -- a successful poll never returns the same events twice. No since_seq param (cursor is server-side); no event_filter param (filter was set at register_subscription time and is immutable for that sub -- re-register if you need a different filter).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "subscription_id": {"type": "string", "description": "Subscription id returned by register_subscription."},
+                "max_count": {"type": "integer", "description": "Cap returned events. Default 100; hard max 1000."},
+            },
+            "required": ["subscription_id"],
+        },
+    },
 ]
 
 
