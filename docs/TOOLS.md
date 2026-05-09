@@ -2063,6 +2063,40 @@ Clear all user-defined names from UE Python's public globals dict. Pairs with `e
 
 ---
 
+## inspect_anim_montage
+
+**Tier 3 (PR #56).** Read structural properties of a `UAnimMontage`: target skeleton, play length, frame rate (rational), blend envelope, named composite sections (with start/end times and the section ladder via `NextSectionName`), slot animation tracks, notify events. Completes the **animation introspection trio** with `inspect_anim_blueprint` (which references the anim BP that drives this montage) and `inspect_skeletal_mesh` (which references the same skeleton). Callers can correlate all three through their shared `skeleton` asset path.
+
+**Why C++:** direct field access on `UAnimMontage` (which inherits `UAnimCompositeBase : UAnimSequenceBase : UAnimationAsset`). Per-section start/end times come from `GetSectionStartAndEndTime` (runtime-safe) rather than the deprecated `WITH_EDITORONLY_DATA` `StartTime` field; per-event notify times come from `FAnimLinkableElement::GetTime()`. The Python equivalent would need multi-call FFI through `unreal.AnimMontage` with reflection limits on the `FCompositeSection` and `FAnimNotifyEvent` structs.
+
+**Required Build.cs deps:** **none** — runtime `Engine` (already present) covers everything.
+
+**Params**
+- `path` (string, required) — UE asset path of a `UAnimMontage`, e.g. `/Game/Animation/AM_Attack`.
+
+**Result**
+- `ok`, `name`, `package_path`
+- `skeleton` (string) — asset path of the `USkeleton`. **Omitted** when `GetSkeleton()` returns null. Cross-link to `inspect_anim_blueprint::target_skeleton` and `inspect_skeletal_mesh::skeleton`.
+- `play_length` (float) — total duration in seconds
+- `frame_rate` (`{ numerator, denominator }`) — rational form for exact NTSC rates (e.g. `30000/1001`)
+- `is_dynamic` (bool) — `true` for runtime-created dynamic montages, `false` for authored assets
+- `blend_in_time`, `blend_out_time` (float) — from `BlendIn.GetBlendTime()` / `BlendOut.GetBlendTime()` (avoids deprecated scalar fields)
+- `blend_out_trigger_time` (float) — when blend-out begins relative to montage start; negative means "blend-out finishes exactly as the montage ends"
+- `auto_blend_out` (bool)
+- `parent_asset` (string) — when this montage is a child via asset remapping. **Omitted** when null. Child sections / slot tracks may be sparse overrides.
+- `section_count`, `sections` (array of `{ name, next, start_time, end_time }`) — `next` is the empty string when there's no explicit next-section linkage (fall through to next index, or end if last)
+- `slot_count`, `slots` (array of `{ slot_name, segment_count }`)
+- `notify_count`, `notifies` (array of `{ name, time, duration, notify_class?, notify_state_class? }`) — `notify_class` is the one-shot notify's class; `notify_state_class` is the durational notify-state's class. Both are conditional: a "named" notify (no class) emits neither.
+
+**Errors:** `missing_required_field`, `asset_not_found`, `not_an_anim_montage`.
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"inspect_anim_montage","params":{"path":"/Game/Animation/AM_Attack"}}
+```
+
+---
+
 ## get_camera_transform
 
 **Language-shim experiment, PR #46 (Python shim — bridge-side synthetic tool).** Read the level-editor viewport camera's location and rotation.

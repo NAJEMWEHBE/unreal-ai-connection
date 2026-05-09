@@ -486,6 +486,14 @@
       "returns": { "ok": "bool", "name": "string", "package_path": "string", "num_lods": "int", "total_vertices": "int", "total_triangles": "int", "lods": "array of {index, vertices, triangles, section_count}", "bounds": "{min, max, size, center}", "sphere_radius": "float", "skeleton": "string (conditional, when GetSkeleton is non-null; asset path)", "bone_count": "int (includes virtual bones via FReferenceSkeleton::GetNum)", "raw_bone_count": "int (imported only via GetRawBoneNum)", "material_slots": "array of {index, slot_name, material_path}", "morph_target_count": "int", "morph_targets": "array of string", "has_clothing_assets": "bool", "clothing_asset_count": "int", "physics_asset": "string (conditional, when GetPhysicsAsset is non-null; asset path)" }
     },
     {
+      "name": "inspect_anim_montage",
+      "description": "Read structural properties of a UAnimMontage: skeleton, play length, frame rate, blend envelope, composite sections (with section ladder + start/end times), slot tracks, notify events. C++ handler. Completes the anim introspection trio (anim_blueprint + skeletal_mesh + anim_montage). No new Build.cs deps (Engine covers it).",
+      "params": {
+        "path": "string (required) - UE asset path of a UAnimMontage"
+      },
+      "returns": { "ok": "bool", "name": "string", "package_path": "string", "skeleton": "string (conditional, when GetSkeleton is non-null; asset path)", "play_length": "float (seconds)", "frame_rate": "{numerator, denominator}", "is_dynamic": "bool", "blend_in_time": "float", "blend_out_time": "float", "blend_out_trigger_time": "float (seconds, negative means at-end)", "auto_blend_out": "bool", "parent_asset": "string (conditional, when this montage is a child via asset remapping)", "section_count": "int", "sections": "array of {name, next, start_time, end_time}", "slot_count": "int", "slots": "array of {slot_name, segment_count}", "notify_count": "int", "notifies": "array of {name, time, duration, notify_class?, notify_state_class?}" }
+    },
+    {
       "name": "get_camera_transform",
       "description": "Read level-editor viewport camera transform. SYNTHETIC bridge-side handler -- composes execute_unreal_python + get_log_lines via marker pattern. Part of language-shim experiment (PR #46).",
       "params": {},

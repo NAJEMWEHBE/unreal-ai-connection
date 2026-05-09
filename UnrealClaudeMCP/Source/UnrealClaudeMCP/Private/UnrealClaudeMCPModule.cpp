@@ -79,6 +79,7 @@ extern TSharedRef<IUCMCPHandler> Make_Handler_InspectNiagaraSystem();
 extern TSharedRef<IUCMCPHandler> Make_Handler_InspectAnimBlueprint();
 extern TSharedRef<IUCMCPHandler> Make_Handler_InspectLandscape();
 extern TSharedRef<IUCMCPHandler> Make_Handler_InspectSkeletalMesh();
+extern TSharedRef<IUCMCPHandler> Make_Handler_InspectAnimMontage();
 
 static constexpr int32 kMCPDefaultPort = 18888;
 
@@ -149,6 +150,7 @@ void FUnrealClaudeMCPModule::StartupModule()
     Reg.Register(Make_Handler_InspectAnimBlueprint());
     Reg.Register(Make_Handler_InspectLandscape());
     Reg.Register(Make_Handler_InspectSkeletalMesh());
+    Reg.Register(Make_Handler_InspectAnimMontage());
 
     // -----------------------------------------------------------------
     // Tier 2 (PR #40): wire 3 starter delegates into the FUCMCPEventBus.
