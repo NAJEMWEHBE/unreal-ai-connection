@@ -447,6 +447,14 @@
         "rotation": "object (optional) - {pitch, yaw, roll}; missing fields default to 0"
       },
       "returns": { "ok": "bool", "location": "{x, y, z}", "rotation": "{pitch, yaw, roll}" }
+    },
+    {
+      "name": "screenshot_actor",
+      "description": "Frame the editor viewport on an actor and capture a focused PNG screenshot. SYNTHETIC bridge-side handler that composes focus_actor + get_viewport_screenshot. Returns base64 PNG plus the focused actor's identity and world location.",
+      "params": {
+        "name": "string (required) - actor label or unique name to focus on"
+      },
+      "returns": { "ok": "bool", "focused": "string", "name": "string", "loc": "{x, y, z}", "width": "int", "height": "int", "png_bytes": "int", "png_base64": "string" }
     }
   ]
 }
