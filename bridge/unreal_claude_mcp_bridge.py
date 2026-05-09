@@ -412,6 +412,17 @@ TOOLS = [
             "required": ["path"],
         },
     },
+    {
+        "name": "run_python_file",
+        "description": "Execute a .py file from disk via the editor's embedded Python. Complement to execute_unreal_python -- avoids escaping pain for non-trivial scripts. Output capture caveat: ExecuteFile mode does not return stdout/eval-result; use unreal.log marker + get_log_lines to round-trip results.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "Filesystem path to a .py file. Absolute or relative; relative paths resolve against the editor's CWD (typically the project root)."},
+            },
+            "required": ["path"],
+        },
+    },
 ]
 
 

@@ -19,8 +19,8 @@ import unreal_claude_mcp_bridge as bridge
 
 # -------- TOOLS schema --------------------------------------------------------
 
-def test_tools_list_has_thirtytwo_entries():
-    assert len(bridge.TOOLS) == 32
+def test_tools_list_has_thirtythree_entries():
+    assert len(bridge.TOOLS) == 33
 
 
 def test_each_tool_has_required_mcp_fields():
@@ -49,6 +49,7 @@ def test_tool_names_are_unique_and_match_handlers():
         "inspect_sequence", "create_sequence", "bind_actor_to_sequence",
         "create_material_instance", "set_mi_parameter", "inspect_material",
         "inspect_material_instance",
+        "run_python_file",
     }
     assert set(names) == expected
 
@@ -151,6 +152,15 @@ def test_inspect_material_instance_in_tools_catalog():
     t = next((t for t in bridge.TOOLS if t["name"] == "inspect_material_instance"), None)
     assert t is not None
     assert t["inputSchema"]["required"] == ["path"]
+
+
+def test_run_python_file_in_tools_catalog():
+    """v0.10.0: run_python_file takes a 'path' to a .py file on disk."""
+    t = next((t for t in bridge.TOOLS if t["name"] == "run_python_file"), None)
+    assert t is not None
+    assert t["inputSchema"]["required"] == ["path"]
+    props = t["inputSchema"]["properties"]
+    assert props["path"]["type"] == "string"
 
 
 def test_required_params_match_handler_contract():
@@ -339,7 +349,7 @@ def test_handle_tools_list_returns_all_tools():
     resp = bridge.handle({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
     assert resp["id"] == 2
     assert "tools" in resp["result"]
-    assert len(resp["result"]["tools"]) == 32
+    assert len(resp["result"]["tools"]) == 33
 
 
 # -------- handle: tools/call --------------------------------------------------

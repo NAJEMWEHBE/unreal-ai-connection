@@ -1048,6 +1048,36 @@ Read a `UMaterialInstanceConstant`'s parent and currently-overridden parameter v
 
 ---
 
+## run_python_file
+
+Execute a `.py` file from disk via the editor's embedded Python interpreter. Complement to `execute_unreal_python` — for non-trivial scripts, embedding the source as a JSON-RPC string requires double-escaping every quote and backslash. Pointing at a file on disk eliminates that pain entirely.
+
+**Params**
+- `path` (string, required) — filesystem path to a `.py` file. Absolute or relative; relative paths resolve via `FPaths::ConvertRelativePathToFull` against the editor's CWD (typically the project root for editor sessions).
+
+**Result**
+- `ok` (bool) — `true` if the script ran without raising
+- `output` (string) — `FPythonCommandEx::CommandResult`. **Caveat:** `ExecuteFile` mode does NOT return script stdout / eval-result through this field; it's `"None"` for file-mode runs. To round-trip a result back, the script should emit `unreal.log("__MARKER__<json>__END__")` and the caller retrieves it via `get_log_lines` with `category_filter: "LogPython"`. See `scripts/seed_test_project.py` for the canonical pattern.
+- `path` (string) — the resolved absolute path that was executed. Useful for confirming the path resolution.
+
+**Errors:** `missing_required_field`, `file_not_found`, `python_unavailable`.
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"run_python_file","params":{
+  "path": "C:/Users/me/Desktop/scripts/setup_lighting.py"
+}}
+```
+
+Or relative to the editor's CWD (typically the project root):
+```json
+{"jsonrpc":"2.0","id":1,"method":"run_python_file","params":{
+  "path": "Saved/MyScripts/quick_fixup.py"
+}}
+```
+
+---
+
 ## Adding more tools
 
 See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the recipe. Short version: one `.cpp` file in `Source/UnrealClaudeMCP/Private/MCP/Handlers/`, two registration lines in `UnrealClaudeMCPModule.cpp`, one entry in `Resources/mcp_manifest.json`, one entry in `bridge/unreal_claude_mcp_bridge.py`'s `TOOLS` list, rebuild, restart.

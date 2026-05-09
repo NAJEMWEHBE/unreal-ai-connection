@@ -280,6 +280,14 @@
         "path": "string (required) - material instance asset path"
       },
       "returns": { "ok": "bool", "name": "string", "package_path": "string", "parent_path": "string", "scalar_overrides": "object", "vector_overrides": "object", "texture_overrides": "object" }
+    },
+    {
+      "name": "run_python_file",
+      "description": "Execute a .py file from disk via the editor's embedded Python. Complement to execute_unreal_python; avoids JSON escaping pain for non-trivial scripts.",
+      "params": {
+        "path": "string (required) - filesystem path to a .py file (absolute or relative to editor CWD, typically the project root)"
+      },
+      "returns": { "ok": "bool", "output": "string", "path": "string (resolved absolute path)" }
     }
   ]
 }
