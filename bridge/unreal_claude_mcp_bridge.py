@@ -652,6 +652,17 @@ TOOLS = [
         },
     },
     {
+        "name": "inspect_anim_blueprint",
+        "description": "Read structural properties of a UAnimBlueprint asset: parent class, target skeleton, template flag, baked state machines, anim functions (with implemented flag), sync groups, parent anim blueprint chain. C++ handler -- guards UAnimBlueprintGeneratedClass for null (compiled data is empty / is_compiled=false when the blueprint has never been compiled). No new Build.cs deps (Engine module already present).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "UE asset path of a UAnimBlueprint, e.g. /Game/Animation/ABP_Hero."},
+            },
+            "required": ["path"],
+        },
+    },
+    {
         "name": "get_camera_transform",
         "description": "Read the level-editor viewport camera transform. SYNTHETIC bridge-side handler (PR #46 language-shim experiment): composes execute_unreal_python + get_log_lines via the marker pattern. Returns { location: {x,y,z}, rotation: {pitch,yaw,roll} }.",
         "inputSchema": {

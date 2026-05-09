@@ -1951,6 +1951,42 @@ Clear all user-defined names from UE Python's public globals dict. Pairs with `e
 
 ---
 
+## inspect_anim_blueprint
+
+**Tier 3 (PR #52 — first PR with full multi-agent collaboration).** Read structural properties of a `UAnimBlueprint`: parent class, target skeleton, template flag, compile status, baked state machines, anim functions (with `implemented` flag), sync groups, and parent anim blueprint chain. Pairs with the existing `Inspect*` family; complements `inspect_blueprint` by exposing the anim-specific surface that regular `UBlueprint` introspection can't see.
+
+**Why C++:** direct access to `UAnimBlueprintGeneratedClass`'s baked state-machine list, anim-function metadata (with `bImplemented` flags), and sync-group names. The Python equivalent would require multi-call FFI through `unreal.AnimBlueprint` → generated class indirection.
+
+**Why a separate handler from `inspect_blueprint`:** anim BPs *are* `UBlueprint`s, so the existing handler exposes their parent class / variables / function names — but the anim-specific surface (skeleton, state machines, sync groups, anim functions, parent anim BP chain) lives on `UAnimBlueprint` and `UAnimBlueprintGeneratedClass` and is invisible to a generic `UBlueprint` reader.
+
+**Required UE 5.7 discipline:** `GetAnimBlueprintGeneratedClass()` returns null when the blueprint has never been compiled. The handler guards every compiled-data access (state machines, anim functions, sync groups) behind this null-check and emits `is_compiled: false` with empty arrays in that case, rather than crashing.
+
+**Required Build.cs deps:** **none** — the runtime `Engine` module (already a dependency) provides `UAnimBlueprint`, `UAnimBlueprintGeneratedClass`, and the supporting types. **Do NOT add `AnimGraph`** (editor-only — would break server cooks).
+
+**Params**
+- `path` (string, required) — UE asset path of a `UAnimBlueprint`, e.g. `/Game/Animation/ABP_Hero`.
+
+**Result**
+- `ok`, `name`, `path`
+- `parent_class` (string) — the immediate parent class name (often `AnimInstance` for natively-parented anim BPs)
+- `is_template` (bool) — anim BP templates have no skeleton; affects whether `target_skeleton` is emitted
+- `target_skeleton` (string) — asset path of the `USkeleton`. **Omitted** when `is_template == true` or the skeleton is null.
+- `blueprint_status` (string) — one of `UpToDate` / `UpToDateWithWarnings` / `Dirty` / `Unknown`. Note that `Status` is transient; treat `is_compiled` (below) as the authoritative "compiled data is available" signal.
+- `is_compiled` (bool) — true when `GetAnimBlueprintGeneratedClass()` is non-null. When false, all compiled-data arrays below are empty and the corresponding `*_count` fields are 0.
+- `parent_anim_blueprint` (string) — asset path of the parent anim BP, when this blueprint subclasses another anim BP (rather than a native `UAnimInstance`). **Omitted** when null.
+- `state_machine_count`, `state_machines` (array of `{ name }`)
+- `anim_function_count`, `anim_functions` (array of `{ name, implemented }`)
+- `sync_group_count`, `sync_groups` (array of strings — group names)
+
+**Errors:** `missing_required_field`, `asset_not_found`, `not_an_anim_blueprint`.
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"inspect_anim_blueprint","params":{"path":"/Game/Animation/ABP_Hero"}}
+```
+
+---
+
 ## get_camera_transform
 
 **Language-shim experiment, PR #46 (Python shim — bridge-side synthetic tool).** Read the level-editor viewport camera's location and rotation.
