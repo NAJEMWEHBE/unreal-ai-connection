@@ -24,6 +24,33 @@
 #include "Engine/Texture.h"
 #include "MCP/Handlers/AssetPathUtil.h"
 
+// Compose the JSON object key for a material-instance parameter override.
+// Global parameters use just `<Name>` for backward compatibility; non-global
+// parameters (layer / blend) disambiguate as `<Name>:Layer:<Index>` and
+// `<Name>:Blend:<Index>` so JSON keys do not collide when a layered material
+// has multiple parameters sharing a name across different
+// EMaterialParameterAssociation values. Without disambiguation, later
+// parameters silently overwrite earlier ones in the JSON object.
+//
+// Mirrors the layout that FMaterialParameterInfo::AppendString serializes
+// in MaterialParameters.h. EMaterialParameterAssociation is defined at
+// MaterialParameters.h:24 (LayerParameter=0, BlendParameter=1,
+// GlobalParameter=2).
+static FString ComposeParameterKey(const FMaterialParameterInfo& Info)
+{
+    const FString NameStr = Info.Name.ToString();
+    switch (Info.Association)
+    {
+    case EMaterialParameterAssociation::LayerParameter:
+        return FString::Printf(TEXT("%s:Layer:%d"), *NameStr, Info.Index);
+    case EMaterialParameterAssociation::BlendParameter:
+        return FString::Printf(TEXT("%s:Blend:%d"), *NameStr, Info.Index);
+    case EMaterialParameterAssociation::GlobalParameter:
+    default:
+        return NameStr;
+    }
+}
+
 class FHandler_InspectMaterialInstance : public IUCMCPHandler
 {
 public:
@@ -89,13 +116,13 @@ public:
 
         // Scalar overrides. ScalarParameterValues at MaterialInstance.h:750;
         // FScalarParameterValue at MaterialInstance.h:63 with ParameterInfo
-        // (line 76) and ParameterValue (line 79). FMaterialParameterInfo
-        // exposes the parameter name as a public FName field `Name` at
-        // MaterialParameters.h:32 (no accessor method).
+        // (line 76) and ParameterValue (line 79). Keys go through
+        // ComposeParameterKey to disambiguate Layer/Blend parameters that
+        // share a Name with global parameters; see header comment above.
         TSharedRef<FJsonObject> ScalarJson = MakeShared<FJsonObject>();
         for (const FScalarParameterValue& SV : MIC->ScalarParameterValues)
         {
-            ScalarJson->SetNumberField(SV.ParameterInfo.Name.ToString(),
+            ScalarJson->SetNumberField(ComposeParameterKey(SV.ParameterInfo),
                 static_cast<double>(SV.ParameterValue));
         }
         Out->SetObjectField(TEXT("scalar_overrides"), ScalarJson);
@@ -109,7 +136,7 @@ public:
             ColorJson->SetNumberField(TEXT("g"), VV.ParameterValue.G);
             ColorJson->SetNumberField(TEXT("b"), VV.ParameterValue.B);
             ColorJson->SetNumberField(TEXT("a"), VV.ParameterValue.A);
-            VectorJson->SetObjectField(VV.ParameterInfo.Name.ToString(), ColorJson);
+            VectorJson->SetObjectField(ComposeParameterKey(VV.ParameterInfo), ColorJson);
         }
         Out->SetObjectField(TEXT("vector_overrides"), VectorJson);
 
@@ -121,7 +148,7 @@ public:
             const FString AssetPath = TV.ParameterValue
                 ? TV.ParameterValue->GetPathName()
                 : FString();
-            TextureJson->SetStringField(TV.ParameterInfo.Name.ToString(), AssetPath);
+            TextureJson->SetStringField(ComposeParameterKey(TV.ParameterInfo), AssetPath);
         }
         Out->SetObjectField(TEXT("texture_overrides"), TextureJson);
 
