@@ -19,8 +19,8 @@ import unreal_claude_mcp_bridge as bridge
 
 # -------- TOOLS schema --------------------------------------------------------
 
-def test_tools_list_has_thirtyfour_entries():
-    assert len(bridge.TOOLS) == 34
+def test_tools_list_has_thirtyfive_entries():
+    assert len(bridge.TOOLS) == 35
 
 
 def test_each_tool_has_required_mcp_fields():
@@ -51,6 +51,7 @@ def test_tool_names_are_unique_and_match_handlers():
         "inspect_material_instance",
         "run_python_file",
         "fix_up_redirectors",
+        "apply_python_to_selection",
     }
     assert set(names) == expected
 
@@ -172,6 +173,16 @@ def test_fix_up_redirectors_in_tools_catalog():
     assert t["inputSchema"]["required"] == ["path"]
     props = t["inputSchema"]["properties"]
     assert props["path"]["type"] == "string"
+
+
+def test_apply_python_to_selection_in_tools_catalog():
+    """v0.10.0: apply_python_to_selection takes 'code'; injects `selection` and
+    `selected_assets` locals before exec."""
+    t = next((t for t in bridge.TOOLS if t["name"] == "apply_python_to_selection"), None)
+    assert t is not None
+    assert t["inputSchema"]["required"] == ["code"]
+    props = t["inputSchema"]["properties"]
+    assert props["code"]["type"] == "string"
 
 
 def test_required_params_match_handler_contract():
@@ -360,7 +371,7 @@ def test_handle_tools_list_returns_all_tools():
     resp = bridge.handle({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
     assert resp["id"] == 2
     assert "tools" in resp["result"]
-    assert len(resp["result"]["tools"]) == 34
+    assert len(resp["result"]["tools"]) == 35
 
 
 # -------- handle: tools/call --------------------------------------------------
