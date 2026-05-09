@@ -23,7 +23,7 @@ def test_tools_list_size():
     # Cross-checked against the manifest in test_manifest_sync.py; the absolute
     # number bumps with each new tool. Function name kept count-agnostic so
     # it doesn't drift behind the assertion (per Sonnet pre-review on PR #50).
-    assert len(bridge.TOOLS) == 56
+    assert len(bridge.TOOLS) == 57
 
 
 def test_each_tool_has_required_mcp_fields():
@@ -72,6 +72,7 @@ def test_tool_names_are_unique_and_match_handlers():
         "find_console_variables",
         "inspect_static_mesh",
         "inspect_niagara_system",
+        "inspect_anim_blueprint",
         "get_camera_transform",
         "set_camera_transform",
         "screenshot_actor",
@@ -285,6 +286,15 @@ def test_inspect_niagara_system_in_tools_catalog():
     """Tier 3: inspect_niagara_system requires path. C++ handler with
     EnsureFullyLoaded() discipline (UNiagaraSystem is LazyOnDemand)."""
     t = next((t for t in bridge.TOOLS if t["name"] == "inspect_niagara_system"), None)
+    assert t is not None
+    assert t["inputSchema"]["required"] == ["path"]
+    assert t["inputSchema"]["properties"]["path"]["type"] == "string"
+
+
+def test_inspect_anim_blueprint_in_tools_catalog():
+    """Tier 3: inspect_anim_blueprint requires path. C++ handler that
+    guards UAnimBlueprintGeneratedClass for null pre-compile."""
+    t = next((t for t in bridge.TOOLS if t["name"] == "inspect_anim_blueprint"), None)
     assert t is not None
     assert t["inputSchema"]["required"] == ["path"]
     assert t["inputSchema"]["properties"]["path"]["type"] == "string"
@@ -853,7 +863,7 @@ def test_handle_tools_list_returns_all_tools():
     resp = bridge.handle({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
     assert resp["id"] == 2
     assert "tools" in resp["result"]
-    assert len(resp["result"]["tools"]) == 56
+    assert len(resp["result"]["tools"]) == 57
 
 
 # -------- handle: tools/call --------------------------------------------------
