@@ -30,6 +30,7 @@ import os
 import socket
 import sys
 import time
+import uuid
 
 UE_HOST = os.environ.get("UCMCP_HOST", "127.0.0.1")
 UE_PORT = int(os.environ.get("UCMCP_PORT", "18888"))
@@ -592,6 +593,47 @@ TOOLS = [
             "properties": {},
         },
     },
+    {
+        "name": "find_console_variables",
+        "description": "Prefix-search the IConsoleManager registry; returns matching CVar names + types + read-only flags. Pairs with get_console_variable / set_console_variable for discovery workflows. C++ handler -- direct iteration of UE's internal console registry. Part of the language-shim experiment (PR #46): see docs/LANGUAGE-CHOICE-RETROSPECTIVE.md.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "prefix": {"type": "string", "description": "Optional case-sensitive prefix to filter by (e.g. 'r.Screen'). Empty / omitted = all CVars."},
+                "limit": {"type": "integer", "description": "Cap returned variables. Default 100; hard max 1000."},
+            },
+        },
+    },
+    {
+        "name": "inspect_static_mesh",
+        "description": "Read structural properties of a UStaticMesh asset: LOD count, per-LOD vertex/triangle counts, bounding box, material slots. Pairs with inspect_asset (registry metadata) and inspect_material (parameters). C++ handler -- benefits from native struct access. Part of the language-shim experiment (PR #46).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "UE asset path of a UStaticMesh, e.g. /Engine/BasicShapes/Cube."},
+            },
+            "required": ["path"],
+        },
+    },
+    {
+        "name": "get_camera_transform",
+        "description": "Read the level-editor viewport camera transform. SYNTHETIC bridge-side handler (PR #46 language-shim experiment): composes execute_unreal_python + get_log_lines via the marker pattern. Returns { location: {x,y,z}, rotation: {pitch,yaw,roll} }.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {},
+        },
+    },
+    {
+        "name": "set_camera_transform",
+        "description": "Set the level-editor viewport camera transform. SYNTHETIC bridge-side handler (PR #46 language-shim experiment): single execute_unreal_python round-trip. All location/rotation fields are optional and default to 0.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "location": {"type": "object", "description": "{x, y, z} world-space; missing fields default to 0."},
+                "rotation": {"type": "object", "description": "{pitch, yaw, roll} in degrees; missing fields default to 0."},
+            },
+        },
+    },
 ]
 
 
@@ -752,11 +794,144 @@ def synthetic_wait_for_events(req_id, args):
         time.sleep(poll_interval_s)
 
 
+def synthetic_get_camera_transform(req_id, args):
+    """Bridge-side shim: read the level-editor viewport camera transform.
+
+    Implementation pattern (the canonical "Python shim" in the
+    LANGUAGE-CHOICE-RETROSPECTIVE.md addendum from PR #46):
+      1. Generate a UUID marker token (per-call unique)
+      2. Build Python that calls UnrealEditorSubsystem.get_level_viewport_camera_info()
+         and emits the result as `unreal.log("__CAM_<marker>__" + json + "__END__")`
+      3. Run via execute_unreal_python (one UE round-trip)
+      4. Read recent LogPython lines via get_log_lines (second UE round-trip)
+      5. Find the marker, parse the JSON payload, return
+
+    The two-round-trip cost vs an equivalent C++ handler is the main trade-off
+    measured in the experiment. Marker-pattern reliability risks (log buffer
+    overflow between exec and log read) are mitigated by the per-call UUID
+    and the LogCapture ring's 1000-line capacity.
+    """
+    marker = uuid.uuid4().hex[:12]
+    py_code = (
+        "import unreal, json\n"
+        "sub = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem)\n"
+        "loc, rot = sub.get_level_viewport_camera_info()\n"
+        "_data = {\n"
+        "    'location': {'x': loc.x, 'y': loc.y, 'z': loc.z},\n"
+        "    'rotation': {'pitch': rot.pitch, 'yaw': rot.yaw, 'roll': rot.roll},\n"
+        "}\n"
+        f"unreal.log('__CAM_{marker}__' + json.dumps(_data) + '__END__')\n"
+    )
+
+    exec_resp = call_ue("execute_unreal_python", {"code": py_code})
+    if "error" in exec_resp:
+        return make_response(req_id, error=exec_resp["error"])
+    if not exec_resp.get("result", {}).get("ok", False):
+        output = exec_resp.get("result", {}).get("output", "")
+        return make_response(req_id, error={
+            "code": -32603,
+            "message": f"get_camera_transform: python_failed: {output}",
+        })
+
+    log_resp = call_ue("get_log_lines", {"category_filter": "LogPython", "count": 200})
+    if "error" in log_resp:
+        return make_response(req_id, error=log_resp["error"])
+
+    lines = log_resp.get("result", {}).get("lines", []) or []
+    needle = f"__CAM_{marker}__"
+    end_token = "__END__"
+    for entry in reversed(lines):
+        msg = entry.get("message", "")
+        if needle in msg:
+            start = msg.index(needle) + len(needle)
+            end = msg.find(end_token, start)
+            if end < 0:
+                continue
+            payload = msg[start:end]
+            try:
+                data = json.loads(payload)
+            except json.JSONDecodeError as e:
+                return make_response(req_id, error={
+                    "code": -32603,
+                    "message": f"get_camera_transform: marker_parse_failed: {e}",
+                })
+            return _wrap_tool_result(req_id, {"ok": True, **data})
+
+    return make_response(req_id, error={
+        "code": -32603,
+        "message": (f"get_camera_transform: marker_not_found: '{needle}' did not appear in "
+                    f"last {len(lines)} LogPython lines (log buffer may have overflowed; "
+                    "retry typically resolves)"),
+    })
+
+
+def synthetic_set_camera_transform(req_id, args):
+    """Bridge-side shim: set the level-editor viewport camera transform.
+
+    Simpler than the get shim because there's no result to round-trip --
+    just one UE round-trip via execute_unreal_python. Validates the param
+    shape locally before constructing the Python (so a bad input fails
+    fast instead of crossing the wire to a Python TypeError).
+    """
+    location = args.get("location") or {}
+    rotation = args.get("rotation") or {}
+
+    if not isinstance(location, dict):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "set_camera_transform: 'location' must be an object {x, y, z}",
+        })
+    if not isinstance(rotation, dict):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "set_camera_transform: 'rotation' must be an object {pitch, yaw, roll}",
+        })
+
+    def _num(d, fld, default=0.0):
+        v = d.get(fld, default)
+        if not isinstance(v, (int, float)) or isinstance(v, bool):
+            raise ValueError(f"'{fld}' must be a number, got {type(v).__name__}")
+        return float(v)
+
+    try:
+        lx = _num(location, "x"); ly = _num(location, "y"); lz = _num(location, "z")
+        rp = _num(rotation, "pitch"); ry = _num(rotation, "yaw"); rr = _num(rotation, "roll")
+    except ValueError as e:
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": f"set_camera_transform: invalid_value_shape: {e}",
+        })
+
+    py_code = (
+        "import unreal\n"
+        "sub = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem)\n"
+        f"sub.set_level_viewport_camera_info(unreal.Vector({lx}, {ly}, {lz}), unreal.Rotator({rp}, {ry}, {rr}))\n"
+    )
+
+    exec_resp = call_ue("execute_unreal_python", {"code": py_code})
+    if "error" in exec_resp:
+        return make_response(req_id, error=exec_resp["error"])
+    if not exec_resp.get("result", {}).get("ok", False):
+        output = exec_resp.get("result", {}).get("output", "")
+        return make_response(req_id, error={
+            "code": -32603,
+            "message": f"set_camera_transform: python_failed: {output}",
+        })
+
+    return _wrap_tool_result(req_id, {
+        "ok": True,
+        "location": {"x": lx, "y": ly, "z": lz},
+        "rotation": {"pitch": rp, "yaw": ry, "roll": rr},
+    })
+
+
 # Map of tool-name -> bridge-side synthetic implementation. These are
 # tools that don't have a corresponding UE handler -- the bridge composes
 # existing UE handlers (or implements pure-protocol logic) to serve them.
 SYNTHETIC_TOOLS = {
     "wait_for_events": synthetic_wait_for_events,
+    "get_camera_transform": synthetic_get_camera_transform,
+    "set_camera_transform": synthetic_set_camera_transform,
 }
 
 

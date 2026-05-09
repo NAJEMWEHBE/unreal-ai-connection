@@ -1799,6 +1799,107 @@ Clear all user-defined names from UE Python's public globals dict. Pairs with `e
 
 ---
 
+## find_console_variables
+
+**Language-shim experiment, PR #46 (C++ canonical handler).** Prefix-search the `IConsoleManager` registry; returns matching CVar names with their types and read-only flags. Pairs with `get_console_variable` / `set_console_variable` for discovery workflows.
+
+**Why C++:** iterating UE's internal console registry via `ForEachConsoleObjectThatStartsWith` is dramatically cleaner than the Python equivalent (which would multi-call into `unreal.SystemLibrary` per CVar). See `docs/LANGUAGE-CHOICE-RETROSPECTIVE.md` for the full comparison.
+
+**Params**
+- `prefix` (string, optional) — case-sensitive prefix to filter on (e.g. `"r.Screen"`, `"Slate."`, `"a."`). Empty / omitted = match all.
+- `limit` (int, optional, default `100`) — cap returned variables. Hard max `1000`.
+
+**Result**
+- `ok`, `prefix`, `limit`, `returned` (counts)
+- `variables` (array) — each entry: `{ name, type ("int"/"float"/"bool"/"string"/"unknown"), read_only (bool) }`
+- `note` (only when result count hit the cap) — diagnostic
+
+**Errors:** `invalid_value_shape`.
+
+**Example — find all `r.Lumen.*` CVars**
+```json
+{"jsonrpc":"2.0","id":1,"method":"find_console_variables","params":{"prefix":"r.Lumen.","limit":50}}
+```
+
+---
+
+## inspect_static_mesh
+
+**Language-shim experiment, PR #46 (C++ canonical handler).** Read structural properties of a `UStaticMesh`: LOD count, per-LOD vertex/triangle counts, bounding box, material slots. Pairs with `inspect_asset` (registry-level metadata) and `inspect_material` (parameters).
+
+**Why C++:** direct field access on `UStaticMesh` (`GetNumLODs`, `GetNumVertices(i)`, `GetBoundingBox`, `GetStaticMaterials`) — the Python equivalent would be multi-call FFI with reflection-limit risk on private struct fields.
+
+**Params**
+- `path` (string, required) — UE asset path of a `UStaticMesh`, e.g. `/Engine/BasicShapes/Cube`.
+
+**Result**
+- `ok`, `name`, `package_path`
+- `num_lods`, `total_vertices`, `total_triangles` (across all LODs)
+- `lods` (array) — `{ index, vertices, triangles }` per LOD
+- `bounds` — `{ min: {x,y,z}, max: {x,y,z}, size: {x,y,z}, center: {x,y,z} }`
+- `material_slots` (array) — `{ index, slot_name, material_path }`
+
+**Errors:** `missing_required_field`, `asset_not_found`, `not_a_static_mesh`.
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"inspect_static_mesh","params":{"path":"/Engine/BasicShapes/Cube"}}
+```
+
+---
+
+## get_camera_transform
+
+**Language-shim experiment, PR #46 (Python shim — bridge-side synthetic tool).** Read the level-editor viewport camera's location and rotation.
+
+**Implementation:** the bridge composes `execute_unreal_python` + `get_log_lines` via the **marker pattern** — runs Python that calls `UnrealEditorSubsystem.get_level_viewport_camera_info()` and emits `unreal.log("__CAM_<uuid>__" + json + "__END__")`, then drains LogPython lines and parses the marker. Two UE round-trips per call.
+
+**Why a Python shim:** the underlying API is fully Python-reachable; the equivalent C++ handler would be ~150 LoC vs ~75 LoC for the shim. Trade-off: ~5× round-trip latency and marker-pattern fragility under high log volume. See `docs/LANGUAGE-CHOICE-RETROSPECTIVE.md`.
+
+**Params:** none.
+
+**Result**
+- `ok` (bool)
+- `location` — `{ x, y, z }` world-space
+- `rotation` — `{ pitch, yaw, roll }` in degrees
+
+**Errors** (Python-flow style, not stable codes):
+- `python_failed` — UE Python raised; the trace is in the message
+- `marker_not_found` — log buffer overflowed between exec and read; retry typically resolves
+- `marker_parse_failed` — JSON corruption between log and bridge
+
+---
+
+## set_camera_transform
+
+**Language-shim experiment, PR #46 (Python shim — bridge-side synthetic tool).** Set the level-editor viewport camera's location and/or rotation. Single UE round-trip (write-only — no result to round-trip).
+
+**Implementation:** validates location/rotation shape locally in the bridge (so a bad input fails before crossing the wire), then runs `unreal.UnrealEditorSubsystem.get_editor_subsystem(...).set_level_viewport_camera_info(unreal.Vector(...), unreal.Rotator(...))` via `execute_unreal_python`.
+
+**Why a Python shim:** write-only setters that wrap Python-reachable APIs are the strongest case for shims (no marker-pattern tax, ~50 LoC).
+
+**Params**
+- `location` (object, optional) — `{ x, y, z }`. Missing fields default to `0`.
+- `rotation` (object, optional) — `{ pitch, yaw, roll }` in degrees. Missing fields default to `0`.
+
+At least one of `location` / `rotation` should be provided in practice; both omitted is a no-op.
+
+**Result**
+- `ok` (bool)
+- `location`, `rotation` — the values that were applied (with defaults filled in)
+
+**Errors:** `invalid_value_shape` (any field non-numeric), `python_failed` (UE Python raised).
+
+**Example — frame top-down on origin**
+```json
+{"jsonrpc":"2.0","id":1,"method":"set_camera_transform","params":{
+  "location": {"x": 0, "y": 0, "z": 1000},
+  "rotation": {"pitch": -90, "yaw": 0, "roll": 0}
+}}
+```
+
+---
+
 ## Adding more tools
 
 See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the recipe. Short version: one `.cpp` file in `Source/UnrealClaudeMCP/Private/MCP/Handlers/`, two registration lines in `UnrealClaudeMCPModule.cpp`, one entry in `Resources/mcp_manifest.json`, one entry in `bridge/unreal_claude_mcp_bridge.py`'s `TOOLS` list, rebuild, restart.

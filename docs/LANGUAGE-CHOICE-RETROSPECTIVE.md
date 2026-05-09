@@ -217,3 +217,68 @@ For each new handler or tool added going forward, ask in this order:
 **The one place we might revisit:** if we add a *lot* more handlers in the v0.10.x ergonomics range (`get_console_variable`, `set_console_variable`, `screenshot_actor`, `watch_log`, etc.), the C++-shim → Python path becomes attractive. Those are short, Python-reachable, and writing them as Python could trim ~50% of the per-handler code. But this should be measured, not assumed — write 2-3 first as C++ and 2-3 as Python-shim, compare maintenance cost over 3 months, then decide.
 
 **For future Claude sessions reading this:** when the user asks "should we use language X?", come back here first. The categorization above is durable; each new handler can be slotted into A/B/C and the language choice falls out without re-deliberation.
+
+---
+
+## Addendum: language-shim experiment (PR #46)
+
+The closing observation above proposed: *"write 2-3 first as C++ and 2-3 as Python-shim, compare maintenance cost over 3 months, then decide."* PR #46 ran the experiment. **Two C++ handlers** and **two bridge-side Python shims** shipped together so the comparison is point-in-time identical.
+
+### The four handlers
+
+| Handler | Language | What it does |
+|---|---|---|
+| `find_console_variables(prefix, limit)` | **C++** | Iterates `IConsoleManager::ForEachConsoleObjectThatStartsWith`, filters to variables, returns name/type/read-only. |
+| `inspect_static_mesh(path)` | **C++** | Reads `UStaticMesh` per-LOD vertex/triangle counts, bounding box, material slots. |
+| `get_camera_transform()` | **Python shim** (bridge-side synthetic) | Reads viewport camera via `UnrealEditorSubsystem.get_level_viewport_camera_info()`, returns location + rotation. |
+| `set_camera_transform({location, rotation})` | **Python shim** (bridge-side synthetic) | Sets viewport camera via `UnrealEditorSubsystem.set_level_viewport_camera_info(...)`. |
+
+### Quantitative comparison (LoC)
+
+| Metric | C++ handler avg | Python shim avg | Notes |
+|---|---|---|---|
+| **Handler implementation** | **~155 LoC** (`find_console_variables` 153, `inspect_static_mesh` 158) | **~50 LoC** (`get_camera_transform` 75 with marker pattern, `set_camera_transform` 50) | Shims are ~3× shorter for these particular cases. |
+| **Files touched per handler** | 1 new `.cpp` + module register lines | 0 new files — single function added to bridge | Shims have a smaller diff surface. |
+| **Build cycle to ship** | UE plugin rebuild required (~30s incremental, ~5min cold) | Bridge restart only — no compile | Shims iterate faster. |
+| **Tests required** | Schema test (~10 LoC) | Schema test + behavioral test with mocked `call_ue` (~30 LoC for the behavioral test of `wait_for_events`-style polling) | Shims need more test scaffolding because their behavior is visible in Python. |
+
+### Qualitative comparison
+
+**C++ wins on:**
+- **Correctness boundaries.** `inspect_static_mesh` reads `FVector` / `FBox` / `TArray<FStaticMaterial>` directly. The Python equivalent would need multi-call FFI to `unreal.StaticMesh`, plus per-LOD lookups — each crossing the C++↔Python boundary, with reflection-limit risk if any field happens to be marked private.
+- **Single round-trip cost.** `find_console_variables` is one TCP call → one C++ traversal → one response. The Python-shim equivalent would be: bridge → execute_unreal_python (TCP+spawn temp file) → log marker → bridge → get_log_lines (TCP) → parse marker. That's **3 round-trips and ~5× the latency** for the same logical operation.
+- **Stable error codes.** C++ handlers can emit explicit `error_code` strings (`asset_not_found`, `not_a_static_mesh`, etc.) that clients can branch on. Shim errors flow through string concatenation of multi-stage failures (UE Python exception → marker missing → JSON parse error), which are harder to make stable.
+- **Type safety.** A C++ handler that reads `int32` from JSON and writes `int32` to UE has compile-time type safety end-to-end. The shim relies on Python `int(v)` coercion at runtime.
+
+**Python shim wins on:**
+- **Iteration speed.** Modify the shim → restart the bridge process → test. No UE rebuild. Whole cycle is seconds, not minutes.
+- **No new C++ surface area.** Each new handler doesn't grow the `extern Make_Handler_*()` list, the build dependencies, or the C++ test footprint.
+- **Composability.** The shim is *literally* composing existing UE handlers. It demonstrates the pattern documented in PR #42's `wait_for_events` (the first synthetic tool): when an operation is just "call A, then maybe B, return the combination", Python is the natural place. Future shims can compose multiple synthetic tools.
+- **Bridge-side validation.** Argument coercion and shape validation happen close to the MCP boundary, in Python — easier to write, easier to read.
+
+**Both lose on:**
+- **`get_*` shims that need round-tripped results** carry the **marker-pattern tax**: `unreal.log("__MARKER__<json>__END__")` + `get_log_lines` → search for marker → parse JSON. UUID per call mitigates marker collisions, but the pattern is still fragile under high log volume (LogCapture's 1000-entry ring could overflow between exec and read). For *write-only* operations like `set_camera_transform`, this isn't a concern — but reads pay it.
+
+### Recommendation (revising the original retrospective)
+
+The original retrospective said: *"~4 of the 36 handlers could be thin C++→Python shims."* PR #46 sharpens that:
+
+| Operation shape | Recommended language |
+|---|---|
+| Reads UE C++ structs / private fields / threading-sensitive APIs | **C++.** Always. The reflection-limit + private-access barrier is the load-bearing constraint. |
+| Iterates UE C++ registries (`IConsoleManager`, `IAssetRegistry`) | **C++.** Native iteration is meaningfully cleaner than per-call Python FFI. |
+| Pure setter wrapping a Python-reachable API (write-only, no result needed beyond `ok`) | **Python shim.** ~50 LoC vs ~150 LoC of C++; no marker-pattern tax; iteration speed is the value-add. |
+| Pure getter wrapping a Python-reachable API (must round-trip a result) | **C++** by default, but shim is acceptable if the round-trip latency is acceptable for the use case. The marker-pattern tax tilts this toward C++. |
+| Composition of multiple existing handlers (no new UE-API access) | **Python shim, always.** This is the synthetic-tool category from PR #42. C++ would be wrong here — adding UE compile cost to operations that only touch the bridge. |
+
+### Process update
+
+The 5-step decision flow at the top of this doc gets one new step:
+
+> **6. Is the operation a composition of existing handlers, or a write-only wrapper around a Python-reachable API?** → **Python shim** (bridge-side synthetic, registered in `SYNTHETIC_TOOLS`). The cost-of-iteration savings beat the per-call C++ shim path.
+
+The 3-month observation window from the original retrospective is no longer needed for this category — PR #46 is the experiment, the answer is in. Future synthetic shims that match the recipe above can ship without re-deliberation.
+
+### What we measured vs what we'd want next
+
+PR #46's data points are *single-author, single-session* — no aging, no multi-developer maintenance pressure, no cross-machine deployment friction. Real cost differentials show up over months and across contributors. The original "compare maintenance cost over 3 months" suggestion stands for *categories outside* the recommendation table above (e.g., complex shims that compose >2 existing handlers, or shims that grow their own state). For the well-defined cases, this addendum is the answer.
