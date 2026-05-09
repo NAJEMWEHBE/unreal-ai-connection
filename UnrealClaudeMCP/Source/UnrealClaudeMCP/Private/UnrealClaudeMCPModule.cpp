@@ -69,6 +69,8 @@ extern TSharedRef<IUCMCPHandler> Make_Handler_PollSubscription();
 extern TSharedRef<IUCMCPHandler> Make_Handler_StartSleepTask();
 extern TSharedRef<IUCMCPHandler> Make_Handler_PollTask();
 extern TSharedRef<IUCMCPHandler> Make_Handler_CancelTask();
+extern TSharedRef<IUCMCPHandler> Make_Handler_ExecPythonPersistent();
+extern TSharedRef<IUCMCPHandler> Make_Handler_ResetPythonState();
 
 static constexpr int32 kMCPDefaultPort = 18888;
 
@@ -129,6 +131,8 @@ void FUnrealClaudeMCPModule::StartupModule()
     Reg.Register(Make_Handler_StartSleepTask());
     Reg.Register(Make_Handler_PollTask());
     Reg.Register(Make_Handler_CancelTask());
+    Reg.Register(Make_Handler_ExecPythonPersistent());
+    Reg.Register(Make_Handler_ResetPythonState());
 
     // -----------------------------------------------------------------
     // Tier 2 (PR #40): wire 3 starter delegates into the FUCMCPEventBus.

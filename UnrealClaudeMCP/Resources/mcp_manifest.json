@@ -401,6 +401,20 @@
         "task_id": "string (required) - id from start_*_task"
       },
       "returns": { "ok": "bool", "task_id": "string", "accepted": "bool", "note": "string" }
+    },
+    {
+      "name": "exec_python_persistent",
+      "description": "Like execute_unreal_python but state PERSISTS across calls. Implemented via FPythonCommandEx with FileExecutionScope=Public (shared globals dict with the editor's Python console). Pairs with reset_python_state.",
+      "params": {
+        "code": "string (required) - Python source to execute against the persistent globals dict"
+      },
+      "returns": { "ok": "bool", "output": "string", "temp_script": "string", "scope": "string (= 'public')" }
+    },
+    {
+      "name": "reset_python_state",
+      "description": "Clear all user-defined names from UE Python's public globals dict. Pairs with exec_python_persistent. Names starting with '_' (dunders + conventional private) are preserved.",
+      "params": {},
+      "returns": { "ok": "bool", "scope": "string (= 'public')", "note": "string" }
     }
   ]
 }

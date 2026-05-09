@@ -19,8 +19,8 @@ import unreal_claude_mcp_bridge as bridge
 
 # -------- TOOLS schema --------------------------------------------------------
 
-def test_tools_list_has_fortysix_entries():
-    assert len(bridge.TOOLS) == 46
+def test_tools_list_has_fortyeight_entries():
+    assert len(bridge.TOOLS) == 48
 
 
 def test_each_tool_has_required_mcp_fields():
@@ -63,6 +63,8 @@ def test_tool_names_are_unique_and_match_handlers():
         "start_sleep_task",
         "poll_task",
         "cancel_task",
+        "exec_python_persistent",
+        "reset_python_state",
     }
     assert set(names) == expected
 
@@ -240,6 +242,22 @@ def test_poll_events_in_tools_catalog():
     assert props["max_count"]["type"] == "integer"
     assert props["event_filter"]["type"] == "array"
     assert props["event_filter"]["items"]["type"] == "string"
+
+
+def test_exec_python_persistent_in_tools_catalog():
+    """v0.11.x (Tier 2 PR #45): exec_python_persistent requires 'code'."""
+    t = next((t for t in bridge.TOOLS if t["name"] == "exec_python_persistent"), None)
+    assert t is not None
+    assert t["inputSchema"]["required"] == ["code"]
+    assert t["inputSchema"]["properties"]["code"]["type"] == "string"
+
+
+def test_reset_python_state_in_tools_catalog():
+    """v0.11.x (Tier 2 PR #45): reset_python_state takes no params."""
+    t = next((t for t in bridge.TOOLS if t["name"] == "reset_python_state"), None)
+    assert t is not None
+    assert "required" not in t["inputSchema"] or t["inputSchema"].get("required") == []
+    assert t["inputSchema"]["properties"] == {}
 
 
 def test_start_sleep_task_in_tools_catalog():
@@ -647,7 +665,7 @@ def test_handle_tools_list_returns_all_tools():
     resp = bridge.handle({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
     assert resp["id"] == 2
     assert "tools" in resp["result"]
-    assert len(resp["result"]["tools"]) == 46
+    assert len(resp["result"]["tools"]) == 48
 
 
 # -------- handle: tools/call --------------------------------------------------

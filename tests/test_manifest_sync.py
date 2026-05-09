@@ -42,7 +42,7 @@ def test_manifest_tool_names_match_bridge():
 
 def test_manifest_tool_count_matches_bridge():
     manifest = _load_manifest()
-    assert len(manifest["tools"]) == len(bridge.TOOLS) == 46
+    assert len(manifest["tools"]) == len(bridge.TOOLS) == 48
 
 
 def test_manifest_transport_block():
