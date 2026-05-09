@@ -377,6 +377,30 @@
         "max_count": "int (optional, default 100, max 1000) - cap returned events"
       },
       "returns": { "ok": "bool", "subscription_id": "string", "next_seq": "int", "first_seq_in_buffer": "int", "returned": "int", "dropped": "bool", "events": "array of {seq, event, ts, data}", "note": "string (only when dropped=true)" }
+    },
+    {
+      "name": "start_sleep_task",
+      "description": "PR #44 task-framework tracer: background-sleeps for duration_ms then completes. Returns task_id; poll via poll_task. Hard cap 1 hour.",
+      "params": {
+        "duration_ms": "int (required, 1 to 3600000) - sleep duration"
+      },
+      "returns": { "ok": "bool", "task_id": "string", "type": "string (= 'sleep')", "status": "string (= 'pending')", "duration_ms": "int", "note": "string" }
+    },
+    {
+      "name": "poll_task",
+      "description": "Read current state of a task. Non-blocking. Status: pending | running | completed | cancelled | failed.",
+      "params": {
+        "task_id": "string (required) - id from start_*_task"
+      },
+      "returns": { "ok": "bool", "task_id": "string", "type": "string", "status": "string", "start_time": "string", "end_time": "string (empty if not terminal)", "cancel_requested": "bool", "result": "object (only if status=completed)", "error": "string (only if status=failed)" }
+    },
+    {
+      "name": "cancel_task",
+      "description": "Request cooperative cancellation. Sets atomic flag; worker observes within ~50ms and transitions to status='cancelled'. Idempotent.",
+      "params": {
+        "task_id": "string (required) - id from start_*_task"
+      },
+      "returns": { "ok": "bool", "task_id": "string", "accepted": "bool", "note": "string" }
     }
   ]
 }
