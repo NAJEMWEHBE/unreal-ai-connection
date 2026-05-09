@@ -1324,15 +1324,22 @@ Mutate a UE Console Variable by name. The `value` param is polymorphic — accep
 
 This is the inversion of the rest of the catalog: instead of Claude querying UE state on demand, UE notifies Claude when state changes. Combined with regular polling, it enables reactive flows like "user dropped a chair into the level → reposition camera" or "asset import finished → trigger texture-config pipeline". See [`docs/superpowers/specs/2026-05-09-tier2-event-push-design.md`](superpowers/specs/2026-05-09-tier2-event-push-design.md) for the full Tier 2 multi-PR roadmap.
 
-**Starter event types (this PR):**
+**Wired event types (8 total — PR #40 starter set + PR #41 expansion):**
 
 | Event | Source | Payload fields |
 |---|---|---|
 | `actor_spawned` | `UEngine::OnLevelActorAdded(AActor*)` | `actor_label`, `actor_name`, `class`, `level` |
 | `actor_deleted` | `UEngine::OnLevelActorDeleted(AActor*)` | `actor_label`, `actor_name`, `class`, `level` |
 | `asset_added` | `IAssetRegistry::OnAssetAdded(const FAssetData&)` (TS_ delegate, fires from background scan threads) | `package_path`, `asset_path`, `name`, `class`, `class_path` |
+| `asset_removed` | `IAssetRegistry::OnAssetRemoved(const FAssetData&)` (TS_) | `package_path`, `asset_path`, `name`, `class`, `class_path` |
+| `asset_renamed` | `IAssetRegistry::OnAssetRenamed(const FAssetData&, const FString&)` (TS_) | `new_asset_path`, `old_asset_path`, `new_package_path`, `name`, `class`, `class_path` |
+| `asset_post_import` | `FEditorDelegates::OnAssetPostImport(UFactory*, UObject*)` | `asset_path`, `name`, `class`, `factory` |
+| `level_post_save` | `FEditorDelegates::PostSaveWorldWithContext(UWorld*, FObjectPostSaveContext)` | `level` |
+| `map_changed` | `FEditorDelegates::MapChange(uint32 MapChangeEventFlags)` | `flags` (raw bitmap), `flag_names` (decoded array — `"new_map"` / `"map_rebuild"` / `"world_torn_down"`) |
 
-Future PRs will add `asset_removed`, `asset_renamed`, `asset_post_import`, `level_loaded`, `level_saved`, `blueprint_compiled`, `mi_parameter_changed`, etc., plus a `wait_for_events` long-poll variant for sub-second latency.
+Note on `asset_added` vs `asset_post_import`: `asset_added` fires for **any** new registry entry — including the project's startup scan (high volume) and in-memory creations. `asset_post_import` fires only when a `UFactory` actually imports an asset (single `import_texture`, batch reimport, drag-and-drop). If you want to react specifically to user-driven imports, filter on `asset_post_import`; if you want every new asset regardless of provenance, use `asset_added`.
+
+Future PRs will add `blueprint_compiled` (no global delegate today; needs per-BP subscription), `mi_parameter_changed`, plus a `wait_for_events` long-poll variant for sub-second latency.
 
 **Params**
 - `since_seq` (int, optional, default `-1`) — return events with `seq >= since_seq` (**inclusive cursor**). `-1` = "from oldest buffered". On the first poll, leave at default to discover the current `next_seq`; on subsequent polls, pass the previous response's `next_seq` to consume only newly-fired events. Inclusive semantics matter: `next_seq` is the id about to be assigned (not yet pushed), so the next event to fire will land at exactly that seq, and an exclusive filter would silently drop it.
