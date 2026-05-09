@@ -330,6 +330,16 @@
         "value": "string | number | bool (required) - new value; coerced to string before Set"
       },
       "returns": { "ok": "bool", "name": "string", "type": "string", "requested_value": "string", "value_string": "string", "value_int": "number", "value_float": "number", "value_bool": "bool", "set_by": "string", "note": "string (only when post-set value differs from requested)" }
+    },
+    {
+      "name": "poll_events",
+      "description": "Tier 2 entrypoint: drain editor events fired since the caller's last poll. UE delegates (starter set: actor_spawned, actor_deleted, asset_added) push into a 1000-entry ring buffer (FUCMCPEventBus); this handler returns the slice with seq > since_seq, capped at max_count.",
+      "params": {
+        "since_seq": "int (optional, default -1) - return events with seq > since_seq",
+        "max_count": "int (optional, default 100, max 1000) - cap returned events",
+        "event_filter": "array of string (optional) - substring filters on event type; OR-combined"
+      },
+      "returns": { "ok": "bool", "next_seq": "int", "first_seq_in_buffer": "int", "returned": "int", "dropped": "bool", "events": "array of {seq, event, ts, data}", "note": "string (only when dropped=true)" }
     }
   ]
 }
