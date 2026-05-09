@@ -1114,6 +1114,43 @@ Or for the whole `/Game/` tree (typical post-bulk-rename cleanup):
 
 ---
 
+## apply_python_to_selection
+
+Run user Python with the editor's current selection pre-bound as Python locals. Convenience wrapper around `execute_unreal_python` that injects boilerplate to fetch:
+
+| Local | Type | Source |
+|---|---|---|
+| `selection` | `list[unreal.Actor]` | `unreal.get_editor_subsystem(unreal.EditorActorSubsystem).get_selected_level_actors()` (UE 5.x), with fallback to `unreal.EditorLevelLibrary.get_selected_level_actors()` |
+| `selected_assets` | `list[unreal.Object]` | `unreal.EditorUtilityLibrary.get_selected_assets()` |
+
+Both bindings use try/except so a missing API in older Python plugin builds defaults to an empty list rather than killing the script. The user's code runs *after* the boilerplate, so it can reference either name directly without re-implementing the lookup.
+
+**Params**
+- `code` (string, required) — Python source. The boilerplate above is prepended.
+
+**Result**
+- `ok` (bool) — `true` if the script ran without raising
+- `output` (string) — `FPythonCommandEx::CommandResult`. Same caveat as `run_python_file` and `execute_unreal_python`: `ExecuteFile` mode returns `"None"` here. Round-trip results via `unreal.log("__MARKER__<json>__END__")` + `get_log_lines{category_filter:"LogPython"}`.
+- `temp_script` (string) — path to the wrapper script that was written and executed (cleaned up after run via `ON_SCOPE_EXIT`)
+
+**Errors:** `missing_required_field`, `python_unavailable`, `write_failed`.
+
+**Example — translate every selected actor up by 100 units**
+```json
+{"jsonrpc":"2.0","id":1,"method":"apply_python_to_selection","params":{
+  "code": "for a in selection:\n    loc = a.get_actor_location()\n    a.set_actor_location(unreal.Vector(loc.x, loc.y, loc.z + 100), False, False)\nunreal.log(f'__MOVED__{len(selection)}__END__')"
+}}
+```
+
+**Example — print parent class of every selected asset**
+```json
+{"jsonrpc":"2.0","id":1,"method":"apply_python_to_selection","params":{
+  "code": "import json\nresult = [{'name': a.get_name(), 'class': a.get_class().get_name()} for a in selected_assets]\nunreal.log('__SEL__' + json.dumps(result) + '__END__')"
+}}
+```
+
+---
+
 ## Adding more tools
 
 See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the recipe. Short version: one `.cpp` file in `Source/UnrealClaudeMCP/Private/MCP/Handlers/`, two registration lines in `UnrealClaudeMCPModule.cpp`, one entry in `Resources/mcp_manifest.json`, one entry in `bridge/unreal_claude_mcp_bridge.py`'s `TOOLS` list, rebuild, restart.
