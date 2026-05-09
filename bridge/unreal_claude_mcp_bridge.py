@@ -540,6 +540,39 @@ TOOLS = [
             "required": ["subscription_id"],
         },
     },
+    {
+        "name": "start_sleep_task",
+        "description": "Tier 2 PR #44 framework tracer: spawn a background task that sleeps for duration_ms then completes. Returns immediately with a task_id; poll via poll_task or cancel via cancel_task. Useful by itself for 'wait N ms and then do something' workflows; primary purpose is to exercise the FUCMCPTaskRegistry threading + cancellation paths. Hard cap on duration_ms is 1 hour.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "duration_ms": {"type": "integer", "description": "How long the task should sleep (1 to 3600000 ms / 1 hour). Required."},
+            },
+            "required": ["duration_ms"],
+        },
+    },
+    {
+        "name": "poll_task",
+        "description": "Read current state of a task started via any start_*_task handler. Non-blocking: returns the registry snapshot and never waits for the task to advance. Status: pending | running | completed | cancelled | failed. Result populated when status=completed; error populated when status=failed.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "task_id": {"type": "string", "description": "Task id returned by start_*_task."},
+            },
+            "required": ["task_id"],
+        },
+    },
+    {
+        "name": "cancel_task",
+        "description": "Request COOPERATIVE cancellation of a running task. Sets the task's atomic flag; the worker observes it on its next polling iteration (~50ms) and exits cleanly to status='cancelled'. UE has no safe forced-thread-termination, so workers that don't poll the flag run to completion regardless. Idempotent: returns ok=true with accepted=false for unknown ids and already-terminal tasks.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "task_id": {"type": "string", "description": "Task id returned by start_*_task."},
+            },
+            "required": ["task_id"],
+        },
+    },
 ]
 
 

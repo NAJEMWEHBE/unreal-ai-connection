@@ -1595,6 +1595,140 @@ A subsequent `poll_subscription` call with the same id (and no new events fired 
 
 ---
 
+## start_sleep_task
+
+**Tier 2 PR #44 — task framework tracer.** Spawns a background worker on `EAsyncExecution::ThreadPool` that sleeps for `duration_ms` then completes the task with `result: { slept_ms }`. Returns immediately with the `task_id`; poll via `poll_task` and cancel via `cancel_task`.
+
+The framework around this handler (`FUCMCPTaskRegistry`) is the durable bit; future task types (cooks, MRQ renders, lightmap bakes) will reuse the same registry and the same `poll_task` / `cancel_task` handlers, just with different `start_*_task` entry points.
+
+**Why this exists:** validates the registry's threading and cancellation paths end-to-end without UE-specific complications. Also genuinely useful for "wait N ms then do something" workflows, though `wait_for_events` covers that case better when you're waiting on editor state.
+
+**Params**
+- `duration_ms` (int, required) — how long the worker should sleep. Hard cap **1 hour** (3,600,000 ms); over-cap requests are silently clamped.
+
+**Result** (returned immediately by `start_sleep_task`, not after the sleep)
+- `ok` (bool)
+- `task_id` (string) — pass to `poll_task` / `cancel_task`
+- `type` (string) — `"sleep"`
+- `status` (string) — `"pending"` (the worker may already be running by the time you read this; poll for the latest)
+- `duration_ms` (int) — echo of the (possibly-clamped) duration
+- `note` (string) — operational hint
+
+**Errors:** `missing_required_field`, `invalid_value_shape`.
+
+**Lifecycle:** task lives in the registry until editor restart. PR #44 has **no TTL** — completed/cancelled/failed tasks accumulate. If observable, a follow-up PR will add cleanup.
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"start_sleep_task","params":{"duration_ms": 5000}}
+```
+```json
+{"jsonrpc":"2.0","id":1,"result":{
+  "ok": true,
+  "task_id": "5C2D8F1A-...",
+  "type": "sleep",
+  "status": "pending",
+  "duration_ms": 5000,
+  "note": "Worker spawned on EAsyncExecution::ThreadPool. Poll via poll_task..."
+}}
+```
+
+---
+
+## poll_task
+
+Read the current state of a task started via any `start_*_task` handler. **Non-blocking** — returns the registry snapshot and never waits for the task to advance.
+
+**Status values**
+
+| Status | Meaning |
+|---|---|
+| `pending` | Registered but worker hasn't started yet (briefly, between `start_*_task` returning and the worker's first `MarkRunning` call). |
+| `running` | Worker is actively executing. |
+| `completed` | Finished successfully. `result` populated; `end_time` populated. |
+| `cancelled` | Cancellation was requested AND the worker observed it. `end_time` populated. |
+| `failed` | Worker hit an error. `error` populated; `end_time` populated. |
+
+**Params**
+- `task_id` (string, required) — id from the `start_*_task` call.
+
+**Result**
+- `ok` (bool)
+- `task_id`, `type` (string) — echoes
+- `status` (string) — see table above
+- `start_time` (string) — `YYYY.MM.DD-HH.MM.SS`
+- `end_time` (string) — populated for terminal states; empty otherwise
+- `cancel_requested` (bool) — has cancellation been requested? (independent of whether the worker has observed it yet)
+- `result` (object) — only when `status == "completed"`; shape depends on the task type
+- `error` (string) — only when `status == "failed"`
+
+**Errors:** `missing_required_field`, `task_not_found`.
+
+**Example — task in progress**
+```json
+{"jsonrpc":"2.0","id":1,"result":{
+  "ok": true,
+  "task_id": "5C2D8F1A-...",
+  "type": "sleep",
+  "status": "running",
+  "start_time": "2026.05.09-17.40.00",
+  "end_time": "",
+  "cancel_requested": false
+}}
+```
+
+**Example — task completed**
+```json
+{"jsonrpc":"2.0","id":1,"result":{
+  "ok": true,
+  "task_id": "5C2D8F1A-...",
+  "type": "sleep",
+  "status": "completed",
+  "start_time": "2026.05.09-17.40.00",
+  "end_time": "2026.05.09-17.40.05",
+  "cancel_requested": false,
+  "result": {"slept_ms": 5000}
+}}
+```
+
+---
+
+## cancel_task
+
+Request **cooperative** cancellation of a running task. Sets the task's atomic cancellation flag; the worker observes the flag on its next polling iteration (typical cadence ~50 ms) and exits cleanly to `status="cancelled"`.
+
+**Cancellation discipline:** UE 5.7 has no safe forced-thread-termination — `FRunnableThread::Kill(true)` risks corrupting game state. So workers that don't poll the cancellation flag will **run to completion regardless**. The framework's job is to provide the signal; the worker's job is to honor it. All PR #44+ task types are required to poll the flag at sub-second cadence.
+
+**Idempotent.** Calling on an unknown id or an already-terminal task returns `ok=true` with `accepted=false` (and a `note` explaining why) rather than an error — safe to blanket-cancel on shutdown.
+
+**Params**
+- `task_id` (string, required) — id from the `start_*_task` call.
+
+**Result**
+- `ok` (bool)
+- `task_id` (string) — echo
+- `accepted` (bool) — `true` if the cancellation flag was set; `false` if the id was unknown OR the task was already in a terminal state
+- `note` (string) — explanation
+
+**Errors:** `missing_required_field`.
+
+**Example — successful cancel**
+```json
+{"jsonrpc":"2.0","id":1,"method":"cancel_task","params":{"task_id":"5C2D8F1A-..."}}
+```
+```json
+{"jsonrpc":"2.0","id":1,"result":{
+  "ok": true,
+  "task_id": "5C2D8F1A-...",
+  "accepted": true,
+  "note": "Cancellation requested. Worker will observe within ~50ms..."
+}}
+```
+
+A subsequent `poll_task` will show `cancel_requested: true` immediately, then transition to `status: "cancelled"` once the worker's next polling slice fires.
+
+---
+
 ## Adding more tools
 
 See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the recipe. Short version: one `.cpp` file in `Source/UnrealClaudeMCP/Private/MCP/Handlers/`, two registration lines in `UnrealClaudeMCPModule.cpp`, one entry in `Resources/mcp_manifest.json`, one entry in `bridge/unreal_claude_mcp_bridge.py`'s `TOOLS` list, rebuild, restart.

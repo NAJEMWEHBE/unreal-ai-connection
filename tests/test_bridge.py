@@ -19,8 +19,8 @@ import unreal_claude_mcp_bridge as bridge
 
 # -------- TOOLS schema --------------------------------------------------------
 
-def test_tools_list_has_fortythree_entries():
-    assert len(bridge.TOOLS) == 43
+def test_tools_list_has_fortysix_entries():
+    assert len(bridge.TOOLS) == 46
 
 
 def test_each_tool_has_required_mcp_fields():
@@ -60,6 +60,9 @@ def test_tool_names_are_unique_and_match_handlers():
         "register_subscription",
         "unsubscribe",
         "poll_subscription",
+        "start_sleep_task",
+        "poll_task",
+        "cancel_task",
     }
     assert set(names) == expected
 
@@ -237,6 +240,30 @@ def test_poll_events_in_tools_catalog():
     assert props["max_count"]["type"] == "integer"
     assert props["event_filter"]["type"] == "array"
     assert props["event_filter"]["items"]["type"] == "string"
+
+
+def test_start_sleep_task_in_tools_catalog():
+    """v0.11.x (Tier 2 PR #44): start_sleep_task requires duration_ms."""
+    t = next((t for t in bridge.TOOLS if t["name"] == "start_sleep_task"), None)
+    assert t is not None
+    assert t["inputSchema"]["required"] == ["duration_ms"]
+    assert t["inputSchema"]["properties"]["duration_ms"]["type"] == "integer"
+
+
+def test_poll_task_in_tools_catalog():
+    """v0.11.x (Tier 2 PR #44): poll_task requires task_id."""
+    t = next((t for t in bridge.TOOLS if t["name"] == "poll_task"), None)
+    assert t is not None
+    assert t["inputSchema"]["required"] == ["task_id"]
+    assert t["inputSchema"]["properties"]["task_id"]["type"] == "string"
+
+
+def test_cancel_task_in_tools_catalog():
+    """v0.11.x (Tier 2 PR #44): cancel_task requires task_id."""
+    t = next((t for t in bridge.TOOLS if t["name"] == "cancel_task"), None)
+    assert t is not None
+    assert t["inputSchema"]["required"] == ["task_id"]
+    assert t["inputSchema"]["properties"]["task_id"]["type"] == "string"
 
 
 def test_register_subscription_in_tools_catalog():
@@ -620,7 +647,7 @@ def test_handle_tools_list_returns_all_tools():
     resp = bridge.handle({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
     assert resp["id"] == 2
     assert "tools" in resp["result"]
-    assert len(resp["result"]["tools"]) == 43
+    assert len(resp["result"]["tools"]) == 46
 
 
 # -------- handle: tools/call --------------------------------------------------
