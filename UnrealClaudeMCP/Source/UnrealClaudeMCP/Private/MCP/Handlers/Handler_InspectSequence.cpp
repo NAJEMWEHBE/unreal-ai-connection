@@ -182,8 +182,11 @@ public:
 
         // Per-binding tracks: each FMovieSceneBinding holds its tracks plus
         // the binding's GUID. Confirmed at MovieSceneBinding.h:118 (GetTracks)
-        // and :84 (GetObjectGuid).
-        for (const FMovieSceneBinding& Binding : Scene->GetBindings())
+        // and :84 (GetObjectGuid). UE 5.7 deprecated the non-const
+        // UMovieScene::GetBindings overload (MovieScene.h:778); the const
+        // overload (line 773) is the supported path.
+        const UMovieScene* ConstScene = Scene;
+        for (const FMovieSceneBinding& Binding : ConstScene->GetBindings())
         {
             const FString BindingGuidStr =
                 Binding.GetObjectGuid().ToString(EGuidFormats::DigitsWithHyphens);

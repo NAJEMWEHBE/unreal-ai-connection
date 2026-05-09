@@ -24,6 +24,7 @@
     ],
     "Plugins": [
         { "Name": "PythonScriptPlugin",       "Enabled": true },
-        { "Name": "EditorScriptingUtilities", "Enabled": true }
+        { "Name": "EditorScriptingUtilities", "Enabled": true },
+        { "Name": "LevelSequenceEditor",      "Enabled": true }
     ]
 }
