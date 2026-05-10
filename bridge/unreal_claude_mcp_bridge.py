@@ -13,7 +13,7 @@ plugin speaks raw JSON-RPC over a local TCP socket (default
 Behaviour:
   - "initialize"             returned synthetically (does NOT hit the UE server)
   - "notifications/*"        consumed silently
-  - "tools/list"             returns a static list of all 60 tools (56
+  - "tools/list"             returns a static list of all 68 tools (64
                              dispatched to the UE plugin's C++ handlers
                              plus 4 bridge-side synthetic tools served by
                              SYNTHETIC_TOOLS without crossing the wire as
@@ -45,7 +45,7 @@ SERVER_NAME = "unreal-claude-mcp"
 SERVER_VERSION = "0.9.1"
 
 # Mirror of UnrealClaudeMCP/Resources/mcp_manifest.json - kept in sync manually.
-# 60 tool entries total. 56 are dispatched straight to UE C++ handlers
+# 68 tool entries total. 64 are dispatched straight to UE C++ handlers
 # (see UnrealClaudeMCPModule.cpp's Reg.Register(...) block). The remaining
 # 4 -- wait_for_events, get_camera_transform, set_camera_transform,
 # screenshot_actor -- are bridge-side synthetic tools served by
