@@ -2305,6 +2305,41 @@ Clear all user-defined names from UE Python's public globals dict. Pairs with `e
 
 ---
 
+## inspect_sound_cue
+
+**Tier 3.** Read structural properties of a `USoundCue` asset: total duration, max distance, volume + pitch multipliers, subtitle priority, max audible distance, attenuation cross-link, root sound-node class, and the full graph of sound nodes (sorted by name with class taxonomy). Pairs with `import_texture` / `configure_texture` style asset-pipeline introspection — gives the LLM enough surface to reason about a cue's runtime behaviour without loading the full graph.
+
+**Why C++:** `USoundCue::AllNodes` is `TArray<TObjectPtr<USoundNode>>`; iterating the graph and reading `GetClass()->GetName()` per node is straightforward in C++. Python's `unreal` reflection covers some node properties but the per-node class taxonomy + null-skip for stale entries is awkward via reflection.
+
+**Required Build.cs deps:** **none** — `Engine` covers `USoundCue`, `USoundBase`, `USoundNode`, `USoundAttenuation`.
+
+**Null-skip discipline:** `TArray<TObjectPtr<USoundNode>>` can carry null entries after deletes/reimports (PR #55→#57 lesson). `node_count` reflects valid (non-null) entries only.
+
+**Stable node ordering:** `AllNodes` iteration order is technically deterministic (it's a TArray, not a TSet) but the in-asset order reflects authoring history rather than any human-meaningful sort. Sorted by node name before emission for stable cross-call output and diff-friendly JSON. Same convention as `inspect_widget_blueprint::inherited_slots_with_content` and `inspect_data_table::rows`.
+
+**Params**
+- `path` (string, required) — UE asset path of a `USoundCue`, e.g. `/Game/Audio/SC_Footstep`.
+
+**Result**
+- `ok`, `name`, `path` (normalized via `UCMCPAssetPath::ToObjectPath`)
+- `duration` (float) — `USoundBase::Duration` (total cue length in seconds)
+- `max_distance` (float) — `USoundBase::MaxDistance` (statically computed at load/edit time; runtime value via `GetMaxDistance()` may differ)
+- `volume_multiplier`, `pitch_multiplier` (float) — `USoundCue` direct fields
+- `subtitle_priority`, `max_audible_distance` (float)
+- `attenuation_settings` (string) — engine ground-truth asset path of the `USoundAttenuation` asset. **Omitted** when null. Cross-link target.
+- `first_node_class` (string) — class name of the root graph node (`FirstNode->GetClass()->GetName()`). **Omitted** when `FirstNode` is null.
+- `node_count` (int) — valid (non-null) entries in `AllNodes`
+- `nodes` (array) — sorted-by-name `{ name, class }` for every node in the graph
+
+**Errors:** `missing_required_field`, `asset_not_found`, `not_a_sound_cue`.
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"inspect_sound_cue","params":{"path":"/Game/Audio/SC_Footstep"}}
+```
+
+---
+
 ## get_camera_transform
 
 **Language-shim experiment, PR #46 (Python shim — bridge-side synthetic tool).** Read the level-editor viewport camera's location and rotation.

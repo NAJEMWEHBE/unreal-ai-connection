@@ -534,6 +534,14 @@
       "returns": { "ok": "bool", "name": "string", "path": "string", "preview_skeletal_mesh": "string (conditional, when PreviewSkeletalMesh is set; soft-object asset path; cross-link to inspect_skeletal_mesh)", "body_count": "int (valid USkeletalBodySetup entries only)", "bodies": "array of {name, body_index, consider_for_bounds, is_in_bounds_subset}", "constraint_count": "int (valid UPhysicsConstraintTemplate entries only)", "constraints": "array of {joint_name, child_bone, parent_bone}", "bounds_body_count": "int (BoundsBodies.Num)", "physical_animation_profile_count": "int", "physical_animation_profiles": "array of string", "constraint_profile_count": "int", "constraint_profiles": "array of string" }
     },
     {
+      "name": "inspect_sound_cue",
+      "description": "Read structural properties of a USoundCue asset: duration, max distance, volume + pitch multipliers, subtitle priority, max audible distance, attenuation cross-link, root sound-node class, full graph node list (sorted by name with class taxonomy). C++ handler. No new Build.cs deps (Engine covers USoundCue / USoundBase / USoundNode / USoundAttenuation). Null-skips TObjectPtr<USoundNode> entries.",
+      "params": {
+        "path": "string (required) - UE asset path of a USoundCue"
+      },
+      "returns": { "ok": "bool", "name": "string", "path": "string", "duration": "float (USoundBase::Duration; total cue length in seconds)", "max_distance": "float (USoundBase::MaxDistance)", "volume_multiplier": "float", "pitch_multiplier": "float", "subtitle_priority": "float", "max_audible_distance": "float", "attenuation_settings": "string (conditional, when AttenuationSettings is non-null; asset path)", "first_node_class": "string (conditional, when FirstNode is non-null; class name of the root graph node)", "node_count": "int (valid USoundNode entries only)", "nodes": "array of {name, class} (sorted by name; null-skipped)" }
+    },
+    {
       "name": "get_camera_transform",
       "description": "Read level-editor viewport camera transform. SYNTHETIC bridge-side handler -- composes execute_unreal_python + get_log_lines via marker pattern. Part of language-shim experiment (PR #46).",
       "params": {},

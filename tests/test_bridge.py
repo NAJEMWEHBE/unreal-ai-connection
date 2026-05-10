@@ -23,7 +23,7 @@ def test_tools_list_size():
     # Cross-checked against the manifest in test_manifest_sync.py; the absolute
     # number bumps with each new tool. Function name kept count-agnostic so
     # it doesn't drift behind the assertion (per Sonnet pre-review on PR #50).
-    assert len(bridge.TOOLS) == 65
+    assert len(bridge.TOOLS) == 66
 
 
 def test_each_tool_has_required_mcp_fields():
@@ -81,6 +81,7 @@ def test_tool_names_are_unique_and_match_handlers():
         "inspect_texture",
         "inspect_curve",
         "inspect_physics_asset",
+        "inspect_sound_cue",
         "get_camera_transform",
         "set_camera_transform",
         "screenshot_actor",
@@ -341,6 +342,19 @@ def test_inspect_anim_montage_in_tools_catalog():
     assert t is not None
     assert t["inputSchema"]["required"] == ["path"]
     assert t["inputSchema"]["properties"]["path"]["type"] == "string"
+
+
+def test_inspect_sound_cue_in_tools_catalog():
+    """Tier 3: inspect_sound_cue requires path. C++ handler that reads
+    USoundCue base + node-graph surface (FirstNode class taxonomy + full
+    AllNodes list, null-skipped). Cross-links to USoundAttenuation via
+    attenuation_settings field. Multi-agent dispatch with literal-template
+    Codex prompt + extra-high reasoning per memory directive."""
+    t = next((t for t in bridge.TOOLS if t["name"] == "inspect_sound_cue"), None)
+    assert t is not None
+    assert t["inputSchema"]["required"] == ["path"]
+    assert t["inputSchema"]["properties"]["path"]["type"] == "string"
+    assert "inspect_sound_cue" not in bridge.SYNTHETIC_TOOLS
 
 
 def test_inspect_physics_asset_in_tools_catalog():
@@ -972,7 +986,7 @@ def test_handle_tools_list_returns_all_tools():
     resp = bridge.handle({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
     assert resp["id"] == 2
     assert "tools" in resp["result"]
-    assert len(resp["result"]["tools"]) == 65
+    assert len(resp["result"]["tools"]) == 66
 
 
 # -------- handle: tools/call --------------------------------------------------
