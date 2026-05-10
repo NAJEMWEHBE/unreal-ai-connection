@@ -8,7 +8,7 @@ Single source of truth for resuming work on UnrealClaudeMCP in a fresh Claude Co
 
 **What this is:** An Unreal Engine 5.7 plugin + Python bridge that exposes editor automation to **any MCP-compliant client** (Claude Code, Codex CLI, Cursor, Gemini CLI, Continue, …) over a localhost TCP socket. The plugin adds a JSON-RPC server inside the editor; each "handler" is one MCP tool (~150 LoC of C++ in `Source/UnrealClaudeMCP/Private/MCP/Handlers/`). The bridge translates between the client's stdio MCP protocol and the plugin's TCP wire format. **Vendor-neutral by design** — the wire protocol is open MCP (created by Anthropic, but any conforming client works); the project's repo/folder names retain "Claude" for legacy reasons but the capability is universal.
 
-**Where it stands:** **60 tools total** (56 UE-side C++ handlers + 4 bridge-side synthetic tools). Tier 1 + Tier 2 fully shipped (Tier 1: ergonomic wins; Tier 2: autonomy multipliers — editor event push, task tracking, persistent Python REPL). **Tier 3 is mid-sprint** — 7 new feature handlers shipped this session (PRs #48-#56) plus 2 cleanup PRs (#53, #57). Animation introspection trio is complete (`inspect_anim_blueprint` + `inspect_skeletal_mesh` + `inspect_anim_montage`, all cross-linked via shared `skeleton` asset path). Asset-introspection coverage now includes static mesh, niagara system, anim BP, skeletal mesh, anim montage, landscape (scene actor, not asset).
+**Where it stands:** **65 tools total** (61 UE-side C++ handlers + 4 bridge-side synthetic tools). Tier 1 + Tier 2 fully shipped (Tier 1: ergonomic wins; Tier 2: autonomy multipliers — editor event push, task tracking, persistent Python REPL). **Tier 3 is mid-sprint** — 7 new feature handlers shipped this session (PRs #48-#56) plus 2 cleanup PRs (#53, #57). Animation introspection trio is complete (`inspect_anim_blueprint` + `inspect_skeletal_mesh` + `inspect_anim_montage`, all cross-linked via shared `skeleton` asset path). Asset-introspection coverage now includes static mesh, niagara system, anim BP, skeletal mesh, anim montage, landscape (scene actor, not asset).
 
 **What's NOT in main yet:** nothing in flight. All 10 PRs from the 2026-05-09 / 2026-05-10 sprint are merged. Live verification on the host machine is **still pending** — runbook below now expects 56 UE C++ handlers (was 49).
 
@@ -36,11 +36,11 @@ Tier 3 features (7 new tools):
 
 **12 bot findings cleared across 2 cleanup PRs**, including 2 real semantic bugs (`BS_Error`, `package_path` field-name-vs-shape mismatch). The optimistic-merge rhythm (directive #7) makes this trade explicit: ship faster, accept ~30% findings → cleanup PR.
 
-**Verification status:** live verification on the host machine is **still pending**. The runbook below is unchanged in shape, but the assertions need bumping (now **56 UE C++ handlers** register at startup, not 49 — plus 4 bridge-side synthetic tools that don't appear in the UE Output Log because they never reach the UE process). When you next have access to the host machine, start there.
+**Verification status:** live verification on the host machine is **still pending**. The runbook below is unchanged in shape, but the assertions need bumping (now **61 UE C++ handlers** register at startup — plus 4 bridge-side synthetic tools that don't appear in the UE Output Log because they never reach the UE process). When you next have access to the host machine, start there.
 
 **Verification runbook** (6 steps, PowerShell, run on the user's host machine):
 
-1. `cd C:\Users\NINOH\Desktop\UnrealClaudeMCP && git pull origin main`
+1. `cd F:\UnrealClaudeMCP && git pull origin main`
 2. `taskkill /IM UnrealEditor.exe /F` (Live Coding holds the DLL otherwise; safe if UE isn't running). Or, with the module: `Import-Module .\scripts\UnrealClaudeMCP-Editor.psm1; Stop-UCMCPEditor`.
 3. **Sync dev plugin → host plugin.** The host project's `Plugins/UnrealClaudeMCP/` may be a plain copy on this machine, in which case it drifts from the dev tree silently. Verify with `Get-Item "<host-project>\Plugins\UnrealClaudeMCP" | Select-Object LinkType` — a `Junction` or `SymbolicLink` value means it auto-tracks; empty means it's a plain copy and you must sync. To sync (always quote both paths — Windows project locations like `C:\Users\<you>\Documents\Unreal Projects\…` contain spaces):
    ```
@@ -48,7 +48,7 @@ Tier 3 features (7 new tools):
    ```
    Robocopy exit codes 0–7 mean success. The `/XD Binaries Intermediate` exclusion preserves the host's UBT cache so step 4 stays incremental.
 4. `& "F:\UE_5.7\Engine\Build\BatchFiles\Build.bat" <HostProjectName>Editor Win64 Development -project="<full path to host .uproject>"` — must end with `Result: Succeeded`. The target is `<HostProjectName>Editor`, NOT `<PluginName>Editor`. For the canonical `UnrealClaudeMCPTest` host project, that's `UnrealClaudeMCPTestEditor`.
-5. Open the host `.uproject` in UE editor; confirm **56 UE C++ handlers register** in the Output Log. Filter by `LogUCMCPHandler` and you should see exactly 56 lines `Registered handler '<name>'`. (The 4 bridge-side synthetic tools — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor` — never reach the UE process and so never appear in the Output Log; they're served by `SYNTHETIC_TOOLS` in `bridge/unreal_claude_mcp_bridge.py`. Total tools visible to MCP clients: 60.) The TCP server then binds `127.0.0.1:18888` (~10s on warm DDC, 1–5 min cold). With the module: `$proc = Start-UCMCPEditor -ProjectPath "<full path>"; $ready = Wait-UCMCPReady; $check = Test-UCMCPHandlers -LogPath "<host-project>\Saved\Logs\<HostProjectName>.log" -ExpectedCount 56`.
+5. Open the host `.uproject` in UE editor; confirm **61 UE C++ handlers register** in the Output Log. Filter by `LogUCMCPHandler` and you should see exactly 61 lines `Registered handler '<name>'`. (The 4 bridge-side synthetic tools — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor` — never reach the UE process and so never appear in the Output Log; they're served by `SYNTHETIC_TOOLS` in `bridge/unreal_claude_mcp_bridge.py`. Total tools visible to MCP clients: 65.) The TCP server then binds `127.0.0.1:18888` (~10s on warm DDC, 1–5 min cold). With the module: `$proc = Start-UCMCPEditor -ProjectPath "<full path>"; $ready = Wait-UCMCPReady; $check = Test-UCMCPHandlers -LogPath "<host-project>\Saved\Logs\<HostProjectName>.log" -ExpectedCount 61`.
 6. **Smoke** — `py -3 examples\smoke_test.py --material-instance /Game/SmokeTest_MI --sequence /Game/SmokeTest_LS`. Note: smoke_test was last updated for 36 handlers; it still works against the registered set but doesn't exercise the new Tier 2/3 surface. Extending it to cover events / tasks / Python REPL / inspect_* family is a reasonable post-verification follow-up.
 
 **Live-verification scenarios for Tier 2 surface:**
@@ -321,7 +321,7 @@ These are real items either explicitly deferred or obvious follow-ups. **None ar
 
 ## Autonomy roadmap
 
-Surfaces beyond the current 60 tools that would meaningfully expand "Unreal automation from any LLM client" autonomy.
+Surfaces beyond the current 65 tools that would meaningfully expand "Unreal automation from any LLM client" autonomy.
 
 **Tier 1 (ergonomic wins):** ✅ FULLY SHIPPED (PRs #31-#39)
 
@@ -358,7 +358,7 @@ Surfaces beyond the current 60 tools that would meaningfully expand "Unreal auto
 2. Send: *"Read `docs/HANDOFF.md` and continue from there. The user is in autonomy mode — pick the next reasonable thing to do."*
 3. **Verify Codex tooling** (per directive #8): `ToolSearch query="codex"` and/or `Bash codex --help`. If reachable, the multi-agent collaboration model is live; if not, fall back to Opus-solo or ask the user how to invoke.
 4. **Verify the multi-agent fleet** (per directive #9): the explorer / reviewer subagents are usable in any session via the Agent tool with `subagent_type: "feature-dev:code-explorer"` / `"feature-dev:code-reviewer"` and `model: "sonnet"`. The `general-purpose` subagent works for research but **NOT for file writes** (sandbox isolation — see trap table).
-5. The fresh session reads this doc, absorbs the directives, sees **60 tools shipped**, and proceeds.
+5. The fresh session reads this doc, absorbs the directives, sees **65 tools shipped**, and proceeds.
 
 For specific resumption:
 - *"Live-verify everything that landed in the 2026-05-09 / 2026-05-10 sprint"* → run the runbook at the top with the **57-handler assertion** + spot-check the new Tier 3 surface (full scenario list above)
@@ -434,3 +434,35 @@ The user kicked off this session with *"check the information code page in my re
 **Where to start next session:**
 1. Triage the three open PRs above — the smoke-test fix branch is small + low-risk + unblocks anyone running the smoke test, merge first; the docs PR has no behaviour impact, merge second; the handoff-update PR is also docs-only and merging it makes the next agent's pickup easier, merge third.
 2. **Live verification is still pending from prior sessions** — the runbook at the top remains the highest-priority "first action with a host machine." With the 56+4 framing now consistent throughout, the runbook's expected-count assertion (`Test-UCMCPHandlers -ExpectedCount 56`) is correct on first read.
+
+**Session 2026-05-10 (post-recovery resumption sprint):**
+
+The dev machine was reformatted between sessions; this session resumed from an F-drive working tree (repo cloned to `F:\UnrealClaudeMCP\` rather than the prior canonical `C:\Users\NINOH\Desktop\UnrealClaudeMCP\`). Recovery sequence ran end-to-end at session start: restored the 9 session-memory files from `docs/session-memory-archive/` to the new `~/.claude/projects/F--UnrealClaudeMCP/memory/` location, re-installed `gh` (winget) + Codex CLI (`@openai/codex` via npm), re-authed both, and verified pytest baseline (162 passing on `64e4ce6`). Per-repo git config also had to be re-set (`git config user.name/user.email`) since global config had been wiped — explicit user approval was sought before that change.
+
+**5 PRs merged in this resumption sprint:**
+
+- PR #67 — **`inspect_widget_blueprint`** (UWidgetBlueprint introspection: animations, delegate bindings, palette category, inherited named slots, property-binding count). Multi-agent dispatch (Codex C++ + Opus bridge/manifest/tests/docs). Final synthesis review caught + reverted Codex's error-format drift (`'%s'` → bare `%s`).
+- PR #68 — **Cleanup PR**: `BlueprintStatusToString` was missing `BS_BeingCreated` (caught by Gemini on PR #67). Same family as the `BS_Error` fix from PR #52→#53 — the original lesson missed the value. Fix applied to both `Handler_InspectWidgetBlueprint.cpp` AND sibling `Handler_InspectAnimBlueprint.cpp` (which had carried the same omission since PR #52). Manifest + docs updated for both.
+- PR #69 — **`inspect_data_table`** (UDataTable introspection: RowStruct identity, sorted row names, per-property name+type via `TFieldIterator<FProperty>` with `EFieldIterationFlags::None`). Multi-agent postmortem: Codex's first pass had P0 quality issues — used `StaticLoadObject` instead of `UEditorAssetLibrary::LoadAsset`, reimplemented path normalization instead of using `UCMCPAssetPath::ToObjectPath`, declared 6 method-name variants and 3 Handle overloads on the handler class (interface has ONE of each), used an `__has_include` ladder instead of the canonical direct include, and used tab indentation that corrupted module.cpp. Opus rewrote the handler from scratch using `Handler_InspectAnimBlueprint.cpp` as the template. **Lesson for future Codex dispatches:** instruct "use `Handler_InspectAnimBlueprint.cpp` as the *literal* template" rather than "mirror the established pattern" — the latter gives Codex too much room to hedge on the interface shape.
+- PR #70 — **`inspect_texture`** (UTexture / UTexture2D introspection). Pairs with existing `configure_texture` (mutator) and `import_texture` (creator) — round-trip fidelity: read with inspect_texture → mutate with configure_texture → re-read to verify. UTexture2D-specific size/mips/pixel_format/imported_size emitted conditionally via `Cast<UTexture2D>`. Opus-direct (no Codex this dispatch given the PR #69 quality issue).
+- PR #71 — **`inspect_curve`** (UCurveBase: 1ch UCurveFloat / 4ch UCurveLinearColor / 3ch UCurveVector). Per-channel name + key count + time/value range, plus global ranges. Key-count strategy: `static_cast<FRichCurve*>(FRealCurve*)` — every UCurveBase subclass populates FRichCurve. Opus-direct.
+- PR #72 — **`inspect_physics_asset`** (UPhysicsAsset: body setups, constraint setups, bounds-bodies subset, named profiles). Cross-links to `inspect_skeletal_mesh` via shared `preview_skeletal_mesh` asset path — callers stitch a "rigged + simulated character" view across both handlers. `TSoftObjectPtr<USkeletalMesh>` emits `ToSoftObjectPath().ToString()` WITHOUT loading the mesh (cheap). Opus-direct.
+
+**Tool count: 60 → 65** (56 C++ + 4 synthetic → **61 C++ + 4 synthetic**). pytest: 162 → 172 passing (+10 new tests across 5 feature PRs: schema test per handler + parametrized round-trip auto-pickup).
+
+**New trap-table entries from this sprint:**
+
+- **EBlueprintStatus has 6 real values, not 5.** The PR #52→#53 lesson captured `BS_Error`; PR #67→#68 (this sprint) captures `BS_BeingCreated`. Generalised lesson: when mapping a UE enum to strings, enumerate the COMPLETE value set declared in the enum, not just the prevalent ones. The `default` case is for forward compat with future-version additions, NOT a substitute for handling current values.
+- **Codex prompt discipline.** "Mirror the established pattern" is too soft when Codex has access to a literal sibling file. Always say "use `Handler_<Sibling>.cpp` as the *literal* template — file shape, includes, interface signatures" and explicitly forbid hedge patterns (no `__has_include` ladders for the handler header; one `GetMethodName()` and one `Handle()` override; copy the existing path normalisation utility, don't reimplement). PR #69 rewrite was the costliest Codex postmortem so far this project.
+- **Soft-object cross-link pattern.** When a handler emits an asset reference for cross-linking purposes (e.g. `inspect_physics_asset::preview_skeletal_mesh`), prefer `TSoftObjectPtr<T>::ToSoftObjectPath().ToString()` — keeps the handler cheap (no asset load on a foreign asset). The caller chains into the sibling handler if they actually want the geometry/shape.
+- **Bit-field flags need explicit `!= 0`.** `Texture->SRGB`, `Texture->VirtualTextureStreaming`, `Texture->NeverStream`, `Body->bConsiderForBounds` are all `uint8 : 1` bitfields. Implicit bool conversion works but `!= 0` makes the intent unambiguous and survives casts the compiler might otherwise hedge on.
+
+**Self-merge cadence:** user authorised "self-merge for mechanical PRs, wait-for-merge for architectural PRs" mid-session (PR #70 onward). All 4 mechanical PRs (#69, #70, #71, #72) were self-merged on CI green per directive #7. PR #67 + #68 were user-merged (predates the policy switch). The cadence reduced the bot-review wait from blocking to background.
+
+**Codex usage this sprint:** 2 dispatches — PR #67 (succeeded; small error-format drift caught in synthesis review), PR #69 (rejected; Opus rewrote). After the PR #69 quality issue Opus took over the C++ for PRs #70/#71/#72 (Opus-direct mode). Codex quota appears intact but unused by the back half of the sprint.
+
+**What to watch in the next session:**
+- **Live verification is STILL pending** — 11 new C++ handlers have shipped without a host build (PR #51's inspect_niagara_system through PR #72's inspect_physics_asset). Build risk is real, particularly for the new Niagara / Anim / Landscape / SkeletalMesh / AnimMontage / WidgetBlueprint / DataTable / Texture / Curve / PhysicsAsset handlers that touch unfamiliar UE module surfaces. Run the verification runbook at the top of this doc (`-ExpectedCount 61`) when the host machine is available.
+- **Doc-drift sweep this PR** — replaced `C:\Users\NINOH\Desktop\UnrealClaudeMCP\` paths with `F:\UnrealClaudeMCP\` throughout HANDOFF.md + RESTART-RECOVERY.md, since the post-recovery canonical location is F:. Memory folder name updated `C--Users-NINOH-Desktop-UnrealClaudeMCP` → `F--UnrealClaudeMCP`.
+- **`.codex/` artifacts** — repo-local `.codex/config.toml` (stale; points at old C: bridge path) and `.codex/niagara_task.txt` (historical PR #51 prompt) still untracked. Deferred to a future tiny chore PR (gitignore + prune).
+- Bot reviews on PRs #69 / #70 / #71 / #72 — self-merged before bot reviews landed; check the PR pages for any post-merge findings that warrant a cleanup PR.
