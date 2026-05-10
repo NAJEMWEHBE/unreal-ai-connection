@@ -10,7 +10,7 @@ flowchart LR
     subgraph UE["UE Editor process"]
         TCP["FTcpListener<br/>127.0.0.1:18888"]
         Disp["FUCMCPDispatcher<br/>JSON-RPC parse / route"]
-        Reg["FUCMCPHandlerRegistry<br/>(19 handlers)"]
+        Reg["FUCMCPHandlerRegistry<br/>(56 handlers)"]
         Native["UE native C++<br/>UnrealEd · UMG · UMGEditor<br/>PythonScriptPlugin · AssetRegistry"]
     end
 
@@ -105,7 +105,7 @@ Each handler stays a leaf — these modules just lift cross-cutting concerns to 
 
 `FTSTicker` callbacks run on the game thread. The TCP listener registers a per-tick callback that drains pending bytes, dispatches synchronously, and sends responses. Handlers therefore run on the game thread, where they can safely call any UE editor API.
 
-Tradeoff: a slow handler will stall the editor's tick. This is acceptable for the current 19 tools (none are long-running). Future handlers that block on disk I/O or the network should dispatch the actual work to a worker thread and return a ticket the client can poll.
+Tradeoff: a slow handler will stall the editor's tick. This is acceptable for the current handler set — each call returns quickly. Genuinely long-running work (sleeps, multi-step pipelines) is handled by the task pattern (`start_sleep_task` / `poll_task` / `cancel_task` / `list_tasks`): the starter handler registers a task and returns immediately, and the work runs off the dispatch thread. Future handlers that block on disk I/O or the network should follow the same pattern instead of stalling the tick.
 
 ## JSON-RPC framing (v0.5.0+)
 

@@ -1,8 +1,10 @@
 # MCP Tools Reference
 
-All tools are JSON-RPC 2.0 methods served on `127.0.0.1:18888` once the plugin is loaded. Each tool's params and result are documented with a working example.
+**60 tools total.** 56 are JSON-RPC 2.0 methods served on `127.0.0.1:18888` directly by the plugin's C++ handlers. The remaining 4 — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor` — are bridge-side **synthetic tools** that are intercepted by `bridge/unreal_claude_mcp_bridge.py` and served by composing existing handlers (or running Python via `execute_unreal_python`). They are visible to MCP clients exactly like the C++ tools but cannot be reached by sending raw JSON-RPC to the TCP socket — only via the MCP bridge or by replicating their composition manually. The "Implementation" header on each entry below indicates whether a tool is C++ or bridge-side.
 
-To run any of these manually from the shell, use Python:
+Each tool's params and result are documented with a working example.
+
+To run any of the **C++** tools manually from the shell, use Python:
 
 ```python
 import socket, json
@@ -10,6 +12,8 @@ s = socket.socket(); s.connect(('127.0.0.1', 18888))
 s.send(json.dumps({"jsonrpc":"2.0","id":1,"method":"<METHOD>","params":{...}}).encode())
 print(s.recv(65536).decode())
 ```
+
+Synthetic tools (`wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`) must be reached through the MCP bridge.
 
 ---
 

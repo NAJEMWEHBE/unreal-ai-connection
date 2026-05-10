@@ -4,7 +4,7 @@
 
 **Drive Unreal Engine 5 from Claude Code over a local TCP socket.**
 
-Thirty-two editor-automation tools. Zero pixel-clicking. ~50ms round-trip.
+Sixty editor-automation tools. Zero pixel-clicking. ~50ms round-trip.
 
 [![CI](https://github.com/NAJEMWEHBE/UnrealClaudeMCP/actions/workflows/tests.yml/badge.svg)](https://github.com/NAJEMWEHBE/UnrealClaudeMCP/actions/workflows/tests.yml)
 [![License](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
@@ -44,42 +44,134 @@ The plugin sidesteps these limits by calling UE's native C++ APIs directly insid
 
 ## Tools
 
+**60 tools total.** 56 are native C++ handlers registered by the plugin at editor startup; 4 are bridge-side synthetic tools (`wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`) that compose existing handlers without a dedicated UE round-trip — see `bridge/unreal_claude_mcp_bridge.py`'s `SYNTHETIC_TOOLS`. Per-tool JSON schemas and examples live in [`docs/TOOLS.md`](docs/TOOLS.md). Grouped overview:
+
+### Python execution
+
 | Tool | Purpose |
 |---|---|
 | `execute_unreal_python` | Universal escape hatch — run arbitrary `unreal.*` Python in the editor's interpreter. Multi-line scripts work. |
+| `run_python_file` | Execute a `.py` file from disk in the editor's Python interpreter. |
+| `apply_python_to_selection` | Run a Python snippet with the editor's current selection bound as `actors` / `assets`. |
+| `exec_python_persistent` | Persistent Python session — variables defined in one call survive into the next. |
+| `reset_python_state` | Wipe the persistent session's globals. |
+
+### Project / asset registry
+
+| Tool | Purpose |
+|---|---|
 | `get_project_summary` | Project name, engine version, enabled plugins, asset count. |
-| `inspect_blueprint` | Variables, function/event graphs, parent class of any Blueprint asset. |
-| `inspect_widget_tree` | Read the widget hierarchy of a `UWidgetBlueprint` or EUW (the thing UE Python can't do). |
-| `edit_widget_tree` | Mutate the tree: `set_root` / `add_child` / `set_property`. Solves the EUW WidgetTree blocker. |
-| `get_viewport_screenshot` | Active viewport as a base64 PNG, returned inline. |
-| `take_high_res_screenshot` | Trigger UE's `HighResShot` console command. |
-| `list_tools` | Names of every registered method (for autodiscovery). |
-| `get_actors_in_level` | Name / class / transform of every actor; optional case-insensitive substring filter. |
-| `focus_actor` | Select an actor by label and frame the viewport on it. |
-| `load_level_by_path` | Open a level by package path. |
-| `import_texture` | Bring an image file (PNG / JPG / EXR / TGA / BMP / HDR) from disk into the project as a `UTexture2D` asset via UE's canonical import path. |
-| `configure_texture` | Adjust SRGB / compression / LOD group / filter on an existing texture asset. |
-| `find_assets` | Query the asset registry by class + path + name. Returns matching assets so the LLM can discover what's available to spawn. |
-| `spawn_actor` | Create an actor at a location with optional rotation, label, and initial properties. Class path supports built-ins and Blueprints. |
-| `set_actor_transform` | Move / rotate / scale an existing actor by name. Absolute or relative mode. |
-| `delete_actor` | Remove an actor by name. Force flag overrides children-attached safety check. |
-| `set_actor_property` | Mutate any UPROPERTY on an actor. Supports primitives, FName/FText, vectors, rotators, colors, enums, and TSoftObjectPtr. |
-| `add_component` | Attach a component (UActorComponent / USceneComponent subclass) to an existing actor at runtime, optionally socketed. |
-| `get_log_lines` | Read recent UE Output Log entries from the in-process ring buffer. Filter by category and minimum verbosity. |
-| `execute_console_command` | Run a UE console command (e.g. `stat fps`, `r.ScreenPercentage 50`) and capture its output. |
-| `inspect_asset` | Read every fact the asset registry knows about an asset: class, tags, dependencies, referencers, on-disk size. |
+| `find_assets` | Query the asset registry by class + path + name. |
+| `inspect_asset` | Class, tags, dependencies, referencers, on-disk size. |
 | `move_asset` | Move an asset to a different folder; UE creates a redirector at the source path. |
 | `rename_asset` | Change an asset's leaf name in place; UE creates a redirector at the old name. |
+| `duplicate_asset` | Copy an asset to a new path. |
 | `delete_asset` | Delete an asset; refuses if referenced by other packages unless `force=true`. |
-| `inspect_sequence` | Read structure of a Level Sequence: tracks, sections, bindings, frame rate, playback range. |
-| `create_sequence` | Create a new empty Level Sequence asset with a configured display rate and playback range. |
-| `bind_actor_to_sequence` | Add a level actor as a possessable binding to a Level Sequence. |
+| `fix_up_redirectors` | Resolve all object redirectors under a folder. |
+
+### Blueprint / widget / animation introspection
+
+| Tool | Purpose |
+|---|---|
+| `inspect_blueprint` | Variables, function/event graphs, parent class of any Blueprint asset. |
+| `compile_blueprint` | Recompile a Blueprint asset and report errors. |
+| `inspect_widget_tree` | Read the widget hierarchy of a `UWidgetBlueprint` or EUW (the thing UE Python can't do). |
+| `edit_widget_tree` | Mutate the tree: `set_root` / `add_child` / `set_property`. Solves the EUW WidgetTree blocker. |
+| `inspect_anim_blueprint` | Read variables and state machines of an Animation Blueprint. |
+| `inspect_anim_montage` | Read sections, slots, and notify tracks of an `UAnimMontage`. |
+| `inspect_static_mesh` | LODs, materials, collision, bounds for a `UStaticMesh`. |
+| `inspect_skeletal_mesh` | LODs, materials, sockets, skeleton info for a `USkeletalMesh`. |
+| `inspect_niagara_system` | Emitters and exposed user parameters of a Niagara system. |
+| `inspect_landscape` | Components, layers, and material info for a landscape actor. |
+
+### Materials
+
+| Tool | Purpose |
+|---|---|
 | `create_material_instance` | Create a `UMaterialInstanceConstant` asset with a parent material set. |
 | `set_mi_parameter` | Override a scalar/vector/texture parameter on a material instance. Type discriminator picks value shape. |
 | `inspect_material` | List parameter names declared by a `UMaterial` or `UMaterialInstance` (scalar/vector/texture/static-switch). |
 | `inspect_material_instance` | Read a material instance's parent + currently-overridden parameter values. |
 
-Adding a 33rd tool is one `.cpp` file plus one line of registration — see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+### Textures
+
+| Tool | Purpose |
+|---|---|
+| `import_texture` | Bring an image file (PNG / JPG / EXR / TGA / BMP / HDR) from disk into the project as a `UTexture2D` asset via UE's canonical import path. |
+| `configure_texture` | Adjust SRGB / compression / LOD group / filter on an existing texture asset. |
+
+### Level Sequences
+
+| Tool | Purpose |
+|---|---|
+| `inspect_sequence` | Read structure of a Level Sequence: tracks, sections, bindings, frame rate, playback range. |
+| `create_sequence` | Create a new empty Level Sequence asset with a configured display rate and playback range. |
+| `bind_actor_to_sequence` | Add a level actor as a possessable binding to a Level Sequence. |
+
+### Level / actor authoring
+
+| Tool | Purpose |
+|---|---|
+| `get_actors_in_level` | Name / class / transform of every actor; optional case-insensitive substring filter. |
+| `spawn_actor` | Create an actor at a location with optional rotation, label, and initial properties. Class path supports built-ins and Blueprints. |
+| `set_actor_transform` | Move / rotate / scale an existing actor by name. Absolute or relative mode. |
+| `delete_actor` | Remove an actor by name. Force flag overrides children-attached safety check. |
+| `set_actor_property` | Mutate any UPROPERTY on an actor. Supports primitives, FName/FText, vectors, rotators, colors, enums, and TSoftObjectPtr. |
+| `add_component` | Attach a component (UActorComponent / USceneComponent subclass) to an existing actor at runtime, optionally socketed. |
+| `focus_actor` | Select an actor by label and frame the viewport on it. |
+| `load_level_by_path` | Open a level by package path. |
+
+### Viewport / screenshots
+
+| Tool | Purpose |
+|---|---|
+| `get_viewport_screenshot` | Active viewport as a base64 PNG, returned inline. |
+| `take_high_res_screenshot` | Trigger UE's `HighResShot` console command. |
+
+### Console / logs
+
+| Tool | Purpose |
+|---|---|
+| `get_log_lines` | Read recent UE Output Log entries from the in-process ring buffer. Filter by category and minimum verbosity. |
+| `execute_console_command` | Run a UE console command (e.g. `stat fps`, `r.ScreenPercentage 50`) and capture its output. |
+| `get_console_variable` | Read a single console variable's current value. |
+| `set_console_variable` | Write a value to a console variable. |
+| `find_console_variables` | Enumerate console variables matching a name pattern. |
+
+### Long-running tasks
+
+| Tool | Purpose |
+|---|---|
+| `start_sleep_task` | Reference long-running task — sleeps for N seconds. Used to exercise the task pattern from clients. |
+| `poll_task` | Read a task's current state / result. |
+| `cancel_task` | Cancel an in-flight task by id. |
+| `list_tasks` | Enumerate all tracked tasks and their states. |
+
+### Event push / subscriptions
+
+| Tool | Purpose |
+|---|---|
+| `poll_events` | Drain queued editor events (actor spawn/delete, asset add/remove/rename/import, level save, map change) from the in-process EventBus. |
+| `wait_for_events` | Bridge-side synthetic tool — block until matching events arrive or `timeout_ms` elapses, by polling `poll_events` at `poll_interval_ms` cadence. |
+| `register_subscription` | Open a per-client subscription channel for a filtered event stream. |
+| `poll_subscription` | Drain queued events from a specific subscription. |
+| `unsubscribe` | Close a subscription. |
+
+### Camera (bridge-side synthetic tools)
+
+| Tool | Purpose |
+|---|---|
+| `get_camera_transform` | Read the level-editor viewport camera's location + rotation. Composes `execute_unreal_python` + `get_log_lines` via the marker pattern. |
+| `set_camera_transform` | Set the level-editor viewport camera's location and/or rotation. Single `execute_unreal_python` round-trip. |
+| `screenshot_actor` | Frame the viewport on a specific actor and capture a focused PNG. Composes `focus_actor` + `get_viewport_screenshot`. |
+
+### Self-introspection
+
+| Tool | Purpose |
+|---|---|
+| `list_tools` | Names of every registered method (for autodiscovery). |
+
+Adding a 57th C++ handler is one `.cpp` file plus one line of registration — see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). New synthetic tools are an entry in `SYNTHETIC_TOOLS` plus a function in [`bridge/unreal_claude_mcp_bridge.py`](bridge/unreal_claude_mcp_bridge.py).
 
 ---
 
@@ -94,7 +186,7 @@ Adding a 33rd tool is one `.cpp` file plus one line of registration — see [`do
    ```
    [LogUnrealClaudeMCP] Module started
    LogUCMCPHandler: Registered handler 'execute_unreal_python'
-     ... (32 lines)
+     ... (56 lines)
    [LogUCMCP] Listening on 127.0.0.1:18888
    ```
 5. **Wire Claude Code.** Copy `examples/.mcp.json.example` to your project root as `.mcp.json`, edit the path to point at `bridge/unreal_claude_mcp_bridge.py`, restart Claude Code, and approve the new MCP server.
@@ -111,7 +203,7 @@ The smoke test fires every default-on tool from a plain Python TCP client (not t
 python examples/smoke_test.py
 ```
 
-You'll see thirteen sections of JSON output (the thirteenth inspects any `UMaterial` in the project to validate the materials handlers are wired; like the sequencer step, it skips with a print if your project has no Materials). Last line: *"Smoke test complete."*
+You'll see structured JSON output for every default-on step (eleven banner-headed sections, plus a few unbannered checks for the asset registry, sequencer and materials handlers — the last two skip with a print if your project has no Level Sequences or Materials in `/Game/`). Last line: *"Smoke test complete."*
 
 ---
 
@@ -146,7 +238,7 @@ tests/                            Pytest suite for the bridge (no UE required)
 | | |
 |---|---|
 | **Latest release** | v0.9.1 — 2026-05-08 |
-| **Tools** | 32 live, smoke-tested end-to-end |
+| **Tools** | 60 live (56 native C++ handlers + 4 bridge-side synthetic tools) |
 | **Tested on** | UE 5.7.4 / Windows 11 / Visual Studio 2026 / MSVC 14.50 |
 | **Bridge tests** | 98 pytest cases, ~99% coverage |
 | **CI** | GitHub Actions on every push and PR |

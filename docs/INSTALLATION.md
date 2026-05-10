@@ -51,11 +51,11 @@ The MCP server auto-starts when the editor module loads. Open Window → Output 
 [LogUnrealClaudeMCP] Editor module started
 [LogUnrealClaudeMCP] Registered handler 'edit_widget_tree'
 [LogUnrealClaudeMCP] Registered handler 'execute_unreal_python'
-... (13 lines of handler registrations) ...
+... (56 lines of handler registrations) ...
 [LogUCMCP] Listening on 127.0.0.1:18888
 ```
 
-If you see all 13 handler registrations and the "Listening" line, you're done.
+If you see all 56 handler registrations and the "Listening" line, you're done.
 
 ## 5. Smoke test from any Python
 
@@ -83,7 +83,7 @@ If you use Claude Code:
 2. Edit the path in `args` to point at the actual location of `bridge/unreal_claude_mcp_bridge.py`
 3. Restart Claude Code
 4. Claude Code will detect the new MCP server and prompt you to **Approve** it (security gate)
-5. After approval, the 13 tools are available to Claude in chat as `mcp__unreal-claude-mcp__*`
+5. After approval, all 60 tools are available to Claude in chat as `mcp__unreal-claude-mcp__*` (56 dispatched directly to UE, plus 4 bridge-side synthetic tools — camera read/write, focused-actor screenshot, and `wait_for_events`)
 
 You can now ask Claude things like:
 - "List all actors in the level"
@@ -109,6 +109,6 @@ Claude calls the tool natively — no GUI driving, no screenshot-based clicking.
 **Visual Studio 2026 compiler warning**
 - UE 5.7 marks VS 2026 as "not a preferred version" — the build still succeeds; the warning is cosmetic.
 
-## What if I want to add a 14th tool?
+## What if I want to add another tool?
 
 See [`ARCHITECTURE.md`](ARCHITECTURE.md). Short version: one `.cpp` file in `Source/UnrealClaudeMCP/Private/MCP/Handlers/`, one `extern` declaration + one `Reg.Register(...)` line in `UnrealClaudeMCPModule.cpp`. Rebuild. Restart UE. New tool available.
