@@ -2266,6 +2266,45 @@ Clear all user-defined names from UE Python's public globals dict. Pairs with `e
 
 ---
 
+## inspect_physics_asset
+
+**Tier 3.** Read structural properties of a `UPhysicsAsset`: the preview skeletal mesh, body setups (one per simulated bone, with the per-body bounds flags), constraint setups (joints between bodies, with child + parent bone names), the bounds-bodies subset count, and the named physical-animation + constraint profiles. Cross-links to `inspect_skeletal_mesh` via the shared `preview_skeletal_mesh` asset path — callers can stitch a complete "rigged + simulated character" view by following that path.
+
+**Why C++:** `UPhysicsAsset::SkeletalBodySetups` and `UPhysicsAsset::ConstraintSetup` are `TArray<TObjectPtr<...>>`; `FConstraintInstance::JointName / ConstraintBone1 / ConstraintBone2` are direct field reads. Python's `unreal` reflection covers some of this but the constraint instance is a USTRUCT-by-value field, awkward to drill through reflection. C++ direct-access is cleaner.
+
+**Required Build.cs deps:** **none** — `Engine` and `PhysicsCore` already cover `UPhysicsAsset`, `USkeletalBodySetup`, `UPhysicsConstraintTemplate`, `FConstraintInstance`.
+
+**Null-skip discipline:** both `TArray<TObjectPtr<USkeletalBodySetup>>` and `TArray<TObjectPtr<UPhysicsConstraintTemplate>>` can carry null entries after deletes (PR #55→#57 lesson). `body_count` and `constraint_count` reflect valid (non-null) counts.
+
+**Soft-object handling:** `PreviewSkeletalMesh` is a `TSoftObjectPtr<USkeletalMesh>`. The handler reads `ToSoftObjectPath().ToString()` *without loading* the mesh — keeps `inspect_physics_asset` cheap. If the caller wants the geometry, they pass the resulting path to `inspect_skeletal_mesh`.
+
+**Bounds-bodies subset:** `UPhysicsAsset::BoundsBodies` stores indices into `SkeletalBodySetups` for the subset of bodies that contribute to the asset's bounds. Per-body emission includes:
+- `consider_for_bounds` — the per-body `bConsiderForBounds` flag from `UBodySetup`
+- `is_in_bounds_subset` — whether `BoundsBodies` actually contains this body's index
+
+**Params**
+- `path` (string, required) — UE asset path of a `UPhysicsAsset`, e.g. `/Game/Characters/Hero/PHYS_Hero`.
+
+**Result**
+- `ok`, `name`, `path`
+- `preview_skeletal_mesh` (string) — soft-object asset path of the preview mesh. **Omitted** when null.
+- `body_count` (int) — valid `USkeletalBodySetup` entries only
+- `bodies` (array) — per-body `{ name, body_index, consider_for_bounds, is_in_bounds_subset }` (`name` = the bone name)
+- `constraint_count` (int) — valid `UPhysicsConstraintTemplate` entries only
+- `constraints` (array) — per-constraint `{ joint_name, child_bone, parent_bone }`
+- `bounds_body_count` (int) — `BoundsBodies.Num()` (raw count; the per-body flag tells you which body is in the subset)
+- `physical_animation_profile_count`, `physical_animation_profiles` (array of string)
+- `constraint_profile_count`, `constraint_profiles` (array of string)
+
+**Errors:** `missing_required_field`, `asset_not_found`, `not_a_physics_asset`.
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"inspect_physics_asset","params":{"path":"/Game/Characters/Hero/PHYS_Hero"}}
+```
+
+---
+
 ## get_camera_transform
 
 **Language-shim experiment, PR #46 (Python shim — bridge-side synthetic tool).** Read the level-editor viewport camera's location and rotation.
