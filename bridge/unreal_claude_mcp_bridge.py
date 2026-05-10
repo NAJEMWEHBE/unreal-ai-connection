@@ -782,6 +782,17 @@ TOOLS = [
         },
     },
     {
+        "name": "inspect_sound_attenuation",
+        "description": "Read structural properties of a USoundAttenuation asset (3D playback rules): distance algorithm + shape, spatialization, air-absorption LPF/HPF, listener focus, occlusion tracing, reverb send, priority attenuation, plus a feature_flags sub-object for assorted bool toggles. Each major feature group is collapsed to {\"enabled\":false} when its master gate (bAttenuate / bSpatialize / bAttenuateWithLPF / bEnableListenerFocus / bEnableOcclusion / bEnableReverbSend / bEnablePriorityAttenuation) is off, so the JSON stays compact for default-disabled assets. Completes the audio introspection trio with inspect_sound_cue + inspect_sound_wave. C++ handler; no new Build.cs deps (Engine covers USoundAttenuation / FSoundAttenuationSettings / FBaseAttenuationSettings).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "UE asset path of a USoundAttenuation, e.g. /Game/Audio/Atten_Default."},
+            },
+            "required": ["path"],
+        },
+    },
+    {
         "name": "get_camera_transform",
         "description": "Read the level-editor viewport camera transform. SYNTHETIC bridge-side handler (PR #46 language-shim experiment): composes execute_unreal_python + get_log_lines via the marker pattern. Returns { location: {x,y,z}, rotation: {pitch,yaw,roll} }.",
         "inputSchema": {

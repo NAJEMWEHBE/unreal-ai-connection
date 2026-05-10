@@ -2389,6 +2389,40 @@ Clear all user-defined names from UE Python's public globals dict. Pairs with `e
 
 ---
 
+## inspect_sound_attenuation
+
+**Tier 3.** Read structural properties of a `USoundAttenuation` asset (the 3D playback rules used by SoundCues / SoundWaves to control distance falloff, spatialization, occlusion, reverb send, focus boost, etc.). Completes the **audio introspection trio**: `inspect_sound_cue` (graph) + `inspect_sound_wave` (decoded data) + `inspect_sound_attenuation` (3D playback rules). Cue/Wave handlers cross-link to attenuation via the `attenuation_settings` asset path field.
+
+**JSON shape: feature-gated sub-objects.** Each major feature (`distance`, `spatialization`, `air_absorption`, `listener_focus`, `occlusion`, `reverb_send`, `priority_attenuation`) is a sub-object with an `enabled` boolean at the top. When the master bool is **false**, the sub-object emits ONLY `{"enabled": false}` — no other fields. When **true**, the full sub-fields list appears. Result: a default-asset attenuation (most features off) emits very compact JSON; a fully-tuned attenuation expands all the relevant subgroups.
+
+**Why C++:** USoundAttenuation is a thin UObject wrapper around `FSoundAttenuationSettings` (USTRUCT) — the interesting data lives in the struct, not on the UObject. Direct field access on the struct's ~30 members is cleanest in C++; Python's `unreal` reflection on USTRUCT-by-value fields trips on the bitfield gate booleans.
+
+**Required Build.cs deps:** **none** — `Engine` covers `USoundAttenuation`, `FSoundAttenuationSettings`, `FBaseAttenuationSettings`, `ECollisionChannel`.
+
+**Sub-object reference:**
+- `distance` (always emitted) — `algorithm` (Linear/Logarithmic/Inverse/LogReverse/NaturalSound/Custom), `shape` (Sphere/Capsule/Box/Cone), `falloff_mode` (Continues/Silent/Hold), `db_attenuation_at_max`, `shape_extents` (FVector → `{x,y,z}`), `falloff_distance`, `cone_offset`, `cone_sphere_radius`, `cone_sphere_falloff_distance`. The `enabled` bool reflects `bAttenuate` (master gate).
+- `spatialization` (gated by `bSpatialize`) — `algorithm`, `binaural_radius`, `non_spatialized_radius_start/end/mode`, `stereo_spread`.
+- `air_absorption` (gated by `bAttenuateWithLPF`) — `method` (Linear/CustomCurve), `lpf_radius_min/max`, `lpf_frequency_at_min/max`, `hpf_frequency_at_min/max`.
+- `listener_focus` (gated by `bEnableListenerFocus`) — `focus_azimuth` (degrees), `non_focus_azimuth` (degrees), `focus_distance_scale`, `non_focus_distance_scale`, `focus_priority_scale`, `non_focus_priority_scale`, `focus_volume_attenuation` (dB), `non_focus_volume_attenuation` (dB). Plus `attack_speed` / `release_speed` only when `bEnableFocusInterpolation` is also true.
+- `occlusion` (gated by `bEnableOcclusion`) — `trace_channel` (ECollisionChannel name), `use_complex_collision`, `lowpass_filter_frequency`, `volume_attenuation`, `interpolation_time`.
+- `reverb_send` (gated by `bEnableReverbSend`) — `method` (Linear/CustomCurve/Manual), `wet_level_min/max`, `distance_min/max`, `manual_send_level`.
+- `priority_attenuation` (gated by `bEnablePriorityAttenuation`) — `method`, `scale_min/max`, `distance_min/max`, `manual_priority`.
+- `feature_flags` — assorted bool toggles: `apply_stereo_normalization`, `enable_log_frequency_scaling`, `enable_submix_sends`, `enable_source_data_override`, `enable_send_to_audio_link`.
+
+**Out of scope this PR:** `FRuntimeFloatCurve` introspection (custom curves), `SubmixSendSettings` array, `PluginSettings` nested struct, `AudioLinkSettingsOverride`. Future cleanup PRs may add these.
+
+**Params**
+- `path` (string, required) — UE asset path of a `USoundAttenuation`, e.g. `/Game/Audio/Atten_Default`.
+
+**Errors:** `missing_required_field`, `asset_not_found`, `not_a_sound_attenuation`.
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"inspect_sound_attenuation","params":{"path":"/Game/Audio/Atten_Default"}}
+```
+
+---
+
 ## get_camera_transform
 
 **Language-shim experiment, PR #46 (Python shim — bridge-side synthetic tool).** Read the level-editor viewport camera's location and rotation.

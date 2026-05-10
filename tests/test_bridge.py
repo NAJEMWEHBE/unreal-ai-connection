@@ -23,7 +23,7 @@ def test_tools_list_size():
     # Cross-checked against the manifest in test_manifest_sync.py; the absolute
     # number bumps with each new tool. Function name kept count-agnostic so
     # it doesn't drift behind the assertion (per Sonnet pre-review on PR #50).
-    assert len(bridge.TOOLS) == 67
+    assert len(bridge.TOOLS) == 68
 
 
 def test_each_tool_has_required_mcp_fields():
@@ -83,6 +83,7 @@ def test_tool_names_are_unique_and_match_handlers():
         "inspect_physics_asset",
         "inspect_sound_cue",
         "inspect_sound_wave",
+        "inspect_sound_attenuation",
         "get_camera_transform",
         "set_camera_transform",
         "screenshot_actor",
@@ -343,6 +344,21 @@ def test_inspect_anim_montage_in_tools_catalog():
     assert t is not None
     assert t["inputSchema"]["required"] == ["path"]
     assert t["inputSchema"]["properties"]["path"]["type"] == "string"
+
+
+def test_inspect_sound_attenuation_in_tools_catalog():
+    """Tier 3: inspect_sound_attenuation requires path. C++ handler that
+    reads USoundAttenuation 3D-playback rules organized into gated feature
+    sub-objects (distance / spatialization / air_absorption / listener_focus
+    / occlusion / reverb_send / priority_attenuation / feature_flags). Each
+    sub-object collapses to {\"enabled\": false} when its master bool is
+    off, keeping default-asset JSON compact. Completes the audio
+    introspection trio (cue + wave + attenuation)."""
+    t = next((t for t in bridge.TOOLS if t["name"] == "inspect_sound_attenuation"), None)
+    assert t is not None
+    assert t["inputSchema"]["required"] == ["path"]
+    assert t["inputSchema"]["properties"]["path"]["type"] == "string"
+    assert "inspect_sound_attenuation" not in bridge.SYNTHETIC_TOOLS
 
 
 def test_inspect_sound_wave_in_tools_catalog():
@@ -1001,7 +1017,7 @@ def test_handle_tools_list_returns_all_tools():
     resp = bridge.handle({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
     assert resp["id"] == 2
     assert "tools" in resp["result"]
-    assert len(resp["result"]["tools"]) == 67
+    assert len(resp["result"]["tools"]) == 68
 
 
 # -------- handle: tools/call --------------------------------------------------
