@@ -542,6 +542,14 @@
       "returns": { "ok": "bool", "name": "string", "path": "string", "duration": "float (USoundBase::Duration; total cue length in seconds)", "max_distance": "float (USoundBase::MaxDistance)", "volume_multiplier": "float", "pitch_multiplier": "float", "subtitle_priority": "float", "max_audible_distance": "float", "attenuation_settings": "string (conditional, when AttenuationSettings is non-null; asset path)", "first_node_class": "string (conditional, when FirstNode is non-null; class name of the root graph node)", "node_count": "int (valid USoundNode entries only)", "nodes": "array of {name, class} (sorted by name; null-skipped)" }
     },
     {
+      "name": "inspect_sound_wave",
+      "description": "Read structural properties of a USoundWave asset: sample rate, channel count, frame count, duration, compression type, runtime format, sound group, looping/streaming flags, loading behavior, subtitle + cue-point + loop-region counts. Editor-only fields (imported_sample_rate, lufs, sample_peak_db, comment) emit conditionally when non-default. C++ handler. No new Build.cs deps (Engine covers USoundWave + relatives). LazyOnDemand caveat: only declarative fields read (no transient runtime state).",
+      "params": {
+        "path": "string (required) - UE asset path of a USoundWave"
+      },
+      "returns": { "ok": "bool", "name": "string", "path": "string", "sound_wave_class": "string", "sample_rate": "int", "num_channels": "int", "num_frames": "int (USoundWave::GetNumFrames)", "duration": "float (USoundBase::GetDuration; seconds)", "compression_type": "string (ESoundAssetCompressionType, prefix-stripped)", "runtime_format": "string (FName from GetRuntimeFormat)", "sound_group": "string (ESoundGroup, prefix-stripped)", "loading_behavior": "string (ESoundWaveLoadingBehavior, prefix-stripped)", "is_looping": "bool (bLooping bitfield)", "is_streaming": "bool (IsStreaming() method, NOT deprecated bStreaming)", "resource_size": "int", "supports_subtitles": "bool", "subtitle_count": "int", "cue_point_count": "int (non-loop cue points only via GetCuePoints)", "loop_region_count": "int (via GetLoopRegions)", "compressed_data_size": "int (conditional; bytes for the runtime format)", "imported_sample_rate": "int (conditional, editor-only, when non-zero)", "lufs": "float (conditional, editor-only, when non-zero)", "sample_peak_db": "float (conditional, editor-only, when non-zero)", "comment": "string (conditional, editor-only, when non-empty)" }
+    },
+    {
       "name": "get_camera_transform",
       "description": "Read level-editor viewport camera transform. SYNTHETIC bridge-side handler -- composes execute_unreal_python + get_log_lines via marker pattern. Part of language-shim experiment (PR #46).",
       "params": {},

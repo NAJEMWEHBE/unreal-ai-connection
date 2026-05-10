@@ -771,6 +771,17 @@ TOOLS = [
         },
     },
     {
+        "name": "inspect_sound_wave",
+        "description": "Read structural properties of a USoundWave asset: sample rate, channel count, frame count, duration, compression type + runtime format + (conditional) compressed data size, sound group, looping flag, streaming flag (via IsStreaming() not the deprecated bStreaming), loading behavior, subtitle count + supports flag, cue-point count + loop-region count (separated via GetCuePoints / GetLoopRegions). Editor-only fields (imported_sample_rate, lufs, sample_peak_db, comment) emit conditionally when non-default. C++ handler; no new Build.cs deps (Engine covers USoundWave / USoundBase / FSoundWaveCuePoint / FSubtitleCue). USoundWave's LoadBehavior=LazyOnDemand caveat handled by reading only declarative fields (no transient runtime state).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "UE asset path of a USoundWave, e.g. /Game/Audio/SW_Footstep."},
+            },
+            "required": ["path"],
+        },
+    },
+    {
         "name": "get_camera_transform",
         "description": "Read the level-editor viewport camera transform. SYNTHETIC bridge-side handler (PR #46 language-shim experiment): composes execute_unreal_python + get_log_lines via the marker pattern. Returns { location: {x,y,z}, rotation: {pitch,yaw,roll} }.",
         "inputSchema": {
