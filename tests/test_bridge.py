@@ -23,7 +23,7 @@ def test_tools_list_size():
     # Cross-checked against the manifest in test_manifest_sync.py; the absolute
     # number bumps with each new tool. Function name kept count-agnostic so
     # it doesn't drift behind the assertion (per Sonnet pre-review on PR #50).
-    assert len(bridge.TOOLS) == 64
+    assert len(bridge.TOOLS) == 65
 
 
 def test_each_tool_has_required_mcp_fields():
@@ -80,6 +80,7 @@ def test_tool_names_are_unique_and_match_handlers():
         "inspect_data_table",
         "inspect_texture",
         "inspect_curve",
+        "inspect_physics_asset",
         "get_camera_transform",
         "set_camera_transform",
         "screenshot_actor",
@@ -340,6 +341,20 @@ def test_inspect_anim_montage_in_tools_catalog():
     assert t is not None
     assert t["inputSchema"]["required"] == ["path"]
     assert t["inputSchema"]["properties"]["path"]["type"] == "string"
+
+
+def test_inspect_physics_asset_in_tools_catalog():
+    """Tier 3: inspect_physics_asset requires path. C++ handler that reads
+    UPhysicsAsset body setups (one per simulated bone), constraint setups
+    (joints between bodies), bounds-bodies subset, and named profiles.
+    Cross-links to USkeletalMesh via preview_skeletal_mesh path. Null-skips
+    TObjectPtr<USkeletalBodySetup> + TObjectPtr<UPhysicsConstraintTemplate>
+    entries (PR #55->#57 lesson)."""
+    t = next((t for t in bridge.TOOLS if t["name"] == "inspect_physics_asset"), None)
+    assert t is not None
+    assert t["inputSchema"]["required"] == ["path"]
+    assert t["inputSchema"]["properties"]["path"]["type"] == "string"
+    assert "inspect_physics_asset" not in bridge.SYNTHETIC_TOOLS
 
 
 def test_inspect_curve_in_tools_catalog():
@@ -957,7 +972,7 @@ def test_handle_tools_list_returns_all_tools():
     resp = bridge.handle({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
     assert resp["id"] == 2
     assert "tools" in resp["result"]
-    assert len(resp["result"]["tools"]) == 64
+    assert len(resp["result"]["tools"]) == 65
 
 
 # -------- handle: tools/call --------------------------------------------------

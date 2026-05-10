@@ -749,6 +749,17 @@ TOOLS = [
         },
     },
     {
+        "name": "inspect_physics_asset",
+        "description": "Read structural properties of a UPhysicsAsset: preview skeletal mesh cross-link, body setups (one per simulated bone with bConsiderForBounds + is_in_bounds_subset flags), constraint setups (joint between two bodies with child/parent bone names), bounds-bodies subset count, named physical-animation profiles, named constraint profiles. Pairs with inspect_skeletal_mesh via shared preview_skeletal_mesh path. C++ handler; no new Build.cs deps (Engine + PhysicsCore cover UPhysicsAsset / USkeletalBodySetup / UPhysicsConstraintTemplate). Null-skips TObjectPtr<USkeletalBodySetup> and TObjectPtr<UPhysicsConstraintTemplate> entries (PR #55->#57 lesson).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "UE asset path of a UPhysicsAsset, e.g. /Game/Characters/Hero/PHYS_Hero."},
+            },
+            "required": ["path"],
+        },
+    },
+    {
         "name": "get_camera_transform",
         "description": "Read the level-editor viewport camera transform. SYNTHETIC bridge-side handler (PR #46 language-shim experiment): composes execute_unreal_python + get_log_lines via the marker pattern. Returns { location: {x,y,z}, rotation: {pitch,yaw,roll} }.",
         "inputSchema": {

@@ -32,6 +32,7 @@ extern TSharedRef<IUCMCPHandler> Make_Handler_InspectWidgetBlueprint();
 extern TSharedRef<IUCMCPHandler> Make_Handler_InspectDataTable();
 extern TSharedRef<IUCMCPHandler> Make_Handler_InspectTexture();
 extern TSharedRef<IUCMCPHandler> Make_Handler_InspectCurve();
+extern TSharedRef<IUCMCPHandler> Make_Handler_InspectPhysicsAsset();
 extern TSharedRef<IUCMCPHandler> Make_Handler_EditWidgetTree();
 extern TSharedRef<IUCMCPHandler> Make_Handler_GetViewportScreenshot();
 extern TSharedRef<IUCMCPHandler> Make_Handler_ListTools();
@@ -107,6 +108,7 @@ void FUnrealClaudeMCPModule::StartupModule()
     Reg.Register(Make_Handler_InspectDataTable());
     Reg.Register(Make_Handler_InspectTexture());
     Reg.Register(Make_Handler_InspectCurve());
+    Reg.Register(Make_Handler_InspectPhysicsAsset());
     Reg.Register(Make_Handler_EditWidgetTree());
     Reg.Register(Make_Handler_GetViewportScreenshot());
     Reg.Register(Make_Handler_ListTools());
