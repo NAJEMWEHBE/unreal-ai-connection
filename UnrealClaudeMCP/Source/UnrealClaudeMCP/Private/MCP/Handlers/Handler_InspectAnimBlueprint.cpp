@@ -57,6 +57,11 @@ namespace
             // try recompiling" instead of "this failed to compile, look at
             // the editor's compile log."
             return TEXT("Error");
+        case BS_BeingCreated:
+            // Transient state during blueprint construction (Blueprint.h:52).
+            // Caught by Gemini on PR #67 -- same family as the BS_Error fix
+            // from PR #52->#53; the original lesson missed this value.
+            return TEXT("BeingCreated");
         case BS_Unknown:
         default:
             return TEXT("Unknown");
