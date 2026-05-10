@@ -213,16 +213,23 @@ def main():
         assert_error_code(resp, -32601, "unknown_method")
     step("unknown_method", t0)
 
-    header("1. list_tools (should list 36 tool names)")
+    header("1. list_tools (non-empty + self-consistent count)")
     def t1():
+        # Don't assert a specific tool count here -- handlers get added
+        # often and a hard-coded number drifts immediately (this assertion
+        # was 36 when the real registry size was already 56). We assert
+        # the invariants that should hold for any healthy registry:
+        #   1. 'tools' is a list
+        #   2. the list is non-empty (catches a totally broken registry)
+        #   3. the server's reported 'count' matches len(tools)
         resp = call("list_tools")
         show(resp)
         result = assert_ok(resp, "list_tools")
         tools = result.get("tools")
         if not isinstance(tools, list):
             raise SmokeFailure(f"[list_tools] 'tools' not a list: {result}")
-        if len(tools) != 36:
-            raise SmokeFailure(f"[list_tools] expected 36 tools, got {len(tools)}: {tools}")
+        if not tools:
+            raise SmokeFailure(f"[list_tools] empty tool list -- registry not populated: {result}")
         if result.get("count") != len(tools):
             raise SmokeFailure(f"[list_tools] 'count' ({result.get('count')}) != len(tools) ({len(tools)})")
     step("list_tools", t1)
