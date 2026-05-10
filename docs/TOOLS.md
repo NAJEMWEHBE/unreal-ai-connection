@@ -2229,6 +2229,43 @@ Clear all user-defined names from UE Python's public globals dict. Pairs with `e
 
 ---
 
+## inspect_curve
+
+**Tier 3.** Read structural properties of a `UCurveBase` asset (`UCurveFloat` / `UCurveLinearColor` / `UCurveVector` / any subclass): the curve class, channel count, the global time + value range across all channels, and per-channel name + key count + per-channel time/value ranges.
+
+**Channel layout per concrete subclass:**
+| Subclass | Channels |
+|---|---|
+| `UCurveFloat` | 1 (`FloatCurve`) |
+| `UCurveLinearColor` | 4 (R, G, B, A) |
+| `UCurveVector` | 3 (X, Y, Z) |
+
+**Why C++:** `UCurveBase::GetCurves()` returns `TArray<FRichCurveEditInfo>` containing `FRealCurve*` pointers. Iterating those pointers + reading `Keys.Num()` requires a static cast to `FRichCurve*` (the universal carrier across UCurve* subclasses) plus the polymorphic `GetTimeRange` / `GetValueRange` accessors on the base. Python's `unreal` reflection exposes some curve query, but per-channel structural details bypass it.
+
+**Required Build.cs deps:** **none** — `Engine` covers `UCurveBase`, `FRichCurve`, `FRealCurve`.
+
+**Key-count strategy:** every UCurveBase subclass we care about populates the `FRealCurve*` slot in `FRichCurveEditInfo` with a concrete `FRichCurve` (the only commonly-used `FRealCurve` subclass). The handler `static_cast`s and reads `Keys.Num()`. When `CurveToEdit` is null (defensive guard for malformed assets), `key_count: -1` distinguishes "zero keys" from "not knowable."
+
+**Params**
+- `path` (string, required) — UE asset path of a `UCurveBase`, e.g. `/Game/Curves/Curve_Falloff`.
+
+**Result**
+- `ok`, `name`, `path` (normalized via `UCMCPAssetPath::ToObjectPath`)
+- `curve_class` (string) — `CurveFloat`, `CurveLinearColor`, `CurveVector`, …
+- `channel_count` (int)
+- `time_range` (`{ min, max }` floats) — global across all channels
+- `value_range` (`{ min, max }` floats) — global across all channels
+- `channels` (array) — per-channel `{ name, key_count, time_range, value_range }`. `key_count` is `-1` when `CurveToEdit` is null.
+
+**Errors:** `missing_required_field`, `asset_not_found`, `not_a_curve`.
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"inspect_curve","params":{"path":"/Game/Curves/Curve_Falloff"}}
+```
+
+---
+
 ## get_camera_transform
 
 **Language-shim experiment, PR #46 (Python shim — bridge-side synthetic tool).** Read the level-editor viewport camera's location and rotation.

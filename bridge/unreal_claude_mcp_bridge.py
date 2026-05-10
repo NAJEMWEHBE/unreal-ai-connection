@@ -738,6 +738,17 @@ TOOLS = [
         },
     },
     {
+        "name": "inspect_curve",
+        "description": "Read structural properties of a UCurveBase asset (UCurveFloat / UCurveLinearColor / UCurveVector / any subclass): curve class, channel count, global time + value range, and per-channel name + key count + per-channel time/value range. Channel layout: UCurveFloat = 1 channel, UCurveLinearColor = 4 (RGBA), UCurveVector = 3 (XYZ). C++ handler; no new Build.cs deps (Engine covers UCurveBase / FRichCurve).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "UE asset path of a UCurveBase, e.g. /Game/Curves/Curve_Falloff."},
+            },
+            "required": ["path"],
+        },
+    },
+    {
         "name": "get_camera_transform",
         "description": "Read the level-editor viewport camera transform. SYNTHETIC bridge-side handler (PR #46 language-shim experiment): composes execute_unreal_python + get_log_lines via the marker pattern. Returns { location: {x,y,z}, rotation: {pitch,yaw,roll} }.",
         "inputSchema": {
