@@ -705,6 +705,17 @@ TOOLS = [
         },
     },
     {
+        "name": "inspect_widget_blueprint",
+        "description": "Read UWidgetBlueprint-specific structural properties: parent class, blueprint compile status, palette category, animations (with start/end/length and binding count), delegate property bindings, inherited named slots from parent class, and the property-bindings count. Complements inspect_blueprint (variables + graphs, inherited from UBlueprint) and inspect_widget_tree (widget hierarchy); cross-link via shared asset path. C++ handler; no new Build.cs deps (UMG + UMGEditor already present).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "UE asset path of a UWidgetBlueprint, e.g. /Game/UI/WBP_HUD."},
+            },
+            "required": ["path"],
+        },
+    },
+    {
         "name": "get_camera_transform",
         "description": "Read the level-editor viewport camera transform. SYNTHETIC bridge-side handler (PR #46 language-shim experiment): composes execute_unreal_python + get_log_lines via the marker pattern. Returns { location: {x,y,z}, rotation: {pitch,yaw,roll} }.",
         "inputSchema": {

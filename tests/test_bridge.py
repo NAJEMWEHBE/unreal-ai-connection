@@ -23,7 +23,7 @@ def test_tools_list_size():
     # Cross-checked against the manifest in test_manifest_sync.py; the absolute
     # number bumps with each new tool. Function name kept count-agnostic so
     # it doesn't drift behind the assertion (per Sonnet pre-review on PR #50).
-    assert len(bridge.TOOLS) == 60
+    assert len(bridge.TOOLS) == 61
 
 
 def test_each_tool_has_required_mcp_fields():
@@ -76,6 +76,7 @@ def test_tool_names_are_unique_and_match_handlers():
         "inspect_landscape",
         "inspect_skeletal_mesh",
         "inspect_anim_montage",
+        "inspect_widget_blueprint",
         "get_camera_transform",
         "set_camera_transform",
         "screenshot_actor",
@@ -336,6 +337,20 @@ def test_inspect_anim_montage_in_tools_catalog():
     assert t is not None
     assert t["inputSchema"]["required"] == ["path"]
     assert t["inputSchema"]["properties"]["path"]["type"] == "string"
+
+
+def test_inspect_widget_blueprint_in_tools_catalog():
+    """Tier 3: inspect_widget_blueprint requires path. C++ handler that
+    reads Widget-BP-specific surface (animations, delegate bindings,
+    inherited named slots, palette category) NOT covered by sibling
+    inspect_blueprint (UBlueprint vars/graphs) or inspect_widget_tree
+    (widget hierarchy). Cross-link via shared asset path."""
+    t = next((t for t in bridge.TOOLS if t["name"] == "inspect_widget_blueprint"), None)
+    assert t is not None
+    assert t["inputSchema"]["required"] == ["path"]
+    assert t["inputSchema"]["properties"]["path"]["type"] == "string"
+    # Must NOT be synthetic (this is a real C++ handler)
+    assert "inspect_widget_blueprint" not in bridge.SYNTHETIC_TOOLS
 
 
 def test_get_camera_transform_is_synthetic():
@@ -901,7 +916,7 @@ def test_handle_tools_list_returns_all_tools():
     resp = bridge.handle({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
     assert resp["id"] == 2
     assert "tools" in resp["result"]
-    assert len(resp["result"]["tools"]) == 60
+    assert len(resp["result"]["tools"]) == 61
 
 
 # -------- handle: tools/call --------------------------------------------------

@@ -2101,6 +2101,51 @@ Clear all user-defined names from UE Python's public globals dict. Pairs with `e
 
 ---
 
+## inspect_widget_blueprint
+
+**Tier 3.** Read `UWidgetBlueprint`-specific structural surface that **neither** `inspect_blueprint` (UBlueprint variables + function/event graphs) **nor** `inspect_widget_tree` (widget hierarchy via `WidgetTree->ForEachWidget`) covers. Callers stitch a complete view of a Widget BP across all three handlers via the shared asset path.
+
+**What this handler emits (and the others don't):**
+- `Animations` — `TArray<TObjectPtr<UWidgetAnimation>>` (editor-only). Per-animation: name, friendly display label, start/end time, derived length in seconds, count of `FWidgetAnimationBinding` entries.
+- `Bindings` — `TArray<FDelegateEditorBinding>` (editor-only). Each is a property-binding from a widget's UPROPERTY to a function on the user widget's CDO.
+- `PaletteCategory` — the string the widget appears under in the Designer's palette browser.
+- `PropertyBindings` (count) — `AssetRegistrySearchable` UPROPERTY counting total property bindings; performance signal (high counts → expensive frame eval).
+- Inherited named slots — `GetInheritedAvailableNamedSlots()` returns the slot names the parent generated class exposes for child override; `GetInheritedNamedSlotsWithContentInSameTree()` returns those already filled by the parent. The TSet result is sorted before emission for stable cross-call ordering.
+- Compile status — `EBlueprintStatus` covering all five values (`UpToDate`, `UpToDateWithWarnings`, `Dirty`, `Error`, `Unknown`); the `Error` case surfaces a compile-failed asset rather than masking it as `Unknown` (PR #52→#53 lesson).
+
+**Why C++:** Widget-BP fields like `Bindings` and `Animations` are declared without `EditAnywhere`/`BlueprintReadWrite`, so Python reflection can't reach them — same family as the `WidgetTree` reflection gap that `inspect_widget_tree` already addresses. Direct C++ access bypasses the limitation.
+
+**Null-skip on `TArray<TObjectPtr<UWidgetAnimation>>`:** entries can be null after deletes, partial-load states, or reimport scenarios (PR #55→#57 lesson). `animation_count` reflects valid (non-null) entries only.
+
+**Required Build.cs deps:** **none** — `UMG` and `UMGEditor` already present.
+
+**Params**
+- `path` (string, required) — UE asset path of a `UWidgetBlueprint`, e.g. `/Game/UI/WBP_HUD`.
+
+**Result**
+- `ok`, `name`, `path` (normalized via `UCMCPAssetPath::ToObjectPath`)
+- `parent_class` (string) — `BP->ParentClass->GetName()` or empty
+- `blueprint_status` (string enum) — one of `UpToDate | UpToDateWithWarnings | Dirty | Error | Unknown`
+- `palette_category` (string) — **omitted** when empty
+- `can_init_without_player_context` (bool) — from `bCanCallInitializedWithoutPlayerContext`
+- `property_bindings_allowed` (bool) — from `ArePropertyBindingsAllowed()`
+- `property_bindings_count` (int) — from `WBP->PropertyBindings`
+- `binding_count` (int), `bindings` (array of `{ object_name, property_name, function_name }`)
+- `animation_count` (int — valid entries only), `animations` (array of `{ name, display_label, start_time, end_time, length_seconds, binding_count }`)
+- `inherited_named_slot_count` (int), `inherited_named_slots` (array of string)
+- `inherited_slots_with_content` (array of string, sorted for stable order)
+
+**Errors:** `missing_required_field`, `asset_not_found`, `not_a_widget_blueprint`.
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"inspect_widget_blueprint","params":{"path":"/Game/UI/WBP_HUD"}}
+```
+
+**Cross-link to siblings:** call `inspect_blueprint` on the same path for variables / function graphs; call `inspect_widget_tree` on the same path for the `WidgetTree` hierarchy. None of the three duplicate one another's output.
+
+---
+
 ## get_camera_transform
 
 **Language-shim experiment, PR #46 (Python shim — bridge-side synthetic tool).** Read the level-editor viewport camera's location and rotation.

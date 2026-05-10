@@ -28,6 +28,7 @@ extern TSharedRef<IUCMCPHandler> Make_Handler_ExecutePython();
 extern TSharedRef<IUCMCPHandler> Make_Handler_GetProjectSummary();
 extern TSharedRef<IUCMCPHandler> Make_Handler_InspectBlueprint();
 extern TSharedRef<IUCMCPHandler> Make_Handler_InspectWidgetTree();
+extern TSharedRef<IUCMCPHandler> Make_Handler_InspectWidgetBlueprint();
 extern TSharedRef<IUCMCPHandler> Make_Handler_EditWidgetTree();
 extern TSharedRef<IUCMCPHandler> Make_Handler_GetViewportScreenshot();
 extern TSharedRef<IUCMCPHandler> Make_Handler_ListTools();
@@ -99,6 +100,7 @@ void FUnrealClaudeMCPModule::StartupModule()
     Reg.Register(Make_Handler_GetProjectSummary());
     Reg.Register(Make_Handler_InspectBlueprint());
     Reg.Register(Make_Handler_InspectWidgetTree());
+    Reg.Register(Make_Handler_InspectWidgetBlueprint());
     Reg.Register(Make_Handler_EditWidgetTree());
     Reg.Register(Make_Handler_GetViewportScreenshot());
     Reg.Register(Make_Handler_ListTools());
