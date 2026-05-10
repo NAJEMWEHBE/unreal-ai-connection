@@ -35,6 +35,7 @@ extern TSharedRef<IUCMCPHandler> Make_Handler_InspectCurve();
 extern TSharedRef<IUCMCPHandler> Make_Handler_InspectPhysicsAsset();
 extern TSharedRef<IUCMCPHandler> Make_Handler_InspectSoundCue();
 extern TSharedRef<IUCMCPHandler> Make_Handler_InspectSoundWave();
+extern TSharedRef<IUCMCPHandler> Make_Handler_InspectSoundAttenuation();
 extern TSharedRef<IUCMCPHandler> Make_Handler_EditWidgetTree();
 extern TSharedRef<IUCMCPHandler> Make_Handler_GetViewportScreenshot();
 extern TSharedRef<IUCMCPHandler> Make_Handler_ListTools();
@@ -113,6 +114,7 @@ void FUnrealClaudeMCPModule::StartupModule()
     Reg.Register(Make_Handler_InspectPhysicsAsset());
     Reg.Register(Make_Handler_InspectSoundCue());
     Reg.Register(Make_Handler_InspectSoundWave());
+    Reg.Register(Make_Handler_InspectSoundAttenuation());
     Reg.Register(Make_Handler_EditWidgetTree());
     Reg.Register(Make_Handler_GetViewportScreenshot());
     Reg.Register(Make_Handler_ListTools());
