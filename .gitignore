@@ -42,6 +42,9 @@ ruvector.db
 # Project-local Claude Code config (don't leak local agent settings into the public repo)
 .claude/
 
+# Project-local Codex CLI config / scratchpad (mirror of .claude/ — local-only)
+.codex/
+
 # Belt-and-suspenders: never accept the private HD Media plugin folder if it ends up nested here
 HDMediaUnrealMCP/
 HDMediaCamPlugin/
