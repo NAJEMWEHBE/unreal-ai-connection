@@ -1,4 +1,4 @@
-"""
+r"""
 Smoke test the UnrealClaudeMCP server on 127.0.0.1:18888.
 
 Run from any Python (does NOT need to be UE's embedded interpreter -- this is
@@ -20,7 +20,7 @@ The materials and sequencer runtime paths can be exercised end-to-end by
 pointing at seeded fixtures (run scripts/seed_test_project.py first to
 create them under /Game/SmokeTest_*):
 
-    py examples\smoke_test.py --material-instance /Game/SmokeTest_MI \\
+    py examples\smoke_test.py --material-instance /Game/SmokeTest_MI \
                               --sequence          /Game/SmokeTest_LS
 
 When --material-instance is provided, the test additionally exercises
