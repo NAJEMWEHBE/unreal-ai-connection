@@ -20,7 +20,7 @@ The repo (this folder you're reading) is the **only thing that survives a format
 
 | What | Where | Survives format? |
 |---|---|---|
-| Repo working tree | `C:\Users\NINOH\Desktop\UnrealClaudeMCP\` | ❌ — re-clone from GitHub |
+| Repo working tree | `F:\UnrealClaudeMCP\` | ❌ — re-clone from GitHub |
 | Claude Code session memory | `~/.claude/projects/.../memory/*.md` | ❌ — restore from `docs/session-memory-archive/` |
 | Codex CLI auth | `~/.codex/auth.json` | ❌ — re-login via `codex login` |
 | Codex CLI install | npm global (`@openai/codex`) | ❌ — `npm install -g @openai/codex` |
@@ -97,8 +97,8 @@ node "C:\Users\NINOH\.claude\plugins\cache\openai-codex\codex\1.0.4\scripts\code
 The 8 session memory files live in [`docs/session-memory-archive/`](session-memory-archive/) — copy them back to the Claude Code project memory directory:
 
 ```powershell
-$src = "C:\Users\NINOH\Desktop\UnrealClaudeMCP\docs\session-memory-archive"
-$dst = "C:\Users\NINOH\.claude\projects\C--Users-NINOH-Desktop-UnrealClaudeMCP\memory"
+$src = "F:\UnrealClaudeMCP\docs\session-memory-archive"
+$dst = "C:\Users\NINOH\.claude\projects\F--UnrealClaudeMCP\memory"
 New-Item -ItemType Directory -Force -Path $dst | Out-Null
 Copy-Item "$src\*.md" $dst -Force
 ```
@@ -108,7 +108,7 @@ After this, the next Claude Code session in this project will see the same direc
 ### 6. Restore `.mcp.json` (Claude Code MCP config)
 
 ```powershell
-cd C:\Users\NINOH\Desktop\UnrealClaudeMCP
+cd F:\UnrealClaudeMCP
 Copy-Item examples\.mcp.json.example .mcp.json
 ```
 
@@ -127,7 +127,7 @@ If F: drive survived: skip this step.
 Open the test project (e.g. `<host-project>\<HostProjectName>.uproject`). Per HANDOFF runbook step 3:
 
 ```powershell
-robocopy "C:\Users\NINOH\Desktop\UnrealClaudeMCP\UnrealClaudeMCP" "<host-project>\Plugins\UnrealClaudeMCP" /MIR /XD Binaries Intermediate .vs /NFL /NDL /NJH /NJS /NP
+robocopy "F:\UnrealClaudeMCP\UnrealClaudeMCP" "<host-project>\Plugins\UnrealClaudeMCP" /MIR /XD Binaries Intermediate .vs /NFL /NDL /NJH /NJS /NP
 ```
 
 Then build:
@@ -141,7 +141,7 @@ Must end with `Result: Succeeded`.
 ### 9. Verify the test suite still passes
 
 ```powershell
-cd C:\Users\NINOH\Desktop\UnrealClaudeMCP
+cd F:\UnrealClaudeMCP
 py -3 -m pip install pytest   # if pytest isn't already installed
 py -3 -m pytest tests/ -q
 ```
@@ -174,7 +174,7 @@ The session memory files (now restored to `~/.claude/projects/.../memory/`) docu
 
 ## If something goes wrong
 
-- **Memory files don't load** — Claude Code reads them via the `MEMORY.md` index. Make sure the destination path matches the project: `~/.claude/projects/C--Users-NINOH-Desktop-UnrealClaudeMCP/memory/`. The folder name encodes the absolute repo path with `\` → `-`.
+- **Memory files don't load** — Claude Code reads them via the `MEMORY.md` index. Make sure the destination path matches the project: `~/.claude/projects/F--UnrealClaudeMCP/memory/`. The folder name encodes the absolute repo path with `\` → `-`.
 - **Codex CLI not on PATH after install** — close and reopen the terminal; npm globals need a fresh shell to pick up. Or check `npm config get prefix` to find the install location and add it to PATH.
 - **Codex CLI says "usage limit"** — this happens occasionally on heavy sprints. Reset is on a clock (typically 4-6h). See `docs/session-memory-archive/reference_codex_usage_limits.md`.
 - **`dotnet.exe` Application Error popup during Codex run** — known issue; covered in `docs/session-memory-archive/reference_codex_dotnet_ubt_crash.md`. The fix is the no-UBT instruction baked into Codex prompts.
@@ -188,7 +188,7 @@ The session memory files (now restored to `~/.claude/projects/.../memory/`) docu
 Verify everything is on GitHub before you wipe:
 
 ```powershell
-cd C:\Users\NINOH\Desktop\UnrealClaudeMCP
+cd F:\UnrealClaudeMCP
 git status                # should be clean
 git push origin main      # should report "Everything up-to-date"
 git log --oneline -5      # should match what `gh repo view --web` shows
