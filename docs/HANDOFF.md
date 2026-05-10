@@ -352,6 +352,8 @@ Surfaces beyond the current 60 tools that would meaningfully expand "Unreal auto
 
 ## How to resume in a fresh session
 
+**If the development machine was just reformatted** (fresh OS install, all software gone): start with [`RESTART-RECOVERY.md`](RESTART-RECOVERY.md) instead — it walks through Git/Node/Python/VS-C++/Codex CLI install, then restoring session memory from [`session-memory-archive/`](session-memory-archive/) before the normal resume steps below apply.
+
 1. Open a new session in the same repo (any MCP client — this works in Claude Code, Codex CLI, Cursor, Gemini CLI, etc.).
 2. Send: *"Read `docs/HANDOFF.md` and continue from there. The user is in autonomy mode — pick the next reasonable thing to do."*
 3. **Verify Codex tooling** (per directive #8): `ToolSearch query="codex"` and/or `Bash codex --help`. If reachable, the multi-agent collaboration model is live; if not, fall back to Opus-solo or ask the user how to invoke.

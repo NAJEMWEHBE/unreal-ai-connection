@@ -14,6 +14,8 @@ UE 5.7 plugin + Python bridge exposing editor automation to MCP-compliant client
 - **Architecture notes + UE 5.7 API gotchas** — `docs/ARCHITECTURE.md`.
 - **Host-build runbook** — top of `docs/HANDOFF.md` (steps 1–6, PowerShell). Live verification on the host machine is the perpetual next step.
 - **Per-tool JSON schemas + examples** — `docs/TOOLS.md`.
+- **Restart-recovery procedure** (use after a fresh OS install / C: format) — [`docs/RESTART-RECOVERY.md`](docs/RESTART-RECOVERY.md). Step-by-step setup (git, gh, Node, Python, VS C++ workload, Codex CLI, Claude Code, UE 5.7) plus how to restore session memory from `docs/session-memory-archive/`.
+- **Session memory archive** — [`docs/session-memory-archive/`](docs/session-memory-archive/). Snapshot of Claude Code's per-project memory files (directives, conventions, operational gotchas) — survives format because it lives in the repo. Restore to `~/.claude/projects/.../memory/` post-recovery.
 
 ## House rules carried forward across sessions
 
