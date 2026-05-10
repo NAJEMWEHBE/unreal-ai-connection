@@ -155,10 +155,13 @@ public:
             CompressionToString(static_cast<TextureCompressionSettings>(Texture->CompressionSettings)));
         Out->SetStringField(TEXT("filter"),
             FilterToString(static_cast<TextureFilter>(Texture->Filter)));
+        // GetTextureGroupString / GetMipGenSettingsString return const TCHAR*;
+        // SetStringField accepts that directly -- skip the redundant FString
+        // ctor (PR #70 Gemini cleanup).
         Out->SetStringField(TEXT("lod_group"),
-            FString(UTexture::GetTextureGroupString(static_cast<TextureGroup>(Texture->LODGroup.GetValue()))));
+            UTexture::GetTextureGroupString(static_cast<TextureGroup>(Texture->LODGroup.GetValue())));
         Out->SetStringField(TEXT("mip_gen_settings"),
-            FString(UTexture::GetMipGenSettingsString(static_cast<TextureMipGenSettings>(Texture->MipGenSettings.GetValue()))));
+            UTexture::GetMipGenSettingsString(static_cast<TextureMipGenSettings>(Texture->MipGenSettings.GetValue())));
 
         Out->SetNumberField(TEXT("lod_bias"), static_cast<double>(Texture->LODBias));
         // Bit-field flags: explicit `!= 0` for unambiguous bool conversion.

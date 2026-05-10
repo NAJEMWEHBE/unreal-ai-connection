@@ -90,8 +90,10 @@ public:
         // --- bodies (null-skip; report bone name + bConsiderForBounds) ---
 
         // Build a lookup of "is this body index in BoundsBodies?" for the
-        // is_in_bounds flag emitted per body.
+        // is_in_bounds flag emitted per body. Reserve up-front -- known size
+        // (PR #72 Gemini perf cleanup).
         TSet<int32> BoundsBodyIndexSet;
+        BoundsBodyIndexSet.Reserve(PhysicsAsset->BoundsBodies.Num());
         for (int32 BodyIndex : PhysicsAsset->BoundsBodies)
         {
             BoundsBodyIndexSet.Add(BodyIndex);
@@ -99,6 +101,7 @@ public:
 
         int32 ValidBodyCount = 0;
         TArray<TSharedPtr<FJsonValue>> BodiesArray;
+        BodiesArray.Reserve(PhysicsAsset->SkeletalBodySetups.Num());
         for (int32 i = 0; i < PhysicsAsset->SkeletalBodySetups.Num(); ++i)
         {
             USkeletalBodySetup* Body = PhysicsAsset->SkeletalBodySetups[i].Get();
@@ -117,6 +120,7 @@ public:
 
         int32 ValidConstraintCount = 0;
         TArray<TSharedPtr<FJsonValue>> ConstraintsArray;
+        ConstraintsArray.Reserve(PhysicsAsset->ConstraintSetup.Num());
         for (const TObjectPtr<UPhysicsConstraintTemplate>& Tpl : PhysicsAsset->ConstraintSetup)
         {
             UPhysicsConstraintTemplate* C = Tpl.Get();

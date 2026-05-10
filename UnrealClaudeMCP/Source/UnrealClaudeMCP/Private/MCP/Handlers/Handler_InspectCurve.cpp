@@ -24,13 +24,14 @@
 //   RichCurve.h:302      FRichCurve::GetValueRange (final override)
 //   RichCurve.h:356      TArray<FRichCurveKey> Keys
 //
-// Key counting strategy: GetCurves() returns FRealCurve*. The concrete
-// curve carried by every UCurveBase subclass we care about is FRichCurve
-// (UCurveFloat::FloatCurve, UCurveLinearColor::FloatCurves[4],
-// UCurveVector::FloatCurves[3] are all FRichCurve). Cast FRealCurve* ->
-// FRichCurve* to read Keys.Num(); when the cast fails (theoretical
-// future subclass using FSimpleCurve etc.) emit key_count: -1 so callers
-// can disambiguate "zero keys" from "key count not knowable".
+// Key counting strategy: FRealCurve declares GetNumKeys() polymorphically
+// (PURE_VIRTUAL on FIndexedCurve, line 41 in IndexedCurve.h; FRichCurve
+// final-overrides it at RichCurve.h:350 returning Keys.Num()). Call the
+// virtual directly through the FRealCurve* and let dispatch handle
+// future curve types. Null-guard CurveToEdit and emit key_count: -1
+// only when the pointer is null (defensive guard for malformed assets).
+// Gemini PR #71 review caught the prior static_cast<FRichCurve*> as
+// fragile; the polymorphic call is more robust + cleaner.
 //
 // Error format: "inspect_curve: <error_code>: <human-readable detail>"
 // Stable error codes: missing_required_field, asset_not_found, not_a_curve
@@ -110,18 +111,16 @@ public:
             TSharedPtr<FJsonObject> ChObj = MakeShared<FJsonObject>();
             ChObj->SetStringField(TEXT("name"), Info.CurveName.ToString());
 
-            // Key-count strategy: every UCurveBase subclass we care about
-            // (UCurveFloat, UCurveLinearColor, UCurveVector) stores its curves
-            // as FRichCurve. The FRealCurve* typedef in FRichCurveEditInfo is
-            // a generalisation; in practice the carrier is always FRichCurve.
-            // Cast directly to read Keys.Num(); when CurveToEdit is null
-            // (defensive guard) emit key_count: -1 so callers can disambiguate
-            // "zero keys" from "not knowable".
+            // Key-count via polymorphic FRealCurve::GetNumKeys() — declared
+            // PURE_VIRTUAL on the FIndexedCurve base (IndexedCurve.h:41),
+            // overridden on FRichCurve (RichCurve.h:350). Survives any future
+            // FRealCurve subclass without code changes here. Null-guard
+            // CurveToEdit (defensive) and emit key_count: -1 in that case so
+            // callers can disambiguate "zero keys" from "not knowable".
             const FRealCurve* RealCurve = Info.CurveToEdit;
             if (RealCurve)
             {
-                const FRichCurve* RichCurve = static_cast<const FRichCurve*>(RealCurve);
-                ChObj->SetNumberField(TEXT("key_count"), static_cast<double>(RichCurve->Keys.Num()));
+                ChObj->SetNumberField(TEXT("key_count"), static_cast<double>(RealCurve->GetNumKeys()));
             }
             else
             {
