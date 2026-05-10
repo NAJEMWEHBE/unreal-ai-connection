@@ -59,6 +59,12 @@ namespace
             // prior version had no BS_Error case and silently fell through to
             // "Unknown", masking real compile errors in responses).
             return TEXT("Error");
+        case BS_BeingCreated:
+            // Transient state during blueprint construction (Blueprint.h:52).
+            // Caught by Gemini on PR #67 -- same family as the BS_Error fix
+            // from PR #52->#53. Enumerate the complete value set, not just
+            // the prevalent ones (BS_MAX is a sentinel, not a real state).
+            return TEXT("BeingCreated");
         case BS_Unknown:
         default:
             return TEXT("Unknown");

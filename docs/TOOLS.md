@@ -1975,7 +1975,7 @@ Clear all user-defined names from UE Python's public globals dict. Pairs with `e
 - `parent_class` (string) — the immediate parent class name (often `AnimInstance` for natively-parented anim BPs)
 - `is_template` (bool) — anim BP templates have no skeleton; affects whether `target_skeleton` is emitted
 - `target_skeleton` (string) — asset path of the `USkeleton`. **Omitted** when `is_template == true` or the skeleton is null.
-- `blueprint_status` (string) — one of `UpToDate` / `UpToDateWithWarnings` / `Dirty` / `Error` / `Unknown`. `Error` means the blueprint failed to compile (look at the editor's compile log). `Status` is transient — treat `is_compiled` (below) as the authoritative "compiled data is available" signal; treat `blueprint_status: Error` as "compile failed; recompile or fix issues."
+- `blueprint_status` (string) — one of `UpToDate` / `UpToDateWithWarnings` / `Dirty` / `Error` / `BeingCreated` / `Unknown`. `Error` means the blueprint failed to compile (look at the editor's compile log); `BeingCreated` is a transient construction state. `Status` is transient — treat `is_compiled` (below) as the authoritative "compiled data is available" signal; treat `blueprint_status: Error` as "compile failed; recompile or fix issues."
 - `is_compiled` (bool) — true when `GetAnimBlueprintGeneratedClass()` is non-null. When false, all compiled-data arrays below are empty and the corresponding `*_count` fields are 0.
 - `parent_anim_blueprint` (string) — asset path of the parent anim BP, when this blueprint subclasses another anim BP (rather than a native `UAnimInstance`). **Omitted** when null.
 - `state_machine_count`, `state_machines` (array of `{ name }`)
@@ -2125,7 +2125,7 @@ Clear all user-defined names from UE Python's public globals dict. Pairs with `e
 **Result**
 - `ok`, `name`, `path` (normalized via `UCMCPAssetPath::ToObjectPath`)
 - `parent_class` (string) — `BP->ParentClass->GetName()` or empty
-- `blueprint_status` (string enum) — one of `UpToDate | UpToDateWithWarnings | Dirty | Error | Unknown`
+- `blueprint_status` (string enum) — one of `UpToDate | UpToDateWithWarnings | Dirty | Error | BeingCreated | Unknown`
 - `palette_category` (string) — **omitted** when empty
 - `can_init_without_player_context` (bool) — from `bCanCallInitializedWithoutPlayerContext`
 - `property_bindings_allowed` (bool) — from `ArePropertyBindingsAllowed()`
