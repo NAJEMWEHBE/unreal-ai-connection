@@ -104,8 +104,14 @@ public:
         Out->SetNumberField(TEXT("max_distance"), SoundCue->MaxDistance);
         Out->SetNumberField(TEXT("volume_multiplier"), SoundCue->VolumeMultiplier);
         Out->SetNumberField(TEXT("pitch_multiplier"), SoundCue->PitchMultiplier);
-        Out->SetNumberField(TEXT("subtitle_priority"), SoundCue->SubtitlePriority);
-        Out->SetNumberField(TEXT("max_audible_distance"), SoundCue->MaxAudibleDistance);
+        // SubtitlePriority is protected (SoundCue.h:117-120); use the virtual
+        // GetSubtitlePriority() accessor (SoundCue.h:180 override of
+        // SoundBase.h:326). MaxAudibleDistance is private (SoundCue.h:122-123)
+        // with NO public accessor -- substitute USoundBase::GetMaxDistance()
+        // which is the runtime-resolved value (matches what the audio engine
+        // actually uses for attenuation cutoff).
+        Out->SetNumberField(TEXT("subtitle_priority"), SoundCue->GetSubtitlePriority());
+        Out->SetNumberField(TEXT("max_audible_distance"), SoundCue->GetMaxDistance());
 
         if (SoundCue->AttenuationSettings)
         {
