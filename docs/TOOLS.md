@@ -2146,6 +2146,45 @@ Clear all user-defined names from UE Python's public globals dict. Pairs with `e
 
 ---
 
+## inspect_data_table
+
+**Tier 3.** Read structural properties of a `UDataTable` asset: the `RowStruct` it conforms to, every row name (sorted), and the field-by-field `name` + `type` of the `RowStruct` so callers know what each row is shaped like without having to load + introspect the row payload separately.
+
+**Why C++:** `UDataTable::RowMap` is `TMap<FName, uint8*>` — raw byte pointers — and `RowStruct` is iterated via `TFieldIterator<FProperty>` with the engine's reflection registry. Both are awkward to reach through Python's `unreal` reflection (Python's `unreal.DataTable` exposes `get_row_names()` and `get_row()` but not the per-property type info on the `UScriptStruct`).
+
+**Required Build.cs deps:** **none** — `Engine` and `CoreUObject` cover `UDataTable`, `UScriptStruct`, and `FProperty`.
+
+**`TFieldIterator` flag choice:** the handler iterates with `EFieldIterationFlags::None` (NOT the default `IncludeSuper = true`) to skip inherited UObject/UScriptStruct base fields and surface only the user-declared row fields. This matches the row author's mental model — they expect "the columns of my CSV" not "all reachable FProperty objects on the C++ struct hierarchy."
+
+**Null-safety:** a freshly-created `UDataTable` can exist with `RowStruct == nullptr` until the user assigns a struct in the editor. The handler null-guards: when `RowStruct` is null it omits the `row_struct` / `row_struct_name` fields and emits `row_property_count: 0`, `row_properties: []`. The data-only fields (row count, row names, flags) still emit so callers can still introspect a partially-set-up DataTable.
+
+**Stable row ordering:** `TMap<FName, uint8*>` iteration order is unspecified. The `rows` array is sorted before emission for cross-call stability. Same convention as `inspect_widget_blueprint::inherited_slots_with_content`.
+
+**Params**
+- `path` (string, required) — UE asset path of a `UDataTable`, e.g. `/Game/Data/DT_Items`.
+
+**Result**
+- `ok`, `name`, `path` (normalized via `UCMCPAssetPath::ToObjectPath`)
+- `row_struct` (string) — engine ground-truth asset path of the `UScriptStruct`. **Omitted** when `RowStruct` is null.
+- `row_struct_name` (string) — bare `GetName()` of the `UScriptStruct`. **Omitted** when `RowStruct` is null.
+- `row_count` (int) — `RowMap.Num()`
+- `rows` (array of string) — sorted row names from `RowMap` keys
+- `row_property_count` (int)
+- `row_properties` (array of `{ name, type }`) — `name` from `FProperty::GetName()`, `type` from `FProperty::GetCPPType()` (language-friendly form like `int32`, `FString`, `FVector`, `TArray<...>`)
+- `strip_from_client_builds` (bool) — from `bStripFromClientBuilds`
+- `ignore_extra_fields` (bool) — from `bIgnoreExtraFields`
+- `ignore_missing_fields` (bool) — from `bIgnoreMissingFields`
+- `import_key_field` (string) — from `ImportKeyField`. **Omitted** when empty.
+
+**Errors:** `missing_required_field`, `asset_not_found`, `not_a_data_table`.
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"inspect_data_table","params":{"path":"/Game/Data/DT_Items"}}
+```
+
+---
+
 ## get_camera_transform
 
 **Language-shim experiment, PR #46 (Python shim — bridge-side synthetic tool).** Read the level-editor viewport camera's location and rotation.

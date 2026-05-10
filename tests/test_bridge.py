@@ -23,7 +23,7 @@ def test_tools_list_size():
     # Cross-checked against the manifest in test_manifest_sync.py; the absolute
     # number bumps with each new tool. Function name kept count-agnostic so
     # it doesn't drift behind the assertion (per Sonnet pre-review on PR #50).
-    assert len(bridge.TOOLS) == 61
+    assert len(bridge.TOOLS) == 62
 
 
 def test_each_tool_has_required_mcp_fields():
@@ -77,6 +77,7 @@ def test_tool_names_are_unique_and_match_handlers():
         "inspect_skeletal_mesh",
         "inspect_anim_montage",
         "inspect_widget_blueprint",
+        "inspect_data_table",
         "get_camera_transform",
         "set_camera_transform",
         "screenshot_actor",
@@ -337,6 +338,20 @@ def test_inspect_anim_montage_in_tools_catalog():
     assert t is not None
     assert t["inputSchema"]["required"] == ["path"]
     assert t["inputSchema"]["properties"]["path"]["type"] == "string"
+
+
+def test_inspect_data_table_in_tools_catalog():
+    """Tier 3: inspect_data_table requires path. C++ handler that reads
+    UDataTable RowStruct identity, sorted row names, and per-property
+    name+type via TFieldIterator<FProperty> with EFieldIterationFlags::None
+    (skipping super fields). Null-guards RowStruct (freshly-created
+    DataTables can have no struct assigned)."""
+    t = next((t for t in bridge.TOOLS if t["name"] == "inspect_data_table"), None)
+    assert t is not None
+    assert t["inputSchema"]["required"] == ["path"]
+    assert t["inputSchema"]["properties"]["path"]["type"] == "string"
+    # Real C++ handler, not synthetic
+    assert "inspect_data_table" not in bridge.SYNTHETIC_TOOLS
 
 
 def test_inspect_widget_blueprint_in_tools_catalog():
@@ -916,7 +931,7 @@ def test_handle_tools_list_returns_all_tools():
     resp = bridge.handle({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
     assert resp["id"] == 2
     assert "tools" in resp["result"]
-    assert len(resp["result"]["tools"]) == 61
+    assert len(resp["result"]["tools"]) == 62
 
 
 # -------- handle: tools/call --------------------------------------------------
