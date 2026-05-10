@@ -43,6 +43,8 @@
 #include "Animation/AnimMontage.h"
 #include "Animation/AnimCompositeBase.h"
 #include "Animation/AnimLinkableElement.h"
+#include "Animation/AnimNotify.h"
+#include "Animation/AnimNotifyState.h"
 #include "Animation/AnimSequenceBase.h"
 #include "Animation/AnimationAsset.h"
 #include "Animation/AnimTypes.h"
@@ -152,8 +154,12 @@ public:
             }
             if (Notify.NotifyStateClass)
             {
+                // NotifyStateClass IS the UClass (TObjectPtr<UClass>); call
+                // GetName() directly. Prior code's GetClass()->GetName()
+                // returned the meta-class name "Class" (and tripped C2027
+                // because UAnimNotifyState was forward-declared only).
                 NotifyObj->SetStringField(TEXT("notify_state_class"),
-                    Notify.NotifyStateClass->GetClass()->GetName());
+                    Notify.NotifyStateClass->GetName());
             }
             NotifyArray.Add(MakeShared<FJsonValueObject>(NotifyObj));
         }
@@ -195,12 +201,20 @@ public:
         Out->SetBoolField(TEXT("auto_blend_out"), Montage->bEnableAutoBlendOut);
 
         // Parent asset (montage as child of another montage via asset
-        // remapping). When non-null, the child's CompositeSections /
-        // SlotAnimTracks may be sparse overrides relative to the parent.
-        if (UAnimationAsset* ParentAsset = Montage->GetParentAsset())
+        // remapping). The ParentAsset field lives in UAnimationAsset under
+        // WITH_EDITORONLY_DATA (AnimationAsset.h:1050-1055) -- there's no
+        // GetParentAsset() accessor. HasParentAsset() (AnimationAsset.h:1173)
+        // gives the boolean check publicly; field access is direct under
+        // the same WITH_EDITORONLY_DATA guard.
+#if WITH_EDITORONLY_DATA
+        if (Montage->HasParentAsset())
         {
-            Out->SetStringField(TEXT("parent_asset"), ParentAsset->GetPathName());
+            if (UAnimationAsset* ParentAsset = Montage->ParentAsset.Get())
+            {
+                Out->SetStringField(TEXT("parent_asset"), ParentAsset->GetPathName());
+            }
         }
+#endif
 
         Out->SetNumberField(TEXT("section_count"), static_cast<double>(SectionArray.Num()));
         Out->SetArrayField(TEXT("sections"), SectionArray);
