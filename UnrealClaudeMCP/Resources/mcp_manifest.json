@@ -494,6 +494,14 @@
       "returns": { "ok": "bool", "name": "string", "package_path": "string", "skeleton": "string (conditional, when GetSkeleton is non-null; asset path)", "play_length": "float (seconds)", "frame_rate": "{numerator, denominator}", "is_dynamic": "bool", "blend_in_time": "float", "blend_out_time": "float", "blend_out_trigger_time": "float (seconds, negative means at-end)", "auto_blend_out": "bool", "parent_asset": "string (conditional, when this montage is a child via asset remapping)", "section_count": "int", "sections": "array of {name, next, start_time, end_time}", "slot_count": "int", "slots": "array of {slot_name, segment_count}", "notify_count": "int", "notifies": "array of {name, time, duration, notify_class?, notify_state_class?}" }
     },
     {
+      "name": "inspect_widget_blueprint",
+      "description": "Read UWidgetBlueprint-specific structural properties: parent class, blueprint compile status, palette category, animations, delegate property bindings, inherited named slots from parent generated class. Complements inspect_blueprint (UBlueprint vars + graphs) and inspect_widget_tree (widget hierarchy); cross-link via shared asset path. C++ handler. No new Build.cs deps (UMG + UMGEditor already present). Null-skips TObjectPtr<UWidgetAnimation> entries (PR #55->#57 lesson).",
+      "params": {
+        "path": "string (required) - UE asset path of a UWidgetBlueprint"
+      },
+      "returns": { "ok": "bool", "name": "string", "path": "string", "parent_class": "string", "blueprint_status": "string enum: UpToDate | UpToDateWithWarnings | Dirty | Error | Unknown", "palette_category": "string (conditional, when non-empty)", "can_init_without_player_context": "bool", "property_bindings_allowed": "bool (from ArePropertyBindingsAllowed())", "property_bindings_count": "int (from WBP::PropertyBindings; performance signal)", "binding_count": "int (Bindings.Num)", "bindings": "array of {object_name, property_name, function_name}", "animation_count": "int (valid TObjectPtr<UWidgetAnimation> entries only)", "animations": "array of {name, display_label, start_time, end_time, length_seconds, binding_count}", "inherited_named_slot_count": "int", "inherited_named_slots": "array of string", "inherited_slots_with_content": "array of string (sorted, stable across calls)" }
+    },
+    {
       "name": "get_camera_transform",
       "description": "Read level-editor viewport camera transform. SYNTHETIC bridge-side handler -- composes execute_unreal_python + get_log_lines via marker pattern. Part of language-shim experiment (PR #46).",
       "params": {},
