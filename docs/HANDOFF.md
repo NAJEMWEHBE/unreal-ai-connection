@@ -466,3 +466,67 @@ The dev machine was reformatted between sessions; this session resumed from an F
 - **Doc-drift sweep this PR** — replaced `C:\Users\NINOH\Desktop\UnrealClaudeMCP\` paths with `F:\UnrealClaudeMCP\` throughout HANDOFF.md + RESTART-RECOVERY.md, since the post-recovery canonical location is F:. Memory folder name updated `C--Users-NINOH-Desktop-UnrealClaudeMCP` → `F--UnrealClaudeMCP`.
 - **`.codex/` artifacts** — repo-local `.codex/config.toml` (stale; points at old C: bridge path) and `.codex/niagara_task.txt` (historical PR #51 prompt) still untracked. Deferred to a future tiny chore PR (gitignore + prune).
 - Bot reviews on PRs #69 / #70 / #71 / #72 — self-merged before bot reviews landed; check the PR pages for any post-merge findings that warrant a cleanup PR.
+
+**Session 2026-05-10 (post-recovery cold-compile discipline + audio trio completion):**
+
+Continuation of the resumption sprint. Started with 65 tools; ended with **68 tools (64 C++ + 4 synthetic)**. Six PRs shipped: 3 features (cue, wave, attenuation = audio introspection trio) and 3 cleanup PRs flushing out cold-compile bugs that the bridge-only pytest path could not detect.
+
+**Resumption-sprint critical lesson: bridge-only pytest is insufficient validation.** Every Inspect* handler from PRs #51 through #77 shipped without a host C++ build between merge and the next session. The 2026-05-08 binary in the host install only covered the ~36-49 handler era; the new 49 → 67 handler space carried a backlog of latent build errors (protected/private field access, deprecated UPROPERTY direct field access, missing `#include`s in Animation subdir, `int64`-narrowed-through-`int32` truncation). The first cold compile this session flushed out **5 distinct C++ defects** across 4 handlers (PRs #56, #70, #76, #77), requiring 3 cleanup PRs (#78, #79, #80) before the editor would build.
+
+**Audio introspection trio shipped this session (PRs #76 + #77 + #81):**
+- `inspect_sound_cue` — graph node list, volume/pitch multipliers, attenuation cross-link, root node class.
+- `inspect_sound_wave` — sample rate, channels, frames, duration, compression type, sound group, looping/streaming flags, subtitle/cue-point counts. Editor-only fields gated.
+- `inspect_sound_attenuation` — feature-gated 3D playback rules (distance/spatialization/air absorption/listener focus/occlusion/reverb send/priority attenuation/feature flags). Each major feature collapses to `{enabled: false}` when its master bitfield gate is off — default-asset JSON stays compact.
+
+Cross-link convention: cue + wave both emit `attenuation_settings` asset path; callers chain into `inspect_sound_attenuation` for the 3D rules.
+
+**Cold-compile-before-merge discipline applied for the first time on PR #81 — passed first try.** The new cadence:
+1. Codex implements C++ handler from literal-template prompt.
+2. Opus parallel writes bridge + manifest + tests + docs.
+3. Synthesis review of Codex output.
+4. **robocopy → Build.bat → verify `Result: Succeeded` BEFORE git commit.**
+5. Commit, push, PR, self-merge.
+
+PR #81 was the first sound handler to ship with **verified C++ on host** rather than schema-only validation. No cleanup PR needed. The discipline is the answer to the "5 defects in 4 handlers" backlog cleanup.
+
+**Codex prompt hardening recipe** (encoded across PR #76 → #77 → #81 dispatches):
+- "Use `Handler_<Sibling>.cpp` as the **LITERAL** template" (not "mirror the pattern" — Codex hedges on the latter)
+- Forbid direct field access; require accessor methods by name when sibling/explorer brief flags `protected/private/WITH_EDITORONLY_DATA`
+- Verify `#include` paths against filesystem (subdirs like `Animation/AnimNotifies/` are easy to miss)
+- Bitfield reads use explicit `!= 0`
+- Asset references emit `GetPathName()` (PR #51 lesson; never `GetClass()->GetName()`)
+- TEnumAsByte values call `.GetValue()` before any enum-to-string helper
+- `EnumToCleanString` template helper strips `Enum::` prefix → clean output (`Linear` not `EAttenuationDistanceModel::Linear`)
+- Single `GetMethodName()` const override + single `Handle(Params, OutError)` override (no method-name variants, no Handle overloads)
+- Direct `#include "MCP/MCPHandler.h"` (no `__has_include` ladder)
+- `UEditorAssetLibrary::LoadAsset` (NOT `StaticLoadObject` / `LoadObject<T>`)
+- `UCMCPAssetPath::ToObjectPath` (NOT bespoke reimpl)
+- Error format `'%s'`-quoted (sibling consistency)
+- 4-space indentation throughout (NEVER tabs)
+
+**Live verification finally landed.** Toolchain installed mid-session: VS Build Tools 2022 + MSVC v14.44 + Windows 11 SDK 22621 + NETFXSDK 4.8.1 (the last needed standalone Win SDK installer with `OptionId.NetFxSoftwareDevelopmentKit` feature flag — `winget install --override` of VS Build Tools workloads silently dropped the NetFXSDK component). Build chain on host: `F:\UE_5.7\Engine\Build\BatchFiles\Build.bat HDMediaVirtualStudioEditor Win64 Development -project="F:\ax plug in\HDMediaVirtualStudio\HDMediaVirtualStudio.uproject"` → `Result: Succeeded` after the cleanup chain. Editor opened, 63 → 64 C++ handlers registered in Output Log under `LogUCMCPHandler`, TCP server bound `127.0.0.1:18888`, bridge connected, `tools/call list_tools` round-trip returned `count: 63` matching the registry — full end-to-end verification proven on the host machine for the first time this codebase generation.
+
+Smoke tests run: `inspect_texture` against `/Game/Plates/test_plate` (real Texture2D in the host project; returned correct `compression_settings`, `lod_group`, dimensions, `imported_size_x/y` showing source-vs-cooked downscale info). `inspect_static_mesh` against `/Engine/BasicShapes/Cube` (returned 54 verts / 48 tris, bounds shape `{min, max, size, center}` matching directive #11 convention).
+
+**New trap-table entries from this sprint:**
+
+- **Pre-merge pytest validates bridge schema + manifest drift only — never compiles C++.** Only host cold compile catches `error C2248: protected member`, `error C2027: undefined type`, `error C2039: not a member`, `error C1083: cannot open include file`, deprecation-warning-as-error (`C4996`). Discipline: run the build BEFORE git push, not after merge.
+- **`USoundCue::SubtitlePriority` is protected; `USoundCue::MaxAudibleDistance` is private.** Use `GetSubtitlePriority()` (virtual on USoundBase, override on USoundCue) and `GetMaxDistance()` (USoundBase virtual; runtime-resolved value the audio engine actually uses).
+- **`USoundWave::SampleRate` and `::ImportedSampleRate` are protected.** Use `GetSampleRateForCurrentPlatform()` (resolves per-platform overrides) and `GetImportedSampleRate()`.
+- **`UAnimNotifyState` lives in `Animation/AnimNotifies/AnimNotifyState.h` (subdir).** Same for `AnimNotify.h`. Forward declarations work for null-checks but `->member` access requires the full include from the correct subdir path.
+- **`FAnimNotifyEvent::NotifyStateClass` IS the `UClass*` (it's `TSubclassOf<UAnimNotifyState>`).** Calling `->GetClass()->GetName()` returns the meta-class name `"Class"`. Use `NotifyStateClass->GetName()` directly.
+- **`UAnimMontage::GetParentAsset()` does NOT exist.** `UAnimationAsset` has `HasParentAsset()` (public) and `ParentAsset` (UPROPERTY, WITH_EDITORONLY_DATA, accessible directly). Wrap in `#if WITH_EDITORONLY_DATA` + `HasParentAsset()` check + read `ParentAsset.Get()`.
+- **`UTexture::CompositeTexture` is C4996-deprecated as of UE 5.7.** Each handler module enables warnings-as-errors, so the deprecation kills cold build. Use `GetCompositeTexture()` accessor.
+- **`USoundWave::GetNumFrames()` returns `int64`.** Casting through `int32` first silently truncates >2^31 frame counts (~12h+ multichannel). Cast `int64` directly to `double` to preserve up-to-2^53 range.
+- **`FRealCurve::GetNumKeys()` is the polymorphic accessor** (PURE_VIRTUAL on `FIndexedCurve` per `IndexedCurve.h:41`; final-overridden on `FRichCurve` per `RichCurve.h:350`). Use this rather than `static_cast<FRichCurve*>` + `Keys.Num()` — survives any future `FRealCurve` subclass.
+- **VS Build Tools `winget install --override` does NOT propagate the `--add` workload args reliably.** First call installs only the BuildTools shell. Use `setup.exe modify --installPath ... --add Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.Component.Windows11SDK.22621` from the Installer dir for the actual MSVC + Win SDK delivery.
+- **NETFXSDK is NOT installed by VS Build Tools workload modify alone.** UE's SwarmInterface.Build.cs requires `HKLM\SOFTWARE\WOW6432Node\Microsoft\Microsoft SDKs\NETFXSDK\<v>\InstallationFolder` reg key. The `.NET Framework 4.8 Developer Pack` standalone installer also doesn't deliver this. The reliable path: standalone Win 11 SDK installer (`https://go.microsoft.com/fwlink/?linkid=2196241`) with `/features OptionId.NetFxSoftwareDevelopmentKit /quiet /norestart` — installs NETFXSDK at `C:\Program Files (x86)\Windows Kits\NETFXSDK\<v>\` + sets the reg key.
+
+**What to watch in the next session:**
+
+- **Live verification is now PASSING** (first time this codebase generation). Future PRs can ride the same `robocopy → Build.bat → editor → smoke` cycle. UE editor closes cleanly after each cycle (taskkill UnrealEditor or `Stop-UCMCPEditor` from the script module).
+- **Stale `.codex/` artifacts** — already gitignored (PR #74), pruned from working tree. Nothing pending.
+- **Codex usage healthy** — 4 dispatches this micro-sprint (~120K tok total), all returned full output without quota signals. The user has noted Codex tokens may exhaust mid-task on a heavier sprint; in that case, switch to Opus-direct using the same hardened prompt as a written spec, resume Codex when quota resets.
+- **Audio trio next-natural-extensions** (deferred): `inspect_sound_class` (USoundClass voice management), `inspect_audio_bus` (UAudioBus / submix), `inspect_metasound` (UMetaSoundSource — complex graph; would need its own explorer brief).
+- **Other Tier 3 surfaces still queued:** `inspect_data_asset` (generic UDataAsset reflection — possibly Python-shim candidate per directive #3), `mi_parameter_changed` event (additive on FUCMCPEventBus), `bulk_delete_assets` / `bulk_move_assets` (partial-success error handling non-trivial), Sequencer keyframe authoring, Movie Render Queue.
+- **Bot reviews on PRs #76 / #77 / #78 / #79 / #80 / #81** — self-merged before bot review window in most cases. Spot-check the PR pages for any post-merge findings worth a cleanup PR.
