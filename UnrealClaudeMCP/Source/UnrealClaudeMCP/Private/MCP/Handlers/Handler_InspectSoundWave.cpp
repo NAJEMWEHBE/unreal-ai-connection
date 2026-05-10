@@ -97,7 +97,10 @@ public:
         Out->SetStringField(TEXT("name"), Wave->GetName());
         Out->SetStringField(TEXT("path"), ObjectPath);
         Out->SetStringField(TEXT("sound_wave_class"), Wave->GetClass()->GetName());
-        Out->SetNumberField(TEXT("sample_rate"), static_cast<double>(Wave->SampleRate));
+        // SampleRate is protected on USoundWave (SoundWave.h:799); use the
+        // public GetSampleRateForCurrentPlatform() accessor (SoundWave.h:1443)
+        // which resolves per-platform overrides at the time of inspection.
+        Out->SetNumberField(TEXT("sample_rate"), static_cast<double>(Wave->GetSampleRateForCurrentPlatform()));
         Out->SetNumberField(TEXT("num_channels"), static_cast<double>(Wave->NumChannels));
         // GetNumFrames() returns int64 (SoundWave.h:1248); cast straight to
         // double to preserve up-to-2^53 range. Going through int32 first
@@ -124,9 +127,12 @@ public:
         }
 
 #if WITH_EDITORONLY_DATA
-        if (Wave->ImportedSampleRate != 0)
+        // ImportedSampleRate is protected on USoundWave (SoundWave.h:804); use
+        // the public GetImportedSampleRate() accessor (SoundWave.h:1221).
+        const uint32 ImportedRate = Wave->GetImportedSampleRate();
+        if (ImportedRate != 0)
         {
-            Out->SetNumberField(TEXT("imported_sample_rate"), static_cast<double>(Wave->ImportedSampleRate));
+            Out->SetNumberField(TEXT("imported_sample_rate"), static_cast<double>(ImportedRate));
         }
 
         if (Wave->LUFS != 0.0f)

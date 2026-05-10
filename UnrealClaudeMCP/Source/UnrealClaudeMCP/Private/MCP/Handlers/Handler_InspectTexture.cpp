@@ -170,9 +170,12 @@ public:
         Out->SetBoolField(TEXT("never_stream"), Texture->NeverStream != 0);
 
         // Composite texture cross-link (asset path) -- conditional on non-null.
-        if (Texture->CompositeTexture)
+        // GetCompositeTexture() is the UE 5.7 deprecation-clean accessor; the
+        // direct `CompositeTexture` field emits a C4996 warning that fails
+        // build under -Werror. (Build log on cold compile flagged this.)
+        if (UTexture* Composite = Texture->GetCompositeTexture())
         {
-            Out->SetStringField(TEXT("composite_texture"), Texture->CompositeTexture->GetPathName());
+            Out->SetStringField(TEXT("composite_texture"), Composite->GetPathName());
         }
 
         // Surface dimensions via the virtual accessors -- defined on every
