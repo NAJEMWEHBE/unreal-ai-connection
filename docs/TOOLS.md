@@ -2340,6 +2340,55 @@ Clear all user-defined names from UE Python's public globals dict. Pairs with `e
 
 ---
 
+## inspect_sound_wave
+
+**Tier 3.** Read structural properties of a `USoundWave` asset: sample rate, channel count, frame count, duration, compression type + runtime format + compressed data size, sound group, looping flag, streaming flag, loading behavior, subtitle + cue-point + loop-region counts. Editor-only fields (`imported_sample_rate`, `lufs`, `sample_peak_db`, `comment`) emit conditionally when non-default.
+
+**Pairs with:** `inspect_sound_cue` (which references USoundWave assets via its node graph) — together they let the LLM stitch a complete view of a SoundCue's audio playback chain. The forthcoming `inspect_sound_attenuation` will complete the audio introspection trio.
+
+**Why C++:** `USoundWave::SoundAssetCompressionType` is an `ESoundAssetCompressionType` enum; `LoadingBehavior` is `ESoundWaveLoadingBehavior`; `SoundGroup` is a `TEnumAsByte<ESoundGroup>`. Mapping these to clean string output requires `UEnum::GetValueAsString` + prefix stripping. Bit-field flags (`bLooping`) require explicit `!= 0` for unambiguous bool conversion. Python reflection covers some but not all of this consistently.
+
+**LazyOnDemand caveat:** USoundWave is declared with `LoadBehavior = "LazyOnDemand"` (SoundWave.h:415). This means transient runtime state (`RawPCMData`, `CachedRealtimeFirstBuffer`, `CookedPlatformData`, `AudioDecompressor`) may be uninitialized at inspection time. The handler avoids these fields entirely — it reads only **declarative** asset properties that are always populated post-PostLoad.
+
+**Streaming flag note:** The `bStreaming` field on USoundWave is **deprecated** in 5.0+. The handler uses `USoundWave::IsStreaming()` method instead, which checks platform-specific stream caching state correctly.
+
+**Required Build.cs deps:** **none** — `Engine` covers `USoundWave`, `USoundBase`, `FSoundWaveCuePoint`, `FSubtitleCue`.
+
+**Params**
+- `path` (string, required) — UE asset path of a `USoundWave`, e.g. `/Game/Audio/SW_Footstep`.
+
+**Result (always present)**
+- `ok`, `name`, `path`, `sound_wave_class`
+- `sample_rate` (int), `num_channels` (int), `num_frames` (int — from `GetNumFrames()`)
+- `duration` (float seconds — from `GetDuration()` polymorphic)
+- `compression_type` (string — `ESoundAssetCompressionType` value, prefix-stripped)
+- `runtime_format` (string — `GetRuntimeFormat().ToString()`)
+- `sound_group` (string — `ESoundGroup` value, prefix-stripped)
+- `loading_behavior` (string — `ESoundWaveLoadingBehavior`, prefix-stripped)
+- `is_looping` (bool — `bLooping` bitfield with explicit `!= 0`)
+- `is_streaming` (bool — `IsStreaming()` method, NOT the deprecated field)
+- `resource_size` (int)
+- `supports_subtitles` (bool), `subtitle_count` (int)
+- `cue_point_count` (int — non-loop cue points via `GetCuePoints()`)
+- `loop_region_count` (int — via `GetLoopRegions()`)
+
+**Result (conditional)**
+- `compressed_data_size` (int) — bytes via `GetCompressedDataSize(GetRuntimeFormat())`. Omitted when zero.
+- Editor-only block (`#if WITH_EDITORONLY_DATA`):
+  - `imported_sample_rate` (int) — omitted when zero
+  - `lufs` (float) — omitted when zero (default-initialized)
+  - `sample_peak_db` (float) — omitted when zero
+  - `comment` (string) — omitted when empty
+
+**Errors:** `missing_required_field`, `asset_not_found`, `not_a_sound_wave`.
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"inspect_sound_wave","params":{"path":"/Game/Audio/SW_Footstep"}}
+```
+
+---
+
 ## get_camera_transform
 
 **Language-shim experiment, PR #46 (Python shim — bridge-side synthetic tool).** Read the level-editor viewport camera's location and rotation.
