@@ -1,0 +1,6 @@
+- [Codex co-developer model](codex-collaboration-model.md) — User installed a Codex plugin; partition work between Claude and Codex in parallel, integrate results here. Speed-first; three parallelism patterns ranked.
+- [Codex invocation settings](feedback_codex_invocation_settings.md) — Always use extra-high reasoning + GPT-5.5 + 1.5x speed when delegating to Codex; user authorized generous usage budget.
+- [Multi-agent workflow](feedback_multi_agent_workflow.md) — Codex codes C++, Sonnet codes Python (and explores), Opus does the FINAL synthesis review + integration; Opus may also code small/contextual fixes.
+- [Vendor-neutral MCP](feedback_vendor_neutral_mcp.md) — Plugin must support all MCP clients (Codex, Cursor, Gemini CLI, etc.), not just Claude Code; use vendor-neutral language in tool descriptions and docs.
+- [Codex dotnet.exe popup is UBT crash](reference_codex_dotnet_ubt_crash.md) — When Codex tries RunUAT/UBT in its sandbox, dotnet.exe crashes with CLR exception 0xe0434352. Add explicit "don't run UBT" instruction to every Codex prompt.
+- [Codex usage limits](reference_codex_usage_limits.md) — Codex CLI is metered; ~5+ heavy C++ dispatches per session can exhaust quota. Reset is on a clock. Recovery: wait, upgrade, purchase credits, or have Opus take over the C++ for bounded work.
