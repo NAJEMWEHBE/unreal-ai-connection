@@ -2185,6 +2185,50 @@ Clear all user-defined names from UE Python's public globals dict. Pairs with `e
 
 ---
 
+## inspect_texture
+
+**Tier 3.** Read structural properties of a `UTexture` asset (`UTexture2D` / `UTextureCube` / `UTextureRenderTarget` / `UTexture2DArray` / …): the texture class, surface dimensions, sRGB / compression / filter / LOD-group settings, mip-gen settings, virtual-texture-streaming flag, never-stream flag, optional composite-texture cross-link. For `UTexture2D` specifically, also emits exact pixel dimensions, mip count, pixel format, and the imported (pre-resize) source dimensions.
+
+**Pairs with:**
+- `configure_texture` — mutates `SRGB` / `CompressionSettings` / `LODGroup` / `Filter`. Round-trip: read with `inspect_texture`, mutate with `configure_texture`, read again to verify.
+- `import_texture` — creates the asset from disk. After import, `inspect_texture` confirms the pipeline result (correct group, format, mip count).
+
+**Subclass handling:** the handler casts to `UTexture2D` and emits `size_x` / `size_y` / `num_mips` / `pixel_format` / `imported_size_x|y` only when that cast succeeds. Other UTexture subclasses (cube, render target, array) still emit the base UTexture surface plus the polymorphic `surface_width` / `surface_height` / `surface_depth` accessors that every concrete subclass implements.
+
+**Why C++:** `UTexture::CompressionSettings`, `LODGroup`, `Filter`, `MipGenSettings`, the bitfield flags `SRGB` / `VirtualTextureStreaming` / `NeverStream`, and the polymorphic `GetSurface*()` accessors are direct field reads on a UE engine asset. Going through Python's `unreal` reflection works for some but not all (the bitfield flags trip up the property-info path); a direct C++ handler is consistent and avoids per-field workarounds.
+
+**Required Build.cs deps:** **none** — `Engine` covers `UTexture`, `UTexture2D`, `EPixelFormat`, and `UEnum`.
+
+**Params**
+- `path` (string, required) — UE asset path of a `UTexture`, e.g. `/Game/Textures/Environment/T_Stone_D`.
+
+**Result**
+- `ok`, `name`, `path` (normalized via `UCMCPAssetPath::ToObjectPath`)
+- `texture_class` (string) — `Texture2D`, `TextureCube`, `TextureRenderTarget2D`, `Texture2DArray`, …
+- `compression_settings` (string enum) — `Default | Normalmap | Masks | Grayscale | Displacementmap | VectorDisplacementmap | HDR | UserInterface2D | BC7 | HalfFloat | SingleFloat | Alpha | DistanceFieldFont | HDR_Compressed | HDR_F32 | Unknown`. Mirrors the parse table in `Handler_ConfigureTexture`'s `ParseCompression` for round-trip fidelity.
+- `filter` (string enum) — `Nearest | Bilinear | Trilinear | Default | Unknown`
+- `lod_group` (string) — `TextureGroup` name from `UTexture::GetTextureGroupString` (e.g. `World`, `WorldNormalMap`, `UI`, `Lightmap`)
+- `mip_gen_settings` (string) — `TextureMipGenSettings` name from `UTexture::GetMipGenSettingsString` (e.g. `FromTextureGroup`, `Sharpen0`, `NoMipmaps`)
+- `lod_bias` (int)
+- `srgb` (bool) — from the `SRGB` bitfield
+- `virtual_texture_streaming` (bool) — from the `VirtualTextureStreaming` bitfield
+- `never_stream` (bool) — from the `NeverStream` bitfield (inherited from `UStreamableRenderAsset`)
+- `composite_texture` (string) — engine ground-truth asset path of `UTexture::CompositeTexture`. **Omitted** when null.
+- `surface_width`, `surface_height`, `surface_depth` (float) — from the polymorphic `GetSurface*()` accessors
+- **`UTexture2D`-only (conditional):**
+  - `size_x`, `size_y`, `num_mips` (int)
+  - `pixel_format` (string) — `EPixelFormat` enum name via `UTexture::GetPixelFormatEnum()` (e.g. `PF_DXT1`, `PF_BC7`, `PF_FloatRGBA`)
+  - `imported_size_x`, `imported_size_y` (int) — the original on-disk source dimensions, before any LOD-bias / max-texture-size resize. Useful for "did the engine downscale my source?"
+
+**Errors:** `missing_required_field`, `asset_not_found`, `not_a_texture`.
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"inspect_texture","params":{"path":"/Game/Textures/Environment/T_Stone_D"}}
+```
+
+---
+
 ## get_camera_transform
 
 **Language-shim experiment, PR #46 (Python shim — bridge-side synthetic tool).** Read the level-editor viewport camera's location and rotation.
