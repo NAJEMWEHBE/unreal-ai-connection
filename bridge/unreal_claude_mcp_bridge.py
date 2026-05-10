@@ -716,6 +716,17 @@ TOOLS = [
         },
     },
     {
+        "name": "inspect_data_table",
+        "description": "Read structural properties of a UDataTable: RowStruct asset path + name, row count, sorted row names (FName.ToString), per-property name+type for each FProperty on the RowStruct (TFieldIterator with EFieldIterationFlags::None to skip super fields), client-strip flag, missing/extra-field tolerance flags, optional ImportKeyField. C++ handler; no new Build.cs deps (Engine + CoreUObject cover UDataTable / UScriptStruct / FProperty). Null-guards RowStruct (freshly-created DataTables can have no struct assigned).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "UE asset path of a UDataTable, e.g. /Game/Data/DT_Items."},
+            },
+            "required": ["path"],
+        },
+    },
+    {
         "name": "get_camera_transform",
         "description": "Read the level-editor viewport camera transform. SYNTHETIC bridge-side handler (PR #46 language-shim experiment): composes execute_unreal_python + get_log_lines via the marker pattern. Returns { location: {x,y,z}, rotation: {pitch,yaw,roll} }.",
         "inputSchema": {

@@ -502,6 +502,14 @@
       "returns": { "ok": "bool", "name": "string", "path": "string", "parent_class": "string", "blueprint_status": "string enum: UpToDate | UpToDateWithWarnings | Dirty | Error | BeingCreated | Unknown", "palette_category": "string (conditional, when non-empty)", "can_init_without_player_context": "bool", "property_bindings_allowed": "bool (from ArePropertyBindingsAllowed())", "property_bindings_count": "int (from WBP::PropertyBindings; performance signal)", "binding_count": "int (Bindings.Num)", "bindings": "array of {object_name, property_name, function_name}", "animation_count": "int (valid TObjectPtr<UWidgetAnimation> entries only)", "animations": "array of {name, display_label, start_time, end_time, length_seconds, binding_count}", "inherited_named_slot_count": "int", "inherited_named_slots": "array of string", "inherited_slots_with_content": "array of string (sorted, stable across calls)" }
     },
     {
+      "name": "inspect_data_table",
+      "description": "Read structural properties of a UDataTable: RowStruct identity (asset path + name), row count, sorted row names, per-property name+type on the RowStruct (TFieldIterator skipping super fields), strip-from-client-builds flag, ignore-extra/missing-fields tolerance flags, optional ImportKeyField. C++ handler. No new Build.cs deps (Engine + CoreUObject cover UDataTable / UScriptStruct / FProperty). Null-guards RowStruct.",
+      "params": {
+        "path": "string (required) - UE asset path of a UDataTable"
+      },
+      "returns": { "ok": "bool", "name": "string", "path": "string", "row_struct": "string (conditional, when RowStruct is non-null; asset path of the UScriptStruct)", "row_struct_name": "string (conditional, when RowStruct is non-null)", "row_count": "int", "rows": "array of string (sorted, stable across calls)", "row_property_count": "int", "row_properties": "array of {name, type} where type is FProperty::GetCPPType (e.g. int32, FString, FVector)", "strip_from_client_builds": "bool", "ignore_extra_fields": "bool", "ignore_missing_fields": "bool", "import_key_field": "string (conditional, when non-empty)" }
+    },
+    {
       "name": "get_camera_transform",
       "description": "Read level-editor viewport camera transform. SYNTHETIC bridge-side handler -- composes execute_unreal_python + get_log_lines via marker pattern. Part of language-shim experiment (PR #46).",
       "params": {},
