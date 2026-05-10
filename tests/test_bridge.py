@@ -23,7 +23,7 @@ def test_tools_list_size():
     # Cross-checked against the manifest in test_manifest_sync.py; the absolute
     # number bumps with each new tool. Function name kept count-agnostic so
     # it doesn't drift behind the assertion (per Sonnet pre-review on PR #50).
-    assert len(bridge.TOOLS) == 62
+    assert len(bridge.TOOLS) == 63
 
 
 def test_each_tool_has_required_mcp_fields():
@@ -78,6 +78,7 @@ def test_tool_names_are_unique_and_match_handlers():
         "inspect_anim_montage",
         "inspect_widget_blueprint",
         "inspect_data_table",
+        "inspect_texture",
         "get_camera_transform",
         "set_camera_transform",
         "screenshot_actor",
@@ -338,6 +339,18 @@ def test_inspect_anim_montage_in_tools_catalog():
     assert t is not None
     assert t["inputSchema"]["required"] == ["path"]
     assert t["inputSchema"]["properties"]["path"]["type"] == "string"
+
+
+def test_inspect_texture_in_tools_catalog():
+    """Tier 3: inspect_texture requires path. C++ handler that reads UTexture
+    base + UTexture2D-specific surface (size/mips/pixel_format/imported_size
+    emitted conditionally only for UTexture2D). Pairs with configure_texture
+    sibling (which mutates these fields)."""
+    t = next((t for t in bridge.TOOLS if t["name"] == "inspect_texture"), None)
+    assert t is not None
+    assert t["inputSchema"]["required"] == ["path"]
+    assert t["inputSchema"]["properties"]["path"]["type"] == "string"
+    assert "inspect_texture" not in bridge.SYNTHETIC_TOOLS
 
 
 def test_inspect_data_table_in_tools_catalog():
@@ -931,7 +944,7 @@ def test_handle_tools_list_returns_all_tools():
     resp = bridge.handle({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
     assert resp["id"] == 2
     assert "tools" in resp["result"]
-    assert len(resp["result"]["tools"]) == 62
+    assert len(resp["result"]["tools"]) == 63
 
 
 # -------- handle: tools/call --------------------------------------------------

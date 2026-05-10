@@ -727,6 +727,17 @@ TOOLS = [
         },
     },
     {
+        "name": "inspect_texture",
+        "description": "Read structural properties of a UTexture asset (UTexture2D / UTextureCube / UTextureRenderTarget / UTexture2DArray / ...): texture class, surface dimensions (width/height/depth via virtual accessors), sRGB, compression settings, filter, LOD group, LOD bias, mip-gen settings, virtual-texture streaming flag, never-stream flag, composite-texture cross-link. UTexture2D-specific: size_x / size_y / num_mips / pixel_format / imported_size_x|y. Pairs with the existing configure_texture handler (mutates these fields) and import_texture (creates the asset). C++ handler; no new Build.cs deps (Engine covers UTexture / UTexture2D / EPixelFormat).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "UE asset path of a UTexture, e.g. /Game/Textures/Environment/T_Stone_D."},
+            },
+            "required": ["path"],
+        },
+    },
+    {
         "name": "get_camera_transform",
         "description": "Read the level-editor viewport camera transform. SYNTHETIC bridge-side handler (PR #46 language-shim experiment): composes execute_unreal_python + get_log_lines via the marker pattern. Returns { location: {x,y,z}, rotation: {pitch,yaw,roll} }.",
         "inputSchema": {
