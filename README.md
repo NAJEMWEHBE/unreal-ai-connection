@@ -4,7 +4,7 @@
 
 **Drive Unreal Engine 5 from Claude Code over a local TCP socket.**
 
-Sixty editor-automation tools. Zero pixel-clicking. ~50ms round-trip.
+Sixty-eight editor-automation tools. Zero pixel-clicking. ~50ms round-trip.
 
 [![CI](https://github.com/NAJEMWEHBE/UnrealClaudeMCP/actions/workflows/tests.yml/badge.svg)](https://github.com/NAJEMWEHBE/UnrealClaudeMCP/actions/workflows/tests.yml)
 [![License](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
@@ -44,7 +44,7 @@ The plugin sidesteps these limits by calling UE's native C++ APIs directly insid
 
 ## Tools
 
-**60 tools total.** 56 are native C++ handlers registered by the plugin at editor startup; 4 are bridge-side synthetic tools (`wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`) that compose existing handlers without a dedicated UE round-trip — see `bridge/unreal_claude_mcp_bridge.py`'s `SYNTHETIC_TOOLS`. Per-tool JSON schemas and examples live in [`docs/TOOLS.md`](docs/TOOLS.md). Grouped overview:
+**68 tools total.** 64 are native C++ handlers registered by the plugin at editor startup; 4 are bridge-side synthetic tools (`wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`) that compose existing handlers without a dedicated UE round-trip — see `bridge/unreal_claude_mcp_bridge.py`'s `SYNTHETIC_TOOLS`. Per-tool JSON schemas and examples live in [`docs/TOOLS.md`](docs/TOOLS.md). Grouped overview:
 
 ### Python execution
 
@@ -76,13 +76,17 @@ The plugin sidesteps these limits by calling UE's native C++ APIs directly insid
 | `inspect_blueprint` | Variables, function/event graphs, parent class of any Blueprint asset. |
 | `compile_blueprint` | Recompile a Blueprint asset and report errors. |
 | `inspect_widget_tree` | Read the widget hierarchy of a `UWidgetBlueprint` or EUW (the thing UE Python can't do). |
+| `inspect_widget_blueprint` | Widget-BP-specific surface: animations, delegate bindings, palette category, inherited named slots, property-binding count, blueprint compile status. Pairs with `inspect_blueprint` + `inspect_widget_tree`. |
 | `edit_widget_tree` | Mutate the tree: `set_root` / `add_child` / `set_property`. Solves the EUW WidgetTree blocker. |
 | `inspect_anim_blueprint` | Read variables and state machines of an Animation Blueprint. |
 | `inspect_anim_montage` | Read sections, slots, and notify tracks of an `UAnimMontage`. |
 | `inspect_static_mesh` | LODs, materials, collision, bounds for a `UStaticMesh`. |
 | `inspect_skeletal_mesh` | LODs, materials, sockets, skeleton info for a `USkeletalMesh`. |
+| `inspect_physics_asset` | Body setups (one per simulated bone), constraint setups (joints between bodies), bounds-bodies subset, named physical-animation + constraint profiles. Cross-links to `inspect_skeletal_mesh` via `preview_skeletal_mesh`. |
 | `inspect_niagara_system` | Emitters and exposed user parameters of a Niagara system. |
 | `inspect_landscape` | Components, layers, and material info for a landscape actor. |
+| `inspect_data_table` | RowStruct identity, sorted row names, per-property name+type for every `FProperty` on the row struct, plus client-strip / ignore-extra/missing-fields flags. |
+| `inspect_curve` | UCurveBase channel layout (1ch UCurveFloat / 4ch UCurveLinearColor / 3ch UCurveVector), per-channel name + key count + per-channel + global time/value range. |
 
 ### Materials
 
@@ -99,6 +103,7 @@ The plugin sidesteps these limits by calling UE's native C++ APIs directly insid
 |---|---|
 | `import_texture` | Bring an image file (PNG / JPG / EXR / TGA / BMP / HDR) from disk into the project as a `UTexture2D` asset via UE's canonical import path. |
 | `configure_texture` | Adjust SRGB / compression / LOD group / filter on an existing texture asset. |
+| `inspect_texture` | Texture class, surface dimensions, sRGB, compression, filter, LOD group, mip-gen, virtual-texture / never-stream flags, composite-texture cross-link. UTexture2D-specific size / mips / pixel format / imported source dimensions emitted conditionally. |
 
 ### Level Sequences
 
@@ -157,6 +162,14 @@ The plugin sidesteps these limits by calling UE's native C++ APIs directly insid
 | `poll_subscription` | Drain queued events from a specific subscription. |
 | `unsubscribe` | Close a subscription. |
 
+### Audio (introspection trio)
+
+| Tool | Purpose |
+|---|---|
+| `inspect_sound_cue` | USoundCue duration, multipliers, attenuation cross-link, root sound-node class, full graph node list (sorted, with class taxonomy). |
+| `inspect_sound_wave` | USoundWave sample rate, channels, frame count, duration, compression type + runtime format + compressed-data size, sound group, looping/streaming flags, loading behavior, subtitle + cue-point + loop-region counts. Editor-only LUFS / sample-peak / comment fields conditional. |
+| `inspect_sound_attenuation` | USoundAttenuation 3D-playback rules: distance algorithm + shape, spatialization, air-absorption LPF/HPF, listener focus, occlusion tracing, reverb send, priority attenuation, plus assorted feature flags. Each major feature is gated by its master bitfield; sub-objects collapse to `{enabled: false}` when disabled. |
+
 ### Camera (bridge-side synthetic tools)
 
 | Tool | Purpose |
@@ -171,7 +184,7 @@ The plugin sidesteps these limits by calling UE's native C++ APIs directly insid
 |---|---|
 | `list_tools` | Names of every registered method (for autodiscovery). |
 
-Adding a 57th C++ handler is one `.cpp` file plus one line of registration — see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). New synthetic tools are an entry in `SYNTHETIC_TOOLS` plus a function in [`bridge/unreal_claude_mcp_bridge.py`](bridge/unreal_claude_mcp_bridge.py).
+Adding a 65th C++ handler is one `.cpp` file plus one line of registration — see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). New synthetic tools are an entry in `SYNTHETIC_TOOLS` plus a function in [`bridge/unreal_claude_mcp_bridge.py`](bridge/unreal_claude_mcp_bridge.py).
 
 ---
 
@@ -186,7 +199,7 @@ Adding a 57th C++ handler is one `.cpp` file plus one line of registration — s
    ```
    [LogUnrealClaudeMCP] Module started
    LogUCMCPHandler: Registered handler 'execute_unreal_python'
-     ... (56 lines)
+     ... (64 lines)
    [LogUCMCP] Listening on 127.0.0.1:18888
    ```
 5. **Wire Claude Code.** Copy `examples/.mcp.json.example` to your project root as `.mcp.json`, edit the path to point at `bridge/unreal_claude_mcp_bridge.py`, restart Claude Code, and approve the new MCP server.
@@ -238,9 +251,10 @@ tests/                            Pytest suite for the bridge (no UE required)
 | | |
 |---|---|
 | **Latest release** | v0.9.1 — 2026-05-08 |
-| **Tools** | 60 live (56 native C++ handlers + 4 bridge-side synthetic tools) |
-| **Tested on** | UE 5.7.4 / Windows 11 / Visual Studio 2026 / MSVC 14.50 |
-| **Bridge tests** | 98 pytest cases, ~99% coverage |
+| **Tools** | 68 live (64 native C++ handlers + 4 bridge-side synthetic tools) |
+| **Tested on** | UE 5.7.4 / Windows 11 / Visual Studio Build Tools 2022 / MSVC 14.44 / NETFXSDK 4.8.1 |
+| **Build status** | Plugin compiles + loads against UE 5.7.4 host on Windows 11; 64 handlers register, TCP server binds `127.0.0.1:18888`, bridge round-trip via `tools/call list_tools` returns full registry. |
+| **Bridge tests** | 178 pytest cases, ~99% coverage |
 | **CI** | GitHub Actions on every push and PR |
 
 ---
