@@ -760,6 +760,17 @@ TOOLS = [
         },
     },
     {
+        "name": "inspect_sound_cue",
+        "description": "Read structural properties of a USoundCue asset: total duration, max distance, volume + pitch multipliers, subtitle priority, max audible distance, attenuation-settings cross-link, root sound-node class, and the full graph of sound nodes (sorted by name with class taxonomy). C++ handler; no new Build.cs deps (Engine covers USoundCue / USoundBase / USoundNode / USoundAttenuation). Null-skips TObjectPtr<USoundNode> entries (PR #55->#57 lesson).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "UE asset path of a USoundCue, e.g. /Game/Audio/SC_Footstep."},
+            },
+            "required": ["path"],
+        },
+    },
+    {
         "name": "get_camera_transform",
         "description": "Read the level-editor viewport camera transform. SYNTHETIC bridge-side handler (PR #46 language-shim experiment): composes execute_unreal_python + get_log_lines via the marker pattern. Returns { location: {x,y,z}, rotation: {pitch,yaw,roll} }.",
         "inputSchema": {
