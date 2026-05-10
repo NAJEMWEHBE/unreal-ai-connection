@@ -23,7 +23,7 @@ def test_tools_list_size():
     # Cross-checked against the manifest in test_manifest_sync.py; the absolute
     # number bumps with each new tool. Function name kept count-agnostic so
     # it doesn't drift behind the assertion (per Sonnet pre-review on PR #50).
-    assert len(bridge.TOOLS) == 63
+    assert len(bridge.TOOLS) == 64
 
 
 def test_each_tool_has_required_mcp_fields():
@@ -79,6 +79,7 @@ def test_tool_names_are_unique_and_match_handlers():
         "inspect_widget_blueprint",
         "inspect_data_table",
         "inspect_texture",
+        "inspect_curve",
         "get_camera_transform",
         "set_camera_transform",
         "screenshot_actor",
@@ -339,6 +340,18 @@ def test_inspect_anim_montage_in_tools_catalog():
     assert t is not None
     assert t["inputSchema"]["required"] == ["path"]
     assert t["inputSchema"]["properties"]["path"]["type"] == "string"
+
+
+def test_inspect_curve_in_tools_catalog():
+    """Tier 3: inspect_curve requires path. C++ handler that reads
+    UCurveBase channel layout (1 for UCurveFloat, 4 for UCurveLinearColor,
+    3 for UCurveVector), per-channel key count + ranges, global time +
+    value range across all channels."""
+    t = next((t for t in bridge.TOOLS if t["name"] == "inspect_curve"), None)
+    assert t is not None
+    assert t["inputSchema"]["required"] == ["path"]
+    assert t["inputSchema"]["properties"]["path"]["type"] == "string"
+    assert "inspect_curve" not in bridge.SYNTHETIC_TOOLS
 
 
 def test_inspect_texture_in_tools_catalog():
@@ -944,7 +957,7 @@ def test_handle_tools_list_returns_all_tools():
     resp = bridge.handle({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
     assert resp["id"] == 2
     assert "tools" in resp["result"]
-    assert len(resp["result"]["tools"]) == 63
+    assert len(resp["result"]["tools"]) == 64
 
 
 # -------- handle: tools/call --------------------------------------------------

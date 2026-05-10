@@ -518,6 +518,14 @@
       "returns": { "ok": "bool", "name": "string", "path": "string", "texture_class": "string (e.g. Texture2D, TextureCube, TextureRenderTarget2D)", "compression_settings": "string enum (Default | Normalmap | Masks | Grayscale | Displacementmap | VectorDisplacementmap | HDR | UserInterface2D | BC7 | HalfFloat | SingleFloat | Alpha | DistanceFieldFont | HDR_Compressed | HDR_F32 | Unknown)", "filter": "string enum (Nearest | Bilinear | Trilinear | Default | Unknown)", "lod_group": "string (TextureGroup name from UTexture::GetTextureGroupString)", "mip_gen_settings": "string (TextureMipGenSettings name from UTexture::GetMipGenSettingsString)", "lod_bias": "int", "srgb": "bool", "virtual_texture_streaming": "bool", "never_stream": "bool", "composite_texture": "string (conditional, when CompositeTexture is non-null; asset path)", "surface_width": "float (UTexture::GetSurfaceWidth)", "surface_height": "float (UTexture::GetSurfaceHeight)", "surface_depth": "float (UTexture::GetSurfaceDepth)", "size_x": "int (conditional, UTexture2D-only via GetSizeX)", "size_y": "int (conditional, UTexture2D-only via GetSizeY)", "num_mips": "int (conditional, UTexture2D-only via GetNumMips)", "pixel_format": "string (conditional, UTexture2D-only; EPixelFormat name via GetPixelFormatEnum)", "imported_size_x": "int (conditional, UTexture2D-only via GetImportedSize().X)", "imported_size_y": "int (conditional, UTexture2D-only via GetImportedSize().Y)" }
     },
     {
+      "name": "inspect_curve",
+      "description": "Read structural properties of a UCurveBase asset: curve class, channel count, global time + value range, per-channel name + key count + per-channel ranges. Channel layout differs by subclass (UCurveFloat = 1, UCurveLinearColor = 4 RGBA, UCurveVector = 3 XYZ). C++ handler. No new Build.cs deps (Engine covers UCurveBase / FRichCurve / FRealCurve).",
+      "params": {
+        "path": "string (required) - UE asset path of a UCurveBase (UCurveFloat / UCurveLinearColor / UCurveVector / any subclass)"
+      },
+      "returns": { "ok": "bool", "name": "string", "path": "string", "curve_class": "string (e.g. CurveFloat, CurveLinearColor, CurveVector)", "channel_count": "int", "time_range": "{min, max}", "value_range": "{min, max}", "channels": "array of {name, key_count, time_range, value_range}; key_count is -1 when CurveToEdit is null (theoretical guard)" }
+    },
+    {
       "name": "get_camera_transform",
       "description": "Read level-editor viewport camera transform. SYNTHETIC bridge-side handler -- composes execute_unreal_python + get_log_lines via marker pattern. Part of language-shim experiment (PR #46).",
       "params": {},
