@@ -45,6 +45,15 @@ ruvector.db
 # Project-local Codex CLI config / scratchpad (mirror of .claude/ — local-only)
 .codex/
 
+# Project-local Copilot CLI config / scratchpad (mirror of .claude/ — local-only)
+.copilot/
+
+# Transient scratch dir for parallel-AI dispatches (Codex + Copilot prompt files,
+# raw CLI outputs). Deleted pre-commit per existing cadence; gitignored so accidental
+# leaks don't happen if someone forgets the cleanup step. See HANDOFF.md
+# Session 2026-05-11 (fifth micro-session).
+tmp/
+
 # Belt-and-suspenders: never accept the private HD Media plugin folder if it ends up nested here
 HDMediaUnrealMCP/
 HDMediaCamPlugin/
