@@ -32,7 +32,37 @@ The bridge is registered as `unreal-claude-mcp` in this project's `.mcp.json` (r
 ```
 codex mcp add unreal-claude-mcp -- py F:\UnrealClaudeMCP\bridge\unreal_claude_mcp_bridge.py
 ```
-After registration, all 71 tools become available through the standard MCP `tools/list` + `tools/call` flow. Open the host UE project with the plugin enabled before any tool call (the bridge surfaces a clear error otherwise).
+After registration, all 75 tools become available through the standard MCP `tools/list` + `tools/call` flow. Open the host UE project with the plugin enabled before any tool call (the bridge surfaces a clear error otherwise).
+
+## Local LLMs via Ollama (free; no cloud / no quota)
+
+Ollama is installed at `C:\Users\NINOH\AppData\Local\Programs\Ollama\ollama.exe`. Models live on `F:\ollama\models` (the `OLLAMA_MODELS` user env var redirects from the default `%USERPROFILE%\.ollama\models` so the 1.5 TB on F: takes the storage hit instead of C:). The server auto-starts on user login and listens on `http://127.0.0.1:11434`.
+
+**Models pulled** (PR #102 setup; both free open-weights, both can be removed via `ollama rm <name>` if you want the disk back):
+- `qwen3.6:27b` (17 GB) — coding-focused reasoning model with `thinking` mode. Best general-coding pick for this rig. Inference ~3-6 tok/s on the 12 GB RTX 4070 Ti (CPU offload for the part that doesn't fit VRAM). Toggle thinking off with `--think=false` (REST API: `"think": false`) for ~2x speed when you don't need chain-of-thought.
+- `gemma4:e4b` (9.6 GB) — Google's small-but-capable Gemma 4 variant. Fits VRAM cleanly → ~30-50 tok/s. Use for quick replies, multimodal (vision/audio tags), and parallel-dispatch-when-Qwen-is-busy. Less strong on heavy coding than Qwen.
+
+**DeepSeek-V4-Pro was intentionally NOT pulled.** The ollama.com page tags it `cloud` (no local size tags) — cloud-only, not free for local inference. Skipped per the user's "must be free" constraint.
+
+**Dispatch via Codex CLI (recommended — same dispatch UX as the cloud Codex flow):**
+```
+codex exec --oss --local-provider ollama -m qwen3.6:27b -s read-only "<prompt>"
+# or for faster small-model dispatches:
+codex exec --oss --local-provider ollama -m gemma4:e4b -s read-only "<prompt>"
+```
+The agentic loop (read files, edit files, search) all works the same — just the LLM is local instead of OpenAI cloud. Token cost: zero. Inference cost: time + electricity.
+
+**Dispatch via raw REST (for ad-hoc smoke tests / shim scripts):**
+```bash
+curl -s -X POST http://127.0.0.1:11434/api/generate -d '{"model":"qwen3.6:27b","prompt":"...","stream":false,"think":false,"options":{"temperature":0}}'
+```
+
+**When to use local vs cloud:**
+- **Cloud Codex / Copilot** — high-stakes synthetics, complex graph APIs, anything that needs first-try ship-ready output. Token cost: real. Speed: 60-150 tok/s.
+- **Local Qwen 3.6 27b** — bulk dispatches, "what would you do here?" exploratory pings, anything where waiting 5-15 min is fine. Free, no quota, runs offline. Speed: 3-6 tok/s.
+- **Local Gemma 4 e4b** — quick reply / yes-no / pattern-match / outline drafts. Fast (30-50 tok/s) but weaker reasoning. Free, no quota.
+
+**Prompt-discipline recipe transfers to local models too** — the same 5-step recipe below (literal template, upstream contract, forbid the shortcut, pin test style, ordered reading) works for local Qwen and Gemma. The same wrong-API-naming traps still apply. Local-model dispatches should follow the SAME prompt template that PR #92 and PR #99 used for Copilot retries.
 
 ## Cross-agent prompt-discipline recipe (validated PR #90 + #92)
 
