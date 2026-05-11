@@ -569,3 +569,36 @@ First micro-session after the post-recovery sprint. Two outcomes:
 - **Live smoke pending on `compile_mod_pak`** — David noted in #84 that he had no live Editor session to test it against the Conan Exiles Enhanced Dev Kit at submission time. If he comes back with a follow-up issue / PR, that's the validation cycle.
 - **Cross-repo contributor pattern is now documented.** Next external contributor PR should follow the same flow (or be granted CI-approval directly if it's a known contributor).
 - **HANDOFF closing-note discipline continues to land.** This is the third consecutive session that closes with a HANDOFF append; next-session pickup is mechanical.
+
+**Session 2026-05-11 (second micro-session — tool-count drift sweep + test trap structural fix):**
+
+Pure mechanical chore PR (#87, self-merged on CI green per directive #7). Two outcomes:
+
+1. **Doc-drift sweep across 11 artefacts** to land the post-PR #85 totals everywhere. Many call-sites had been stale for multiple sprints: `CLAUDE.md` was at "60 / 56 + 4" (pre-PR #51!), `RESTART-RECOVERY.md` had the same; the at-a-glance section at the top of this doc was at "65 / 61 + 4" (pre-2026-05-10 sprint); README + `.uplugin` Description + manifest `description` + INSTALLATION + ARCHITECTURE diagram + copilot-instructions + bridge module docstring + `TOOLS` header comment were all at "68 / 64 + 4" (pre-PR #85). Now all at **69 = 64 C++ + 5 synthetic** with `compile_mod_pak` enumerated in every synthetic-tool list. Closing-note sprint records in this doc were intentionally left frozen — they're history.
+
+2. **Two-count-assertions trap structurally fixed.** The previous closing note flagged `tests/test_bridge.py:26` + `:1037` as a "easy to miss one of two" trap. Discovered a *third* hardcoded count site (`tests/test_manifest_sync.py:45`). Hoisted all three behind a single `EXPECTED_TOOL_COUNT` constant in `tests/conftest.py` (informational `EXPECTED_CPP_HANDLER_COUNT` + `EXPECTED_SYNTHETIC_TOOL_COUNT` split alongside). Bonus: `test_handle_tools_list_returns_all_tools` no longer re-pins the absolute count — cross-checks `len(bridge.TOOLS)` instead. Next tool bump is one line.
+
+**Sweep procedure used (reusable for future drift):**
+```
+# canonical counts in the docs:
+rg -n "\b(56|60|61|65|68)\b.*\b(C\+\+|handlers?|tools? total|synthetic)" --glob '!docs/superpowers/**' --glob '!docs/HANDOFF.md'
+# stale 4-synthetic enumeration (no compile_mod_pak):
+rg -n "wait_for_events.*screenshot_actor[^,]" --glob '!docs/HANDOFF.md'
+```
+Run before closing any session that bumps the tool count. The `--glob` excludes are because (a) historical superpowers plans are frozen by intent, (b) HANDOFF.md sprint records are intentionally chronological.
+
+**New trap-table entries from this session:**
+
+- **There are THREE hardcoded tool-count assertions, not two.** `tests/test_bridge.py:26` + `:1037` were the documented pair; `tests/test_manifest_sync.py:45` was the silent third. Now all three behind `EXPECTED_TOOL_COUNT` in `tests/conftest.py`. If you add a fourth count-pinning test in future, route it through the same constant.
+- **`test_handle_tools_list_returns_all_tools` shape vs count.** The shape test (does `tools/list` return all `bridge.TOOLS`?) and the count test (is the catalog the expected size?) are different concerns. PR #87 split them — shape test compares `len(resp) == len(bridge.TOOLS)`, count test asserts `len(bridge.TOOLS) == EXPECTED_TOOL_COUNT`. Don't re-merge them.
+- **At-a-glance / closing-note count divergence.** HANDOFF.md's top-of-doc count had drifted by 4 (claimed 65, real 69). Convention: the at-a-glance + runbook expectations get bumped IN THE SAME PR as the new closing-note append. PR #85 (the previous session) bumped the closing-note but didn't bump the at-a-glance — PR #87 caught up. Future sessions should bump both together.
+
+**Tool count: 69 → 69 (no change; doc-only sweep).**
+**pytest: 179 → 179 passing (refactor was behaviour-preserving; one assertion stopped re-pinning the count, the other two now read it from `conftest`).**
+**main HEAD:** `3e4c82d` at end of this micro-session.
+
+**What to watch in next session:**
+- **Manual Copilot enable.** Same status as previous closing note — UI toggle still queued.
+- **Live smoke on `compile_mod_pak`** — same status.
+- **First tool bump after this PR is the test.** When the next handler lands, the test refactor lets the contributor change one line in `tests/conftest.py` rather than three. Verify the conftest constant is the one place anyone touches.
+- **Doc-drift sweep is now part of the closing cadence.** The two rg commands above should run as part of every "close-the-loop" PR — it took multiple sprints for stale counts to compound to four-out-of-date in CLAUDE.md.
