@@ -712,3 +712,61 @@ This recipe was originally hardened for Codex over PRs #76 → #81 → #85; this
 - **C++ head-to-head dispatch is the next unvalidated test.** Both Codex and Copilot have shipped Python this session; the harder C++ surface (`inspect_sound_class` + `inspect_audio_bus` audio twins) is still queued. Requires host cold compile after both ship — that's the gating bottleneck.
 - **`.codex/` stale-artifact cleanup** still in the carry-over list from sessions back. Pure chore, low priority.
 - **`tmp/` could be added to `.gitignore`** — three sessions in a row have used `tmp/parallel-dispatch/` for scratch + deleted pre-commit. Adding to gitignore makes the cleanup unnecessary and prevents accidental leaks.
+
+**Session 2026-05-11 (sixth micro-session — cross-agent infrastructure setup):**
+
+User pivoted: "Your system skills and prompts and plugins and CPUs works. All of it. If you want to give them to Codex and Copilot, install them in their system so they could operate like you, do it." Interpretation: propagate the Claude Code project-context + MCP tool access to Codex CLI + Copilot CLI so both can drive UE on this project the same way Claude Code does.
+
+**What shipped:**
+
+1. **`AGENTS.md`** at repo root. The universal-coding-agent convention. Codex CLI auto-loads `AGENTS.md` (confirmed via its docs); Copilot CLI loads `.github/copilot-instructions.md` (already exists); both now see the same project context Claude Code sees via `CLAUDE.md`. `AGENTS.md` bakes in:
+   - Quick orientation (tool counts, where to look).
+   - House rules (one-handler-one-file, verify-UE-API, vendor-neutral framing, cold-compile-before-merge).
+   - MCP server setup per agent (with the literal `codex mcp add` command).
+   - The 5-step cross-agent prompt-discipline recipe from PR #92's HANDOFF note.
+   - Trap-table highlights (manifest "required" substring, `call_ue` shape, `execute_unreal_python` output channel, UE 5.7 access-modifier traps, deprecated `UTexture::CompositeTexture`).
+
+2. **`.mcp.json` path correction.** Stale `C:\Users\NINOH\Desktop\UnrealClaudeMCP\bridge\...` from before the C:-format recovery → fixed to `F:\UnrealClaudeMCP\bridge\...`. Gitignored (per-machine), so the fix is local; the in-repo `examples/.mcp.json.example` was also updated to point future Codex CLI users at the right registration command.
+
+3. **`codex mcp add unreal-claude-mcp -- py F:\UnrealClaudeMCP\bridge\unreal_claude_mcp_bridge.py`** registered the bridge globally in `~/.codex/config.toml`. `codex mcp list` now shows the server. Codex CLI sees all 71 tools.
+
+4. **`.gitignore` tidy-up** for the parallel-AI workflow cadence:
+   - `tmp/` (three sessions of manual cleanup says: gitignore it).
+   - `.copilot/` (mirrors the existing `.claude/` + `.codex/` entries — project-local Copilot CLI scratchpad/config).
+
+**Cross-agent capability matrix (post-sixth-session):**
+
+| Agent | Project context source | MCP server source | UE bridge accessible? |
+|---|---|---|---|
+| Claude Code | `CLAUDE.md` (auto) | `.mcp.json` (workspace) | Yes |
+| Codex CLI | `AGENTS.md` (auto) | `~/.codex/config.toml` (global, registered this session) | Yes |
+| Copilot CLI | `AGENTS.md` + `.github/copilot-instructions.md` (both auto) | `.mcp.json` (workspace) + plugin config | Yes |
+| Cursor | `AGENTS.md` (auto) | `.mcp.json` (workspace) | Yes |
+| Gemini CLI | `AGENTS.md` + `GEMINI.md` if present (auto) | per Gemini's MCP convention | Yes if .mcp.json conventions match |
+
+The hub artefact is `AGENTS.md` + `.mcp.json`. Both are in-repo (or in a gitignored-but-documented machine-local file with a committed `.example`). New contributors can clone, install any of the four CLIs above, and have full project context + UE bridge access without per-agent setup beyond the one-shot `codex mcp add` (Codex only).
+
+**The user's request — "install them in their system so they could operate like you" — is now satisfied for the practical scope.** What's NOT propagated (and isn't reasonable to propagate):
+
+- **Claude Code-specific plugins** (anthropic-skills, superpowers, gsd, ruflo-*, caveman, claude-mem, etc.). These are Claude Code harness extensions; Codex and Copilot have their own plugin systems with different package formats. The skills that MATTER for THIS PROJECT (prompt-discipline recipe, trap-table) are now in `AGENTS.md` as instructions both Codex and Copilot read.
+- **Claude Code hooks** (CAVEMAN mode, etc.). Hooks fire in the Claude Code harness only. Codex has its own hook system (`~/.codex/hooks/`); Copilot doesn't expose hooks via public surface as of v1.0.44. Not worth propagating mode-style behaviour across agents.
+- **Subagents** (the `agent-sdk-dev:...`, `ruflo-*:...`, `code-modernization:...` agents in Claude Code's agent catalog). These are Claude Code's `Agent` tool dispatchees — Codex/Copilot have analogous `--agent` / `mcp` patterns but with different dispatch semantics. Per-project subagent setup is more work than it's worth for a small team.
+
+**New trap-table entries from this session:**
+
+- **`.mcp.json` is gitignored** — per-machine config. The committed `examples/.mcp.json.example` is the template new contributors copy + edit. Don't commit `.mcp.json` unless the entire team uses the same absolute path.
+- **Codex CLI does NOT read `.mcp.json`** — it uses `~/.codex/config.toml`. New contributors using Codex must run `codex mcp add` themselves (one-time per user). Document this in onboarding.
+- **AGENTS.md vs CLAUDE.md** — semantically mirror, but Claude Code reads CLAUDE.md and other agents read AGENTS.md. **Keep them in sync.** The doc-drift sweep procedure in HANDOFF should include AGENTS.md in the file list from now on.
+- **Copilot CLI's "workspace server" auto-discovery via `.mcp.json`** works without explicit registration — just having the file at the project root is enough. Confirmed via `copilot mcp list` before any `copilot mcp add` was run.
+
+**Tool count: 71 → 71 (no change).**
+**pytest: 188 → 188 passing (no test surface touched).**
+**main HEAD:** `a5e088f` end of feature merge; this closing-note PR adds one more merge on top.
+
+**What to watch in next session:**
+
+- **AGENTS.md ↔ CLAUDE.md sync.** Both files now hold project-context tool counts + trap-table highlights. Bump them in the same PR. Add AGENTS.md to the doc-drift `rg` sweep procedure.
+- **Codex + Copilot can now do real parallel work on this repo.** The next sprint can dispatch tasks to both CLIs in parallel and they'll have full project context + UE access. The unvalidated next test is still C++ head-to-head — see prior closing-note for `inspect_sound_class` + `inspect_audio_bus` audio twins.
+- **`.codex/` stale-artifact cleanup** still pending. With `.codex/` properly gitignored now, the artefact cleanup is the only loose end — pure chore PR if anyone wants it.
+- **`tmp/` is now gitignored**, so the cleanup-pre-commit dance from the last three sessions is unnecessary going forward.
+- **Sixth consecutive session closing-note discipline.** The cadence is fully institutionalised; the next agent can pick up purely from this doc + the at-a-glance at the top.
