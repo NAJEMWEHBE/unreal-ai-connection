@@ -110,6 +110,24 @@ TOOLS = [
         "inputSchema": {"type": "object", "properties": {}},
     },
     {
+        "name": "compile_mod_pak",
+        "description": "Compile a UE mod plugin to a .pak file via RunUAT BuildMod (game Dev Kits like Conan Exiles) or BuildPlugin (vanilla UE5), headless. No UE Editor session required. Especially useful for game Dev Kits in 'installed-build mode' where BuildPlugin is blocked (e.g. Conan Exiles Enhanced UE5) — falling back to BuildMod cleanly.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project_path": {"type": "string", "description": "Absolute path to .uproject (e.g. C:/.../ConanSandbox.uproject)"},
+                "mod_name": {"type": "string", "description": "Mod name; required for BuildMod (matches Content/Mods/<mod_name>/ folder)"},
+                "plugin_path": {"type": "string", "description": "Absolute path to .uplugin; required for BuildPlugin"},
+                "output_dir": {"type": "string", "description": "Directory for output .pak (created if missing)"},
+                "uat_command": {"type": "string", "enum": ["BuildMod", "BuildPlugin"], "default": "BuildMod", "description": "UAT command (BuildMod for game Dev Kits, BuildPlugin for vanilla UE5)"},
+                "run_uat_path": {"type": "string", "description": "Override path to RunUAT.bat; auto-discovered if not set"},
+                "extra_args": {"type": "array", "items": {"type": "string"}, "description": "Additional CLI args appended to RunUAT"},
+                "timeout_sec": {"type": "integer", "default": 1800, "description": "Max wait time (default 30 min)"},
+            },
+            "required": ["project_path"],
+        },
+    },
+    {
         "name": "list_tools",
         "description": "Return the names of every registered MCP method on the UE server.",
         "inputSchema": {"type": "object", "properties": {}},
@@ -1238,6 +1256,136 @@ def synthetic_screenshot_actor(req_id, args):
     })
 
 
+def synthetic_compile_mod_pak(req_id, args):
+    """Bridge-side: compile a UE mod plugin to a .pak file via RunUAT BuildMod
+    or BuildPlugin, headless. No UE Editor session required.
+
+    Targets game-specific Dev Kit setups (Conan Exiles, Satisfactory, etc.) that
+    ship a custom RunUAT command for cooking + packaging mods. Falls back to
+    standard `BuildPlugin` for vanilla UE5 projects.
+
+    Args:
+      project_path:   absolute path to .uproject (e.g. C:/.../ConanSandbox.uproject)
+      mod_name:       mod name; must match Content/Mods/<mod_name>/ folder for BuildMod
+      plugin_path:    optional, for BuildPlugin: absolute path to .uplugin
+      output_dir:     where to write the .pak (created if missing)
+      uat_command:    "BuildMod" (default, game-specific) or "BuildPlugin" (vanilla UE)
+      run_uat_path:   override path to RunUAT.bat; defaults to discovered from project_path
+      extra_args:     additional CLI args appended to RunUAT (list of str)
+      timeout_sec:    max wait, default 1800 (30 min)
+
+    Returns:
+      ok (bool), pak_path (str | null), exit_code (int), stdout_tail (str),
+      stderr_tail (str), duration_sec (float)
+
+    Why synthetic: this tool just shells out to RunUAT.bat — no UE-side state
+    or in-editor handlers needed. Bridge-side keeps the C++ plugin focused on
+    runtime/editor automation and lets CI-style operations live where they
+    naturally fit (the host machine running the bridge).
+
+    Useful in CI/CD pipelines: spawn bridge headless via Claude Code, call
+    compile_mod_pak, get a .pak in N minutes. Especially valuable for game
+    Dev Kits in 'installed-build mode' that block BuildPlugin (e.g. Conan
+    Exiles Enhanced) — falling back to BuildMod cleanly.
+    """
+    import os
+    import shutil
+    import subprocess
+    import time
+
+    project_path = args.get("project_path")
+    mod_name = args.get("mod_name")
+    plugin_path = args.get("plugin_path")
+    output_dir = args.get("output_dir")
+    uat_command = args.get("uat_command", "BuildMod")
+    run_uat_path = args.get("run_uat_path")
+    extra_args = args.get("extra_args") or []
+    timeout_sec = int(args.get("timeout_sec", 1800))
+
+    if not project_path or not os.path.isfile(project_path):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "compile_mod_pak: project_path missing or invalid file",
+        })
+
+    if uat_command == "BuildMod" and not mod_name:
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "compile_mod_pak: mod_name required for BuildMod",
+        })
+
+    if uat_command == "BuildPlugin" and not plugin_path:
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "compile_mod_pak: plugin_path required for BuildPlugin",
+        })
+
+    # Auto-discover RunUAT.bat from project Engine sibling
+    if not run_uat_path:
+        proj_dir = os.path.dirname(project_path)
+        # Look 2 levels up for Engine/Build/BatchFiles/RunUAT.bat
+        candidate = os.path.join(os.path.dirname(proj_dir), "Engine", "Build", "BatchFiles", "RunUAT.bat")
+        if os.path.isfile(candidate):
+            run_uat_path = candidate
+        else:
+            run_uat_path = shutil.which("RunUAT") or shutil.which("RunUAT.bat")
+
+    if not run_uat_path or not os.path.isfile(run_uat_path):
+        return make_response(req_id, error={
+            "code": -32603,
+            "message": f"compile_mod_pak: RunUAT.bat not found (set run_uat_path or place near {project_path})",
+        })
+
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
+
+    cmd = [run_uat_path, uat_command, f"-Project={project_path}"]
+    if uat_command == "BuildMod":
+        cmd.append(f"-Mod={mod_name}")
+        cmd.extend(["-Cook", "-Pak", "-FinalPak"])
+        if output_dir:
+            cmd.append(f"-Output={output_dir}")
+    elif uat_command == "BuildPlugin":
+        cmd.append(f"-Plugin={plugin_path}")
+        if output_dir:
+            cmd.append(f"-Package={output_dir}")
+    cmd.extend(extra_args)
+
+    start = time.time()
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_sec)
+        duration = time.time() - start
+    except subprocess.TimeoutExpired:
+        return make_response(req_id, error={
+            "code": -32603,
+            "message": f"compile_mod_pak: timeout after {timeout_sec}s",
+        })
+    except Exception as e:
+        return make_response(req_id, error={
+            "code": -32603,
+            "message": f"compile_mod_pak: subprocess exception: {e!r}",
+        })
+
+    # Look for generated .pak in output_dir
+    pak_path = None
+    if output_dir and os.path.isdir(output_dir):
+        for fn in os.listdir(output_dir):
+            if fn.endswith(".pak"):
+                pak_path = os.path.join(output_dir, fn)
+                break
+
+    return _wrap_tool_result(req_id, {
+        "ok": proc.returncode == 0 and pak_path is not None,
+        "pak_path": pak_path,
+        "exit_code": proc.returncode,
+        "stdout_tail": (proc.stdout or "")[-4000:],
+        "stderr_tail": (proc.stderr or "")[-2000:],
+        "duration_sec": round(duration, 2),
+        "uat_command": uat_command,
+        "cmd": cmd,
+    })
+
+
 # Map of tool-name -> bridge-side synthetic implementation. These are
 # tools that don't have a corresponding UE handler -- the bridge composes
 # existing UE handlers (or implements pure-protocol logic) to serve them.
@@ -1246,6 +1394,7 @@ SYNTHETIC_TOOLS = {
     "get_camera_transform": synthetic_get_camera_transform,
     "set_camera_transform": synthetic_set_camera_transform,
     "screenshot_actor": synthetic_screenshot_actor,
+    "compile_mod_pak": synthetic_compile_mod_pak,
 }
 
 
