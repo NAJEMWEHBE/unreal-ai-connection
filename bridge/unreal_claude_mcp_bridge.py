@@ -13,9 +13,9 @@ plugin speaks raw JSON-RPC over a local TCP socket (default
 Behaviour:
   - "initialize"             returned synthetically (does NOT hit the UE server)
   - "notifications/*"        consumed silently
-  - "tools/list"             returns a static list of all 74 tools (64
+  - "tools/list"             returns a static list of all 75 tools (64
                              dispatched to the UE plugin's C++ handlers
-                             plus 10 bridge-side synthetic tools served by
+                             plus 11 bridge-side synthetic tools served by
                              SYNTHETIC_TOOLS without crossing the wire as
                              a single UE round-trip)
   - "tools/call"             unpacks {name, arguments} and forwards to the
@@ -45,18 +45,17 @@ SERVER_NAME = "unreal-claude-mcp"
 SERVER_VERSION = "0.9.1"
 
 # Mirror of UnrealClaudeMCP/Resources/mcp_manifest.json - kept in sync manually.
-# 74 tool entries total. 64 are dispatched straight to UE C++ handlers
+# 75 tool entries total. 64 are dispatched straight to UE C++ handlers
 # (see UnrealClaudeMCPModule.cpp's Reg.Register(...) block). The remaining
-# 10 -- wait_for_events, get_camera_transform, set_camera_transform,
+# 11 -- wait_for_events, get_camera_transform, set_camera_transform,
 # screenshot_actor, compile_mod_pak, bulk_delete_assets, inspect_data_asset,
-# inspect_sound_class, inspect_sound_submix, inspect_audio_bus -- are
-# bridge-side synthetic tools served by SYNTHETIC_TOOLS (see below) without
-# a dedicated UE handler: they either compose existing handlers (focus +
-# screenshot, repeated poll, loop over delete_asset), run the matching
-# unreal.* Python via execute_unreal_python with the marker pattern
-# (get/set camera transform, inspect_data_asset, inspect_sound_class,
-# inspect_sound_submix, inspect_audio_bus), or (compile_mod_pak) shell out
-# to RunUAT.bat entirely outside the UE process.
+# inspect_sound_class, inspect_sound_submix, inspect_audio_bus,
+# inspect_material_function -- are bridge-side synthetic tools served by
+# SYNTHETIC_TOOLS (see below) without a dedicated UE handler: they either
+# compose existing handlers (focus + screenshot, repeated poll, loop over
+# delete_asset), run the matching unreal.* Python via execute_unreal_python
+# with the marker pattern (most inspect_* shims), or (compile_mod_pak)
+# shell out to RunUAT.bat entirely outside the UE process.
 TOOLS = [
     {
         "name": "execute_unreal_python",
@@ -203,6 +202,20 @@ TOOLS = [
                 "path": {
                     "type": "string",
                     "description": "Package path to a UAudioBus asset, e.g. /Game/Audio/AB_Master. Must be a non-empty string.",
+                },
+            },
+            "required": ["path"],
+        },
+    },
+    {
+        "name": "inspect_material_function",
+        "description": "Inspect a UMaterialFunction by package path: returns leaf class name, package path, description, expose_to_library flag, library_categories (stringified Text values), function inputs (name + input_type enum stringified), function outputs (name), and additional editor-accessible UPROPERTYs via dir() permissive enumeration. SYNTHETIC bridge-side handler: composes execute_unreal_python + get_log_lines via the marker pattern. Logical errors (asset_not_found, wrong_asset_type, marker_not_found, invalid_json) return as ok=False success envelopes.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "description": "Package path to a UMaterialFunction asset, e.g. /Game/Materials/MF_PackedNormal. Must be a non-empty string.",
                 },
             },
             "required": ["path"],
@@ -2133,6 +2146,147 @@ def synthetic_inspect_audio_bus(req_id, args):
     return _run_marker_pattern(req_id, "inspect_audio_bus", "__AUDIOBUS_" + marker + "__", py_code, context=path)
 
 
+def synthetic_inspect_material_function(req_id, args):
+    """Bridge-side shim: inspect a UMaterialFunction by package path.
+
+    Same canonical marker pattern as the rest of the inspect_* family
+    (PR #100 _run_marker_pattern helper). Returns leaf class + package
+    path + description + library exposure + library categories + the
+    enumerated function inputs/outputs (by walking the function_expressions
+    array and isinstance-checking each node for MaterialExpressionFunctionInput
+    / MaterialExpressionFunctionOutput) + additional editor-accessible
+    UPROPERTYs via the dir() permissive enumeration (skipping the curated
+    names).
+
+    This synthetic was Opus-direct after a parallel-dispatch round
+    (PR #101 attempt) where Codex looped without converging and Copilot's
+    output had three integration defects (wrong marker terminator
+    `__MATFUNC_<m>__` instead of `__END__`; invalid `"handler"` key in
+    TOOLS schema; broken test import path). Both AI streams failed in
+    the same dispatch, so the synthetic was written by hand following
+    the literal-template recipe rather than salvaging one broken output.
+    """
+    path = args.get("path") if isinstance(args, dict) else None
+    if not isinstance(path, str) or not path:
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "inspect_material_function: missing_required_field: 'path' must be a non-empty string",
+        })
+
+    marker = uuid.uuid4().hex[:12]
+    py_code = (
+        "import unreal, json\n"
+        "path = " + json.dumps(path) + "\n"
+        "def _enum_name(v):\n"
+        "    try:\n"
+        "        return v.name\n"
+        "    except Exception:\n"
+        "        try:\n"
+        "            text = str(v)\n"
+        "            if '.' in text:\n"
+        "                return text.rsplit('.', 1)[-1]\n"
+        "            return text\n"
+        "        except Exception:\n"
+        "            return None\n"
+        "obj = unreal.EditorAssetLibrary.load_asset(path)\n"
+        "if not obj:\n"
+        "    _out = {\n"
+        "        'ok': False,\n"
+        "        'error_code': 'asset_not_found',\n"
+        "        'error_message': 'inspect_material_function: asset_not_found: Asset not found: ' + path,\n"
+        "    }\n"
+        "    unreal.log('__MATFUNC_" + marker + "__' + json.dumps(_out) + '__END__')\n"
+        "elif not isinstance(obj, unreal.MaterialFunction):\n"
+        "    cls = obj.get_class()\n"
+        "    cls_name = cls.get_name() if cls else type(obj).__name__\n"
+        "    _out = {\n"
+        "        'ok': False,\n"
+        "        'error_code': 'wrong_asset_type',\n"
+        "        'error_message': 'inspect_material_function: wrong_asset_type: Asset is not a UMaterialFunction: ' + path,\n"
+        "        'actual_class': cls_name,\n"
+        "    }\n"
+        "    unreal.log('__MATFUNC_" + marker + "__' + json.dumps(_out) + '__END__')\n"
+        "else:\n"
+        "    cls = obj.get_class()\n"
+        "    cls_name = cls.get_name() if cls else None\n"
+        "    package_path = obj.get_path_name()\n"
+        "    try:\n"
+        "        description = obj.get_editor_property('description') or ''\n"
+        "    except Exception:\n"
+        "        description = ''\n"
+        "    try:\n"
+        "        exposed = bool(obj.get_editor_property('expose_to_library'))\n"
+        "    except Exception:\n"
+        "        exposed = False\n"
+        "    try:\n"
+        "        cats = obj.get_editor_property('library_categories_text') or []\n"
+        "        library_categories = [str(t) for t in cats]\n"
+        "    except Exception:\n"
+        "        library_categories = []\n"
+        "    inputs = []\n"
+        "    outputs = []\n"
+        "    try:\n"
+        "        exprs = obj.get_editor_property('function_expressions') or []\n"
+        "        for e in exprs:\n"
+        "            try:\n"
+        "                if isinstance(e, unreal.MaterialExpressionFunctionInput):\n"
+        "                    try:\n"
+        "                        ename = e.get_editor_property('input_name')\n"
+        "                    except Exception:\n"
+        "                        ename = ''\n"
+        "                    try:\n"
+        "                        etype = _enum_name(e.get_editor_property('input_type'))\n"
+        "                    except Exception:\n"
+        "                        etype = None\n"
+        "                    inputs.append({'name': str(ename), 'type': 'FunctionInput', 'input_type': etype})\n"
+        "                elif isinstance(e, unreal.MaterialExpressionFunctionOutput):\n"
+        "                    try:\n"
+        "                        oname = e.get_editor_property('output_name')\n"
+        "                    except Exception:\n"
+        "                        oname = ''\n"
+        "                    outputs.append({'name': str(oname), 'type': 'FunctionOutput'})\n"
+        "            except Exception:\n"
+        "                continue\n"
+        "    except Exception:\n"
+        "        pass\n"
+        "    skip_names = {'description', 'expose_to_library', 'library_categories_text', 'function_expressions'}\n"
+        "    additional_properties = []\n"
+        "    for n in [x for x in dir(obj) if not x.startswith('_') and x not in skip_names]:\n"
+        "        try:\n"
+        "            v = obj.get_editor_property(n)\n"
+        "        except Exception:\n"
+        "            continue\n"
+        "        tname = type(v).__name__\n"
+        "        try:\n"
+        "            if isinstance(v, bool):\n"
+        "                vstr = str(v)\n"
+        "            elif isinstance(v, (int, float, str)):\n"
+        "                vstr = str(v)\n"
+        "            elif isinstance(v, (list, tuple, dict)):\n"
+        "                vstr = '<container:' + tname + '>'\n"
+        "            else:\n"
+        "                vstr = '<unsupported>'\n"
+        "        except Exception:\n"
+        "            vstr = '<unsupported>'\n"
+        "        additional_properties.append({'name': n, 'type': tname, 'value': vstr})\n"
+        "    _out = {\n"
+        "        'ok': True,\n"
+        "        'path': path,\n"
+        "        'class': cls_name,\n"
+        "        'package_path': package_path,\n"
+        "        'description': description,\n"
+        "        'exposed_to_library': exposed,\n"
+        "        'library_categories': library_categories,\n"
+        "        'inputs': inputs,\n"
+        "        'outputs': outputs,\n"
+        "        'additional_properties': additional_properties,\n"
+        "    }\n"
+        "    unreal.log('__MATFUNC_" + marker + "__' + json.dumps(_out) + '__END__')\n"
+    )
+
+    return _run_marker_pattern(req_id, "inspect_material_function", "__MATFUNC_" + marker + "__", py_code, context=path)
+
+
 # Map of tool-name -> bridge-side synthetic implementation. These are
 # tools that don't have a corresponding UE handler -- the bridge composes
 # existing UE handlers (or implements pure-protocol logic) to serve them.
@@ -2147,6 +2301,7 @@ SYNTHETIC_TOOLS = {
     "inspect_sound_class": synthetic_inspect_sound_class,
     "inspect_sound_submix": synthetic_inspect_sound_submix,
     "inspect_audio_bus": synthetic_inspect_audio_bus,
+    "inspect_material_function": synthetic_inspect_material_function,
 }
 
 
