@@ -569,6 +569,77 @@ def test_compile_mod_pak_accepts_float_timeout():
         )
 
 
+def test_compile_mod_pak_rejects_wrong_type_extra_args():
+    """extra_args of wrong type (string, number, dict, bool) must short-circuit
+    with -32602 instead of silently coercing to []. Silent coercion would
+    mask client bugs at a JSON-RPC boundary where the schema declares
+    extra_args as 'array'. Omitting extra_args entirely (None) is still OK."""
+    for bad in ("not-a-list", 42, {"foo": "bar"}, True, 3.14):
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 44, "method": "tools/call",
+            "params": {
+                "name": "compile_mod_pak",
+                "arguments": {
+                    "project_path": "/nonexistent.uproject",
+                    "output_dir": "/tmp/out",
+                    "mod_name": "X",
+                    "extra_args": bad,
+                },
+            },
+        })
+        assert "error" in resp, f"expected error envelope for extra_args={bad!r}, got {resp}"
+        assert resp["error"]["code"] == -32602, f"expected -32602 for extra_args={bad!r}"
+        assert "extra_args" in resp["error"]["message"], (
+            f"error message must mention extra_args; got {resp['error']['message']!r}"
+        )
+
+
+def test_compile_mod_pak_rejects_unparseable_timeout():
+    """timeout_sec of un-parseable type (dict, list, arbitrary string) must
+    short-circuit with -32602 instead of silently defaulting to 1800. Silent
+    default would mask client bugs (e.g. caller passes {minutes:30} expecting
+    1800s but actually gets default 1800 — looks correct, isn't)."""
+    for bad in ("thirty-minutes", "1800s", {"minutes": 30}, [1800], object()):
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 45, "method": "tools/call",
+            "params": {
+                "name": "compile_mod_pak",
+                "arguments": {
+                    "project_path": "/nonexistent.uproject",
+                    "output_dir": "/tmp/out",
+                    "mod_name": "X",
+                    "timeout_sec": bad,
+                },
+            },
+        })
+        assert "error" in resp, f"expected error envelope for timeout_sec={bad!r}, got {resp}"
+        assert resp["error"]["code"] == -32602, f"expected -32602 for timeout_sec={bad!r}"
+        assert "timeout_sec" in resp["error"]["message"], (
+            f"error message must mention timeout_sec; got {resp['error']['message']!r}"
+        )
+
+
+def test_compile_mod_pak_omitted_extra_args_defaults_empty():
+    """extra_args omitted (None / absent from args) is the documented happy
+    path — defaults to [] without error. This is the difference between
+    'omitted optional field' and 'wrong-type field'."""
+    resp = bridge.handle({
+        "jsonrpc": "2.0", "id": 46, "method": "tools/call",
+        "params": {
+            "name": "compile_mod_pak",
+            "arguments": {
+                "project_path": "/nonexistent.uproject",
+                "output_dir": "/tmp/out",
+                "mod_name": "X",
+                # extra_args omitted on purpose
+            },
+        },
+    })
+    assert "error" in resp
+    # Should error on project_path (validation downstream), NOT on extra_args.
+    assert "project_path" in resp["error"]["message"]
+
+
 def test_bulk_delete_assets_is_synthetic():
     """bulk_delete_assets is a SYNTHETIC bridge-side handler (PR #90 — Codex
     parallel-dispatch test): loops over delete_asset calls and aggregates
