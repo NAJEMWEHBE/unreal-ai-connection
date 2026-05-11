@@ -92,6 +92,7 @@ def test_tool_names_are_unique_and_match_handlers():
         "screenshot_actor",
         "compile_mod_pak",
         "bulk_delete_assets",
+        "inspect_data_asset",
     }
     assert set(names) == expected
 
@@ -604,6 +605,121 @@ def test_bulk_delete_assets_rejects_missing_paths():
     })
     assert resp["error"]["code"] == -32602
     assert "bulk_delete_assets" in resp["error"]["message"]
+
+
+def test_inspect_data_asset_is_synthetic():
+    """inspect_data_asset is a SYNTHETIC bridge-side handler (PR #92 — Copilot
+    parallel-dispatch retry after the PR #90 stream's prompt was hardened):
+    composes execute_unreal_python + get_log_lines via the marker pattern,
+    same as synthetic_get_camera_transform. path is required."""
+    t = next((t for t in bridge.TOOLS if t["name"] == "inspect_data_asset"), None)
+    assert t is not None
+    assert t["inputSchema"]["required"] == ["path"]
+    assert t["inputSchema"]["properties"]["path"]["type"] == "string"
+    assert "inspect_data_asset" in bridge.SYNTHETIC_TOOLS
+    assert bridge.SYNTHETIC_TOOLS["inspect_data_asset"] is bridge.synthetic_inspect_data_asset
+
+
+def test_inspect_data_asset_happy_path():
+    """Two-round-trip: exec_python returns ok=True (no payload in result; the
+    payload travels through LogPython). Then get_log_lines returns the
+    marker-wrapped JSON. The bridge extracts the JSON between the marker and
+    __END__ and returns it via _wrap_tool_result."""
+    exec_resp = {"jsonrpc": "2.0", "id": 1, "result": {"ok": True, "output": ""}}
+    body = {
+        "ok": True,
+        "path": "/Game/Data/DA_PlayerStats",
+        "class": "MyDataAsset",
+        "parent_class": "PrimaryDataAsset",
+        "package_path": "/Game/Data/DA_PlayerStats.DA_PlayerStats",
+        "properties": [
+            {"name": "MaxHealth", "type": "float", "value": "100.0"},
+            {"name": "DisplayName", "type": "str", "value": "Hero"},
+        ],
+    }
+    # Patch uuid.uuid4().hex[:12] to a known marker so the assertion is deterministic.
+    marker_hex = "deadbeefcaf0"
+    log_line = f"__DATA_{marker_hex}__{json.dumps(body)}__END__"
+    log_resp = {"jsonrpc": "2.0", "id": 1, "result": {"lines": [{"category": "LogPython", "message": log_line}]}}
+    fake_uuid = MagicMock()
+    fake_uuid.uuid4.return_value = MagicMock(hex=marker_hex)
+    with patch.object(bridge, "call_ue", side_effect=[exec_resp, log_resp]) as m, \
+         patch.object(bridge, "uuid", fake_uuid):
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 71, "method": "tools/call",
+            "params": {
+                "name": "inspect_data_asset",
+                "arguments": {"path": "/Game/Data/DA_PlayerStats"},
+            },
+        })
+
+    assert m.call_count == 2
+    assert m.call_args_list[0].args[0] == "execute_unreal_python"
+    assert m.call_args_list[1].args == ("get_log_lines", {"category_filter": "LogPython", "count": 1000})
+    assert resp["result"]["isError"] is False
+    got = json.loads(resp["result"]["content"][0]["text"])
+    assert got == body
+
+
+def test_inspect_data_asset_propagates_asset_not_found():
+    """UE-side `unreal.EditorAssetLibrary.load_asset` returns None for a
+    missing asset; the embedded Python emits a sentinel-wrapped ok=False
+    logical-error payload. Bridge must propagate it verbatim as a
+    success-envelope (NOT a JSON-RPC error) so the caller sees the
+    typed error_code without needing to distinguish from transport errors."""
+    exec_resp = {"jsonrpc": "2.0", "id": 1, "result": {"ok": True, "output": ""}}
+    body = {
+        "ok": False,
+        "error_code": "asset_not_found",
+        "error_message": "Asset not found: /Game/Data/Missing",
+    }
+    marker_hex = "deadbeefcaf0"
+    log_line = f"__DATA_{marker_hex}__{json.dumps(body)}__END__"
+    log_resp = {"jsonrpc": "2.0", "id": 1, "result": {"lines": [{"category": "LogPython", "message": log_line}]}}
+    fake_uuid = MagicMock()
+    fake_uuid.uuid4.return_value = MagicMock(hex=marker_hex)
+    with patch.object(bridge, "call_ue", side_effect=[exec_resp, log_resp]), \
+         patch.object(bridge, "uuid", fake_uuid):
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 72, "method": "tools/call",
+            "params": {"name": "inspect_data_asset", "arguments": {"path": "/Game/Data/Missing"}},
+        })
+
+    assert resp["result"]["isError"] is False
+    got = json.loads(resp["result"]["content"][0]["text"])
+    assert got == body
+
+
+def test_inspect_data_asset_marker_not_found():
+    """If the LogPython buffer doesn't contain the marker (log overflowed
+    between exec and read, or UE silently dropped log), the bridge returns
+    a marker_not_found logical-error success-envelope with a hint that
+    retry typically resolves."""
+    exec_resp = {"jsonrpc": "2.0", "id": 1, "result": {"ok": True, "output": ""}}
+    log_resp = {"jsonrpc": "2.0", "id": 1, "result": {"lines": [
+        {"category": "LogPython", "message": "Some other unrelated python log line"}
+    ]}}
+    with patch.object(bridge, "call_ue", side_effect=[exec_resp, log_resp]):
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 73, "method": "tools/call",
+            "params": {"name": "inspect_data_asset", "arguments": {"path": "/Game/Data/Whatever"}},
+        })
+
+    assert resp["result"]["isError"] is False
+    got = json.loads(resp["result"]["content"][0]["text"])
+    assert got["ok"] is False
+    assert got["error_code"] == "marker_not_found"
+    assert "retry typically resolves" in got["error_message"]
+
+
+def test_inspect_data_asset_rejects_missing_path():
+    """Schema enforces path as required; missing it returns -32602."""
+    resp = bridge.handle({
+        "jsonrpc": "2.0", "id": 74, "method": "tools/call",
+        "params": {"name": "inspect_data_asset", "arguments": {}},
+    })
+    assert resp["error"]["code"] == -32602
+    assert "inspect_data_asset" in resp["error"]["message"]
 
 
 def test_screenshot_actor_happy_path():

@@ -13,9 +13,9 @@ plugin speaks raw JSON-RPC over a local TCP socket (default
 Behaviour:
   - "initialize"             returned synthetically (does NOT hit the UE server)
   - "notifications/*"        consumed silently
-  - "tools/list"             returns a static list of all 70 tools (64
+  - "tools/list"             returns a static list of all 71 tools (64
                              dispatched to the UE plugin's C++ handlers
-                             plus 6 bridge-side synthetic tools served by
+                             plus 7 bridge-side synthetic tools served by
                              SYNTHETIC_TOOLS without crossing the wire as
                              a single UE round-trip)
   - "tools/call"             unpacks {name, arguments} and forwards to the
@@ -45,15 +45,16 @@ SERVER_NAME = "unreal-claude-mcp"
 SERVER_VERSION = "0.9.1"
 
 # Mirror of UnrealClaudeMCP/Resources/mcp_manifest.json - kept in sync manually.
-# 70 tool entries total. 64 are dispatched straight to UE C++ handlers
+# 71 tool entries total. 64 are dispatched straight to UE C++ handlers
 # (see UnrealClaudeMCPModule.cpp's Reg.Register(...) block). The remaining
-# 6 -- wait_for_events, get_camera_transform, set_camera_transform,
-# screenshot_actor, compile_mod_pak, bulk_delete_assets -- are bridge-side
-# synthetic tools served by SYNTHETIC_TOOLS (see below) without a dedicated
-# UE handler: they either compose existing handlers (focus + screenshot,
-# repeated poll, loop over delete_asset), run the matching unreal.* Python
-# via execute_unreal_python, or (compile_mod_pak) shell out to RunUAT.bat
-# entirely outside the UE process.
+# 7 -- wait_for_events, get_camera_transform, set_camera_transform,
+# screenshot_actor, compile_mod_pak, bulk_delete_assets, inspect_data_asset
+# -- are bridge-side synthetic tools served by SYNTHETIC_TOOLS (see below)
+# without a dedicated UE handler: they either compose existing handlers
+# (focus + screenshot, repeated poll, loop over delete_asset), run the
+# matching unreal.* Python via execute_unreal_python with the marker pattern
+# (get/set camera transform, inspect_data_asset), or (compile_mod_pak)
+# shell out to RunUAT.bat entirely outside the UE process.
 TOOLS = [
     {
         "name": "execute_unreal_python",
@@ -147,6 +148,20 @@ TOOLS = [
                 },
             },
             "required": ["paths"],
+        },
+    },
+    {
+        "name": "inspect_data_asset",
+        "description": "Shallow-reflect a UDataAsset by package path and return class, parent class, package path, and editable property list (name, Python type, stringified value). SYNTHETIC bridge-side handler (PR #92 language-shim experiment): composes execute_unreal_python + get_log_lines via the marker pattern. Property values for nested structs / arrays / dicts are stringified as '<container:type>' or '<unsupported>' — no recursion. Logical errors (asset not found, marker buffer overflow, payload unparseable) return as ok=False success envelopes; transport-level errors return as JSON-RPC errors.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "description": "Package path to a UDataAsset asset, e.g. /Game/Data/DA_PlayerStats. Must be a non-empty string.",
+                },
+            },
+            "required": ["path"],
         },
     },
     {
@@ -1549,6 +1564,140 @@ def synthetic_bulk_delete_assets(req_id, args):
     })
 
 
+def synthetic_inspect_data_asset(req_id, args):
+    """Bridge-side shim: shallow-reflect a UDataAsset by package path.
+
+    Canonical Python-shim pattern (per PR #46 + LANGUAGE-CHOICE-RETROSPECTIVE.md
+    addendum), mirroring `synthetic_get_camera_transform` exactly:
+
+      1. Generate a per-call UUID marker token (collision-proofs against
+         concurrent inspects + log buffer overlaps).
+      2. Build embedded Python that calls `unreal.EditorAssetLibrary.load_asset`
+         and emits the JSON result via `unreal.log('__DATA_<marker>__' + ... + '__END__')`.
+      3. Run via `execute_unreal_python` (round-trip 1).
+      4. Read recent `LogPython` lines via `get_log_lines` (round-trip 2).
+      5. Find the marker, parse the JSON payload, return.
+
+    Why synthetic, not C++: generic UDataAsset reflection is well-served by
+    UE's Python `get_editor_property` introspection; a C++ handler would
+    have to enumerate FProperty fields manually and stringify them, while
+    `dir(obj)` + Python's type-aware repr does the same with less code.
+
+    Logical errors (asset not found, marker not found, invalid JSON in
+    payload) are wrapped as `{ok: False, error_code, error_message}`
+    success-envelope returns -- callers can retry without distinguishing
+    them from transport-level errors (which return as JSON-RPC errors).
+
+    Originally a Copilot CLI single-stream dispatch test (PR #92,
+    2026-05-11): retry of the failed PR #90 Copilot stream after the
+    prompt was hardened with the literal-template-from-source-file recipe.
+    See HANDOFF.md "Session 2026-05-11 (fifth micro-session)" for the
+    prompt-discipline transfer outcome.
+    """
+    path = args.get("path") if isinstance(args, dict) else None
+    if not isinstance(path, str) or not path:
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "inspect_data_asset: missing_required_field: 'path' must be a non-empty string",
+        })
+
+    marker = uuid.uuid4().hex[:12]
+    # Embed path via json.dumps so quotes/backslashes are correctly escaped.
+    py_code = (
+        "import unreal, json\n"
+        f"path = {json.dumps(path)}\n"
+        "obj = unreal.EditorAssetLibrary.load_asset(path)\n"
+        "if not obj:\n"
+        "    _out = {\n"
+        "        'ok': False,\n"
+        "        'error_code': 'asset_not_found',\n"
+        "        'error_message': 'Asset not found: ' + path,\n"
+        "    }\n"
+        f"    unreal.log('__DATA_{marker}__' + json.dumps(_out) + '__END__')\n"
+        "else:\n"
+        "    cls = obj.get_class()\n"
+        "    cls_name = cls.get_name() if cls else None\n"
+        "    parent = cls.get_super_class() if cls else None\n"
+        "    parent_name = parent.get_name() if parent else None\n"
+        "    package_path = obj.get_path_name()\n"
+        "    props = []\n"
+        "    # Heuristic enumeration: dir() filtered to non-underscore names,\n"
+        "    # then try get_editor_property; UE returns the value for real\n"
+        "    # UPROPERTYs and raises for everything else (methods, transient\n"
+        "    # attrs, parent-class slots that aren't editor-exposed).\n"
+        "    for n in [x for x in dir(obj) if not x.startswith('_')]:\n"
+        "        try:\n"
+        "            v = obj.get_editor_property(n)\n"
+        "        except Exception:\n"
+        "            continue\n"
+        "        tname = type(v).__name__\n"
+        "        try:\n"
+        "            if isinstance(v, bool):\n"
+        "                vstr = str(v)\n"
+        "            elif isinstance(v, (int, float, str)):\n"
+        "                vstr = str(v)\n"
+        "            elif isinstance(v, (list, tuple, dict)):\n"
+        "                vstr = '<container:' + tname + '>'\n"
+        "            else:\n"
+        "                vstr = '<unsupported>'\n"
+        "        except Exception:\n"
+        "            vstr = '<unsupported>'\n"
+        "        props.append({'name': n, 'type': tname, 'value': vstr})\n"
+        "    _out = {\n"
+        "        'ok': True,\n"
+        "        'path': path,\n"
+        "        'class': cls_name,\n"
+        "        'parent_class': parent_name,\n"
+        "        'package_path': package_path,\n"
+        "        'properties': props,\n"
+        "    }\n"
+        f"    unreal.log('__DATA_{marker}__' + json.dumps(_out) + '__END__')\n"
+    )
+
+    exec_resp = call_ue("execute_unreal_python", {"code": py_code})
+    if "error" in exec_resp:
+        return make_response(req_id, error=exec_resp["error"])
+    if not exec_resp.get("result", {}).get("ok", False):
+        output = exec_resp.get("result", {}).get("output", "")
+        return make_response(req_id, error={
+            "code": -32603,
+            "message": f"inspect_data_asset: python_failed: {output}",
+        })
+
+    log_resp = call_ue("get_log_lines", {"category_filter": "LogPython", "count": 1000})
+    if "error" in log_resp:
+        return make_response(req_id, error=log_resp["error"])
+
+    lines = log_resp.get("result", {}).get("lines", []) or []
+    needle = f"__DATA_{marker}__"
+    end_token = "__END__"
+    for entry in reversed(lines):
+        msg = entry.get("message", "") or ""
+        if needle in msg:
+            try:
+                start = msg.index(needle) + len(needle)
+                end = msg.index(end_token, start)
+                payload = msg[start:end]
+                data = json.loads(payload)
+            except (ValueError, json.JSONDecodeError):
+                return _wrap_tool_result(req_id, {
+                    "ok": False,
+                    "error_code": "invalid_json",
+                    "error_message": f"inspect_data_asset: marker_payload_unparseable for path '{path}'",
+                })
+            # Propagate the UE-side dict verbatim. If the asset wasn't
+            # found, UE-side already set ok=False with error_code/message.
+            return _wrap_tool_result(req_id, data)
+
+    return _wrap_tool_result(req_id, {
+        "ok": False,
+        "error_code": "marker_not_found",
+        "error_message": (f"inspect_data_asset: marker_not_found: '{needle}' did not appear in "
+                          f"last {len(lines)} LogPython lines (log buffer may have overflowed; "
+                          "retry typically resolves)"),
+    })
+
+
 # Map of tool-name -> bridge-side synthetic implementation. These are
 # tools that don't have a corresponding UE handler -- the bridge composes
 # existing UE handlers (or implements pure-protocol logic) to serve them.
@@ -1559,6 +1708,7 @@ SYNTHETIC_TOOLS = {
     "screenshot_actor": synthetic_screenshot_actor,
     "compile_mod_pak": synthetic_compile_mod_pak,
     "bulk_delete_assets": synthetic_bulk_delete_assets,
+    "inspect_data_asset": synthetic_inspect_data_asset,
 }
 
 
