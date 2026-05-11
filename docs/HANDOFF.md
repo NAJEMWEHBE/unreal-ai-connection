@@ -664,3 +664,51 @@ Opus decision: ship Codex's `bulk_delete_assets` alone. Don't rewrite Copilot's 
 - **More parallel dispatches.** Codex + Copilot pairs work mechanically. Natural next targets: `inspect_sound_class` (Codex) + `inspect_audio_bus` (Copilot) — both C++ handlers, same audio module surface, head-to-head quality test on a harder surface (C++ vs the Python this session covered). Requires host cold compile after both ship.
 - **`tmp/parallel-dispatch/` was deleted pre-commit.** If we adopt parallel dispatches as the workflow norm, consider adding `tmp/` to `.gitignore` so transient scratch dirs never leak into PRs.
 - **HANDOFF closing-note discipline now at 4 consecutive sessions.** The cadence is mature: every session ships a feature/chore PR + a HANDOFF append PR. The pickup pattern is mechanical for the next agent.
+
+**Session 2026-05-11 (fifth micro-session — Copilot retry validates prompt-discipline transfer):**
+
+Picked up the `inspect_data_asset` carry-over from the previous session. Single-stream Copilot dispatch with the sharper prompt recipe captured in the prior closing-note. **Hypothesis confirmed: the recipe transfers.** Copilot followed the canonical six-step marker pattern (UUID → exec_python → check call_ue shape → get_log_lines round-trip 2 → reverse-scan for marker → JSON-parse + return) on first try, with the same prompt-discipline cost-vs-quality tradeoff that Codex demonstrated in PR #90.
+
+**Numbers (this session in isolation):**
+- Copilot retry token spend: 66.1k↑ / 6.2k↓, **3.4x the first attempt's grounding spend** (PR #90 Copilot was 19.4k↑ / 5.7k↓). The increase tracks the four required reads the sharper prompt forced: lines 1004-1076 (`synthetic_get_camera_transform` literal template), 887-933 (`make_response` / `call_ue` / `_wrap_tool_result` definitions), 114-130 (`compile_mod_pak` TOOLS entry schema), and tests/test_bridge.py:480-620 (test patterns).
+- Single Premium request, 2m20s wall-clock.
+- Opus integration overhead: ~10 min (function + TOOLS entry + manifest entry + 5 tests + TOOLS.md section + 7-file doc sweep).
+- Total PR-to-merge cycle: ~25 min including CI wait + HANDOFF append.
+
+**What the hardened prompt did differently** (vs the PR #90 first attempt):
+
+| First attempt (PR #90) | Hardened retry (PR #92) |
+|---|---|
+| "Read these references for the exact pattern" — soft suggestion. | "`synthetic_get_camera_transform` is your LITERAL TEMPLATE. Mirror its shape exactly." — directive. |
+| Mentioned the marker pattern, didn't force-spell the call_ue shape. | "`call_ue` returns `{'error':...}` or `{'result':...}` — NEVER a top-level `ok`. Test with `if 'error' in resp:` — never `resp.get('ok')`." |
+| Didn't explicitly forbid the `result.stdout` shortcut. | "DO NOT INVENT a single-round-trip `result.stdout` shortcut. `execute_unreal_python` does NOT return Python stdout in `result`. Stdout goes through `unreal.log()` → `LogPython` → retrieved via the second `get_log_lines` round-trip." |
+| Tests "use mock pattern matching existing style" — implicit. | "Tests use `from unittest.mock import patch, MagicMock`; `with patch.object(bridge, 'call_ue', side_effect=[...]) as m:` — NOT pytest `monkeypatch`." |
+| "Read X for context." | "Required reading order (do this before writing): 1, 2, 3, 4, 5." |
+
+**The recipe that transfers (cross-AI prompt-discipline):**
+
+1. **Name a literal template file by path + line range.** Not "the pattern", not "the convention" — name the specific function the AI should mirror. Copilot read `synthetic_get_camera_transform` first, then wrote its synthetic in the same shape.
+2. **Spell the upstream contract.** Specifically: how does `call_ue` return errors vs success? What's `execute_unreal_python`'s result.* shape? What's the LogPython retrieval pattern? These were the bugs in the unhardened attempt — making them explicit closed the gap.
+3. **Forbid the shortcut.** "DO NOT INVENT X" beats "follow Y." LLMs default to the most common pattern they've seen in training; if you don't tell them why your project's pattern is the right one HERE, they'll regress to the more familiar one.
+4. **Pin test style.** Project mock-library + project assertion style. The first attempt mixed `monkeypatch` (pytest) and `patch.object` (unittest.mock) — the second attempt was clean.
+5. **Order the reading explicitly.** "Required reading order: 1, 2, 3, 4, 5." not "Read these references." Sequential numbered reading makes the grounding step explicit and measurable.
+
+This recipe was originally hardened for Codex over PRs #76 → #81 → #85; this session shows it carries to Copilot CLI with no Copilot-specific modifications. Likely transfers to other LLM coding agents with similar interface (Cursor, Aider, etc.) — would be cheap to test next time we add a synthetic.
+
+**New trap-table entries from this session:**
+
+- **`bridge.uuid` is patchable at module level.** Test `test_inspect_data_asset_happy_path` patches `bridge.uuid` to a `MagicMock` with `uuid4.return_value = MagicMock(hex='deadbeefcaf0')` to force a deterministic marker. This works because `bridge/unreal_claude_mcp_bridge.py` imports `uuid` at the top level (`import uuid`, line 38). If a synthetic later uses `from uuid import uuid4` (function-import style) the test-time patch path would break — keep the module-level import.
+- **`get_editor_property` permissive iteration is THE UDataAsset reflection trick.** `dir(obj)` returns way more than just UPROPERTYs (methods, transient slots, parent-class accessors). The reflection script iterates `dir()` filtered to non-underscore names, then `try: v = obj.get_editor_property(n); except: continue`. UE returns the value for real UPROPERTYs and raises for everything else — the try/except catches and skips. Cleaner than building a class-specific allowlist. Apply this pattern to future generic-introspection synthetics.
+- **Marker pattern has a soft cap at 1000 LogPython lines.** The bridge requests `get_log_lines {category_filter: 'LogPython', count: 1000}` — matching the LogCapture ring's capacity. If concurrent Python execution flooded the buffer between exec and read, the marker can be evicted. The `marker_not_found` branch returns a logical error with a "retry typically resolves" hint. For higher-throughput use, would need to enlarge the LogCapture ring or use a different IPC channel (per-call temp file?).
+- **Single-stream Copilot validates faster than parallel.** Pure single-stream tests have one fewer failure mode (no merge-conflict concern, no integration ordering question), and the prompt feedback is cleaner because there's only one set of outputs to assess. Use parallel only when the load IS the test (PR #90's 3-way dispatch experiment) or when wall-clock matters more than diagnostic clarity.
+
+**Tool count: 70 → 71** (64 C++ + 7 synthetic; synthetics are now `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `bulk_delete_assets`, `inspect_data_asset`).
+**pytest: 183 → 188 passing** (+5 tests for `inspect_data_asset`: schema-is-synthetic + happy + asset-not-found + marker-not-found + missing-path-rejection).
+**main HEAD:** `b206ea5` end of feature merge; this closing-note PR adds one more merge on top.
+
+**What to watch in next session:**
+
+- **Cross-AI prompt-discipline recipe is now PROVEN to transfer.** The 5-step recipe above is the durable artefact of this session. Apply to every future AI-coding dispatch — Codex, Copilot, future entrants.
+- **C++ head-to-head dispatch is the next unvalidated test.** Both Codex and Copilot have shipped Python this session; the harder C++ surface (`inspect_sound_class` + `inspect_audio_bus` audio twins) is still queued. Requires host cold compile after both ship — that's the gating bottleneck.
+- **`.codex/` stale-artifact cleanup** still in the carry-over list from sessions back. Pure chore, low priority.
+- **`tmp/` could be added to `.gitignore`** — three sessions in a row have used `tmp/parallel-dispatch/` for scratch + deleted pre-commit. Adding to gitignore makes the cleanup unnecessary and prevents accidental leaks.
