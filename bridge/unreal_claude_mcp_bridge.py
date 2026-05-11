@@ -1679,8 +1679,13 @@ def synthetic_compile_mod_pak_direct(req_id, args):
     response_file = args.get("response_file")
     output_pak = args.get("output_pak")
     compression = args.get("compression", "Zlib")
-    extra_args = args.get("extra_args") or []
-    timeout_sec = int(args.get("timeout_sec", 600))
+    extra_args = args.get("extra_args")
+    if not isinstance(extra_args, list):
+        extra_args = []
+    try:
+        timeout_sec = int(args.get("timeout_sec", 600))
+    except (ValueError, TypeError):
+        timeout_sec = 600
 
     if not unreal_pak_path or not os.path.isfile(unreal_pak_path):
         return make_response(req_id, error={
