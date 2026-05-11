@@ -1012,6 +1012,102 @@ def _wrap_tool_result(req_id, result_obj):
     })
 
 
+def _run_marker_pattern(req_id, tool_name, marker_prefix, py_code, context=""):
+    """Canonical Python-shim pattern for synthetic tools that need to run
+    arbitrary `unreal.*` Python in the UE editor and read its JSON output.
+
+    Used by every execute_unreal_python-based synthetic (camera transform
+    read/write, all inspect_* shims for Python-only asset reflection).
+    Originally hand-rolled per-synthetic; extracted into this helper in
+    PR #100 once the duplication crossed 5 sites with ~30 lines of shared
+    boilerplate each.
+
+    Flow:
+      1. `call_ue("execute_unreal_python", {"code": py_code})` -- first
+         round-trip. The embedded Python must `unreal.log()` exactly one
+         line containing `<marker_prefix><JSON payload>__END__`.
+      2. Transport-error short-circuit: return JSON-RPC error if call_ue
+         couldn't reach UE.
+      3. Python-side failure short-circuit: if the embedded script raised,
+         return -32603 with the Python traceback (from `result.output`).
+      4. `call_ue("get_log_lines", {"category_filter": "LogPython",
+         "count": 1000})` -- second round-trip. The LogCapture ring's
+         1000-line capacity is what bounds reliability against concurrent
+         Python execution flooding the buffer.
+      5. Reverse-scan for `marker_prefix`. Extract payload between
+         `marker_prefix` and `__END__`. JSON-decode and return via
+         `_wrap_tool_result` (so logical errors with `ok: False` come back
+         as MCP success envelopes that callers can inspect).
+      6. If marker not found, return a marker_not_found logical-error
+         envelope with a "retry typically resolves" hint.
+      7. If marker found but payload doesn't JSON-decode, return
+         invalid_json logical-error envelope.
+
+    Args:
+        req_id: the JSON-RPC id from the caller.
+        tool_name: the synthetic tool's name, used as the prefix in error
+            messages (e.g. "inspect_data_asset"). Must match the tool's
+            registered name so error messages are debuggable.
+        marker_prefix: the per-call marker string the embedded Python
+            emits before the JSON payload. MUST include the trailing
+            double-underscore -- e.g. `f"__DATA_{uuid.uuid4().hex[:12]}__"`.
+            Including the per-call UUID is what de-duplicates against log
+            buffer carryover from prior calls.
+        py_code: the embedded Python source to execute in the editor. Must
+            emit exactly one `unreal.log()` line containing the marker
+            prefix + JSON payload + `__END__`.
+        context: optional caller context (typically the asset path) that
+            gets interpolated into the invalid_json error message for
+            debuggability. Empty string = no context.
+
+    Returns: an MCP tools/call response envelope. Always returns -- never
+    raises. Logical errors (asset_not_found, wrong_asset_type,
+    marker_not_found, invalid_json) come back as `ok: False` success
+    envelopes; transport-level errors (UE down, Python traceback) come
+    back as JSON-RPC errors.
+    """
+    exec_resp = call_ue("execute_unreal_python", {"code": py_code})
+    if "error" in exec_resp:
+        return make_response(req_id, error=exec_resp["error"])
+    if not exec_resp.get("result", {}).get("ok", False):
+        output = exec_resp.get("result", {}).get("output", "")
+        return make_response(req_id, error={
+            "code": -32603,
+            "message": f"{tool_name}: python_failed: {output}",
+        })
+
+    log_resp = call_ue("get_log_lines", {"category_filter": "LogPython", "count": 1000})
+    if "error" in log_resp:
+        return make_response(req_id, error=log_resp["error"])
+
+    lines = log_resp.get("result", {}).get("lines", []) or []
+    end_token = "__END__"
+    for entry in reversed(lines):
+        msg = entry.get("message", "") or ""
+        if marker_prefix in msg:
+            try:
+                start = msg.index(marker_prefix) + len(marker_prefix)
+                end = msg.index(end_token, start)
+                payload = msg[start:end]
+                data = json.loads(payload)
+            except (ValueError, json.JSONDecodeError):
+                ctx_suffix = f" for path '{context}'" if context else ""
+                return _wrap_tool_result(req_id, {
+                    "ok": False,
+                    "error_code": "invalid_json",
+                    "error_message": f"{tool_name}: invalid_json: marker payload unparseable{ctx_suffix}",
+                })
+            return _wrap_tool_result(req_id, data)
+
+    return _wrap_tool_result(req_id, {
+        "ok": False,
+        "error_code": "marker_not_found",
+        "error_message": (f"{tool_name}: marker_not_found: '{marker_prefix}' did not appear in "
+                          f"last {len(lines)} LogPython lines (log buffer may have overflowed; "
+                          "retry typically resolves)"),
+    })
+
+
 def synthetic_wait_for_events(req_id, args):
     """Bridge-side wait_for_events. Polls UE's poll_events handler at
     poll_interval_ms cadence until matching events arrive or timeout_ms
@@ -1698,48 +1794,7 @@ def synthetic_inspect_data_asset(req_id, args):
         f"    unreal.log('__DATA_{marker}__' + json.dumps(_out) + '__END__')\n"
     )
 
-    exec_resp = call_ue("execute_unreal_python", {"code": py_code})
-    if "error" in exec_resp:
-        return make_response(req_id, error=exec_resp["error"])
-    if not exec_resp.get("result", {}).get("ok", False):
-        output = exec_resp.get("result", {}).get("output", "")
-        return make_response(req_id, error={
-            "code": -32603,
-            "message": f"inspect_data_asset: python_failed: {output}",
-        })
-
-    log_resp = call_ue("get_log_lines", {"category_filter": "LogPython", "count": 1000})
-    if "error" in log_resp:
-        return make_response(req_id, error=log_resp["error"])
-
-    lines = log_resp.get("result", {}).get("lines", []) or []
-    needle = f"__DATA_{marker}__"
-    end_token = "__END__"
-    for entry in reversed(lines):
-        msg = entry.get("message", "") or ""
-        if needle in msg:
-            try:
-                start = msg.index(needle) + len(needle)
-                end = msg.index(end_token, start)
-                payload = msg[start:end]
-                data = json.loads(payload)
-            except (ValueError, json.JSONDecodeError):
-                return _wrap_tool_result(req_id, {
-                    "ok": False,
-                    "error_code": "invalid_json",
-                    "error_message": f"inspect_data_asset: marker_payload_unparseable for path '{path}'",
-                })
-            # Propagate the UE-side dict verbatim. If the asset wasn't
-            # found, UE-side already set ok=False with error_code/message.
-            return _wrap_tool_result(req_id, data)
-
-    return _wrap_tool_result(req_id, {
-        "ok": False,
-        "error_code": "marker_not_found",
-        "error_message": (f"inspect_data_asset: marker_not_found: '{needle}' did not appear in "
-                          f"last {len(lines)} LogPython lines (log buffer may have overflowed; "
-                          "retry typically resolves)"),
-    })
+    return _run_marker_pattern(req_id, "inspect_data_asset", f"__DATA_{marker}__", py_code, context=path)
 
 
 def synthetic_inspect_sound_class(req_id, args):
@@ -1867,46 +1922,7 @@ def synthetic_inspect_sound_class(req_id, args):
         "    unreal.log('__SOUNDCLASS_" + marker + "__' + json.dumps(_out) + '__END__')\n"
     )
 
-    exec_resp = call_ue("execute_unreal_python", {"code": py_code})
-    if "error" in exec_resp:
-        return make_response(req_id, error=exec_resp["error"])
-    if not exec_resp.get("result", {}).get("ok", False):
-        output = exec_resp.get("result", {}).get("output", "")
-        return make_response(req_id, error={
-            "code": -32603,
-            "message": f"inspect_sound_class: python_failed: {output}",
-        })
-
-    log_resp = call_ue("get_log_lines", {"category_filter": "LogPython", "count": 1000})
-    if "error" in log_resp:
-        return make_response(req_id, error=log_resp["error"])
-
-    lines = log_resp.get("result", {}).get("lines", []) or []
-    needle = "__SOUNDCLASS_" + marker + "__"
-    end_token = "__END__"
-    for entry in reversed(lines):
-        msg = entry.get("message", "") or ""
-        if needle in msg:
-            try:
-                start = msg.index(needle) + len(needle)
-                end = msg.index(end_token, start)
-                payload = msg[start:end]
-                data = json.loads(payload)
-            except (ValueError, json.JSONDecodeError):
-                return _wrap_tool_result(req_id, {
-                    "ok": False,
-                    "error_code": "invalid_json",
-                    "error_message": f"inspect_sound_class: marker_payload_unparseable for path '{path}'",
-                })
-            return _wrap_tool_result(req_id, data)
-
-    return _wrap_tool_result(req_id, {
-        "ok": False,
-        "error_code": "marker_not_found",
-        "error_message": (f"inspect_sound_class: marker_not_found: '{needle}' did not appear in "
-                          f"last {len(lines)} LogPython lines (log buffer may have overflowed; "
-                          "retry typically resolves)"),
-    })
+    return _run_marker_pattern(req_id, "inspect_sound_class", "__SOUNDCLASS_" + marker + "__", py_code, context=path)
 
 
 def synthetic_inspect_sound_submix(req_id, args):
@@ -2013,46 +2029,7 @@ def synthetic_inspect_sound_submix(req_id, args):
         "    unreal.log('__SOUNDSUBMIX_" + marker + "__' + json.dumps(_out) + '__END__')\n"
     )
 
-    exec_resp = call_ue("execute_unreal_python", {"code": py_code})
-    if "error" in exec_resp:
-        return make_response(req_id, error=exec_resp["error"])
-    if not exec_resp.get("result", {}).get("ok", False):
-        output = exec_resp.get("result", {}).get("output", "")
-        return make_response(req_id, error={
-            "code": -32603,
-            "message": f"inspect_sound_submix: python_failed: {output}",
-        })
-
-    log_resp = call_ue("get_log_lines", {"category_filter": "LogPython", "count": 1000})
-    if "error" in log_resp:
-        return make_response(req_id, error=log_resp["error"])
-
-    lines = log_resp.get("result", {}).get("lines", []) or []
-    needle = "__SOUNDSUBMIX_" + marker + "__"
-    end_token = "__END__"
-    for entry in reversed(lines):
-        msg = entry.get("message", "") or ""
-        if needle in msg:
-            try:
-                start = msg.index(needle) + len(needle)
-                end = msg.index(end_token, start)
-                payload = msg[start:end]
-                data = json.loads(payload)
-            except (ValueError, json.JSONDecodeError):
-                return _wrap_tool_result(req_id, {
-                    "ok": False,
-                    "error_code": "invalid_json",
-                    "error_message": f"inspect_sound_submix: invalid_json: marker payload unparseable for path '{path}'",
-                })
-            return _wrap_tool_result(req_id, data)
-
-    return _wrap_tool_result(req_id, {
-        "ok": False,
-        "error_code": "marker_not_found",
-        "error_message": (f"inspect_sound_submix: marker_not_found: '{needle}' did not appear in "
-                          f"last {len(lines)} LogPython lines (log buffer may have overflowed; "
-                          "retry typically resolves)"),
-    })
+    return _run_marker_pattern(req_id, "inspect_sound_submix", "__SOUNDSUBMIX_" + marker + "__", py_code, context=path)
 
 
 def synthetic_inspect_audio_bus(req_id, args):
@@ -2153,46 +2130,7 @@ def synthetic_inspect_audio_bus(req_id, args):
         "    unreal.log('__AUDIOBUS_" + marker + "__' + json.dumps(_out) + '__END__')\n"
     )
 
-    exec_resp = call_ue("execute_unreal_python", {"code": py_code})
-    if "error" in exec_resp:
-        return make_response(req_id, error=exec_resp["error"])
-    if not exec_resp.get("result", {}).get("ok", False):
-        output = exec_resp.get("result", {}).get("output", "")
-        return make_response(req_id, error={
-            "code": -32603,
-            "message": f"inspect_audio_bus: python_failed: {output}",
-        })
-
-    log_resp = call_ue("get_log_lines", {"category_filter": "LogPython", "count": 1000})
-    if "error" in log_resp:
-        return make_response(req_id, error=log_resp["error"])
-
-    lines = log_resp.get("result", {}).get("lines", []) or []
-    needle = "__AUDIOBUS_" + marker + "__"
-    end_token = "__END__"
-    for entry in reversed(lines):
-        msg = entry.get("message", "") or ""
-        if needle in msg:
-            try:
-                start = msg.index(needle) + len(needle)
-                end = msg.index(end_token, start)
-                payload = msg[start:end]
-                data = json.loads(payload)
-            except (ValueError, json.JSONDecodeError):
-                return _wrap_tool_result(req_id, {
-                    "ok": False,
-                    "error_code": "invalid_json",
-                    "error_message": f"inspect_audio_bus: invalid_json: marker payload unparseable for path '{path}'",
-                })
-            return _wrap_tool_result(req_id, data)
-
-    return _wrap_tool_result(req_id, {
-        "ok": False,
-        "error_code": "marker_not_found",
-        "error_message": (f"inspect_audio_bus: marker_not_found: '{needle}' did not appear in "
-                          f"last {len(lines)} LogPython lines (log buffer may have overflowed; "
-                          "retry typically resolves)"),
-    })
+    return _run_marker_pattern(req_id, "inspect_audio_bus", "__AUDIOBUS_" + marker + "__", py_code, context=path)
 
 
 # Map of tool-name -> bridge-side synthetic implementation. These are
