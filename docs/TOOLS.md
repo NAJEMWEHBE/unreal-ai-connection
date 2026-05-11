@@ -1,6 +1,6 @@
 # MCP Tools Reference
 
-**70 tools total.** 64 are JSON-RPC 2.0 methods served on `127.0.0.1:18888` directly by the plugin's C++ handlers. The remaining 6 — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `bulk_delete_assets` — are bridge-side **synthetic tools** that are intercepted by `bridge/unreal_claude_mcp_bridge.py` and served by composing existing handlers (or running Python via `execute_unreal_python`, or — for `compile_mod_pak` — shelling out to `RunUAT.bat` entirely outside the UE process). They are visible to MCP clients exactly like the C++ tools but cannot be reached by sending raw JSON-RPC to the TCP socket — only via the MCP bridge or by replicating their composition manually. The "Implementation" header on each entry below indicates whether a tool is C++ or bridge-side.
+**71 tools total.** 64 are JSON-RPC 2.0 methods served on `127.0.0.1:18888` directly by the plugin's C++ handlers. The remaining 7 — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `bulk_delete_assets`, `inspect_data_asset` — are bridge-side **synthetic tools** that are intercepted by `bridge/unreal_claude_mcp_bridge.py` and served by composing existing handlers (or running Python via `execute_unreal_python`, or — for `compile_mod_pak` — shelling out to `RunUAT.bat` entirely outside the UE process). They are visible to MCP clients exactly like the C++ tools but cannot be reached by sending raw JSON-RPC to the TCP socket — only via the MCP bridge or by replicating their composition manually. The "Implementation" header on each entry below indicates whether a tool is C++ or bridge-side.
 
 Each tool's params and result are documented with a working example.
 
@@ -2627,6 +2627,85 @@ Returns `{"ok": false, "total": 3, "deleted": 2, "failed": 1, "results": [...]}`
   "continue_on_error": false
 }}
 ```
+
+---
+
+## inspect_data_asset
+
+Shallow-reflect a UDataAsset by package path: returns leaf class name, parent class name, full package path, and a per-property reflection list (name, Python type, stringified value).
+
+**Bridge-side synthetic tool.** Pure Python — composes [`execute_unreal_python`](#execute_unreal_python) + [`get_log_lines`](#get_log_lines) via the marker pattern (see `synthetic_get_camera_transform` for the canonical two-round-trip flow). Why synthetic instead of C++: generic UDataAsset reflection is well-served by UE's Python `get_editor_property` introspection; a C++ handler would have to enumerate `FProperty` fields manually and stringify them, while `dir(obj)` + Python's type-aware `repr` does the same work with less code.
+
+**Marker flow:**
+1. Bridge generates a per-call UUID marker (`__DATA_<12-hex>__`).
+2. First round-trip: `execute_unreal_python` runs the embedded reflection script in the editor; the script `unreal.log()`s a JSON payload wrapped in the marker + `__END__` sentinel.
+3. Second round-trip: `get_log_lines` retrieves recent `LogPython` lines.
+4. Bridge scans in reverse, finds the marker, extracts + parses the JSON, returns it via `_wrap_tool_result`.
+
+**Property enumeration heuristic:** the embedded script iterates `dir(obj)` filtered to non-underscore names, then attempts `obj.get_editor_property(n)` on each. UE returns the value for real UPROPERTYs and raises for everything else (methods, transient attrs, parent-class slots that aren't editor-exposed) — the script catches and skips those silently. This keeps the reflection robust without needing a curated list of property types per asset class.
+
+**Value stringification (shallow, no recursion):**
+- Scalars (`int`, `float`, `bool`, `str`) → `str(value)`.
+- Containers (`list`, `tuple`, `dict`) → `"<container:<typename>>"`.
+- Everything else (UE structs, soft references, actor handles, …) → `"<unsupported>"`.
+
+Don't try to recurse — if you need deep inspection of a nested struct, build a more specific handler or run a custom Python via `execute_unreal_python`.
+
+**Logical errors return as ok=False success envelopes:**
+- `asset_not_found` — `EditorAssetLibrary.load_asset(path)` returned `None`.
+- `marker_not_found` — the LogPython buffer didn't contain the marker after the exec round-trip. Usually means log buffer overflowed between exec and read; **retry typically resolves**.
+- `invalid_json` — marker was found but the payload between marker and `__END__` didn't JSON-decode. Should not happen in practice unless the embedded script emits malformed output.
+
+These are **logical** errors (caller may want to retry or inspect), not transport errors. Transport-level errors (UE editor not running, `-32099`; Python interpreter raised an exception, `-32603`) come back as JSON-RPC errors per the existing convention.
+
+**Params**
+- `path` (string, required) — package path to a UDataAsset, e.g. `/Game/Data/DA_PlayerStats`.
+
+**Result (ok=true path)**
+- `ok` (bool) — `true`
+- `path` (string) — echoes the input
+- `class` (string) — leaf class name from `cls.get_name()`
+- `parent_class` (string or null) — `cls.get_super_class().get_name()`; null when at `UObject` root
+- `package_path` (string) — full path from `obj.get_path_name()`, including the asset's object name (e.g. `/Game/Data/DA_PlayerStats.DA_PlayerStats`)
+- `properties` (array of `{name, type, value}`) — shallow reflection of editor-visible properties
+
+**Result (ok=false path)**
+- `ok` (bool) — `false`
+- `error_code` (string) — `asset_not_found` / `marker_not_found` / `invalid_json`
+- `error_message` (string) — human-readable detail (`marker_not_found` includes a "retry typically resolves" hint)
+
+**Errors (envelope-level):** `-32602` (missing or non-string `path`); `-32603` (UE editor unreachable, or `execute_unreal_python` raised — `output` field of the Python response is surfaced in the error message).
+
+**Example — happy path**
+```json
+{"jsonrpc":"2.0","id":1,"method":"inspect_data_asset","params":{
+  "path": "/Game/Data/DA_PlayerStats"
+}}
+```
+
+**Example response (ok=true)**
+```json
+{
+  "ok": true,
+  "path": "/Game/Data/DA_PlayerStats",
+  "class": "MyDataAsset",
+  "parent_class": "PrimaryDataAsset",
+  "package_path": "/Game/Data/DA_PlayerStats.DA_PlayerStats",
+  "properties": [
+    {"name": "MaxHealth", "type": "float", "value": "100.0"},
+    {"name": "DisplayName", "type": "str", "value": "Hero"},
+    {"name": "Tags", "type": "Array", "value": "<container:Array>"}
+  ]
+}
+```
+
+**Example — asset not found**
+```json
+{"jsonrpc":"2.0","id":2,"method":"inspect_data_asset","params":{
+  "path": "/Game/Data/DoesNotExist"
+}}
+```
+Returns `{"ok": false, "error_code": "asset_not_found", "error_message": "Asset not found: /Game/Data/DoesNotExist"}`.
 
 ---
 

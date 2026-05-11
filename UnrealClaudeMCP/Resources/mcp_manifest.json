@@ -1,7 +1,7 @@
 {
   "name": "UnrealClaudeMCP",
   "version": "0.9.1",
-  "description": "Drive Unreal Engine 5.7 from Claude (or any MCP client) over a local TCP socket. Seventy generic editor-automation tools (64 native C++ handlers plus 6 bridge-side synthetic tools) that work with any UE 5.7 project.",
+  "description": "Drive Unreal Engine 5.7 from Claude (or any MCP client) over a local TCP socket. Seventy-one generic editor-automation tools (64 native C++ handlers plus 7 bridge-side synthetic tools) that work with any UE 5.7 project.",
   "transport": {
     "type": "tcp",
     "host": "127.0.0.1",
@@ -603,6 +603,14 @@
         "continue_on_error": "bool (optional, default true) - when true, keep deleting after an individual path fails and surface per-path errors in results; when false, stop on first failure and return partial results"
       },
       "returns": { "ok": "bool (true only when failed == 0)", "total": "int (paths.length)", "deleted": "int (count of per-path successes)", "failed": "int (count of per-path failures)", "results": "array of {path: string, ok: bool, error_code: int | null, error_message: string | null} - one entry per attempted path; preserves the upstream JSON-RPC error code per failure so callers can distinguish transport-level errors (-32099) from logical delete_asset failures" }
+    },
+    {
+      "name": "inspect_data_asset",
+      "description": "Shallow-reflect a UDataAsset by package path: returns leaf class name, parent class name, package path, and editable property list. SYNTHETIC bridge-side handler that composes execute_unreal_python + get_log_lines via the marker pattern.",
+      "params": {
+        "path": "string (required) - package path to a UDataAsset, e.g. /Game/Data/DA_PlayerStats; must be a non-empty string"
+      },
+      "returns": { "ok": "bool", "path": "string", "class": "string (leaf class name)", "parent_class": "string (super-class name, null when at UObject root)", "package_path": "string (full path with object name, from obj.get_path_name())", "properties": "array of {name: string, type: string (Python type-name from type(v).__name__), value: string (stringified for scalars; '<container:type>' for list/tuple/dict; '<unsupported>' otherwise)} - shallow reflection only, no recursion", "error_code": "string (only on ok=False; one of 'asset_not_found', 'marker_not_found', 'invalid_json')", "error_message": "string (only on ok=False; human-readable detail)" }
     }
   ]
 }
