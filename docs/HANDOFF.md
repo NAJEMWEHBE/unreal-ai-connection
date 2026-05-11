@@ -770,3 +770,38 @@ The hub artefact is `AGENTS.md` + `.mcp.json`. Both are in-repo (or in a gitigno
 - **`.codex/` stale-artifact cleanup** still pending. With `.codex/` properly gitignored now, the artefact cleanup is the only loose end — pure chore PR if anyone wants it.
 - **`tmp/` is now gitignored**, so the cleanup-pre-commit dance from the last three sessions is unnecessary going forward.
 - **Sixth consecutive session closing-note discipline.** The cadence is fully institutionalised; the next agent can pick up purely from this doc + the at-a-glance at the top.
+
+**Session 2026-05-11 (seventh micro-session — branch protection on main):**
+
+User opened the GitHub "New branch ruleset" page and asked: "Do this protection, please. and continue the workflow." Created ruleset `16243165` via `gh api repos/NAJEMWEHBE/UnrealClaudeMCP/rulesets --method POST` with parameters chosen to preserve the established self-merge cadence:
+
+**Ruleset `16243165` ("Protect main"):**
+- **Enforcement:** active.
+- **Target:** `refs/heads/main`.
+- **Rules:**
+  - `deletion` — block branch deletion.
+  - `non_fast_forward` — block force-push to main.
+  - `pull_request` — require PR; `required_approving_review_count: 0` (does NOT require approvals, so solo self-merge cadence works); `allowed_merge_methods: ["merge", "squash", "rebase"]` (the existing `gh pr merge --merge` stays valid).
+  - `required_status_checks` — `tests` job must pass before merge.
+- **Bypass:** RepositoryRole `5` (Admin) with `bypass_mode: always`. The repo owner `NAJEMWEHBE` is admin → `current_user_can_bypass: always` per API response.
+
+**Why these specific parameters:**
+- `required_approving_review_count: 0`: every PR must use the PR pathway (already directive #1 — no direct pushes to main), but doesn't block solo self-merge. If we ever onboard contributors, bump to 1 + add a bypass for the owner.
+- `tests` as the required status check: the existing GitHub Actions workflow `tests` runs pytest on every PR (verified across 9 PRs this evening). It greens in 22-29s. Making it required ensures no future PR can merge with broken tests.
+- `merge` method allowed: the existing cadence creates explicit merge commits via `gh pr merge 90 --merge`. If the project later wants linear history, swap to squash or rebase.
+- Admin bypass: necessary for `gh pr merge` to succeed when the merger is also the admin. Without bypass, the ruleset's `pull_request` rule blocks self-approval (GitHub treats the PR author as ineligible to approve their own PR even with `required_approving_review_count: 0`).
+
+**Verification:** PR #94 (which merged before the ruleset was created) was on the old workflow; subsequent PRs will exercise the ruleset. The ruleset takes effect immediately for any new PR.
+
+**`AGENTS.md` doc-drift sweep regex updated** to include `71` alongside the historical `56|60|65|68|70` values, so the next contributor bumping to 72 will catch a stale `71` reference anywhere in the project. The HANDOFF "Sweep procedure used" record (line 584) was left frozen — sprint chronology.
+
+**Tool count: 71 → 71 (no change).**
+**pytest: 188 → 188 passing (no test surface touched).**
+**main HEAD:** `5049bb5` end of HANDOFF PR #95; this closing-note PR adds one more merge on top.
+
+**What to watch in next session:**
+
+- **Branch protection is live.** Future PRs must pass the `tests` status check (already the cadence, but now enforced). Force-push to main is now blocked. Deletion of main is blocked. Self-merge cadence continues unchanged for the admin owner.
+- **For onboarding contributors:** the current ruleset allows 0-approval merges. When the first non-admin contributor lands, bump `required_approving_review_count` to 1 + add NAJEMWEHBE to the bypass list explicitly (in addition to the RepositoryRole 5 entry that already covers admin role).
+- **The capability matrix from PR #95** is the durable artefact from the prior session. The branch protection from this session is the durable artefact from this one. Together they define "what every contributor needs to know" — both are now in `AGENTS.md` + `HANDOFF.md`.
+- **Seventh consecutive closing-note.** Cadence institutional.
