@@ -437,7 +437,7 @@ The user kicked off this session with *"check the information code page in my re
 
 **Session 2026-05-10 (post-recovery resumption sprint):**
 
-The dev machine was reformatted between sessions; this session resumed from an F-drive working tree (repo cloned to `F:\UnrealClaudeMCP\` rather than the prior canonical `C:\Users\NINOH\Desktop\UnrealClaudeMCP\`). Recovery sequence ran end-to-end at session start: restored the 9 session-memory files from `docs/session-memory-archive/` to the new `~/.claude/projects/F--UnrealClaudeMCP/memory/` location, re-installed `gh` (winget) + Codex CLI (`@openai/codex` via npm), re-authed both, and verified pytest baseline (162 passing on `64e4ce6`). Per-repo git config also had to be re-set (`git config user.name/user.email`) since global config had been wiped — explicit user approval was sought before that change.
+The dev machine was reformatted between sessions; this session resumed from an F-drive working tree (repo cloned to `F:\UnrealClaudeMCP\` rather than the prior canonical `C:\Users\<USERNAME>\Desktop\UnrealClaudeMCP\`). Recovery sequence ran end-to-end at session start: restored the 9 session-memory files from `docs/session-memory-archive/` to the new `~/.claude/projects/F--UnrealClaudeMCP/memory/` location, re-installed `gh` (winget) + Codex CLI (`@openai/codex` via npm), re-authed both, and verified pytest baseline (162 passing on `64e4ce6`). Per-repo git config also had to be re-set (`git config user.name/user.email`) since global config had been wiped — explicit user approval was sought before that change.
 
 **5 PRs merged in this resumption sprint:**
 
@@ -463,7 +463,7 @@ The dev machine was reformatted between sessions; this session resumed from an F
 
 **What to watch in the next session:**
 - **Live verification is STILL pending** — 11 new C++ handlers have shipped without a host build (PR #51's inspect_niagara_system through PR #72's inspect_physics_asset). Build risk is real, particularly for the new Niagara / Anim / Landscape / SkeletalMesh / AnimMontage / WidgetBlueprint / DataTable / Texture / Curve / PhysicsAsset handlers that touch unfamiliar UE module surfaces. Run the verification runbook at the top of this doc (`-ExpectedCount 61`) when the host machine is available.
-- **Doc-drift sweep this PR** — replaced `C:\Users\NINOH\Desktop\UnrealClaudeMCP\` paths with `F:\UnrealClaudeMCP\` throughout HANDOFF.md + RESTART-RECOVERY.md, since the post-recovery canonical location is F:. Memory folder name updated `C--Users-NINOH-Desktop-UnrealClaudeMCP` → `F--UnrealClaudeMCP`.
+- **Doc-drift sweep this PR** — replaced `C:\Users\<USERNAME>\Desktop\UnrealClaudeMCP\` paths with `F:\UnrealClaudeMCP\` throughout HANDOFF.md + RESTART-RECOVERY.md, since the post-recovery canonical location is F:. Memory folder name updated `C--Users-<USERNAME>-Desktop-UnrealClaudeMCP` → `F--UnrealClaudeMCP`.
 - **`.codex/` artifacts** — repo-local `.codex/config.toml` (stale; points at old C: bridge path) and `.codex/niagara_task.txt` (historical PR #51 prompt) still untracked. Deferred to a future tiny chore PR (gitignore + prune).
 - Bot reviews on PRs #69 / #70 / #71 / #72 — self-merged before bot reviews landed; check the PR pages for any post-merge findings that warrant a cleanup PR.
 
@@ -726,7 +726,7 @@ User pivoted: "Your system skills and prompts and plugins and CPUs works. All of
    - The 5-step cross-agent prompt-discipline recipe from PR #92's HANDOFF note.
    - Trap-table highlights (manifest "required" substring, `call_ue` shape, `execute_unreal_python` output channel, UE 5.7 access-modifier traps, deprecated `UTexture::CompositeTexture`).
 
-2. **`.mcp.json` path correction.** Stale `C:\Users\NINOH\Desktop\UnrealClaudeMCP\bridge\...` from before the C:-format recovery → fixed to `F:\UnrealClaudeMCP\bridge\...`. Gitignored (per-machine), so the fix is local; the in-repo `examples/.mcp.json.example` was also updated to point future Codex CLI users at the right registration command.
+2. **`.mcp.json` path correction.** Stale `C:\Users\<USERNAME>\Desktop\UnrealClaudeMCP\bridge\...` from before the C:-format recovery → fixed to `F:\UnrealClaudeMCP\bridge\...`. Gitignored (per-machine), so the fix is local; the in-repo `examples/.mcp.json.example` was also updated to point future Codex CLI users at the right registration command.
 
 3. **`codex mcp add unreal-claude-mcp -- py F:\UnrealClaudeMCP\bridge\unreal_claude_mcp_bridge.py`** registered the bridge globally in `~/.codex/config.toml`. `codex mcp list` now shows the server. Codex CLI sees all 71 tools.
 

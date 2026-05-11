@@ -69,7 +69,7 @@ gh auth login
 ### 3. Re-clone the repo
 
 ```powershell
-cd C:\Users\NINOH\Desktop
+cd $env:USERPROFILE\Desktop
 gh repo clone NAJEMWEHBE/UnrealClaudeMCP
 cd UnrealClaudeMCP
 git status   # should be clean, on main
@@ -86,7 +86,7 @@ codex login
 Verify:
 ```powershell
 codex --version    # 0.130 or later
-node "C:\Users\NINOH\.claude\plugins\cache\openai-codex\codex\1.0.4\scripts\codex-companion.mjs" setup --json
+node "$env:USERPROFILE\.claude\plugins\cache\openai-codex\codex\1.0.4\scripts\codex-companion.mjs" setup --json
 # Should report ready: true, codex.available: true, auth.loggedIn: true
 ```
 
@@ -98,7 +98,7 @@ The 8 session memory files live in [`docs/session-memory-archive/`](session-memo
 
 ```powershell
 $src = "F:\UnrealClaudeMCP\docs\session-memory-archive"
-$dst = "C:\Users\NINOH\.claude\projects\F--UnrealClaudeMCP\memory"
+$dst = "$env:USERPROFILE\.claude\projects\F--UnrealClaudeMCP\memory"
 New-Item -ItemType Directory -Force -Path $dst | Out-Null
 Copy-Item "$src\*.md" $dst -Force
 ```

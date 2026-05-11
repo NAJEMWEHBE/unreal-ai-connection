@@ -22,8 +22,8 @@ This folder is a snapshot of Claude Code's project-specific memory files for thi
 ## Restoring after a format
 
 ```powershell
-$src = "C:\Users\NINOH\Desktop\UnrealClaudeMCP\docs\session-memory-archive"
-$dst = "C:\Users\NINOH\.claude\projects\C--Users-NINOH-Desktop-UnrealClaudeMCP\memory"
+$src = "$env:USERPROFILE\Desktop\UnrealClaudeMCP\docs\session-memory-archive"
+$dst = "$env:USERPROFILE\.claude\projects\C--Users-<USERNAME>-Desktop-UnrealClaudeMCP\memory"
 New-Item -ItemType Directory -Force -Path $dst | Out-Null
 Copy-Item "$src\*.md" $dst -Force
 # Don't copy this README.md — it's repo-only documentation
@@ -43,10 +43,10 @@ These files are **snapshots**, not live links. They get stale as Claude Code's a
 To update: copy from the live memory directory back into this folder, commit, push.
 
 ```powershell
-$src = "C:\Users\NINOH\.claude\projects\C--Users-NINOH-Desktop-UnrealClaudeMCP\memory"
-$dst = "C:\Users\NINOH\Desktop\UnrealClaudeMCP\docs\session-memory-archive"
+$src = "$env:USERPROFILE\.claude\projects\C--Users-<USERNAME>-Desktop-UnrealClaudeMCP\memory"
+$dst = "$env:USERPROFILE\Desktop\UnrealClaudeMCP\docs\session-memory-archive"
 Copy-Item "$src\*.md" $dst -Force
-cd C:\Users\NINOH\Desktop\UnrealClaudeMCP
+cd $env:USERPROFILE\Desktop\UnrealClaudeMCP
 git add docs/session-memory-archive
 git commit -m "docs(memory): refresh session memory archive snapshot"
 git push

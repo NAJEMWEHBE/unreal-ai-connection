@@ -91,7 +91,7 @@ def test_configure_texture_schema():
 - [ ] **Step 2: Run tests to confirm they fail (TDD red)**
 
 ```bash
-cd C:/Users/NINOH/Desktop/UnrealClaudeMCP
+cd C:/Users/<USERNAME>/Desktop/UnrealClaudeMCP
 pytest tests/ -v
 ```
 

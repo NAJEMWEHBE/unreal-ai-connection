@@ -36,7 +36,7 @@ After registration, all 75 tools become available through the standard MCP `tool
 
 ## Local LLMs via Ollama (free; no cloud / no quota)
 
-Ollama is installed at `C:\Users\NINOH\AppData\Local\Programs\Ollama\ollama.exe`. Models live on `F:\ollama\models` (the `OLLAMA_MODELS` user env var redirects from the default `%USERPROFILE%\.ollama\models` so the 1.5 TB on F: takes the storage hit instead of C:). The server auto-starts on user login and listens on `http://127.0.0.1:11434`.
+Ollama is installed at `%LOCALAPPDATA%\Programs\Ollama\ollama.exe`. Models live on `F:\ollama\models` (the `OLLAMA_MODELS` user env var redirects from the default `%USERPROFILE%\.ollama\models` so the 1.5 TB on F: takes the storage hit instead of C:). The server auto-starts on user login and listens on `http://127.0.0.1:11434`.
 
 **Models pulled** (all free open-weights, can be removed via `ollama rm <name>` if you want the disk back):
 - `qwen3.6:27b` (17 GB) — coding-focused reasoning model with `thinking` mode. Best general-coding pick for this rig when you can wait. Inference ~3-6 tok/s on the 12 GB RTX 4070 Ti (CPU offload for the part that doesn't fit VRAM). Toggle thinking off with `--think=false` (REST API: `"think": false`) for ~2x speed when you don't need chain-of-thought.

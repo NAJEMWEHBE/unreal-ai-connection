@@ -11,7 +11,7 @@ originSessionId: 886e5f4a-65a1-4dd0-a038-703f0c903a63
 The exception code `0xe0434352` is the canonical CLR unhandled-exception code — its hex bytes literally encode `\xe0CCR` (CCR = original CLR codename). Confirms it's .NET, not Codex's Node-based CLI.
 
 **Confirmed instances:**
-- PR #51: Codex's own report said "attempted RunUAT BuildPlugin for a full compile check but the sandbox blocked writes under `C:\Users\NINOH\AppData\Local\UnrealEngine\...`"
+- PR #51: Codex's own report said "attempted RunUAT BuildPlugin for a full compile check but the sandbox blocked writes under `%LOCALAPPDATA%\UnrealEngine\...`"
 - PR #53: dotnet.exe popup appeared during Codex dispatch (the agent was also killed for shell-quoting issues, separate failure)
 - Earlier in the session before PR #50: same popup appeared
 
