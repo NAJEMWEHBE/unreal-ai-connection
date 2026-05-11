@@ -14,7 +14,7 @@ Run from the repo root:
 
 ```bash
 pip install pytest pytest-cov
-pytest tests/                                 # 203 tests, < 1 second
+pytest tests/                                 # 208 tests, < 1 second
 pytest tests/ --cov=bridge --cov-report=term-missing   # with coverage
 ```
 
