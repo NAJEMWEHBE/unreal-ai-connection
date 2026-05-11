@@ -64,7 +64,7 @@ The full trap-table lives in `docs/HANDOFF.md` closing-notes. Highlights every a
 2. **For bridge / docs changes:** pytest sufficient. Self-merge on CI green for mechanical PRs per directive #7.
 3. **Always:** doc-drift sweep before close-of-PR. Run:
    ```
-   rg -n "\b(56|60|65|68|70)\b.*\b(C\+\+|handlers?|tools? total|synthetic)" \
+   rg -n "\b(56|60|65|68|70|71)\b.*\b(C\+\+|handlers?|tools? total|synthetic)" \
      --glob '!docs/superpowers/**' --glob '!docs/HANDOFF.md'
    ```
    Update CLAUDE.md / AGENTS.md / README.md / TOOLS.md / .uplugin Description / manifest description / HANDOFF.md at-a-glance + runbook step 5. The closing-note records sprint chronology — leave those frozen.
