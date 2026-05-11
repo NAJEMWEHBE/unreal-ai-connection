@@ -619,3 +619,48 @@ User offered Pro 30-day trial path. Declined to enroll (financial action with au
 - **Copilot deferred.** If the user later subscribes to Copilot Pro independently, `gh api user/copilot` will start returning 200 — at that point the trap-table-update steps 2 + 3 (toggle + verify on the next PR) become unblocked. Until then, ignore.
 - **Live smoke on `compile_mod_pak`** — unchanged carry-over.
 - **Next feature work.** With Copilot out of scope, the natural pickup is the deferred Tier 3 surface list: `inspect_data_asset` / `inspect_sound_class` / `inspect_metasound` / bulk delete-move / Sequencer keyframe authoring / Movie Render Queue. All require host-side cold compile per the 2026-05-10 discipline.
+
+**Session 2026-05-11 (fourth micro-session — first parallel-AI dispatch experiment):**
+
+User pivoted: "Now is Codex working with you with the workflow? Give him a task. And… plus, I just downloaded Copilot on my PC, and you can go through it, give it some task prompts, jobs, coding, reviewing, whatever you wanna give it." First three-stream (Opus + Codex + Copilot) dispatch run. Took ~25 min wall-clock total including infra setup, prompt drafting, dispatch, integration, doc sweep, PR, self-merge.
+
+**Copilot CLI install + auth — `gh api user/copilot` 404 is NOT diagnostic.** Installed `@github/copilot` v1.0.44 via npm. Smoke test (`copilot -p "Print 5 lines of CLAUDE.md"`) worked first try, returned in 20s with 1 Premium request, despite the `/user/copilot` REST endpoint still 404'ing. **Correcting prior trap-table entry:** the 404 means "no paid Pro seat exposed via the legacy `/user/copilot` REST surface" — it does NOT mean Copilot CLI access is unavailable. User has SOME Copilot tier (Free, Pro, or org-scoped) that the new agentic CLI auth accepts via gh OAuth inheritance, but the legacy REST probe misses. The third-micro-session conclusion ("Copilot deferred / no subscription") was wrong on the CLI dimension and stands only on the **PR-review** dimension (separate gate: repo Settings → Code review toggle still wants explicit Pro+/Business subscription that probably matches the REST probe).
+
+**Dispatch surface — both CLIs accept `-p <prompt>` non-interactive + `--effort/--reasoning-effort xhigh` + can edit files (gated by sandbox flags).** Codex used `codex exec -s read-only -c model_reasoning_effort=xhigh`; Copilot used `copilot -p --allow-all-tools --add-dir <bridge> --add-dir <tests>`. Both read source files via PowerShell `Get-Content`. Codex's `-s read-only` sandbox is enforced by the runtime; Copilot's prompt-directive "DO NOT MODIFY ANY FILES" is enforced only by the LLM following the directive (no file edits attempted in this run, but it's a softer guarantee).
+
+**Stream results — Codex won the head-to-head on grounding:**
+
+- **Codex stream (`bulk_delete_assets`)** — ship-ready on first dispatch. Cost: ~96k total tokens, ~6 min wall-clock. Read `Handler_DeleteAsset.cpp` C++ source to ground the upstream contract before producing the synthetic. Tests use `patch.object` matching existing pattern. Param descriptions avoid the "required for" substring trap. Integrated as-is.
+
+- **Copilot stream (`inspect_data_asset`)** — TWO real bugs in the bridge code:
+  1. Read `upstream.get("ok")` to detect success. `call_ue` actually returns `{"error": ...}` or `{"result": ...}`; there is no top-level `ok` field. Bug would silently treat every upstream success as a failure (because `.get("ok")` returns `None`/falsy).
+  2. Read `result.stdout` from `execute_unreal_python`. UE Python output does NOT come back in the JSON-RPC `result`; it goes through `LogPython` and is retrieved via a **separate second-round-trip `get_log_lines` call** with a marker pattern (canonical in `synthetic_get_camera_transform`, PR #46). Bug would never find any output.
+  Tests used `monkeypatch` (pytest-style) instead of `unittest.mock.patch.object` (project style). Assertions were overly permissive (`if res.get("result") is not None: ... else ...`). Cost: 19.4k↑ / 5.7k↓ tokens, 1 Premium request, 1m31s wall-clock. **Faster but skipped the grounding step the Codex prompt-discipline recipe enforces.**
+
+Opus decision: ship Codex's `bulk_delete_assets` alone. Don't rewrite Copilot's broken output in-house — that would conflate Copilot's quality with Opus's rewrite. Defer `inspect_data_asset` to a follow-up dispatch with a SHARPER Copilot prompt that names `synthetic_get_camera_transform` as the LITERAL template the way the hardened Codex prompts do (PR #76 → #81 → #85 recipe).
+
+**Sharper Copilot retry-prompt recipe (to use next session):**
+- "Use `bridge/unreal_claude_mcp_bridge.py::synthetic_get_camera_transform` as your **LITERAL TEMPLATE**. Read lines 1004-1076 first; your function body must follow the same `call_ue("execute_unreal_python", ...)` → `call_ue("get_log_lines", ...)` → marker-extraction two-round-trip pattern. Do NOT invent a single-round-trip `result.stdout` shortcut — `execute_unreal_python` does not return Python stdout in `result`."
+- "`call_ue` returns either `{'jsonrpc': '2.0', 'id': N, 'result': {...}}` OR `{'jsonrpc': '2.0', 'id': N, 'error': {...}}`. There is no top-level `ok`. Test with `if 'error' in resp: ...` — never `resp.get('ok')`."
+- "Tests use `from unittest.mock import patch, MagicMock`; `with patch.object(bridge, 'call_ue', return_value=...) as m:` — NOT pytest `monkeypatch`."
+- Carry over from the Codex hardened prompt: 4-space indent, no "required for" substring (use "must be supplied when"), error format `<tool>: <stable_code>: <human detail>`, vendor-neutral language.
+
+**Token-economics observation:** Codex's grounding-via-source-reading paid for itself even at 4x Copilot's spend, because Opus's rewrite cost would have outweighed the Codex savings. The Codex prompt-discipline recipe (PR #76 onward) is now PROVEN to generalise — the recipe carries the cost of grounding, and that grounding is what turns "AI wrote it in 90 seconds with bugs" into "AI wrote it ship-ready." Apply the same prompt discipline to Copilot dispatches.
+
+**New trap-table entries from this session:**
+
+- **`gh api user/copilot` 404 is NOT a Copilot-CLI gate.** The REST endpoint covers legacy seat-assignment surface. The agentic CLI (`@github/copilot` npm, `copilot -p`) auths via gh OAuth inheritance and can run on a Copilot tier the REST probe doesn't expose (Free, Pro, org-scoped). Probe correctly by running a real CLI invoke: `copilot -p "echo test" --allow-all-tools` — auth fails fast with a clear message if no tier. The 404 probe is still correct for the **PR-review enablement** dimension (repo Settings → Code review toggle), which is a separate paid feature.
+- **`execute_unreal_python` result shape — Python stdout does NOT land in `result.stdout`.** Stdout goes through `unreal.log()` / `print()` → `LogPython` → retrieved via `call_ue("get_log_lines", {"category_filter": "LogPython", "count": 1000})`. The marker pattern (per-call UUID, sentinel tokens like `__CAM_<marker>__...__END__`) deduplicates against log noise. Synthetic tools that compose `execute_unreal_python` MUST follow this two-round-trip pattern — see `synthetic_get_camera_transform` lines 1004-1076 as the canonical example.
+- **Copilot CLI `--allow-all-tools` does not gate file-edits.** That flag turns OFF the interactive permission prompts that would normally surface tool calls. Use `--available-tools <whitelist>` or `--deny-tool=write,edit` to actually restrict file mutation. Cleanest pattern for read-only research dispatches: pass an explicit `--available-tools=Read,Bash` (or whatever Copilot calls the tool names — verify with a small probe) rather than relying on the prompt directive alone.
+- **Parallel-AI dispatch on the SAME file = merge-conflict risk.** Both AIs editing `bridge/unreal_claude_mcp_bridge.py` simultaneously would have collided. Worked around in PR #90 by telling BOTH AIs to output code-block snippets to stdout and NOT edit files; Opus integrated both into the bridge sequentially. The clean alternative would have been git worktrees per stream. The snippet-output approach is simpler and worked — adopt as the default for future dispatches.
+
+**Tool count: 69 → 70** (64 C++ + 6 synthetic; synthetics are now `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `bulk_delete_assets`).
+**pytest: 179 → 183 passing** (+4 tests for `bulk_delete_assets`: schema-is-synthetic + happy + partial-failure-stops + missing-paths-rejection).
+**main HEAD:** `14b7a23` end of feature merge; this closing-note PR adds one more merge on top.
+
+**What to watch in next session:**
+
+- **`inspect_data_asset` redispatch.** Sharper Copilot prompt above. Should ship a working `inspect_data_asset` synthetic in <5 min if the prompt-discipline transfer works.
+- **More parallel dispatches.** Codex + Copilot pairs work mechanically. Natural next targets: `inspect_sound_class` (Codex) + `inspect_audio_bus` (Copilot) — both C++ handlers, same audio module surface, head-to-head quality test on a harder surface (C++ vs the Python this session covered). Requires host cold compile after both ship.
+- **`tmp/parallel-dispatch/` was deleted pre-commit.** If we adopt parallel dispatches as the workflow norm, consider adding `tmp/` to `.gitignore` so transient scratch dirs never leak into PRs.
+- **HANDOFF closing-note discipline now at 4 consecutive sessions.** The cadence is mature: every session ships a feature/chore PR + a HANDOFF append PR. The pickup pattern is mechanical for the next agent.
