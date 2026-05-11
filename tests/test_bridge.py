@@ -23,7 +23,7 @@ def test_tools_list_size():
     # Cross-checked against the manifest in test_manifest_sync.py; the absolute
     # number bumps with each new tool. Function name kept count-agnostic so
     # it doesn't drift behind the assertion (per Sonnet pre-review on PR #50).
-    assert len(bridge.TOOLS) == 68
+    assert len(bridge.TOOLS) == 69
 
 
 def test_each_tool_has_required_mcp_fields():
@@ -87,6 +87,7 @@ def test_tool_names_are_unique_and_match_handlers():
         "get_camera_transform",
         "set_camera_transform",
         "screenshot_actor",
+        "compile_mod_pak",
     }
     assert set(names) == expected
 
@@ -487,6 +488,22 @@ def test_screenshot_actor_is_synthetic():
     assert t["inputSchema"]["properties"]["name"]["type"] == "string"
     assert "screenshot_actor" in bridge.SYNTHETIC_TOOLS
     assert bridge.SYNTHETIC_TOOLS["screenshot_actor"] is bridge.synthetic_screenshot_actor
+
+
+def test_compile_mod_pak_is_synthetic():
+    """compile_mod_pak is a SYNTHETIC bridge-side handler (David's PR #84 +
+    integration cleanup): shells RunUAT.bat BuildMod / BuildPlugin headless
+    to produce a .pak (BuildMod) or redistributable plugin package
+    (BuildPlugin). project_path AND output_dir are both required at the
+    schema level so the success-verification step has a known dir to scan."""
+    t = next((t for t in bridge.TOOLS if t["name"] == "compile_mod_pak"), None)
+    assert t is not None
+    assert set(t["inputSchema"]["required"]) == {"project_path", "output_dir"}
+    assert t["inputSchema"]["properties"]["project_path"]["type"] == "string"
+    assert t["inputSchema"]["properties"]["output_dir"]["type"] == "string"
+    assert t["inputSchema"]["properties"]["uat_command"]["enum"] == ["BuildMod", "BuildPlugin"]
+    assert "compile_mod_pak" in bridge.SYNTHETIC_TOOLS
+    assert bridge.SYNTHETIC_TOOLS["compile_mod_pak"] is bridge.synthetic_compile_mod_pak
 
 
 def test_screenshot_actor_happy_path():
@@ -1017,7 +1034,7 @@ def test_handle_tools_list_returns_all_tools():
     resp = bridge.handle({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
     assert resp["id"] == 2
     assert "tools" in resp["result"]
-    assert len(resp["result"]["tools"]) == 68
+    assert len(resp["result"]["tools"]) == 69
 
 
 # -------- handle: tools/call --------------------------------------------------

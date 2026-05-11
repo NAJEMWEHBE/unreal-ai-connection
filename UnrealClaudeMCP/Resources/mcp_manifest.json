@@ -579,6 +579,21 @@
         "name": "string (required) - actor label or unique name to focus on"
       },
       "returns": { "ok": "bool", "focused": "string", "name": "string", "loc": "{x, y, z}", "width": "int", "height": "int", "png_bytes": "int", "png_base64": "string" }
+    },
+    {
+      "name": "compile_mod_pak",
+      "description": "Compile a UE mod plugin to a .pak file (BuildMod) or to a redistributable plugin package (BuildPlugin), headless via RunUAT.bat. No UE editor session required. SYNTHETIC bridge-side handler -- shells out to RunUAT, captures stdout/stderr tails, scans output_dir for the freshest .pak (optionally filtered by mod_name). Primary use case: game-specific UE5 Dev Kits in installed-build mode that block standard BuildPlugin (e.g. Conan Exiles Enhanced; Funcom ships a BuildMod UAT command as the only working path). Success criterion is per-command: BuildMod requires both exit_code==0 AND a .pak in output_dir; BuildPlugin requires exit_code==0 alone (this command produces a package directory, not a .pak).",
+      "params": {
+        "project_path": "string (required) - absolute path to .uproject",
+        "output_dir": "string (required) - directory for output .pak or package; created if missing; success verification scans this dir",
+        "mod_name": "string (conditional, needed when uat_command is BuildMod) - matches Content/Mods/<mod_name>/ folder; also used to disambiguate the freshest .pak when output_dir has multiple",
+        "plugin_path": "string (conditional, needed when uat_command is BuildPlugin) - absolute path to .uplugin",
+        "uat_command": "string enum (BuildMod | BuildPlugin) - default BuildMod",
+        "run_uat_path": "string (optional) - override path to RunUAT.bat; auto-discovered from project Engine sibling otherwise",
+        "extra_args": "array of string (optional) - additional CLI args appended to RunUAT",
+        "timeout_sec": "int (optional) - max wait time in seconds; default 1800 (30 min)"
+      },
+      "returns": { "ok": "bool", "pak_path": "string (null when no .pak found; non-null otherwise; for BuildPlugin path expect null since BuildPlugin produces a package dir not a .pak)", "exit_code": "int", "stdout_tail": "string (last 4KB of stdout)", "stderr_tail": "string (last 2KB of stderr)", "duration_sec": "float (seconds, 2-decimal precision)", "uat_command": "string (the command actually run)", "cmd": "array of string (the full subprocess argv for debugging)" }
     }
   ]
 }
