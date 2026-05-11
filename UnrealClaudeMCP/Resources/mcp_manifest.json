@@ -1,7 +1,7 @@
 {
   "name": "UnrealClaudeMCP",
   "version": "0.9.1",
-  "description": "Drive Unreal Engine 5.7 from Claude (or any MCP client) over a local TCP socket. Seventy-five generic editor-automation tools (64 native C++ handlers plus 11 bridge-side synthetic tools) that work with any UE 5.7 project.",
+  "description": "Drive Unreal Engine 5.7 from Claude (or any MCP client) over a local TCP socket. Seventy-six generic editor-automation tools (64 native C++ handlers plus 12 bridge-side synthetic tools) that work with any UE 5.7 project.",
   "transport": {
     "type": "tcp",
     "host": "127.0.0.1",
@@ -594,6 +594,19 @@
         "timeout_sec": "int (optional) - max wait time in seconds; default 1800 (30 min)"
       },
       "returns": { "ok": "bool", "pak_path": "string (null when no .pak found; non-null otherwise; for BuildPlugin path expect null since BuildPlugin produces a package dir not a .pak)", "exit_code": "int", "stdout_tail": "string (last 4KB of stdout)", "stderr_tail": "string (last 2KB of stderr)", "duration_sec": "float (seconds, 2-decimal precision)", "uat_command": "string (the command actually run)", "cmd": "array of string (the full subprocess argv for debugging)" }
+    },
+    {
+      "name": "compile_mod_pak_direct",
+      "description": "Compile a UE5 mod into a .pak by invoking UnrealPak.exe directly with a response file, bypassing RunUAT entirely. Use when the Dev Kit's RunUAT BuildMod is broken (Funcom Conan Exiles Enhanced UE5 ships a ScriptModules manifest invalid-record bug -- UAT deletes its own deps.json before BuildMod can run). Pre-condition: caller has already cooked the .uasset files (e.g. via execute_unreal_python on a running Editor, or a separate UnrealEditor-Cmd.exe -run=Cook pass). SYNTHETIC bridge-side handler. Complements compile_mod_pak (which uses RunUAT); use compile_mod_pak_direct when UAT is broken on your Dev Kit.",
+      "params": {
+        "unreal_pak_path": "string (required) - absolute path to UnrealPak.exe (e.g. <DevKit>/Engine/Binaries/Win64/UnrealPak.exe)",
+        "response_file": "string (required) - absolute path to UnrealPak response file (.txt) mapping absolute sources to mount points inside the pak",
+        "output_pak": "string (required) - absolute path where the .pak should be written; parent dir created if missing; success verification needs a known path",
+        "compression": "string enum (Zlib | Gzip | Oodle | None) - default Zlib; 'None' omits the -compress<Algo> flag entirely (uncompressed pak)",
+        "extra_args": "array of string (optional) - additional CLI args appended to UnrealPak.exe (e.g. -encryptionkey)",
+        "timeout_sec": "int (optional) - max wait in seconds; default 600 (10 min) -- UnrealPak is typically much faster than RunUAT"
+      },
+      "returns": { "ok": "bool (exit_code==0 AND output_pak exists with size > 0)", "pak_path": "string (null when no .pak written or zero-byte; non-null path otherwise)", "pak_size_bytes": "int (null when pak missing; size in bytes otherwise)", "exit_code": "int", "stdout_tail": "string (last 4KB of stdout)", "stderr_tail": "string (last 2KB of stderr)", "duration_sec": "float (seconds, 2-decimal precision)", "cmd": "array of string (the full subprocess argv for debugging)" }
     },
     {
       "name": "bulk_delete_assets",

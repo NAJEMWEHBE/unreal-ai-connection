@@ -132,6 +132,22 @@ TOOLS = [
         },
     },
     {
+        "name": "compile_mod_pak_direct",
+        "description": "Compile a UE5 mod into a .pak by invoking UnrealPak.exe directly with a response file, bypassing RunUAT entirely. Use when the Dev Kit's RunUAT BuildMod is broken (Funcom Conan Exiles Enhanced UE5 ships a ScriptModules manifest invalid-record bug — UAT deletes its own deps.json before BuildMod can run). Pre-condition: caller has already cooked the .uasset files (e.g. via execute_unreal_python on a running Editor, or a separate `UnrealEditor-Cmd.exe -run=Cook` pass). UnrealPak is a standalone UE binary and works regardless of UAT state — runs in seconds and produces a .pak that deploys directly to the server's Mods/<name>/ folder. Complements compile_mod_pak (which uses RunUAT); use compile_mod_pak_direct when UAT is broken on your Dev Kit. SYNTHETIC bridge-side handler.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "unreal_pak_path": {"type": "string", "description": "Absolute path to UnrealPak.exe (e.g. <DevKit>/Engine/Binaries/Win64/UnrealPak.exe)"},
+                "response_file": {"type": "string", "description": "Absolute path to UnrealPak response file (.txt). Each line maps an absolute source path to a mount point inside the .pak, in the standard UnrealPak format: \"<absolute_source>\" \"<mount_in_pak>\""},
+                "output_pak": {"type": "string", "description": "Absolute path where the .pak should be written (created if parent dir missing; required so success can be verified)"},
+                "compression": {"type": "string", "enum": ["Zlib", "Gzip", "Oodle", "None"], "default": "Zlib", "description": "Compression algorithm (passed as -compress<Algo> flag); 'None' omits the flag entirely (uncompressed pak)"},
+                "extra_args": {"type": "array", "items": {"type": "string"}, "description": "Additional CLI args appended to UnrealPak.exe (e.g. -encryptionkey)"},
+                "timeout_sec": {"type": "integer", "default": 600, "description": "Max wait time in seconds; default 600 (10 min) — UnrealPak is typically much faster than RunUAT"},
+            },
+            "required": ["unreal_pak_path", "response_file", "output_pak"],
+        },
+    },
+    {
         "name": "bulk_delete_assets",
         "description": "Delete multiple assets by composing the delete_asset C++ handler bridge-side. Returns per-path results plus aggregate counts. By default continues after individual failures (partial success is normal); set continue_on_error=false to stop on first failure. SYNTHETIC bridge-side handler.",
         "inputSchema": {
@@ -1622,6 +1638,117 @@ def synthetic_compile_mod_pak(req_id, args):
     })
 
 
+def synthetic_compile_mod_pak_direct(req_id, args):
+    """Bridge-side: compile a .pak directly via UnrealPak.exe with a response
+    file, bypassing RunUAT entirely.
+
+    Why this complements compile_mod_pak: some Dev Kits ship RunUAT broken.
+    Funcom Conan Exiles Enhanced UE5 Dev Kit (mayo 2026) in 'installed-build
+    mode' fails BuildMod because UAT scans for a ScriptModules manifest and
+    deletes its own deps.json as 'invalid record' before BuildMod can run. The
+    workaround verified end-to-end on AEGIS-Admin (Workshop 3724162370):
+      1. Cook the .uasset files separately (execute_unreal_python on a
+         running Editor, or a discrete UnrealEditor-Cmd.exe -run=Cook pass)
+      2. Package them into a .pak with UnrealPak.exe directly
+    UnrealPak itself is a standalone UE binary shipped under
+    Engine/Binaries/Win64/ and works regardless of UAT state.
+
+    Args:
+      unreal_pak_path:  abs path to UnrealPak.exe
+      response_file:    abs path to response.txt with `"<src>" "<mount>"` lines
+      output_pak:       abs path where .pak should be written (parent dir
+                        created if missing)
+      compression:      Zlib (default) | Gzip | Oodle | None (omit flag)
+      extra_args:       additional CLI args appended
+      timeout_sec:      max wait, default 600 (10 min — UnrealPak is fast)
+
+    Returns:
+      ok (bool), pak_path (str | null), pak_size_bytes (int | null),
+      exit_code (int), stdout_tail (str), stderr_tail (str),
+      duration_sec (float), cmd (list)
+
+    Success criterion: exit_code == 0 AND output_pak exists with size > 0.
+    Same shape as compile_mod_pak (BuildMod branch) so downstream tooling
+    can switch between the two transparently.
+    """
+    import os
+    import subprocess
+    import time
+
+    unreal_pak_path = args.get("unreal_pak_path")
+    response_file = args.get("response_file")
+    output_pak = args.get("output_pak")
+    compression = args.get("compression", "Zlib")
+    extra_args = args.get("extra_args") or []
+    timeout_sec = int(args.get("timeout_sec", 600))
+
+    if not unreal_pak_path or not os.path.isfile(unreal_pak_path):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "compile_mod_pak_direct: unreal_pak_path missing or invalid file",
+        })
+
+    if not response_file or not os.path.isfile(response_file):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "compile_mod_pak_direct: response_file missing or invalid file",
+        })
+
+    if not output_pak:
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "compile_mod_pak_direct: output_pak required (success verification needs a known path)",
+        })
+
+    # Create parent dir if missing
+    parent = os.path.dirname(output_pak)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
+
+    cmd = [unreal_pak_path, output_pak, f"-Create={response_file}"]
+    if compression and compression != "None":
+        cmd.append(f"-compress{compression}")
+    cmd.extend(extra_args)
+
+    start = time.time()
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_sec)
+        duration = time.time() - start
+    except subprocess.TimeoutExpired:
+        return make_response(req_id, error={
+            "code": -32603,
+            "message": f"compile_mod_pak_direct: timeout after {timeout_sec}s",
+        })
+    except Exception as e:
+        return make_response(req_id, error={
+            "code": -32603,
+            "message": f"compile_mod_pak_direct: subprocess exception: {e!r}",
+        })
+
+    # Verify pak exists + has nonzero size. UnrealPak occasionally exits 0
+    # but writes a zero-byte .pak on malformed response files (rare); the
+    # size check catches that.
+    pak_path = None
+    pak_size_bytes = None
+    if os.path.isfile(output_pak):
+        pak_size_bytes = os.path.getsize(output_pak)
+        if pak_size_bytes > 0:
+            pak_path = output_pak
+
+    ok = (proc.returncode == 0) and (pak_path is not None)
+
+    return _wrap_tool_result(req_id, {
+        "ok": ok,
+        "pak_path": pak_path,
+        "pak_size_bytes": pak_size_bytes,
+        "exit_code": proc.returncode,
+        "stdout_tail": (proc.stdout or "")[-4000:],
+        "stderr_tail": (proc.stderr or "")[-2000:],
+        "duration_sec": round(duration, 2),
+        "cmd": cmd,
+    })
+
+
 def synthetic_bulk_delete_assets(req_id, args):
     """Bridge-side composition: delete multiple assets via the `delete_asset`
     C++ handler, returning a per-path partial-success structure.
@@ -2296,6 +2423,7 @@ SYNTHETIC_TOOLS = {
     "set_camera_transform": synthetic_set_camera_transform,
     "screenshot_actor": synthetic_screenshot_actor,
     "compile_mod_pak": synthetic_compile_mod_pak,
+    "compile_mod_pak_direct": synthetic_compile_mod_pak_direct,
     "bulk_delete_assets": synthetic_bulk_delete_assets,
     "inspect_data_asset": synthetic_inspect_data_asset,
     "inspect_sound_class": synthetic_inspect_sound_class,

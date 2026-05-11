@@ -91,6 +91,7 @@ def test_tool_names_are_unique_and_match_handlers():
         "set_camera_transform",
         "screenshot_actor",
         "compile_mod_pak",
+        "compile_mod_pak_direct",
         "bulk_delete_assets",
         "inspect_data_asset",
         "inspect_sound_class",
@@ -513,6 +514,25 @@ def test_compile_mod_pak_is_synthetic():
     assert t["inputSchema"]["properties"]["uat_command"]["enum"] == ["BuildMod", "BuildPlugin"]
     assert "compile_mod_pak" in bridge.SYNTHETIC_TOOLS
     assert bridge.SYNTHETIC_TOOLS["compile_mod_pak"] is bridge.synthetic_compile_mod_pak
+
+
+def test_compile_mod_pak_direct_is_synthetic():
+    """compile_mod_pak_direct is a SYNTHETIC bridge-side handler that
+    bypasses RunUAT entirely by invoking UnrealPak.exe directly with a
+    response file. Complements compile_mod_pak for Dev Kits where RunUAT
+    BuildMod is broken (Funcom Conan Exiles Enhanced ScriptModules bug).
+    Requires unreal_pak_path, response_file, and output_pak at the schema
+    level so success verification has known artefact paths."""
+    t = next((t for t in bridge.TOOLS if t["name"] == "compile_mod_pak_direct"), None)
+    assert t is not None
+    assert set(t["inputSchema"]["required"]) == {"unreal_pak_path", "response_file", "output_pak"}
+    assert t["inputSchema"]["properties"]["unreal_pak_path"]["type"] == "string"
+    assert t["inputSchema"]["properties"]["response_file"]["type"] == "string"
+    assert t["inputSchema"]["properties"]["output_pak"]["type"] == "string"
+    assert t["inputSchema"]["properties"]["compression"]["enum"] == ["Zlib", "Gzip", "Oodle", "None"]
+    assert t["inputSchema"]["properties"]["compression"]["default"] == "Zlib"
+    assert "compile_mod_pak_direct" in bridge.SYNTHETIC_TOOLS
+    assert bridge.SYNTHETIC_TOOLS["compile_mod_pak_direct"] is bridge.synthetic_compile_mod_pak_direct
 
 
 def test_bulk_delete_assets_is_synthetic():

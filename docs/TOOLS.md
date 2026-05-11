@@ -1,6 +1,6 @@
 # MCP Tools Reference
 
-**75 tools total.** 64 are JSON-RPC 2.0 methods served on `127.0.0.1:18888` directly by the plugin's C++ handlers. The remaining 11 — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `bulk_delete_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function` — are bridge-side **synthetic tools** that are intercepted by `bridge/unreal_claude_mcp_bridge.py` and served by composing existing handlers (or running Python via `execute_unreal_python`, or — for `compile_mod_pak` — shelling out to `RunUAT.bat` entirely outside the UE process). They are visible to MCP clients exactly like the C++ tools but cannot be reached by sending raw JSON-RPC to the TCP socket — only via the MCP bridge or by replicating their composition manually. The "Implementation" header on each entry below indicates whether a tool is C++ or bridge-side.
+**76 tools total.** 64 are JSON-RPC 2.0 methods served on `127.0.0.1:18888` directly by the plugin's C++ handlers. The remaining 12 — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function` — are bridge-side **synthetic tools** that are intercepted by `bridge/unreal_claude_mcp_bridge.py` and served by composing existing handlers (or running Python via `execute_unreal_python`, or — for `compile_mod_pak` — shelling out to `RunUAT.bat` entirely outside the UE process). They are visible to MCP clients exactly like the C++ tools but cannot be reached by sending raw JSON-RPC to the TCP socket — only via the MCP bridge or by replicating their composition manually. The "Implementation" header on each entry below indicates whether a tool is C++ or bridge-side.
 
 Each tool's params and result are documented with a working example.
 
@@ -2571,6 +2571,66 @@ Compile a UE mod plugin to a `.pak` file (`BuildMod`) or to a redistributable pl
   "timeout_sec": 3600
 }}
 ```
+
+---
+
+## compile_mod_pak_direct
+
+Compile a UE5 mod into a `.pak` by invoking `UnrealPak.exe` directly with a response file, **bypassing `RunUAT` entirely**. Companion to [`compile_mod_pak`](#compile_mod_pak) for Dev Kits where `RunUAT BuildMod` is broken. Contributed by [@daveCode-dot](https://github.com/daveCode-dot) following the AEGIS-Admin mod ship pipeline (Steam Workshop item `3724162370`) where Funcom's Conan Exiles Enhanced UE5 Dev Kit (mayo 2026) failed `RunUAT BuildMod` with `"Found no script module records"` even after the [UE5Rules.dll fix](#compile_mod_pak) — UAT deleted its own `deps.json` as "invalid record" before `BuildMod` could run.
+
+**Bridge-side synthetic tool.** Pure Python — shells out to `UnrealPak.exe`, captures stdout/stderr tails, verifies `output_pak` exists with non-zero size. No UE-side state, no UE editor session required.
+
+**Pre-condition:** the `.uasset` files must already be cooked. Two common ways:
+1. Via `execute_unreal_python` on a running Editor (the AEGIS-Admin path — produces shell BP/Widget/Actor assets in `/Game/Mods/<name>/Local/`)
+2. Via a discrete `UnrealEditor-Cmd.exe -run=Cook` pass before calling `compile_mod_pak_direct`
+
+`UnrealPak` itself is a standalone UE binary shipped under `Engine/Binaries/Win64/` and runs regardless of UAT state — typically seconds instead of the 5–30 min that `RunUAT BuildMod` takes.
+
+**When to use which:**
+- `compile_mod_pak` — Dev Kit's `RunUAT BuildMod` (or vanilla `BuildPlugin`) works. Single call: cook + pak.
+- `compile_mod_pak_direct` — UAT is broken on your Dev Kit. Two-step: cook separately (e.g. via `execute_unreal_python`), then call this to pack the `.pak`. Verified on Funcom Conan Exiles Enhanced UE5 Dev Kit (Apr 2026 build).
+
+**Success criterion:** `exit_code == 0` AND `output_pak` exists with size > 0. Same shape as `compile_mod_pak`'s `BuildMod` branch so downstream tooling can switch transparently. `UnrealPak` occasionally exits 0 but writes a zero-byte `.pak` on malformed response files; the size check catches that.
+
+**Output capture:** `stdout` capped at 4 KB tail, `stderr` capped at 2 KB tail. `UnrealPak` output is bounded (file-count log + per-file compression stats), so tail-only is sufficient for typical mods.
+
+**Params**
+- `unreal_pak_path` (string, required) — absolute path to `UnrealPak.exe` (e.g. `<DevKit>/Engine/Binaries/Win64/UnrealPak.exe`)
+- `response_file` (string, required) — absolute path to the UnrealPak response file (`.txt`). Standard format: one mapping per line, `"<absolute_source>" "<mount_in_pak>"`.
+- `output_pak` (string, required) — absolute path where the `.pak` should be written; parent dir created if missing
+- `compression` (string enum, optional) — `Zlib` (default) | `Gzip` | `Oodle` | `None`. `None` omits the `-compress<Algo>` flag entirely (uncompressed pak).
+- `extra_args` (array of string, optional) — additional CLI args appended to `UnrealPak.exe` (e.g. `-encryptionkey`)
+- `timeout_sec` (int, optional) — max wait in seconds; default `600` (10 min)
+
+**Result**
+- `ok` (bool) — `exit_code == 0` AND `output_pak` exists with size > 0
+- `pak_path` (string or null) — absolute path of the produced `.pak`; null on missing/empty output
+- `pak_size_bytes` (int or null) — size in bytes; null when pak missing
+- `exit_code` (int) — `UnrealPak.exe` return code
+- `stdout_tail` (string) — last 4 KB of stdout
+- `stderr_tail` (string) — last 2 KB of stderr
+- `duration_sec` (float) — wall-clock time, 2-decimal precision
+- `cmd` (array of string) — the full subprocess argv (useful for "why did UnrealPak fail?" debugging)
+
+**Errors:** `-32602` (missing/invalid `unreal_pak_path`, missing/invalid `response_file`, missing `output_pak`); `-32603` (timeout, subprocess exception).
+
+**Example response file** (`mymod_response.txt`):
+```
+"C:/DevKit/Mods/MyMod/Cooked/WindowsNoEditor/MyGame/Content/Mods/MyMod/Local/BP_Entry.uasset" "../../../MyGame/Content/Mods/MyMod/Local/BP_Entry.uasset"
+"C:/DevKit/Mods/MyMod/Cooked/WindowsNoEditor/MyGame/Content/Mods/MyMod/Local/WBP_Panel.uasset" "../../../MyGame/Content/Mods/MyMod/Local/WBP_Panel.uasset"
+```
+
+**Example call** (Conan Exiles Enhanced UE5 Dev Kit, AEGIS-Admin workflow)
+```json
+{"jsonrpc":"2.0","id":1,"method":"compile_mod_pak_direct","params":{
+  "unreal_pak_path": "C:/DevKit/Engine/Binaries/Win64/UnrealPak.exe",
+  "response_file": "C:/DevKit/Mods/AEGIS_Admin/response.txt",
+  "output_pak": "C:/DevKit/Builds/AEGIS_Admin/AEGIS_Admin.pak",
+  "compression": "Zlib"
+}}
+```
+
+**Verified ship:** AEGIS-Admin v0.1.0 packed via this workflow as 11.6 KB Zlib `.pak`, published as Steam Workshop item `3724162370`.
 
 ---
 
