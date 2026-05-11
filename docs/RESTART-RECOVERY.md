@@ -162,6 +162,7 @@ After recovery, the project state is:
 - **Latest commit on main:** check via `git log -1 --oneline` — this file is necessarily behind on the SHA after every merge.
 - **Live verification on host machine:** **PASSING** as of the 2026-05-10 sprint (cold compile + editor + bridge round-trip proven on `HDMediaVirtualStudio` host project). New C++ handlers follow the cold-compile-before-merge cadence (HANDOFF.md "Session 2026-05-10").
 - **Next deferred handlers:** `inspect_data_asset`, `inspect_sound_class`, `inspect_metasound`, bulk delete/move, Sequencer keyframe authoring, Movie Render Queue — see HANDOFF.md "What to watch in the next session".
+- **Copilot reviewer: deferred (no subscription).** `gh api user/copilot` returns 404 on the owner account. `.github/copilot-instructions.md` stays in tree as a no-op until/unless a Copilot Pro subscription is added independently. Bot review fleet is Codex + Gemini only. See HANDOFF.md "Session 2026-05-11 (third micro-session)".
 
 The session memory files (now restored to `~/.claude/projects/.../memory/`) document:
 - Multi-agent workflow (Codex C++ + Sonnet helpers + Opus integrator/reviewer) — `feedback_multi_agent_workflow.md`
