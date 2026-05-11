@@ -530,3 +530,42 @@ Smoke tests run: `inspect_texture` against `/Game/Plates/test_plate` (real Textu
 - **Audio trio next-natural-extensions** (deferred): `inspect_sound_class` (USoundClass voice management), `inspect_audio_bus` (UAudioBus / submix), `inspect_metasound` (UMetaSoundSource — complex graph; would need its own explorer brief).
 - **Other Tier 3 surfaces still queued:** `inspect_data_asset` (generic UDataAsset reflection — possibly Python-shim candidate per directive #3), `mi_parameter_changed` event (additive on FUCMCPEventBus), `bulk_delete_assets` / `bulk_move_assets` (partial-success error handling non-trivial), Sequencer keyframe authoring, Movie Render Queue.
 - **Bot reviews on PRs #76 / #77 / #78 / #79 / #80 / #81** — self-merged before bot review window in most cases. Spot-check the PR pages for any post-merge findings worth a cleanup PR.
+
+**Session 2026-05-11 (external-contributor integration + Copilot reviewer config):**
+
+First micro-session after the post-recovery sprint. Two outcomes:
+
+1. **PR #84 (@daveCode-dot) — `compile_mod_pak` synthetic tool — integrated as PR #85.** Bridge-side synthetic tool that shells `RunUAT.bat BuildMod` (or `BuildPlugin`) to produce a `.pak` headless. Motivated by Conan Exiles Enhanced UE5 Dev Kit which ships in installed-build mode (`BuildPlugin` blocked there; Funcom's `BuildMod` UAT command is the only working path). Pure Python; no UE-side state.
+
+   David's commit `806ad7d` preserved on `main` via merge of PR #85; full attribution via `Co-Authored-By` on the integration commit + thanks-comment on his now-closed #84. Cross-repo PR pattern used: `gh pr checkout 84` pulls fork branch locally → rename + push to origin as new branch → open replacement PR → close original with credit. **Their commit survives on `main`; the fork doesn't need to be in collab perm.**
+
+   **Cross-repo CI gate caught us:** PR #84 showed `mergeStateStatus: UNSTABLE` with empty `statusCheckRollup` — not a failure, just never authorized. GitHub blocks workflow runs from forks until a maintainer approves the first run on each fork. Document this for future external contributors: their PR will sit with no CI signal until the maintainer (you) clicks "Approve and run" in the Actions tab, OR the maintainer pulls the commit into an origin branch and opens a replacement PR (the path taken here).
+
+   **All 4 Gemini PR #84 findings addressed** in the integration commit:
+   - `output_dir` was schema-optional but success required it → moved to `required` + runtime empty-string guard
+   - `BuildPlugin` would always return `ok=false` (no `.pak` produced; this command makes a redistributable plugin package directory, NOT a `.pak`) → split success criterion per `uat_command`: `BuildMod` needs both `exit_code==0` AND `pak_path is not None`; `BuildPlugin` needs `exit_code==0` alone
+   - Large subprocess output → memory risk → trade-off documented in TOOLS.md (streaming `Popen` refactor deferred; current cap-at-return is safe for typical 20–50MB UAT output)
+   - Non-deterministic `.pak` identification (first-found in dir-order; would pick stale artefacts) → rewrote: collect all `.paks` with mtimes, prefer ones whose name contains `mod_name` (case-insensitive substring), sort newest-first, filter to `mtime >= start - 1.0s` (skip stale)
+
+2. **GitHub Copilot reviewer added to the bot fleet.** `.github/copilot-instructions.md` written with project conventions (cross-handler consistency rules, UE 5.7 access-modifier gotchas, enum-to-string discipline, `TArray<TObjectPtr<>>` null-skip lessons, synthetic-tool six-files checklist, cold-compile-before-merge cadence, vendor-neutral framing, P0/P1/P2 severity tagging matching directive #7). When the user enables Copilot review in repo Settings → Code review → "Auto-review with Copilot", reviews will cite project conventions rather than re-litigating from generic best-practice training data.
+
+   **Copilot enablement is NOT scriptable via `gh` CLI** — tested `gh pr edit --add-reviewer Copilot` (GraphQL: "Could not resolve user with login 'copilot'") and `--add-reviewer copilot-pull-request-reviewer[bot]` (same error). Requires:
+   - Copilot Pro+/Business/Enterprise subscription on the repo owner account
+   - Repo admin → Settings → Code review → "Auto-review with Copilot" toggle on
+   - One-time UI action; no API endpoint as of 2026-05-11
+
+**New trap-table entries from this session:**
+
+- **Cross-repo PR CI gate.** Workflow runs from forks need maintainer approval before first run. PR will look stalled (`UNSTABLE` + empty checks). Solutions: (a) approve in Actions tab UI, or (b) cherry-pick + open replacement PR (preserves contributor attribution via `Co-Authored-By`).
+- **Manifest "required" substring trap (existing, re-confirmed in flesh).** `test_manifest_sync.py::test_manifest_required_params_match_bridge_required` substring-greps the literal word `"required"` in manifest param descriptions and cross-checks against bridge `required[]`. Conditional params worded "required for X" trip the assertion. Fix: rephrase to "needed when X" / "must be supplied when Y". Was already in HANDOFF trap-table line 158; first time it actually fired (PR #85).
+- **Two count assertions in `tests/test_bridge.py`** (line 26 + line 1037 — `test_tools_list_size` and `test_handle_tools_list_returns_all_tools`). Easy to update one and miss the other. PR #85 hit this on first pytest run; both must move together.
+
+**Tool count: 68 → 69** (64 C++ + 5 synthetic; synthetics are now `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`).
+**pytest: 178 → 179 passing** (added `test_compile_mod_pak_is_synthetic` schema test; the parametrized round-trip auto-skips synthetic tools so no auto-pickup like for C++ handlers).
+**main HEAD:** `44a2d3a` at end of this micro-session.
+
+**What to watch in next session:**
+- **Manual Copilot enable.** User has the one-time UI action queued; once done, the next PR will get a Copilot review alongside Codex + Gemini, and the `.github/copilot-instructions.md` will guide its review priorities.
+- **Live smoke pending on `compile_mod_pak`** — David noted in #84 that he had no live Editor session to test it against the Conan Exiles Enhanced Dev Kit at submission time. If he comes back with a follow-up issue / PR, that's the validation cycle.
+- **Cross-repo contributor pattern is now documented.** Next external contributor PR should follow the same flow (or be granted CI-approval directly if it's a known contributor).
+- **HANDOFF closing-note discipline continues to land.** This is the third consecutive session that closes with a HANDOFF append; next-session pickup is mechanical.
