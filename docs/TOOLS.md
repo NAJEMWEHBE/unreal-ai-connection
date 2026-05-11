@@ -1,6 +1,6 @@
 # MCP Tools Reference
 
-**71 tools total.** 64 are JSON-RPC 2.0 methods served on `127.0.0.1:18888` directly by the plugin's C++ handlers. The remaining 7 — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `bulk_delete_assets`, `inspect_data_asset` — are bridge-side **synthetic tools** that are intercepted by `bridge/unreal_claude_mcp_bridge.py` and served by composing existing handlers (or running Python via `execute_unreal_python`, or — for `compile_mod_pak` — shelling out to `RunUAT.bat` entirely outside the UE process). They are visible to MCP clients exactly like the C++ tools but cannot be reached by sending raw JSON-RPC to the TCP socket — only via the MCP bridge or by replicating their composition manually. The "Implementation" header on each entry below indicates whether a tool is C++ or bridge-side.
+**72 tools total.** 64 are JSON-RPC 2.0 methods served on `127.0.0.1:18888` directly by the plugin's C++ handlers. The remaining 8 — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `bulk_delete_assets`, `inspect_data_asset`, `inspect_sound_class` — are bridge-side **synthetic tools** that are intercepted by `bridge/unreal_claude_mcp_bridge.py` and served by composing existing handlers (or running Python via `execute_unreal_python`, or — for `compile_mod_pak` — shelling out to `RunUAT.bat` entirely outside the UE process). They are visible to MCP clients exactly like the C++ tools but cannot be reached by sending raw JSON-RPC to the TCP socket — only via the MCP bridge or by replicating their composition manually. The "Implementation" header on each entry below indicates whether a tool is C++ or bridge-side.
 
 Each tool's params and result are documented with a working example.
 
@@ -2706,6 +2706,104 @@ These are **logical** errors (caller may want to retry or inspect), not transpor
 }}
 ```
 Returns `{"ok": false, "error_code": "asset_not_found", "error_message": "Asset not found: /Game/Data/DoesNotExist"}`.
+
+---
+
+## inspect_sound_class
+
+Inspect a `USoundClass` by package path: returns the leaf class name, full package path, **parent USoundClass asset path** (for chaining), **child USoundClass asset paths**, and the editable `FSoundClassProperties` values (Volume, Pitch, low-pass filter, attenuation distance scale, voice-center-channel volume, radio-filter volume, eight boolean flags, OutputTarget enum).
+
+**Bridge-side synthetic tool.** Pure Python — composes [`execute_unreal_python`](#execute_unreal_python) + [`get_log_lines`](#get_log_lines) via the marker pattern, same canonical six-step flow as [`inspect_data_asset`](#inspect_data_asset) and [`get_camera_transform`](#get_camera_transform).
+
+**Marker token:** `__SOUNDCLASS_<12-hex>__...__END__`.
+
+**Parent/child chaining:** `parent_class` + `child_classes` return **asset package paths** (e.g. `/Game/Audio/SC_Master`), NOT C++ class names. Callers can immediately chain another `inspect_sound_class { path: <parent_class> }` call to traverse the USoundClass hierarchy. Empty `child_classes: []` means the class is a leaf (no children).
+
+**Snake_case → PascalCase remap:** UE Python field names are snake_case internally (`volume`, `pitch`, `b_apply_ambient_volumes`, `output_target`). The embedded reflection script reads via the snake_case names and remaps to the PascalCase C++ names in the JSON output so callers can cross-reference UE editor / docs without translation. The `properties` block keys exactly match the C++ `FSoundClassProperties` struct layout.
+
+**Logical errors as `ok=False` success envelopes:**
+- `asset_not_found` — `EditorAssetLibrary.load_asset(path)` returned `None`.
+- `wrong_asset_type` — path resolved to a non-USoundClass asset. Response includes `actual_class` for the caller's diagnostic.
+- `marker_not_found` — LogPython buffer didn't contain the marker after exec. Usually means log buffer overflowed between exec and read; **retry typically resolves**.
+- `invalid_json` — marker found but payload didn't JSON-decode.
+
+Transport-level errors (UE editor not running → `-32099`; Python interpreter raised → `-32603`) come back as JSON-RPC errors.
+
+**Params**
+- `path` (string, required) — package path to a USoundClass asset, e.g. `/Game/Audio/SC_Music`.
+
+**Result (ok=true path)**
+- `ok` (bool) — `true`.
+- `path` (string) — echoes input.
+- `class` (string) — leaf class name from `cls.get_name()`, typically `"SoundClass"`.
+- `package_path` (string) — full path with object name (e.g. `/Game/Audio/SC_Music.SC_Music`).
+- `parent_class` (string or null) — parent USoundClass asset path; null when this is a root SoundClass.
+- `child_classes` (array of string) — child USoundClass asset paths; may be empty.
+- `properties` (object) — PascalCase keys:
+  - `Volume`, `Pitch`, `LowPassFilterFrequency`, `AttenuationDistanceScale`, `VoiceCenterChannelVolume`, `RadioFilterVolume` — floats
+  - `bApplyAmbientVolumes`, `bApplyEffects`, `bAlwaysPlay`, `bIsUISound`, `bIsMusic`, `bReverb`, `bCenterChannelOnly`, `bApplyDoppler`, `bApplyMixerOverrides` — booleans
+  - `OutputTarget` — enum stringified (e.g. `"Master"`, `"Controller"`)
+
+**Result (ok=false path)**
+- `ok` (bool) — `false`
+- `error_code` (string) — `asset_not_found` / `wrong_asset_type` / `marker_not_found` / `invalid_json`
+- `error_message` (string) — human-readable detail
+- `actual_class` (string, only on `wrong_asset_type`) — the leaf class name of the actually-loaded asset
+
+**Errors (envelope-level):** `-32602` (missing or non-string `path`); `-32603` (UE editor unreachable, or `execute_unreal_python` raised — Python traceback surfaced in the error message).
+
+**Example — happy path**
+```json
+{"jsonrpc":"2.0","id":1,"method":"inspect_sound_class","params":{
+  "path": "/Game/Audio/SC_Music"
+}}
+```
+
+**Example response (ok=true)**
+```json
+{
+  "ok": true,
+  "path": "/Game/Audio/SC_Music",
+  "class": "SoundClass",
+  "package_path": "/Game/Audio/SC_Music.SC_Music",
+  "parent_class": "/Game/Audio/SC_Master",
+  "child_classes": ["/Game/Audio/SC_MusicLayered"],
+  "properties": {
+    "Volume": 0.8,
+    "Pitch": 1.0,
+    "LowPassFilterFrequency": 20000.0,
+    "AttenuationDistanceScale": 1.0,
+    "VoiceCenterChannelVolume": 0.0,
+    "RadioFilterVolume": 0.0,
+    "bApplyAmbientVolumes": false,
+    "bApplyEffects": true,
+    "bAlwaysPlay": false,
+    "bIsUISound": false,
+    "bIsMusic": true,
+    "bReverb": true,
+    "bCenterChannelOnly": false,
+    "bApplyDoppler": true,
+    "bApplyMixerOverrides": false,
+    "OutputTarget": "Master"
+  }
+}
+```
+
+**Example — chain to parent**
+```json
+{"jsonrpc":"2.0","id":2,"method":"inspect_sound_class","params":{
+  "path": "/Game/Audio/SC_Master"
+}}
+```
+Use the `parent_class` value from a child's response to walk up the SoundClass hierarchy.
+
+**Example — wrong asset type**
+```json
+{"jsonrpc":"2.0","id":3,"method":"inspect_sound_class","params":{
+  "path": "/Game/Data/DA_PlayerStats"
+}}
+```
+Returns `{"ok": false, "error_code": "wrong_asset_type", "error_message": "Asset is not a USoundClass: /Game/Data/DA_PlayerStats", "actual_class": "MyDataAsset"}`.
 
 ---
 

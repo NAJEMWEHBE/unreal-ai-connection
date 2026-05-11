@@ -4,12 +4,12 @@
 
 ## Quick orientation (deeper detail in HANDOFF.md and ARCHITECTURE.md)
 
-UE 5.7 plugin + Python bridge exposing editor automation to MCP-compliant clients (Claude Code, Codex CLI, Cursor, Gemini CLI, Continue, …) over a localhost TCP socket. **71 tools total: 64 native C++ handlers + 7 bridge-side synthetic tools.** Vendor-neutral — the wire protocol is open MCP; the "Claude" in the repo name is decorative.
+UE 5.7 plugin + Python bridge exposing editor automation to MCP-compliant clients (Claude Code, Codex CLI, Cursor, Gemini CLI, Continue, …) over a localhost TCP socket. **72 tools total: 64 native C++ handlers + 8 bridge-side synthetic tools.** Vendor-neutral — the wire protocol is open MCP; the "Claude" in the repo name is decorative.
 
 ## Where to look first for any change
 
 - **C++ handlers** (64) — `UnrealClaudeMCP/Source/UnrealClaudeMCP/Private/MCP/Handlers/Handler_*.cpp`, one per tool. Registered in `UnrealClaudeMCPModule.cpp` (the `Reg.Register(...)` block).
-- **Bridge-side synthetic tools** (7: `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `bulk_delete_assets`, `inspect_data_asset`) — `bridge/unreal_claude_mcp_bridge.py`'s `SYNTHETIC_TOOLS` dict.
+- **Bridge-side synthetic tools** (8: `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `bulk_delete_assets`, `inspect_data_asset`, `inspect_sound_class`) — `bridge/unreal_claude_mcp_bridge.py`'s `SYNTHETIC_TOOLS` dict.
 - **Tool catalog (kept in sync manually across three places)** — `UnrealClaudeMCP/Resources/mcp_manifest.json`, `bridge/unreal_claude_mcp_bridge.py`'s `TOOLS` list, and `docs/TOOLS.md`. The `tests/test_manifest_sync.py` suite catches drift between the first two.
 - **Architecture notes + UE 5.7 API gotchas** — `docs/ARCHITECTURE.md`.
 - **Host-build runbook** — top of `docs/HANDOFF.md` (steps 1–6, PowerShell). Live verification on the host machine is the perpetual next step.

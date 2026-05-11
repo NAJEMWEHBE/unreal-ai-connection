@@ -93,6 +93,7 @@ def test_tool_names_are_unique_and_match_handlers():
         "compile_mod_pak",
         "bulk_delete_assets",
         "inspect_data_asset",
+        "inspect_sound_class",
     }
     assert set(names) == expected
 
@@ -720,6 +721,112 @@ def test_inspect_data_asset_rejects_missing_path():
     })
     assert resp["error"]["code"] == -32602
     assert "inspect_data_asset" in resp["error"]["message"]
+
+
+def test_inspect_sound_class_is_synthetic():
+    """inspect_sound_class is a SYNTHETIC bridge-side handler (PR #98 - Codex
+    parallel-dispatch test; paired with a Copilot stream for inspect_audio_bus
+    that regressed). Composes execute_unreal_python + get_log_lines via the
+    marker pattern. path is required."""
+    t = next((t for t in bridge.TOOLS if t["name"] == "inspect_sound_class"), None)
+    assert t is not None
+    assert t["inputSchema"]["required"] == ["path"]
+    assert t["inputSchema"]["properties"]["path"]["type"] == "string"
+    assert "inspect_sound_class" in bridge.SYNTHETIC_TOOLS
+    assert bridge.SYNTHETIC_TOOLS["inspect_sound_class"] is bridge.synthetic_inspect_sound_class
+
+
+def test_inspect_sound_class_happy_path():
+    """Two-round-trip happy path. The embedded UE Python emits a sentinel-
+    wrapped JSON via unreal.log(); the bridge retrieves it via get_log_lines
+    on the LogPython category. JSON output uses PascalCase property names
+    (Volume, bApplyAmbientVolumes, OutputTarget) even though UE Python uses
+    snake_case internally."""
+    exec_resp = {"jsonrpc": "2.0", "id": 1, "result": {"ok": True, "output": ""}}
+    body = {
+        "ok": True,
+        "path": "/Game/Audio/SC_Music",
+        "class": "SoundClass",
+        "package_path": "/Game/Audio/SC_Music.SC_Music",
+        "parent_class": "/Game/Audio/SC_Master",
+        "child_classes": ["/Game/Audio/SC_MusicLayered", "/Game/Audio/SC_Music3D"],
+        "properties": {
+            "Volume": 1.0,
+            "Pitch": 1.0,
+            "LowPassFilterFrequency": 20000.0,
+            "AttenuationDistanceScale": 1.0,
+            "VoiceCenterChannelVolume": 0.0,
+            "RadioFilterVolume": 0.0,
+            "bApplyAmbientVolumes": False,
+            "bApplyEffects": True,
+            "bAlwaysPlay": False,
+            "bIsUISound": False,
+            "bIsMusic": False,
+            "bReverb": True,
+            "bCenterChannelOnly": False,
+            "bApplyDoppler": True,
+            "bApplyMixerOverrides": False,
+            "OutputTarget": "Master",
+        },
+    }
+    marker_hex = "abc123def456"
+    log_line = f"__SOUNDCLASS_{marker_hex}__{json.dumps(body)}__END__"
+    log_resp = {"jsonrpc": "2.0", "id": 1, "result": {"lines": [{"category": "LogPython", "message": log_line}]}}
+    fake_uuid = MagicMock()
+    fake_uuid.uuid4.return_value = MagicMock(hex=marker_hex)
+    with patch.object(bridge, "call_ue", side_effect=[exec_resp, log_resp]) as m, \
+         patch.object(bridge, "uuid", fake_uuid):
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 75, "method": "tools/call",
+            "params": {
+                "name": "inspect_sound_class",
+                "arguments": {"path": "/Game/Audio/SC_Music"},
+            },
+        })
+
+    assert m.call_count == 2
+    assert m.call_args_list[0].args[0] == "execute_unreal_python"
+    assert m.call_args_list[1].args == ("get_log_lines", {"category_filter": "LogPython", "count": 1000})
+    assert resp["result"]["isError"] is False
+    got = json.loads(resp["result"]["content"][0]["text"])
+    assert got == body
+
+
+def test_inspect_sound_class_propagates_wrong_asset_type():
+    """When the loaded asset is not a USoundClass, embedded Python emits a
+    wrong_asset_type logical-error payload with the actual leaf class name."""
+    exec_resp = {"jsonrpc": "2.0", "id": 1, "result": {"ok": True, "output": ""}}
+    body = {
+        "ok": False,
+        "error_code": "wrong_asset_type",
+        "error_message": "Asset is not a USoundClass: /Game/Data/DA_NotASoundClass",
+        "actual_class": "MyDataAsset",
+    }
+    marker_hex = "abc123def456"
+    log_line = f"__SOUNDCLASS_{marker_hex}__{json.dumps(body)}__END__"
+    log_resp = {"jsonrpc": "2.0", "id": 1, "result": {"lines": [{"category": "LogPython", "message": log_line}]}}
+    fake_uuid = MagicMock()
+    fake_uuid.uuid4.return_value = MagicMock(hex=marker_hex)
+    with patch.object(bridge, "call_ue", side_effect=[exec_resp, log_resp]), \
+         patch.object(bridge, "uuid", fake_uuid):
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 76, "method": "tools/call",
+            "params": {"name": "inspect_sound_class", "arguments": {"path": "/Game/Data/DA_NotASoundClass"}},
+        })
+
+    assert resp["result"]["isError"] is False
+    got = json.loads(resp["result"]["content"][0]["text"])
+    assert got == body
+
+
+def test_inspect_sound_class_rejects_missing_path():
+    """Schema enforces path as required; missing it returns -32602."""
+    resp = bridge.handle({
+        "jsonrpc": "2.0", "id": 77, "method": "tools/call",
+        "params": {"name": "inspect_sound_class", "arguments": {}},
+    })
+    assert resp["error"]["code"] == -32602
+    assert "inspect_sound_class" in resp["error"]["message"]
 
 
 def test_screenshot_actor_happy_path():
