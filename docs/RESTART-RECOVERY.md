@@ -10,7 +10,7 @@ The repo (this folder you're reading) is the **only thing that survives a format
 
 - **The repo source** — every PR through #85 is on `origin/main` at `github.com/NAJEMWEHBE/UnrealClaudeMCP`
 - **Session memory files** — preserved in [`docs/session-memory-archive/`](session-memory-archive/) (this is the safety net for the format)
-- **HANDOFF.md** — reflects the current state (75 tools, 64 C++ handlers + 11 bridge synthetic, all directives, all traps)
+- **HANDOFF.md** — reflects the current state (76 tools, 64 C++ handlers + 12 bridge synthetic, all directives, all traps)
 - **CLAUDE.md** at repo root — auto-loaded by Claude Code on session start; tells the agent to read HANDOFF.md
 - **The Unreal Engine install** — if it's on `F:\UE_5.7\` (different drive from the formatted C:), it survives. If you also wipe F:, follow step 7 below.
 
@@ -158,7 +158,7 @@ Claude Code will auto-load `CLAUDE.md` (which references `docs/HANDOFF.md`). Sen
 
 After recovery, the project state is:
 
-- **75 tools shipped** (64 UE C++ handlers + 11 bridge-side synthetic)
+- **76 tools shipped** (64 UE C++ handlers + 12 bridge-side synthetic)
 - **Latest commit on main:** check via `git log -1 --oneline` — this file is necessarily behind on the SHA after every merge.
 - **Live verification on host machine:** **PASSING** as of the 2026-05-10 sprint (cold compile + editor + bridge round-trip proven on `HDMediaVirtualStudio` host project). New C++ handlers follow the cold-compile-before-merge cadence (HANDOFF.md "Session 2026-05-10").
 - **Next deferred handlers:** `inspect_data_asset`, `inspect_sound_class`, `inspect_metasound`, bulk delete/move, Sequencer keyframe authoring, Movie Render Queue — see HANDOFF.md "What to watch in the next session".
