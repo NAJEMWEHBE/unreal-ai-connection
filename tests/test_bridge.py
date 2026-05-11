@@ -15,6 +15,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 import unreal_claude_mcp_bridge as bridge
+from conftest import EXPECTED_TOOL_COUNT
 
 
 # -------- TOOLS schema --------------------------------------------------------
@@ -23,7 +24,9 @@ def test_tools_list_size():
     # Cross-checked against the manifest in test_manifest_sync.py; the absolute
     # number bumps with each new tool. Function name kept count-agnostic so
     # it doesn't drift behind the assertion (per Sonnet pre-review on PR #50).
-    assert len(bridge.TOOLS) == 69
+    # The expected count lives in tests/conftest.py so a tool bump is a
+    # one-line edit (PR #87 cleanup of the "two count assertions" trap).
+    assert len(bridge.TOOLS) == EXPECTED_TOOL_COUNT
 
 
 def test_each_tool_has_required_mcp_fields():
@@ -1034,7 +1037,10 @@ def test_handle_tools_list_returns_all_tools():
     resp = bridge.handle({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
     assert resp["id"] == 2
     assert "tools" in resp["result"]
-    assert len(resp["result"]["tools"]) == 69
+    # Cross-check against bridge.TOOLS rather than re-asserting the absolute
+    # count — `test_tools_list_size` already pins the count, this guards the
+    # tools/list handler shape.
+    assert len(resp["result"]["tools"]) == len(bridge.TOOLS)
 
 
 # -------- handle: tools/call --------------------------------------------------
