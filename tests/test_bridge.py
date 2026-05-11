@@ -515,6 +515,60 @@ def test_compile_mod_pak_is_synthetic():
     assert bridge.SYNTHETIC_TOOLS["compile_mod_pak"] is bridge.synthetic_compile_mod_pak
 
 
+def test_compile_mod_pak_rejects_non_positive_timeout():
+    """timeout_sec <= 0 must short-circuit with -32602 BEFORE subprocess.run
+    is reached. subprocess.run(timeout=0) raises TimeoutExpired immediately,
+    which would surface as a misleading "compile timed out" error envelope
+    even though no compile ever started. This is a tools/call boundary
+    contract: positive timeout in, positive timeout enforced."""
+    for bad in (0, -1, -3600, "0", "-5", 0.0, -0.5):
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 42, "method": "tools/call",
+            "params": {
+                "name": "compile_mod_pak",
+                "arguments": {
+                    "project_path": "/nonexistent.uproject",
+                    "output_dir": "/tmp/out",
+                    "mod_name": "X",
+                    "timeout_sec": bad,
+                },
+            },
+        })
+        assert "error" in resp, f"expected error envelope for timeout_sec={bad!r}, got {resp}"
+        assert resp["error"]["code"] == -32602, f"expected -32602 for timeout_sec={bad!r}"
+        assert "timeout_sec" in resp["error"]["message"], (
+            f"error message must mention timeout_sec; got {resp['error']['message']!r}"
+        )
+
+
+def test_compile_mod_pak_accepts_float_timeout():
+    """timeout_sec accepts int, float, and numeric string forms uniformly via
+    int(float(x)). JSON callers that stringify numbers ("3"), JS clients
+    that pass floats (3.0), and Python clients that pass ints (3) all
+    converge on the same int value. Truncating floats is documented behavior."""
+    for good in (3, 3.9, "3", "3.9", 1800):
+        # project_path check fires before subprocess.run so we can probe
+        # validation order without mocking subprocess. Expect project_path
+        # error, NOT timeout_sec error -> proves timeout parse succeeded.
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 43, "method": "tools/call",
+            "params": {
+                "name": "compile_mod_pak",
+                "arguments": {
+                    "project_path": "/nonexistent.uproject",
+                    "output_dir": "/tmp/out",
+                    "mod_name": "X",
+                    "timeout_sec": good,
+                },
+            },
+        })
+        assert "error" in resp
+        assert "project_path" in resp["error"]["message"], (
+            f"expected project_path error (proving timeout parsed OK) for "
+            f"timeout_sec={good!r}; got {resp['error']['message']!r}"
+        )
+
+
 def test_bulk_delete_assets_is_synthetic():
     """bulk_delete_assets is a SYNTHETIC bridge-side handler (PR #90 — Codex
     parallel-dispatch test): loops over delete_asset calls and aggregates

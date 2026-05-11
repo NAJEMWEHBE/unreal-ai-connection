@@ -1492,10 +1492,19 @@ def synthetic_compile_mod_pak(req_id, args):
     extra_args = args.get("extra_args")
     if not isinstance(extra_args, list):
         extra_args = []
+    # Accept timeout as int, float, or numeric string (e.g. "3", "3.9", 3, 3.9).
+    # Tolerant to JSON-clients that stringify numbers; float→int truncates.
     try:
-        timeout_sec = int(args.get("timeout_sec", 1800))
+        timeout_sec = int(float(args.get("timeout_sec", 1800)))
     except (ValueError, TypeError):
         timeout_sec = 1800
+    # Guard against caller-supplied 0/negative which would cause
+    # subprocess.TimeoutExpired immediately (DoS via API).
+    if timeout_sec <= 0:
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "compile_mod_pak: timeout_sec must be positive (got non-positive after int cast)",
+        })
 
     if not project_path or not os.path.isfile(project_path):
         return make_response(req_id, error={
