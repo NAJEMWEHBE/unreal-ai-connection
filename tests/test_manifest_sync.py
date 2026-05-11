@@ -12,6 +12,7 @@ import json
 import os
 
 import unreal_claude_mcp_bridge as bridge
+from conftest import EXPECTED_TOOL_COUNT
 
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -42,7 +43,7 @@ def test_manifest_tool_names_match_bridge():
 
 def test_manifest_tool_count_matches_bridge():
     manifest = _load_manifest()
-    assert len(manifest["tools"]) == len(bridge.TOOLS) == 69
+    assert len(manifest["tools"]) == len(bridge.TOOLS) == EXPECTED_TOOL_COUNT
 
 
 def test_manifest_transport_block():

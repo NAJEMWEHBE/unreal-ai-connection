@@ -13,9 +13,9 @@ plugin speaks raw JSON-RPC over a local TCP socket (default
 Behaviour:
   - "initialize"             returned synthetically (does NOT hit the UE server)
   - "notifications/*"        consumed silently
-  - "tools/list"             returns a static list of all 68 tools (64
+  - "tools/list"             returns a static list of all 69 tools (64
                              dispatched to the UE plugin's C++ handlers
-                             plus 4 bridge-side synthetic tools served by
+                             plus 5 bridge-side synthetic tools served by
                              SYNTHETIC_TOOLS without crossing the wire as
                              a single UE round-trip)
   - "tools/call"             unpacks {name, arguments} and forwards to the
@@ -45,13 +45,14 @@ SERVER_NAME = "unreal-claude-mcp"
 SERVER_VERSION = "0.9.1"
 
 # Mirror of UnrealClaudeMCP/Resources/mcp_manifest.json - kept in sync manually.
-# 68 tool entries total. 64 are dispatched straight to UE C++ handlers
+# 69 tool entries total. 64 are dispatched straight to UE C++ handlers
 # (see UnrealClaudeMCPModule.cpp's Reg.Register(...) block). The remaining
-# 4 -- wait_for_events, get_camera_transform, set_camera_transform,
-# screenshot_actor -- are bridge-side synthetic tools served by
-# SYNTHETIC_TOOLS (see below) without a dedicated UE handler: they either
-# compose existing handlers (focus + screenshot, repeated poll) or run the
-# matching unreal.* Python via execute_unreal_python.
+# 5 -- wait_for_events, get_camera_transform, set_camera_transform,
+# screenshot_actor, compile_mod_pak -- are bridge-side synthetic tools served
+# by SYNTHETIC_TOOLS (see below) without a dedicated UE handler: they either
+# compose existing handlers (focus + screenshot, repeated poll), run the
+# matching unreal.* Python via execute_unreal_python, or (compile_mod_pak)
+# shell out to RunUAT.bat entirely outside the UE process.
 TOOLS = [
     {
         "name": "execute_unreal_python",
