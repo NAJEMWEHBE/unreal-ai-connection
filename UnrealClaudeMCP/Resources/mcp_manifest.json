@@ -1,7 +1,7 @@
 {
   "name": "UnrealClaudeMCP",
   "version": "0.9.1",
-  "description": "Drive Unreal Engine 5.7 from Claude (or any MCP client) over a local TCP socket. Seventy-one generic editor-automation tools (64 native C++ handlers plus 7 bridge-side synthetic tools) that work with any UE 5.7 project.",
+  "description": "Drive Unreal Engine 5.7 from Claude (or any MCP client) over a local TCP socket. Seventy-two generic editor-automation tools (64 native C++ handlers plus 8 bridge-side synthetic tools) that work with any UE 5.7 project.",
   "transport": {
     "type": "tcp",
     "host": "127.0.0.1",
@@ -611,6 +611,14 @@
         "path": "string (required) - package path to a UDataAsset, e.g. /Game/Data/DA_PlayerStats; must be a non-empty string"
       },
       "returns": { "ok": "bool", "path": "string", "class": "string (leaf class name)", "parent_class": "string (super-class name, null when at UObject root)", "package_path": "string (full path with object name, from obj.get_path_name())", "properties": "array of {name: string, type: string (Python type-name from type(v).__name__), value: string (stringified for scalars; '<container:type>' for list/tuple/dict; '<unsupported>' otherwise)} - shallow reflection only, no recursion", "error_code": "string (only on ok=False; one of 'asset_not_found', 'marker_not_found', 'invalid_json')", "error_message": "string (only on ok=False; human-readable detail)" }
+    },
+    {
+      "name": "inspect_sound_class",
+      "description": "Inspect a USoundClass by package path: returns leaf class name, package path, parent and child USoundClass asset paths (for chaining), and the editable FSoundClassProperties values. SYNTHETIC bridge-side handler that composes execute_unreal_python + get_log_lines via the marker pattern. The JSON output remaps UE Python's snake_case property names back to the C++ PascalCase FSoundClassProperties layout.",
+      "params": {
+        "path": "string (required) - package path to a USoundClass asset, e.g. /Game/Audio/SC_Music; must be a non-empty string"
+      },
+      "returns": { "ok": "bool", "path": "string", "class": "string (leaf class name from cls.get_name())", "package_path": "string (from obj.get_path_name())", "parent_class": "string (parent USoundClass package path; null when no parent)", "child_classes": "array of string (child USoundClass package paths; may be empty)", "properties": "object with PascalCase keys: Volume (float), Pitch (float), LowPassFilterFrequency (float), AttenuationDistanceScale (float), VoiceCenterChannelVolume (float), RadioFilterVolume (float), bApplyAmbientVolumes (bool), bApplyEffects (bool), bAlwaysPlay (bool), bIsUISound (bool), bIsMusic (bool), bReverb (bool), bCenterChannelOnly (bool), bApplyDoppler (bool), bApplyMixerOverrides (bool), OutputTarget (string enum stringified, e.g. 'Master', 'Controller')", "error_code": "string (only on ok=False; one of 'asset_not_found', 'wrong_asset_type', 'marker_not_found', 'invalid_json')", "error_message": "string (only on ok=False; human-readable detail)", "actual_class": "string (only on wrong_asset_type; the leaf class name of the actually-loaded asset)" }
     }
   ]
 }

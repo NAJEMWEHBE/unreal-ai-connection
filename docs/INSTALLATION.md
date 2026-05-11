@@ -83,7 +83,7 @@ If you use Claude Code:
 2. Edit the path in `args` to point at the actual location of `bridge/unreal_claude_mcp_bridge.py`
 3. Restart Claude Code
 4. Claude Code will detect the new MCP server and prompt you to **Approve** it (security gate)
-5. After approval, all 71 tools are available to Claude in chat as `mcp__unreal-claude-mcp__*` (64 dispatched directly to UE, plus 7 bridge-side synthetic tools — camera read/write, focused-actor screenshot, `wait_for_events`, `compile_mod_pak` headless `.pak` build, `bulk_delete_assets`, and `inspect_data_asset`)
+5. After approval, all 72 tools are available to Claude in chat as `mcp__unreal-claude-mcp__*` (64 dispatched directly to UE, plus 8 bridge-side synthetic tools — camera read/write, focused-actor screenshot, `wait_for_events`, `compile_mod_pak` headless `.pak` build, `bulk_delete_assets`, `inspect_data_asset`, and `inspect_sound_class`)
 
 You can now ask Claude things like:
 - "List all actors in the level"

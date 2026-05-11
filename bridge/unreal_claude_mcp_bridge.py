@@ -13,9 +13,9 @@ plugin speaks raw JSON-RPC over a local TCP socket (default
 Behaviour:
   - "initialize"             returned synthetically (does NOT hit the UE server)
   - "notifications/*"        consumed silently
-  - "tools/list"             returns a static list of all 71 tools (64
+  - "tools/list"             returns a static list of all 72 tools (64
                              dispatched to the UE plugin's C++ handlers
-                             plus 7 bridge-side synthetic tools served by
+                             plus 8 bridge-side synthetic tools served by
                              SYNTHETIC_TOOLS without crossing the wire as
                              a single UE round-trip)
   - "tools/call"             unpacks {name, arguments} and forwards to the
@@ -45,16 +45,17 @@ SERVER_NAME = "unreal-claude-mcp"
 SERVER_VERSION = "0.9.1"
 
 # Mirror of UnrealClaudeMCP/Resources/mcp_manifest.json - kept in sync manually.
-# 71 tool entries total. 64 are dispatched straight to UE C++ handlers
+# 72 tool entries total. 64 are dispatched straight to UE C++ handlers
 # (see UnrealClaudeMCPModule.cpp's Reg.Register(...) block). The remaining
-# 7 -- wait_for_events, get_camera_transform, set_camera_transform,
-# screenshot_actor, compile_mod_pak, bulk_delete_assets, inspect_data_asset
-# -- are bridge-side synthetic tools served by SYNTHETIC_TOOLS (see below)
-# without a dedicated UE handler: they either compose existing handlers
-# (focus + screenshot, repeated poll, loop over delete_asset), run the
-# matching unreal.* Python via execute_unreal_python with the marker pattern
-# (get/set camera transform, inspect_data_asset), or (compile_mod_pak)
-# shell out to RunUAT.bat entirely outside the UE process.
+# 8 -- wait_for_events, get_camera_transform, set_camera_transform,
+# screenshot_actor, compile_mod_pak, bulk_delete_assets, inspect_data_asset,
+# inspect_sound_class -- are bridge-side synthetic tools served by
+# SYNTHETIC_TOOLS (see below) without a dedicated UE handler: they either
+# compose existing handlers (focus + screenshot, repeated poll, loop over
+# delete_asset), run the matching unreal.* Python via execute_unreal_python
+# with the marker pattern (get/set camera transform, inspect_data_asset,
+# inspect_sound_class), or (compile_mod_pak) shell out to RunUAT.bat
+# entirely outside the UE process.
 TOOLS = [
     {
         "name": "execute_unreal_python",
@@ -159,6 +160,20 @@ TOOLS = [
                 "path": {
                     "type": "string",
                     "description": "Package path to a UDataAsset asset, e.g. /Game/Data/DA_PlayerStats. Must be a non-empty string.",
+                },
+            },
+            "required": ["path"],
+        },
+    },
+    {
+        "name": "inspect_sound_class",
+        "description": "Inspect a USoundClass by package path: returns leaf class name, package path, parent USoundClass asset path (for chaining), child USoundClass asset paths, and the editable FSoundClassProperties values (Volume, Pitch, low-pass filter, attenuation distance scale, voice-center-channel volume, radio-filter volume, eight boolean flags, OutputTarget enum). SYNTHETIC bridge-side handler: composes execute_unreal_python + get_log_lines via the marker pattern. UE Python field names are snake_case but the JSON output remaps to UE's native PascalCase FSoundClassProperties layout. Logical errors (asset_not_found, wrong_asset_type, marker_not_found, invalid_json) return as ok=False success envelopes; transport-level errors return as JSON-RPC errors.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "description": "Package path to a USoundClass asset, e.g. /Game/Audio/SC_Music. Must be a non-empty string.",
                 },
             },
             "required": ["path"],
@@ -1698,6 +1713,173 @@ def synthetic_inspect_data_asset(req_id, args):
     })
 
 
+def synthetic_inspect_sound_class(req_id, args):
+    """Bridge-side shim: inspect a USoundClass by package path.
+
+    Same canonical marker pattern as `synthetic_inspect_data_asset` (PR #92):
+    UUID marker -> execute_unreal_python round-trip -> get_log_lines
+    round-trip -> reverse-scan for marker -> JSON-parse. See lines 1004-1076
+    (`synthetic_get_camera_transform`) for the originating pattern.
+
+    Reads the canonical SoundClass shape:
+      - leaf class name + package path
+      - parent USoundClass as an asset package path (NOT C++ class name);
+        callers can chain to `inspect_sound_class { path: parent_class }`
+      - child USoundClasses (same shape)
+      - FSoundClassProperties values (Volume, Pitch, low-pass filter,
+        attenuation distance scale, voice-center-channel volume, radio-
+        filter volume, eight boolean flags, OutputTarget enum stringified)
+
+    UE Python field names are snake_case (`volume`, `pitch`,
+    `b_apply_ambient_volumes`); the JSON output remaps to the C++ PascalCase
+    names per UE's native FSoundClassProperties layout so callers can
+    cross-reference UE editor / docs without translation.
+
+    Logical errors (asset_not_found, wrong_asset_type when the path resolves
+    to a non-SoundClass, marker_not_found if the LogPython buffer overflowed,
+    invalid_json) are wrapped as `{ok: False, error_code, error_message}`
+    success envelopes. Transport-level errors return as JSON-RPC errors.
+
+    Originally a Codex parallel-dispatch test (PR #98, 2026-05-11): paired
+    with a Copilot stream for `inspect_audio_bus` that regressed (invented
+    parameter names `script` and `contains`/`reverse`). Codex's discipline
+    held - second consecutive flawless dispatch under the hardened prompt
+    recipe.
+    """
+    path = args.get("path") if isinstance(args, dict) else None
+    if not isinstance(path, str) or not path:
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "inspect_sound_class: missing_required_field: 'path' must be a non-empty string",
+        })
+
+    marker = uuid.uuid4().hex[:12]
+    py_code = (
+        "import unreal, json\n"
+        "path = " + json.dumps(path) + "\n"
+        "def _asset_package_path(asset):\n"
+        "    if not asset:\n"
+        "        return None\n"
+        "    try:\n"
+        "        name = asset.get_path_name()\n"
+        "    except Exception:\n"
+        "        return None\n"
+        "    if isinstance(name, str) and '.' in name:\n"
+        "        return name.rsplit('.', 1)[0]\n"
+        "    return name\n"
+        "def _enum_name(v):\n"
+        "    try:\n"
+        "        return v.name\n"
+        "    except Exception:\n"
+        "        try:\n"
+        "            text = str(v)\n"
+        "            if '.' in text:\n"
+        "                return text.rsplit('.', 1)[-1]\n"
+        "            return text\n"
+        "        except Exception:\n"
+        "            return None\n"
+        "def _read_prop(struct_obj, prop_name):\n"
+        "    try:\n"
+        "        return struct_obj.get_editor_property(prop_name)\n"
+        "    except Exception:\n"
+        "        return None\n"
+        "obj = unreal.EditorAssetLibrary.load_asset(path)\n"
+        "if not obj:\n"
+        "    _out = {\n"
+        "        'ok': False,\n"
+        "        'error_code': 'asset_not_found',\n"
+        "        'error_message': 'Asset not found: ' + path,\n"
+        "    }\n"
+        "    unreal.log('__SOUNDCLASS_" + marker + "__' + json.dumps(_out) + '__END__')\n"
+        "elif not isinstance(obj, unreal.SoundClass):\n"
+        "    cls = obj.get_class()\n"
+        "    cls_name = cls.get_name() if cls else type(obj).__name__\n"
+        "    _out = {\n"
+        "        'ok': False,\n"
+        "        'error_code': 'wrong_asset_type',\n"
+        "        'error_message': 'Asset is not a USoundClass: ' + path,\n"
+        "        'actual_class': cls_name,\n"
+        "    }\n"
+        "    unreal.log('__SOUNDCLASS_" + marker + "__' + json.dumps(_out) + '__END__')\n"
+        "else:\n"
+        "    cls = obj.get_class()\n"
+        "    cls_name = cls.get_name() if cls else None\n"
+        "    package_path = obj.get_path_name()\n"
+        "    parent = obj.get_editor_property('parent_class')\n"
+        "    child_classes = obj.get_editor_property('child_classes') or []\n"
+        "    props_struct = obj.get_editor_property('properties')\n"
+        "    properties = {\n"
+        "        'Volume': _read_prop(props_struct, 'volume'),\n"
+        "        'Pitch': _read_prop(props_struct, 'pitch'),\n"
+        "        'LowPassFilterFrequency': _read_prop(props_struct, 'low_pass_filter_frequency'),\n"
+        "        'AttenuationDistanceScale': _read_prop(props_struct, 'attenuation_distance_scale'),\n"
+        "        'VoiceCenterChannelVolume': _read_prop(props_struct, 'voice_center_channel_volume'),\n"
+        "        'RadioFilterVolume': _read_prop(props_struct, 'radio_filter_volume'),\n"
+        "        'bApplyAmbientVolumes': _read_prop(props_struct, 'b_apply_ambient_volumes'),\n"
+        "        'bApplyEffects': _read_prop(props_struct, 'b_apply_effects'),\n"
+        "        'bAlwaysPlay': _read_prop(props_struct, 'b_always_play'),\n"
+        "        'bIsUISound': _read_prop(props_struct, 'b_is_ui_sound'),\n"
+        "        'bIsMusic': _read_prop(props_struct, 'b_is_music'),\n"
+        "        'bReverb': _read_prop(props_struct, 'b_reverb'),\n"
+        "        'bCenterChannelOnly': _read_prop(props_struct, 'b_center_channel_only'),\n"
+        "        'bApplyDoppler': _read_prop(props_struct, 'b_apply_doppler'),\n"
+        "        'bApplyMixerOverrides': _read_prop(props_struct, 'b_apply_mixer_overrides'),\n"
+        "        'OutputTarget': _enum_name(_read_prop(props_struct, 'output_target')),\n"
+        "    }\n"
+        "    _out = {\n"
+        "        'ok': True,\n"
+        "        'path': path,\n"
+        "        'class': cls_name,\n"
+        "        'package_path': package_path,\n"
+        "        'parent_class': _asset_package_path(parent),\n"
+        "        'child_classes': [_asset_package_path(child) for child in child_classes if child],\n"
+        "        'properties': properties,\n"
+        "    }\n"
+        "    unreal.log('__SOUNDCLASS_" + marker + "__' + json.dumps(_out) + '__END__')\n"
+    )
+
+    exec_resp = call_ue("execute_unreal_python", {"code": py_code})
+    if "error" in exec_resp:
+        return make_response(req_id, error=exec_resp["error"])
+    if not exec_resp.get("result", {}).get("ok", False):
+        output = exec_resp.get("result", {}).get("output", "")
+        return make_response(req_id, error={
+            "code": -32603,
+            "message": f"inspect_sound_class: python_failed: {output}",
+        })
+
+    log_resp = call_ue("get_log_lines", {"category_filter": "LogPython", "count": 1000})
+    if "error" in log_resp:
+        return make_response(req_id, error=log_resp["error"])
+
+    lines = log_resp.get("result", {}).get("lines", []) or []
+    needle = "__SOUNDCLASS_" + marker + "__"
+    end_token = "__END__"
+    for entry in reversed(lines):
+        msg = entry.get("message", "") or ""
+        if needle in msg:
+            try:
+                start = msg.index(needle) + len(needle)
+                end = msg.index(end_token, start)
+                payload = msg[start:end]
+                data = json.loads(payload)
+            except (ValueError, json.JSONDecodeError):
+                return _wrap_tool_result(req_id, {
+                    "ok": False,
+                    "error_code": "invalid_json",
+                    "error_message": f"inspect_sound_class: marker_payload_unparseable for path '{path}'",
+                })
+            return _wrap_tool_result(req_id, data)
+
+    return _wrap_tool_result(req_id, {
+        "ok": False,
+        "error_code": "marker_not_found",
+        "error_message": (f"inspect_sound_class: marker_not_found: '{needle}' did not appear in "
+                          f"last {len(lines)} LogPython lines (log buffer may have overflowed; "
+                          "retry typically resolves)"),
+    })
+
+
 # Map of tool-name -> bridge-side synthetic implementation. These are
 # tools that don't have a corresponding UE handler -- the bridge composes
 # existing UE handlers (or implements pure-protocol logic) to serve them.
@@ -1709,6 +1891,7 @@ SYNTHETIC_TOOLS = {
     "compile_mod_pak": synthetic_compile_mod_pak,
     "bulk_delete_assets": synthetic_bulk_delete_assets,
     "inspect_data_asset": synthetic_inspect_data_asset,
+    "inspect_sound_class": synthetic_inspect_sound_class,
 }
 
 

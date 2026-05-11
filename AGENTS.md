@@ -6,12 +6,12 @@ This file is read by Codex CLI, Copilot CLI, Gemini CLI, Cursor, and any other c
 
 ## Quick orientation
 
-UE 5.7 plugin + Python bridge exposing editor automation to MCP-compliant clients (Claude Code, Codex CLI, Copilot CLI, Cursor, Gemini CLI, Continue, …) over a localhost TCP socket. **71 tools total: 64 native C++ handlers + 7 bridge-side synthetic tools.** Vendor-neutral by design — the wire protocol is open MCP; the "Claude" in the repo name is decorative.
+UE 5.7 plugin + Python bridge exposing editor automation to MCP-compliant clients (Claude Code, Codex CLI, Copilot CLI, Cursor, Gemini CLI, Continue, …) over a localhost TCP socket. **72 tools total: 64 native C++ handlers + 8 bridge-side synthetic tools.** Vendor-neutral by design — the wire protocol is open MCP; the "Claude" in the repo name is decorative.
 
 ## Where to look first
 
 - **C++ handlers** (64) — `UnrealClaudeMCP/Source/UnrealClaudeMCP/Private/MCP/Handlers/Handler_*.cpp`. Registered in `UnrealClaudeMCPModule.cpp`.
-- **Bridge-side synthetic tools** (7) — `bridge/unreal_claude_mcp_bridge.py`'s `SYNTHETIC_TOOLS` dict: `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `bulk_delete_assets`, `inspect_data_asset`.
+- **Bridge-side synthetic tools** (8) — `bridge/unreal_claude_mcp_bridge.py`'s `SYNTHETIC_TOOLS` dict: `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `bulk_delete_assets`, `inspect_data_asset`, `inspect_sound_class`.
 - **Tool catalog (manual 3-place sync)** — `UnrealClaudeMCP/Resources/mcp_manifest.json`, `bridge/unreal_claude_mcp_bridge.py`'s `TOOLS` list, `docs/TOOLS.md`. `tests/test_manifest_sync.py` catches drift between the first two.
 - **Architecture + UE 5.7 API gotchas** — `docs/ARCHITECTURE.md`.
 - **Host-build runbook** — top of `docs/HANDOFF.md`.
@@ -64,7 +64,7 @@ The full trap-table lives in `docs/HANDOFF.md` closing-notes. Highlights every a
 2. **For bridge / docs changes:** pytest sufficient. Self-merge on CI green for mechanical PRs per directive #7. The `main` branch has a protection ruleset (PR #96, ruleset `16243165`) — admin owner self-merge requires the `--admin` flag: `gh pr merge <N> --merge --admin --delete-branch`. Without `--admin`, `gh` errors out with "base branch policy prohibits the merge" even though the admin role has bypass permission (verified `current_user_can_bypass: always`).
 3. **Always:** doc-drift sweep before close-of-PR. Run:
    ```
-   rg -n "\b(56|60|65|68|70|71)\b.*\b(C\+\+|handlers?|tools? total|synthetic)" \
+   rg -n "\b(56|60|65|68|70|71|72)\b.*\b(C\+\+|handlers?|tools? total|synthetic)" \
      --glob '!docs/superpowers/**' --glob '!docs/HANDOFF.md'
    ```
    Update CLAUDE.md / AGENTS.md / README.md / TOOLS.md / .uplugin Description / manifest description / HANDOFF.md at-a-glance + runbook step 5. The closing-note records sprint chronology — leave those frozen.
