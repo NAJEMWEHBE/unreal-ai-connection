@@ -13,9 +13,9 @@ plugin speaks raw JSON-RPC over a local TCP socket (default
 Behaviour:
   - "initialize"             returned synthetically (does NOT hit the UE server)
   - "notifications/*"        consumed silently
-  - "tools/list"             returns a static list of all 72 tools (64
+  - "tools/list"             returns a static list of all 74 tools (64
                              dispatched to the UE plugin's C++ handlers
-                             plus 8 bridge-side synthetic tools served by
+                             plus 10 bridge-side synthetic tools served by
                              SYNTHETIC_TOOLS without crossing the wire as
                              a single UE round-trip)
   - "tools/call"             unpacks {name, arguments} and forwards to the
@@ -45,17 +45,18 @@ SERVER_NAME = "unreal-claude-mcp"
 SERVER_VERSION = "0.9.1"
 
 # Mirror of UnrealClaudeMCP/Resources/mcp_manifest.json - kept in sync manually.
-# 72 tool entries total. 64 are dispatched straight to UE C++ handlers
+# 74 tool entries total. 64 are dispatched straight to UE C++ handlers
 # (see UnrealClaudeMCPModule.cpp's Reg.Register(...) block). The remaining
-# 8 -- wait_for_events, get_camera_transform, set_camera_transform,
+# 10 -- wait_for_events, get_camera_transform, set_camera_transform,
 # screenshot_actor, compile_mod_pak, bulk_delete_assets, inspect_data_asset,
-# inspect_sound_class -- are bridge-side synthetic tools served by
-# SYNTHETIC_TOOLS (see below) without a dedicated UE handler: they either
-# compose existing handlers (focus + screenshot, repeated poll, loop over
-# delete_asset), run the matching unreal.* Python via execute_unreal_python
-# with the marker pattern (get/set camera transform, inspect_data_asset,
-# inspect_sound_class), or (compile_mod_pak) shell out to RunUAT.bat
-# entirely outside the UE process.
+# inspect_sound_class, inspect_sound_submix, inspect_audio_bus -- are
+# bridge-side synthetic tools served by SYNTHETIC_TOOLS (see below) without
+# a dedicated UE handler: they either compose existing handlers (focus +
+# screenshot, repeated poll, loop over delete_asset), run the matching
+# unreal.* Python via execute_unreal_python with the marker pattern
+# (get/set camera transform, inspect_data_asset, inspect_sound_class,
+# inspect_sound_submix, inspect_audio_bus), or (compile_mod_pak) shell out
+# to RunUAT.bat entirely outside the UE process.
 TOOLS = [
     {
         "name": "execute_unreal_python",
@@ -174,6 +175,34 @@ TOOLS = [
                 "path": {
                     "type": "string",
                     "description": "Package path to a USoundClass asset, e.g. /Game/Audio/SC_Music. Must be a non-empty string.",
+                },
+            },
+            "required": ["path"],
+        },
+    },
+    {
+        "name": "inspect_sound_submix",
+        "description": "Inspect a USoundSubmix by package path: returns leaf class name, package path, parent USoundSubmix asset path (for chaining), child submix asset paths, and additional editor-accessible UPROPERTYs discovered via dir() permissive enumeration. SYNTHETIC bridge-side handler: composes execute_unreal_python + get_log_lines via the marker pattern. Logical errors (asset_not_found, wrong_asset_type, marker_not_found, invalid_json) return as ok=False success envelopes; transport-level errors return as JSON-RPC errors.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "description": "Package path to a USoundSubmix asset, e.g. /Game/Audio/SX_Music. Must be a non-empty string.",
+                },
+            },
+            "required": ["path"],
+        },
+    },
+    {
+        "name": "inspect_audio_bus",
+        "description": "Inspect a UAudioBus by package path: returns leaf class name, package path, audio_bus_channels enum stringified (Mono/Stereo/Quad/FivePointOne/SevenPointOne), and additional editor-accessible UPROPERTYs discovered via dir() permissive enumeration. SYNTHETIC bridge-side handler: composes execute_unreal_python + get_log_lines via the marker pattern. Logical errors (asset_not_found, wrong_asset_type, marker_not_found, invalid_json) return as ok=False success envelopes; transport-level errors return as JSON-RPC errors.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "description": "Package path to a UAudioBus asset, e.g. /Game/Audio/AB_Master. Must be a non-empty string.",
                 },
             },
             "required": ["path"],
@@ -1880,6 +1909,292 @@ def synthetic_inspect_sound_class(req_id, args):
     })
 
 
+def synthetic_inspect_sound_submix(req_id, args):
+    """Bridge-side shim: inspect a USoundSubmix by package path.
+
+    Same canonical marker pattern as `synthetic_inspect_sound_class` (PR #98).
+    Returns leaf class + package path + parent_submix asset path (chainable)
+    + child_submixes asset paths + additional editor-accessible properties
+    via the `dir(obj)` permissive enumeration (skipping the curated names
+    to avoid duplication).
+
+    Originally a Codex parallel-dispatch test (PR #99, 2026-05-11): paired
+    with a Copilot retry stream for `inspect_audio_bus` that recovered
+    from the PR #98 regression once the prompt explicitly called out the
+    three previous wrongs (`{"script": ...}` vs `{"code": ...}`,
+    `{"contains": ..., "reverse": ...}` vs `category_filter`+`count`,
+    manifest-style vs bridge-style schema shape).
+    """
+    path = args.get("path") if isinstance(args, dict) else None
+    if not isinstance(path, str) or not path:
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "inspect_sound_submix: missing_required_field: 'path' must be a non-empty string",
+        })
+
+    marker = uuid.uuid4().hex[:12]
+    py_code = (
+        "import unreal, json\n"
+        "path = " + json.dumps(path) + "\n"
+        "def _asset_package_path(asset):\n"
+        "    if not asset:\n"
+        "        return None\n"
+        "    try:\n"
+        "        name = asset.get_path_name()\n"
+        "    except Exception:\n"
+        "        return None\n"
+        "    if isinstance(name, str) and '.' in name:\n"
+        "        return name.rsplit('.', 1)[0]\n"
+        "    return name\n"
+        "obj = unreal.EditorAssetLibrary.load_asset(path)\n"
+        "if not obj:\n"
+        "    _out = {\n"
+        "        'ok': False,\n"
+        "        'error_code': 'asset_not_found',\n"
+        "        'error_message': 'inspect_sound_submix: asset_not_found: Asset not found: ' + path,\n"
+        "    }\n"
+        "    unreal.log('__SOUNDSUBMIX_" + marker + "__' + json.dumps(_out) + '__END__')\n"
+        "elif not isinstance(obj, unreal.SoundSubmix):\n"
+        "    cls = obj.get_class()\n"
+        "    cls_name = cls.get_name() if cls else type(obj).__name__\n"
+        "    _out = {\n"
+        "        'ok': False,\n"
+        "        'error_code': 'wrong_asset_type',\n"
+        "        'error_message': 'inspect_sound_submix: wrong_asset_type: Asset is not a USoundSubmix: ' + path,\n"
+        "        'actual_class': cls_name,\n"
+        "    }\n"
+        "    unreal.log('__SOUNDSUBMIX_" + marker + "__' + json.dumps(_out) + '__END__')\n"
+        "else:\n"
+        "    cls = obj.get_class()\n"
+        "    cls_name = cls.get_name() if cls else None\n"
+        "    package_path = obj.get_path_name()\n"
+        "    try:\n"
+        "        parent = obj.get_editor_property('parent_submix')\n"
+        "    except Exception:\n"
+        "        parent = None\n"
+        "    try:\n"
+        "        child_submixes = obj.get_editor_property('child_submixes') or []\n"
+        "    except Exception:\n"
+        "        child_submixes = []\n"
+        "    child_paths = []\n"
+        "    for child in child_submixes:\n"
+        "        child_path = _asset_package_path(child)\n"
+        "        if child_path:\n"
+        "            child_paths.append(child_path)\n"
+        "    skip_names = {'parent_submix', 'child_submixes'}\n"
+        "    additional_properties = []\n"
+        "    for n in [x for x in dir(obj) if not x.startswith('_') and x not in skip_names]:\n"
+        "        try:\n"
+        "            v = obj.get_editor_property(n)\n"
+        "        except Exception:\n"
+        "            continue\n"
+        "        tname = type(v).__name__\n"
+        "        try:\n"
+        "            if isinstance(v, bool):\n"
+        "                vstr = str(v)\n"
+        "            elif isinstance(v, (int, float, str)):\n"
+        "                vstr = str(v)\n"
+        "            elif isinstance(v, (list, tuple, dict)):\n"
+        "                vstr = '<container:' + tname + '>'\n"
+        "            else:\n"
+        "                vstr = '<unsupported>'\n"
+        "        except Exception:\n"
+        "            vstr = '<unsupported>'\n"
+        "        additional_properties.append({'name': n, 'type': tname, 'value': vstr})\n"
+        "    _out = {\n"
+        "        'ok': True,\n"
+        "        'path': path,\n"
+        "        'class': cls_name,\n"
+        "        'package_path': package_path,\n"
+        "        'parent_submix': _asset_package_path(parent),\n"
+        "        'child_submixes': child_paths,\n"
+        "        'additional_properties': additional_properties,\n"
+        "    }\n"
+        "    unreal.log('__SOUNDSUBMIX_" + marker + "__' + json.dumps(_out) + '__END__')\n"
+    )
+
+    exec_resp = call_ue("execute_unreal_python", {"code": py_code})
+    if "error" in exec_resp:
+        return make_response(req_id, error=exec_resp["error"])
+    if not exec_resp.get("result", {}).get("ok", False):
+        output = exec_resp.get("result", {}).get("output", "")
+        return make_response(req_id, error={
+            "code": -32603,
+            "message": f"inspect_sound_submix: python_failed: {output}",
+        })
+
+    log_resp = call_ue("get_log_lines", {"category_filter": "LogPython", "count": 1000})
+    if "error" in log_resp:
+        return make_response(req_id, error=log_resp["error"])
+
+    lines = log_resp.get("result", {}).get("lines", []) or []
+    needle = "__SOUNDSUBMIX_" + marker + "__"
+    end_token = "__END__"
+    for entry in reversed(lines):
+        msg = entry.get("message", "") or ""
+        if needle in msg:
+            try:
+                start = msg.index(needle) + len(needle)
+                end = msg.index(end_token, start)
+                payload = msg[start:end]
+                data = json.loads(payload)
+            except (ValueError, json.JSONDecodeError):
+                return _wrap_tool_result(req_id, {
+                    "ok": False,
+                    "error_code": "invalid_json",
+                    "error_message": f"inspect_sound_submix: invalid_json: marker payload unparseable for path '{path}'",
+                })
+            return _wrap_tool_result(req_id, data)
+
+    return _wrap_tool_result(req_id, {
+        "ok": False,
+        "error_code": "marker_not_found",
+        "error_message": (f"inspect_sound_submix: marker_not_found: '{needle}' did not appear in "
+                          f"last {len(lines)} LogPython lines (log buffer may have overflowed; "
+                          "retry typically resolves)"),
+    })
+
+
+def synthetic_inspect_audio_bus(req_id, args):
+    """Bridge-side shim: inspect a UAudioBus by package path.
+
+    Same canonical marker pattern as `synthetic_inspect_sound_class`.
+    Returns leaf class + package path + audio_bus_channels enum stringified
+    via `.name` (Mono | Stereo | Quad | FivePointOne | SevenPointOne) +
+    additional editor-accessible properties via permissive `dir(obj)`
+    enumeration (skipping the curated `audio_bus_channels`).
+
+    Originally a Copilot CLI retry-dispatch test (PR #99, 2026-05-11):
+    recovered from the PR #98 regression after the prompt explicitly
+    called out the three previous wrongs (invented `{"script": ...}` arg,
+    invented `{"contains": ..., "reverse": ...}` for get_log_lines,
+    manifest-style schema shape with both `params` and top-level
+    `required`). The recipe holds even after a regression as long as
+    the prompt names the specific wrongs to avoid.
+    """
+    path = args.get("path") if isinstance(args, dict) else None
+    if not isinstance(path, str) or not path:
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "inspect_audio_bus: missing_required_field: 'path' must be a non-empty string",
+        })
+
+    marker = uuid.uuid4().hex[:12]
+    py_code = (
+        "import unreal, json\n"
+        "path = " + json.dumps(path) + "\n"
+        "def _enum_name(v):\n"
+        "    try:\n"
+        "        return v.name\n"
+        "    except Exception:\n"
+        "        try:\n"
+        "            text = str(v)\n"
+        "            if '.' in text:\n"
+        "                return text.rsplit('.', 1)[-1]\n"
+        "            return text\n"
+        "        except Exception:\n"
+        "            return None\n"
+        "obj = unreal.EditorAssetLibrary.load_asset(path)\n"
+        "if not obj:\n"
+        "    _out = {\n"
+        "        'ok': False,\n"
+        "        'error_code': 'asset_not_found',\n"
+        "        'error_message': 'inspect_audio_bus: asset_not_found: Asset not found: ' + path,\n"
+        "    }\n"
+        "    unreal.log('__AUDIOBUS_" + marker + "__' + json.dumps(_out) + '__END__')\n"
+        "elif not isinstance(obj, unreal.AudioBus):\n"
+        "    cls = obj.get_class()\n"
+        "    cls_name = cls.get_name() if cls else type(obj).__name__\n"
+        "    _out = {\n"
+        "        'ok': False,\n"
+        "        'error_code': 'wrong_asset_type',\n"
+        "        'error_message': 'inspect_audio_bus: wrong_asset_type: Asset is not a UAudioBus: ' + path,\n"
+        "        'actual_class': cls_name,\n"
+        "    }\n"
+        "    unreal.log('__AUDIOBUS_" + marker + "__' + json.dumps(_out) + '__END__')\n"
+        "else:\n"
+        "    cls = obj.get_class()\n"
+        "    cls_name = cls.get_name() if cls else None\n"
+        "    package_path = obj.get_path_name()\n"
+        "    try:\n"
+        "        abc = obj.get_editor_property('audio_bus_channels')\n"
+        "    except Exception:\n"
+        "        abc = None\n"
+        "    abc_name = _enum_name(abc)\n"
+        "    props = []\n"
+        "    for n in [x for x in dir(obj) if not x.startswith('_')]:\n"
+        "        if n == 'audio_bus_channels':\n"
+        "            continue\n"
+        "        try:\n"
+        "            v = obj.get_editor_property(n)\n"
+        "        except Exception:\n"
+        "            continue\n"
+        "        tname = type(v).__name__\n"
+        "        try:\n"
+        "            if isinstance(v, bool):\n"
+        "                vstr = str(v)\n"
+        "            elif isinstance(v, (int, float, str)):\n"
+        "                vstr = str(v)\n"
+        "            elif isinstance(v, (list, tuple, dict)):\n"
+        "                vstr = '<container:' + tname + '>'\n"
+        "            else:\n"
+        "                vstr = '<unsupported>'\n"
+        "        except Exception:\n"
+        "            vstr = '<unsupported>'\n"
+        "        props.append({'name': n, 'type': tname, 'value': vstr})\n"
+        "    _out = {\n"
+        "        'ok': True,\n"
+        "        'path': path,\n"
+        "        'class': cls_name,\n"
+        "        'package_path': package_path,\n"
+        "        'audio_bus_channels': abc_name,\n"
+        "        'additional_properties': props,\n"
+        "    }\n"
+        "    unreal.log('__AUDIOBUS_" + marker + "__' + json.dumps(_out) + '__END__')\n"
+    )
+
+    exec_resp = call_ue("execute_unreal_python", {"code": py_code})
+    if "error" in exec_resp:
+        return make_response(req_id, error=exec_resp["error"])
+    if not exec_resp.get("result", {}).get("ok", False):
+        output = exec_resp.get("result", {}).get("output", "")
+        return make_response(req_id, error={
+            "code": -32603,
+            "message": f"inspect_audio_bus: python_failed: {output}",
+        })
+
+    log_resp = call_ue("get_log_lines", {"category_filter": "LogPython", "count": 1000})
+    if "error" in log_resp:
+        return make_response(req_id, error=log_resp["error"])
+
+    lines = log_resp.get("result", {}).get("lines", []) or []
+    needle = "__AUDIOBUS_" + marker + "__"
+    end_token = "__END__"
+    for entry in reversed(lines):
+        msg = entry.get("message", "") or ""
+        if needle in msg:
+            try:
+                start = msg.index(needle) + len(needle)
+                end = msg.index(end_token, start)
+                payload = msg[start:end]
+                data = json.loads(payload)
+            except (ValueError, json.JSONDecodeError):
+                return _wrap_tool_result(req_id, {
+                    "ok": False,
+                    "error_code": "invalid_json",
+                    "error_message": f"inspect_audio_bus: invalid_json: marker payload unparseable for path '{path}'",
+                })
+            return _wrap_tool_result(req_id, data)
+
+    return _wrap_tool_result(req_id, {
+        "ok": False,
+        "error_code": "marker_not_found",
+        "error_message": (f"inspect_audio_bus: marker_not_found: '{needle}' did not appear in "
+                          f"last {len(lines)} LogPython lines (log buffer may have overflowed; "
+                          "retry typically resolves)"),
+    })
+
+
 # Map of tool-name -> bridge-side synthetic implementation. These are
 # tools that don't have a corresponding UE handler -- the bridge composes
 # existing UE handlers (or implements pure-protocol logic) to serve them.
@@ -1892,6 +2207,8 @@ SYNTHETIC_TOOLS = {
     "bulk_delete_assets": synthetic_bulk_delete_assets,
     "inspect_data_asset": synthetic_inspect_data_asset,
     "inspect_sound_class": synthetic_inspect_sound_class,
+    "inspect_sound_submix": synthetic_inspect_sound_submix,
+    "inspect_audio_bus": synthetic_inspect_audio_bus,
 }
 
 
