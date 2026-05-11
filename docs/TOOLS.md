@@ -2508,6 +2508,72 @@ Frame the level-editor viewport on a specific actor and capture a focused PNG sc
 
 ---
 
+## compile_mod_pak
+
+Compile a UE mod plugin to a `.pak` file (`BuildMod`) or to a redistributable plugin package (`BuildPlugin`), headless, via `RunUAT.bat`. **No UE editor session required.** Originally contributed by [@daveCode-dot](https://github.com/daveCode-dot) (PR #84) for the Conan Exiles Enhanced UE5 mod pipeline; integrated with Gemini review fixes + manifest + tests + docs.
+
+**Bridge-side synthetic tool.** Pure Python — shells out to `RunUAT.bat`, captures stdout/stderr tails, scans `output_dir` for the freshest `.pak`. No UE-side state means there's no reason to push this into a C++ handler (per the decision flow in [`LANGUAGE-CHOICE-RETROSPECTIVE.md`](LANGUAGE-CHOICE-RETROSPECTIVE.md) step 6).
+
+**Primary use case:** game-specific UE5 Dev Kits in **installed-build mode** that block standard `BuildPlugin` because precompiled `UE5Rules.dll` / `UE5ProgramRules.dll` aren't shipped. Funcom's Conan Exiles Enhanced UE5 Dev Kit is the canonical example — it ships a custom `BuildMod` UAT command as the only working path. This tool exposes that pipeline behind a clean MCP interface.
+
+**Success criterion is per-command:**
+- `BuildMod` requires both `exit_code == 0` AND a `.pak` in `output_dir`. The `.pak` is the deployable artefact callers want.
+- `BuildPlugin` requires `exit_code == 0` alone. This command produces a redistributable plugin package (`.uplugin` + `Binaries/` + `Resources/`) under `output_dir`, NOT a `.pak`. Insisting on a `.pak` would mark every successful `BuildPlugin` run as `ok=false` (Gemini PR #84 review).
+
+**Pak identification:** when multiple `.pak` files exist in `output_dir` (shared dir across builds), the handler prefers:
+1. A `.pak` whose name contains `mod_name` (case-insensitive substring); falls back to all `.pak`s if no match
+2. Among those, the one with the latest mtime (most likely THIS build's output)
+3. Filtered to only `.pak`s newer than the build's start time (skip stale artefacts); if none are fresh, returns the newest anyway
+
+**Output capture:** `stdout` capped at 4 KB tail, `stderr` capped at 2 KB tail. UAT builds can emit 10–100 MB of output over a 5–30 min build; capping at return time keeps MCP responses sane. (Streaming the output line-by-line during the build would lower peak memory further but is deferred to a follow-up.)
+
+**Auto-discovery:** `run_uat_path` defaults to walking up from `project_path` looking for `Engine/Build/BatchFiles/RunUAT.bat`. Override via the param if your Dev Kit lays out engine differently.
+
+**Params**
+- `project_path` (string, required) — absolute path to `.uproject` (e.g. `C:/Games/ConanSandbox/ConanSandbox.uproject`)
+- `output_dir` (string, required) — directory for output `.pak` or package; created if missing
+- `mod_name` (string, conditional) — required for `BuildMod`; matches `Content/Mods/<mod_name>/`. Also disambiguates the freshest `.pak` when `output_dir` is shared across multiple builds.
+- `plugin_path` (string, conditional) — required for `BuildPlugin`; absolute path to `.uplugin`
+- `uat_command` (string enum) — `BuildMod` (default) or `BuildPlugin`
+- `run_uat_path` (string, optional) — override path to `RunUAT.bat`; auto-discovered otherwise
+- `extra_args` (array of string, optional) — additional CLI args appended to `RunUAT`
+- `timeout_sec` (int, optional) — max wait in seconds; default `1800` (30 min)
+
+**Result**
+- `ok` (bool) — see success-criterion section above
+- `pak_path` (string or null) — absolute path of the chosen `.pak`; null for `BuildPlugin` (no `.pak` produced) or when no `.pak` exists in `output_dir`
+- `exit_code` (int) — `RunUAT.bat` return code
+- `stdout_tail` (string) — last 4 KB of stdout
+- `stderr_tail` (string) — last 2 KB of stderr
+- `duration_sec` (float) — wall-clock time, 2-decimal precision
+- `uat_command` (string) — the command actually run
+- `cmd` (array of string) — the full subprocess argv (useful for "why did UAT fail?" debugging)
+
+**Errors:** `-32602` (missing/invalid `project_path`, missing `output_dir`, missing `mod_name` for BuildMod, missing `plugin_path` for BuildPlugin); `-32603` (RunUAT.bat not found, timeout, subprocess exception).
+
+**Example — BuildMod (Conan Exiles Enhanced)**
+```json
+{"jsonrpc":"2.0","id":1,"method":"compile_mod_pak","params":{
+  "project_path": "C:/ConanExilesEnhanced/ConanSandbox/ConanSandbox.uproject",
+  "mod_name": "MyMod",
+  "output_dir": "D:/Builds/MyMod",
+  "uat_command": "BuildMod"
+}}
+```
+
+**Example — BuildPlugin (vanilla UE5)**
+```json
+{"jsonrpc":"2.0","id":1,"method":"compile_mod_pak","params":{
+  "project_path": "C:/Projects/MyGame/MyGame.uproject",
+  "plugin_path": "C:/Projects/MyGame/Plugins/MyPlugin/MyPlugin.uplugin",
+  "output_dir": "D:/Builds/MyPlugin",
+  "uat_command": "BuildPlugin",
+  "timeout_sec": 3600
+}}
+```
+
+---
+
 ## Adding more tools
 
 See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the recipe. Short version: one `.cpp` file in `Source/UnrealClaudeMCP/Private/MCP/Handlers/`, two registration lines in `UnrealClaudeMCPModule.cpp`, one entry in `Resources/mcp_manifest.json`, one entry in `bridge/unreal_claude_mcp_bridge.py`'s `TOOLS` list, rebuild, restart.
