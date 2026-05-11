@@ -91,6 +91,7 @@ def test_tool_names_are_unique_and_match_handlers():
         "set_camera_transform",
         "screenshot_actor",
         "compile_mod_pak",
+        "bulk_delete_assets",
     }
     assert set(names) == expected
 
@@ -507,6 +508,102 @@ def test_compile_mod_pak_is_synthetic():
     assert t["inputSchema"]["properties"]["uat_command"]["enum"] == ["BuildMod", "BuildPlugin"]
     assert "compile_mod_pak" in bridge.SYNTHETIC_TOOLS
     assert bridge.SYNTHETIC_TOOLS["compile_mod_pak"] is bridge.synthetic_compile_mod_pak
+
+
+def test_bulk_delete_assets_is_synthetic():
+    """bulk_delete_assets is a SYNTHETIC bridge-side handler (PR #90 — Codex
+    parallel-dispatch test): loops over delete_asset calls and aggregates
+    partial-success results. paths is required; continue_on_error is
+    optional and defaults to true."""
+    t = next((t for t in bridge.TOOLS if t["name"] == "bulk_delete_assets"), None)
+    assert t is not None
+    assert set(t["inputSchema"]["required"]) == {"paths"}
+    assert t["inputSchema"]["properties"]["paths"]["type"] == "array"
+    assert t["inputSchema"]["properties"]["paths"]["items"]["type"] == "string"
+    assert t["inputSchema"]["properties"]["continue_on_error"]["type"] == "boolean"
+    assert t["inputSchema"]["properties"]["continue_on_error"]["default"] is True
+    assert "bulk_delete_assets" in bridge.SYNTHETIC_TOOLS
+    assert bridge.SYNTHETIC_TOOLS["bulk_delete_assets"] is bridge.synthetic_bulk_delete_assets
+
+
+def test_bulk_delete_assets_happy_path():
+    """All deletes succeed -> ok=True, deleted == total, failed == 0,
+    per-path results carry ok=True + null error fields."""
+    with patch.object(bridge, "call_ue", return_value={"jsonrpc": "2.0", "id": 1, "result": {"ok": True}}) as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 21, "method": "tools/call",
+            "params": {
+                "name": "bulk_delete_assets",
+                "arguments": {"paths": ["/Game/Foo", "/Game/Bar"]},
+            },
+        })
+
+    assert m.call_count == 2
+    assert m.call_args_list[0].args == ("delete_asset", {"path": "/Game/Foo"})
+    assert m.call_args_list[1].args == ("delete_asset", {"path": "/Game/Bar"})
+    assert resp["result"]["isError"] is False
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert body == {
+        "ok": True,
+        "total": 2,
+        "deleted": 2,
+        "failed": 0,
+        "results": [
+            {"path": "/Game/Foo", "ok": True, "error_code": None, "error_message": None},
+            {"path": "/Game/Bar", "ok": True, "error_code": None, "error_message": None},
+        ],
+    }
+
+
+def test_bulk_delete_assets_partial_failure_stops_when_continue_on_error_false():
+    """First delete succeeds, second fails, continue_on_error=False -> stop
+    after the second call. Upstream error code is preserved in the per-path
+    result; the third path is never attempted."""
+    ok_resp = {"jsonrpc": "2.0", "id": 1, "result": {"ok": True}}
+    err_resp = {"jsonrpc": "2.0", "id": 1, "error": {
+        "code": -32000,
+        "message": "delete_asset: has_referencers: '/Game/Bar' is referenced",
+    }}
+    with patch.object(bridge, "call_ue", side_effect=[ok_resp, err_resp]) as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 22, "method": "tools/call",
+            "params": {
+                "name": "bulk_delete_assets",
+                "arguments": {
+                    "paths": ["/Game/Foo", "/Game/Bar", "/Game/Baz"],
+                    "continue_on_error": False,
+                },
+            },
+        })
+
+    assert m.call_count == 2
+    assert m.call_args_list[0].args == ("delete_asset", {"path": "/Game/Foo"})
+    assert m.call_args_list[1].args == ("delete_asset", {"path": "/Game/Bar"})
+    assert resp["result"]["isError"] is False
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert body["ok"] is False
+    assert body["total"] == 3
+    assert body["deleted"] == 1
+    assert body["failed"] == 1
+    assert body["results"] == [
+        {"path": "/Game/Foo", "ok": True, "error_code": None, "error_message": None},
+        {
+            "path": "/Game/Bar",
+            "ok": False,
+            "error_code": -32000,
+            "error_message": "delete_asset: has_referencers: '/Game/Bar' is referenced",
+        },
+    ]
+
+
+def test_bulk_delete_assets_rejects_missing_paths():
+    """Schema enforces paths as required; missing it returns -32602."""
+    resp = bridge.handle({
+        "jsonrpc": "2.0", "id": 23, "method": "tools/call",
+        "params": {"name": "bulk_delete_assets", "arguments": {}},
+    })
+    assert resp["error"]["code"] == -32602
+    assert "bulk_delete_assets" in resp["error"]["message"]
 
 
 def test_screenshot_actor_happy_path():

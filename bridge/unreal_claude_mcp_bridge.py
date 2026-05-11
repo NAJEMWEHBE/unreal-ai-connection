@@ -13,9 +13,9 @@ plugin speaks raw JSON-RPC over a local TCP socket (default
 Behaviour:
   - "initialize"             returned synthetically (does NOT hit the UE server)
   - "notifications/*"        consumed silently
-  - "tools/list"             returns a static list of all 69 tools (64
+  - "tools/list"             returns a static list of all 70 tools (64
                              dispatched to the UE plugin's C++ handlers
-                             plus 5 bridge-side synthetic tools served by
+                             plus 6 bridge-side synthetic tools served by
                              SYNTHETIC_TOOLS without crossing the wire as
                              a single UE round-trip)
   - "tools/call"             unpacks {name, arguments} and forwards to the
@@ -45,14 +45,15 @@ SERVER_NAME = "unreal-claude-mcp"
 SERVER_VERSION = "0.9.1"
 
 # Mirror of UnrealClaudeMCP/Resources/mcp_manifest.json - kept in sync manually.
-# 69 tool entries total. 64 are dispatched straight to UE C++ handlers
+# 70 tool entries total. 64 are dispatched straight to UE C++ handlers
 # (see UnrealClaudeMCPModule.cpp's Reg.Register(...) block). The remaining
-# 5 -- wait_for_events, get_camera_transform, set_camera_transform,
-# screenshot_actor, compile_mod_pak -- are bridge-side synthetic tools served
-# by SYNTHETIC_TOOLS (see below) without a dedicated UE handler: they either
-# compose existing handlers (focus + screenshot, repeated poll), run the
-# matching unreal.* Python via execute_unreal_python, or (compile_mod_pak)
-# shell out to RunUAT.bat entirely outside the UE process.
+# 6 -- wait_for_events, get_camera_transform, set_camera_transform,
+# screenshot_actor, compile_mod_pak, bulk_delete_assets -- are bridge-side
+# synthetic tools served by SYNTHETIC_TOOLS (see below) without a dedicated
+# UE handler: they either compose existing handlers (focus + screenshot,
+# repeated poll, loop over delete_asset), run the matching unreal.* Python
+# via execute_unreal_python, or (compile_mod_pak) shell out to RunUAT.bat
+# entirely outside the UE process.
 TOOLS = [
     {
         "name": "execute_unreal_python",
@@ -126,6 +127,26 @@ TOOLS = [
                 "timeout_sec": {"type": "integer", "default": 1800, "description": "Max wait time (default 30 min)"},
             },
             "required": ["project_path", "output_dir"],
+        },
+    },
+    {
+        "name": "bulk_delete_assets",
+        "description": "Delete multiple assets by composing the delete_asset C++ handler bridge-side. Returns per-path results plus aggregate counts. By default continues after individual failures (partial success is normal); set continue_on_error=false to stop on first failure. SYNTHETIC bridge-side handler.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "paths": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Asset object paths to delete, e.g. ['/Game/Foo', '/Game/Bar/Baz']. Each path must be a non-empty string; the same path-normalisation rules as the underlying delete_asset handler apply.",
+                },
+                "continue_on_error": {
+                    "type": "boolean",
+                    "default": True,
+                    "description": "When true (default), keep deleting after an individual path fails and surface the per-path errors in the results array. When false, stop after the first failure and return the partial results collected so far.",
+                },
+            },
+            "required": ["paths"],
         },
     },
     {
@@ -1433,6 +1454,101 @@ def synthetic_compile_mod_pak(req_id, args):
     })
 
 
+def synthetic_bulk_delete_assets(req_id, args):
+    """Bridge-side composition: delete multiple assets via the `delete_asset`
+    C++ handler, returning a per-path partial-success structure.
+
+    Loops over `paths` and dispatches one `call_ue("delete_asset", ...)` per
+    entry, collecting result records. By default, individual failures do NOT
+    abort the loop (`continue_on_error: true`) — partial success is normal
+    and propagated via `ok: False` + non-zero `failed` count. With
+    `continue_on_error: false` the loop stops on the first failure and
+    returns whatever has accumulated.
+
+    Synthetic rather than C++ because the bulk loop is pure protocol-level
+    composition over an existing handler. A C++ bulk handler would just
+    duplicate `delete_asset`'s logic per path and force partial-failure
+    aggregation back into a single envelope on the game thread — needlessly
+    coupling N delete operations into one round-trip. The bridge-side loop
+    keeps each delete as a discrete UE round-trip, which means in-editor
+    events fire per-asset and the caller can watch progress via the event
+    bus.
+
+    Originally a Codex parallel-dispatch test (PR #90, 2026-05-11): one of
+    two streams in the first three-stream dispatch experiment alongside an
+    independent Copilot CLI stream. See HANDOFF.md for the parallel-AI
+    workflow learnings.
+    """
+    if not isinstance(args, dict):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "bulk_delete_assets: invalid_arguments: arguments must be an object",
+        })
+
+    if "paths" not in args:
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "bulk_delete_assets: missing_required_field: 'paths' must be supplied as a list of non-empty strings",
+        })
+
+    paths = args.get("paths")
+    if not isinstance(paths, list):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "bulk_delete_assets: invalid_field: 'paths' must be a list of non-empty strings",
+        })
+
+    for i, path in enumerate(paths):
+        if not isinstance(path, str) or not path:
+            return make_response(req_id, error={
+                "code": -32602,
+                "message": f"bulk_delete_assets: invalid_path: paths[{i}] must be a non-empty string",
+            })
+
+    continue_on_error = args.get("continue_on_error", True)
+    if not isinstance(continue_on_error, bool):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "bulk_delete_assets: invalid_field: 'continue_on_error' must be a boolean",
+        })
+
+    results = []
+    for path in paths:
+        delete_resp = call_ue("delete_asset", {"path": path})
+        if "error" in delete_resp:
+            upstream_err = delete_resp.get("error", {}) or {}
+            error_code = upstream_err.get("code", -32603)
+            if error_code is None:
+                error_code = -32603
+            results.append({
+                "path": path,
+                "ok": False,
+                "error_code": error_code,
+                "error_message": upstream_err.get("message") or "",
+            })
+            if not continue_on_error:
+                break
+            continue
+
+        results.append({
+            "path": path,
+            "ok": True,
+            "error_code": None,
+            "error_message": None,
+        })
+
+    deleted = sum(1 for result in results if result["ok"])
+    failed = sum(1 for result in results if not result["ok"])
+
+    return _wrap_tool_result(req_id, {
+        "ok": failed == 0,
+        "total": len(paths),
+        "deleted": deleted,
+        "failed": failed,
+        "results": results,
+    })
+
+
 # Map of tool-name -> bridge-side synthetic implementation. These are
 # tools that don't have a corresponding UE handler -- the bridge composes
 # existing UE handlers (or implements pure-protocol logic) to serve them.
@@ -1442,6 +1558,7 @@ SYNTHETIC_TOOLS = {
     "set_camera_transform": synthetic_set_camera_transform,
     "screenshot_actor": synthetic_screenshot_actor,
     "compile_mod_pak": synthetic_compile_mod_pak,
+    "bulk_delete_assets": synthetic_bulk_delete_assets,
 }
 
 
