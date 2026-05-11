@@ -1,6 +1,6 @@
 # MCP Tools Reference
 
-**69 tools total.** 64 are JSON-RPC 2.0 methods served on `127.0.0.1:18888` directly by the plugin's C++ handlers. The remaining 5 — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak` — are bridge-side **synthetic tools** that are intercepted by `bridge/unreal_claude_mcp_bridge.py` and served by composing existing handlers (or running Python via `execute_unreal_python`, or — for `compile_mod_pak` — shelling out to `RunUAT.bat` entirely outside the UE process). They are visible to MCP clients exactly like the C++ tools but cannot be reached by sending raw JSON-RPC to the TCP socket — only via the MCP bridge or by replicating their composition manually. The "Implementation" header on each entry below indicates whether a tool is C++ or bridge-side.
+**70 tools total.** 64 are JSON-RPC 2.0 methods served on `127.0.0.1:18888` directly by the plugin's C++ handlers. The remaining 6 — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `bulk_delete_assets` — are bridge-side **synthetic tools** that are intercepted by `bridge/unreal_claude_mcp_bridge.py` and served by composing existing handlers (or running Python via `execute_unreal_python`, or — for `compile_mod_pak` — shelling out to `RunUAT.bat` entirely outside the UE process). They are visible to MCP clients exactly like the C++ tools but cannot be reached by sending raw JSON-RPC to the TCP socket — only via the MCP bridge or by replicating their composition manually. The "Implementation" header on each entry below indicates whether a tool is C++ or bridge-side.
 
 Each tool's params and result are documented with a working example.
 
@@ -2569,6 +2569,62 @@ Compile a UE mod plugin to a `.pak` file (`BuildMod`) or to a redistributable pl
   "output_dir": "D:/Builds/MyPlugin",
   "uat_command": "BuildPlugin",
   "timeout_sec": 3600
+}}
+```
+
+---
+
+## bulk_delete_assets
+
+Delete multiple assets in one MCP call by composing the [`delete_asset`](#delete_asset) C++ handler bridge-side. Returns per-path results plus aggregate counts, suitable for cleanup workflows over collections (test fixtures, generated content, temp imports).
+
+**Bridge-side synthetic tool.** Pure Python — loops over `paths` and dispatches one `call_ue("delete_asset", {"path": ...})` per entry, collecting result records. Each delete is a discrete UE round-trip, so in-editor events fire per-asset and the caller can watch progress via the event bus (`poll_events` / `register_subscription`). Synthetic rather than C++ because the bulk loop is pure protocol-level composition — a native C++ bulk handler would just duplicate `delete_asset`'s logic per path while forcing partial-failure aggregation into one game-thread call, needlessly coupling N delete operations into one round-trip.
+
+**Partial-failure model (default):**
+- `continue_on_error: true` (default) — the loop attempts every path regardless of failures. Per-path errors land in `results[].error_code` + `error_message`. The overall response is still a JSON-RPC success (no top-level `error`), with `ok: False` and `failed > 0` signalling partial success.
+- `continue_on_error: false` — abort on the first failure, return whatever has accumulated.
+
+The partial-failure-as-success-envelope shape is deliberate: a bulk operation rarely needs to be transactional, and surfacing per-path errors lets the caller decide whether to retry, log, or escalate.
+
+**Upstream error preservation:** the `error_code` recorded per failed path is the literal JSON-RPC code returned by `delete_asset` (or by the transport layer if the UE server was unreachable mid-loop — `-32099`). Callers can distinguish transport failures from logical delete errors without re-parsing messages.
+
+**Params**
+- `paths` (array of string, required) — asset object paths to delete, e.g. `["/Game/Foo", "/Game/Bar/Baz"]`. Each entry must be a non-empty string; the same path-normalisation rules as `delete_asset` apply.
+- `continue_on_error` (bool, optional, default `true`) — when `false`, stop after the first per-path failure and return the partial results.
+
+**Result**
+- `ok` (bool) — `true` only when `failed == 0`
+- `total` (int) — `paths.length`
+- `deleted` (int) — count of per-path successes
+- `failed` (int) — count of per-path failures
+- `results` (array) — one entry per attempted path, in input order
+  - `path` (string)
+  - `ok` (bool)
+  - `error_code` (int or null) — preserved from the upstream `delete_asset` response on failure; `null` on success
+  - `error_message` (string or null) — preserved from the upstream `delete_asset` response on failure; `null` on success
+
+**Errors (envelope-level, not per-path):** `-32602` (missing or non-list `paths`, non-string entry, non-bool `continue_on_error`).
+
+**Example — happy path**
+```json
+{"jsonrpc":"2.0","id":1,"method":"bulk_delete_assets","params":{
+  "paths": ["/Game/TestFixtures/Temp_A", "/Game/TestFixtures/Temp_B"]
+}}
+```
+
+**Example — partial failure, continue on error (default)**
+```json
+{"jsonrpc":"2.0","id":2,"method":"bulk_delete_assets","params":{
+  "paths": ["/Game/Foo", "/Game/Bar", "/Game/Baz"]
+}}
+```
+Returns `{"ok": false, "total": 3, "deleted": 2, "failed": 1, "results": [...]}` if one of the paths can't be deleted (e.g. has referencers without `force` set on the underlying handler).
+
+**Example — fail fast**
+```json
+{"jsonrpc":"2.0","id":3,"method":"bulk_delete_assets","params":{
+  "paths": ["/Game/Foo", "/Game/Bar", "/Game/Baz"],
+  "continue_on_error": false
 }}
 ```
 
