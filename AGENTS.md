@@ -61,7 +61,7 @@ The full trap-table lives in `docs/HANDOFF.md` closing-notes. Highlights every a
 ## On finishing work
 
 1. **For C++ changes:** robocopy → Build.bat → editor → smoke test BEFORE git push (PR #81 onward cadence). Pre-merge pytest does NOT compile C++.
-2. **For bridge / docs changes:** pytest sufficient. Self-merge on CI green for mechanical PRs per directive #7.
+2. **For bridge / docs changes:** pytest sufficient. Self-merge on CI green for mechanical PRs per directive #7. The `main` branch has a protection ruleset (PR #96, ruleset `16243165`) — admin owner self-merge requires the `--admin` flag: `gh pr merge <N> --merge --admin --delete-branch`. Without `--admin`, `gh` errors out with "base branch policy prohibits the merge" even though the admin role has bypass permission (verified `current_user_can_bypass: always`).
 3. **Always:** doc-drift sweep before close-of-PR. Run:
    ```
    rg -n "\b(56|60|65|68|70|71)\b.*\b(C\+\+|handlers?|tools? total|synthetic)" \
