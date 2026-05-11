@@ -94,6 +94,8 @@ def test_tool_names_are_unique_and_match_handlers():
         "bulk_delete_assets",
         "inspect_data_asset",
         "inspect_sound_class",
+        "inspect_sound_submix",
+        "inspect_audio_bus",
     }
     assert set(names) == expected
 
@@ -827,6 +829,130 @@ def test_inspect_sound_class_rejects_missing_path():
     })
     assert resp["error"]["code"] == -32602
     assert "inspect_sound_class" in resp["error"]["message"]
+
+
+def test_inspect_sound_submix_is_synthetic():
+    """inspect_sound_submix is a SYNTHETIC bridge-side handler (PR #99 - Codex
+    parallel-dispatch). Composes execute_unreal_python + get_log_lines via
+    the marker pattern. path is required."""
+    t = next((t for t in bridge.TOOLS if t["name"] == "inspect_sound_submix"), None)
+    assert t is not None
+    assert t["inputSchema"]["required"] == ["path"]
+    assert t["inputSchema"]["properties"]["path"]["type"] == "string"
+    assert "inspect_sound_submix" in bridge.SYNTHETIC_TOOLS
+    assert bridge.SYNTHETIC_TOOLS["inspect_sound_submix"] is bridge.synthetic_inspect_sound_submix
+
+
+def test_inspect_sound_submix_happy_path():
+    """Two-round-trip happy path. parent_submix + child_submixes returned as
+    asset package paths (chainable to another inspect_sound_submix call)."""
+    exec_resp = {"jsonrpc": "2.0", "id": 1, "result": {"ok": True, "output": ""}}
+    body = {
+        "ok": True,
+        "path": "/Game/Audio/SX_Music",
+        "class": "SoundSubmix",
+        "package_path": "/Game/Audio/SX_Music.SX_Music",
+        "parent_submix": "/Game/Audio/SX_Master",
+        "child_submixes": ["/Game/Audio/SX_MusicReverb"],
+        "additional_properties": [
+            {"name": "output_volume", "type": "float", "value": "0.8"},
+        ],
+    }
+    marker_hex = "abc123def456"
+    log_line = f"__SOUNDSUBMIX_{marker_hex}__{json.dumps(body)}__END__"
+    log_resp = {"jsonrpc": "2.0", "id": 1, "result": {"lines": [{"category": "LogPython", "message": log_line}]}}
+    fake_uuid = MagicMock()
+    fake_uuid.uuid4.return_value = MagicMock(hex=marker_hex)
+    with patch.object(bridge, "call_ue", side_effect=[exec_resp, log_resp]) as m, \
+         patch.object(bridge, "uuid", fake_uuid):
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 78, "method": "tools/call",
+            "params": {
+                "name": "inspect_sound_submix",
+                "arguments": {"path": "/Game/Audio/SX_Music"},
+            },
+        })
+
+    assert m.call_count == 2
+    assert m.call_args_list[0].args[0] == "execute_unreal_python"
+    assert m.call_args_list[1].args == ("get_log_lines", {"category_filter": "LogPython", "count": 1000})
+    assert resp["result"]["isError"] is False
+    got = json.loads(resp["result"]["content"][0]["text"])
+    assert got == body
+
+
+def test_inspect_sound_submix_rejects_missing_path():
+    """Schema enforces path as required; the rejection happens BEFORE any UE
+    round-trip (validated via patched-but-unused call_ue mock)."""
+    with patch.object(bridge, "call_ue") as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 79, "method": "tools/call",
+            "params": {"name": "inspect_sound_submix", "arguments": {}},
+        })
+
+    m.assert_not_called()
+    assert resp["error"]["code"] == -32602
+    assert "inspect_sound_submix" in resp["error"]["message"]
+
+
+def test_inspect_audio_bus_is_synthetic():
+    """inspect_audio_bus is a SYNTHETIC bridge-side handler (PR #99 - Copilot
+    retry that recovered from PR #98 regression after the prompt explicitly
+    called out the three previous wrongs). Composes execute_unreal_python +
+    get_log_lines via the marker pattern. path is required."""
+    t = next((t for t in bridge.TOOLS if t["name"] == "inspect_audio_bus"), None)
+    assert t is not None
+    assert t["inputSchema"]["required"] == ["path"]
+    assert t["inputSchema"]["properties"]["path"]["type"] == "string"
+    assert "inspect_audio_bus" in bridge.SYNTHETIC_TOOLS
+    assert bridge.SYNTHETIC_TOOLS["inspect_audio_bus"] is bridge.synthetic_inspect_audio_bus
+
+
+def test_inspect_audio_bus_happy_path():
+    """Two-round-trip happy path. audio_bus_channels stringified via .name
+    (Mono | Stereo | Quad | FivePointOne | SevenPointOne)."""
+    exec_resp = {"jsonrpc": "2.0", "id": 1, "result": {"ok": True, "output": ""}}
+    body = {
+        "ok": True,
+        "path": "/Game/Audio/AB_Master",
+        "class": "AudioBus",
+        "package_path": "/Game/Audio/AB_Master.AB_Master",
+        "audio_bus_channels": "Stereo",
+        "additional_properties": [
+            {"name": "sample_rate", "type": "int", "value": "48000"},
+        ],
+    }
+    marker_hex = "abc123def456"
+    log_line = f"__AUDIOBUS_{marker_hex}__{json.dumps(body)}__END__"
+    log_resp = {"jsonrpc": "2.0", "id": 1, "result": {"lines": [{"category": "LogPython", "message": log_line}]}}
+    fake_uuid = MagicMock()
+    fake_uuid.uuid4.return_value = MagicMock(hex=marker_hex)
+    with patch.object(bridge, "call_ue", side_effect=[exec_resp, log_resp]) as m, \
+         patch.object(bridge, "uuid", fake_uuid):
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 80, "method": "tools/call",
+            "params": {
+                "name": "inspect_audio_bus",
+                "arguments": {"path": "/Game/Audio/AB_Master"},
+            },
+        })
+
+    assert m.call_count == 2
+    assert m.call_args_list[0].args[0] == "execute_unreal_python"
+    assert m.call_args_list[1].args == ("get_log_lines", {"category_filter": "LogPython", "count": 1000})
+    assert resp["result"]["isError"] is False
+    got = json.loads(resp["result"]["content"][0]["text"])
+    assert got == body
+
+
+def test_inspect_audio_bus_rejects_missing_path():
+    """Schema enforces path as required."""
+    resp = bridge.handle({
+        "jsonrpc": "2.0", "id": 81, "method": "tools/call",
+        "params": {"name": "inspect_audio_bus", "arguments": {}},
+    })
+    assert resp["error"]["code"] == -32602
+    assert "inspect_audio_bus" in resp["error"]["message"]
 
 
 def test_screenshot_actor_happy_path():
