@@ -1489,8 +1489,13 @@ def synthetic_compile_mod_pak(req_id, args):
     output_dir = args.get("output_dir")
     uat_command = args.get("uat_command", "BuildMod")
     run_uat_path = args.get("run_uat_path")
-    extra_args = args.get("extra_args") or []
-    timeout_sec = int(args.get("timeout_sec", 1800))
+    extra_args = args.get("extra_args")
+    if not isinstance(extra_args, list):
+        extra_args = []
+    try:
+        timeout_sec = int(args.get("timeout_sec", 1800))
+    except (ValueError, TypeError):
+        timeout_sec = 1800
 
     if not project_path or not os.path.isfile(project_path):
         return make_response(req_id, error={
