@@ -549,10 +549,10 @@ First micro-session after the post-recovery sprint. Two outcomes:
 
 2. **GitHub Copilot reviewer added to the bot fleet.** `.github/copilot-instructions.md` written with project conventions (cross-handler consistency rules, UE 5.7 access-modifier gotchas, enum-to-string discipline, `TArray<TObjectPtr<>>` null-skip lessons, synthetic-tool six-files checklist, cold-compile-before-merge cadence, vendor-neutral framing, P0/P1/P2 severity tagging matching directive #7). When the user enables Copilot review in repo Settings → Code review → "Auto-review with Copilot", reviews will cite project conventions rather than re-litigating from generic best-practice training data.
 
-   **Copilot enablement is NOT scriptable via `gh` CLI** — tested `gh pr edit --add-reviewer Copilot` (GraphQL: "Could not resolve user with login 'copilot'") and `--add-reviewer copilot-pull-request-reviewer[bot]` (same error). Requires:
-   - Copilot Pro+/Business/Enterprise subscription on the repo owner account
-   - Repo admin → Settings → Code review → "Auto-review with Copilot" toggle on
-   - One-time UI action; no API endpoint as of 2026-05-11
+   **Copilot enablement is NOT scriptable via `gh` CLI** — tested `gh pr edit --add-reviewer Copilot` (GraphQL: "Could not resolve user with login 'copilot'") and `--add-reviewer copilot-pull-request-reviewer[bot]` (same error). Requires (verified across two sessions):
+   - **Step 1: Active Copilot Pro/Pro+/Business/Enterprise subscription on the repo owner account.** Probe via `gh api user/copilot` — returns 404 if no subscription. The Settings → Code review tab does NOT show the "Auto-review with Copilot" toggle when this probe 404s.
+   - **Step 2 (only after step 1 active): Repo admin → Settings → Code review → "Auto-review with Copilot" toggle on.** One-time UI action; no API endpoint as of 2026-05-11.
+   - Step 1 is a financial action (subscription with auto-billing after any free-trial period) and must be initiated by the user themselves; the agent cannot enroll on their behalf.
 
 **New trap-table entries from this session:**
 
@@ -602,3 +602,20 @@ Run before closing any session that bumps the tool count. The `--glob` excludes 
 - **Live smoke on `compile_mod_pak`** — same status.
 - **First tool bump after this PR is the test.** When the next handler lands, the test refactor lets the contributor change one line in `tests/conftest.py` rather than three. Verify the conftest constant is the one place anyone touches.
 - **Doc-drift sweep is now part of the closing cadence.** The two rg commands above should run as part of every "close-the-loop" PR — it took multiple sprints for stale counts to compound to four-out-of-date in CLAUDE.md.
+
+**Session 2026-05-11 (third micro-session — Copilot enablement probed, deferred):**
+
+Single mechanical outcome. User attempted to find the "Auto-review with Copilot" toggle in repo Settings → Code review and could not see it. Probed account state via `gh api user/copilot` → **404 Not Found**, confirming no active Copilot subscription on `NAJEMWEHBE`. The toggle is subscription-gated, not just a hidden setting — the PR #86 trap-table entry framed enablement as a "one-time UI action" but missed that step 1 is the subscription itself.
+
+User offered Pro 30-day trial path. Declined to enroll (financial action with auto-billing after day 30 — agent cannot initiate). Falling through to **Option B**: skip Copilot reviewer entirely. `.github/copilot-instructions.md` stays in tree (zero-cost; harmless without subscription; ready for re-activation if/when a subscription lands later). Bot review fleet remains Codex + Gemini.
+
+**Trap-table entry updated, not added:** the PR #86 entry on Copilot enablement now reflects two steps (subscription FIRST, then toggle) plus the financial-action constraint that blocks agent enrollment.
+
+**Tool count: 69 → 69 (no change).**
+**pytest: 179 → 179 passing (no test surface touched).**
+**main HEAD:** to be updated on close-of-PR.
+
+**What to watch in next session:**
+- **Copilot deferred.** If the user later subscribes to Copilot Pro independently, `gh api user/copilot` will start returning 200 — at that point the trap-table-update steps 2 + 3 (toggle + verify on the next PR) become unblocked. Until then, ignore.
+- **Live smoke on `compile_mod_pak`** — unchanged carry-over.
+- **Next feature work.** With Copilot out of scope, the natural pickup is the deferred Tier 3 surface list: `inspect_data_asset` / `inspect_sound_class` / `inspect_metasound` / bulk delete-move / Sequencer keyframe authoring / Movie Render Queue. All require host-side cold compile per the 2026-05-10 discipline.
