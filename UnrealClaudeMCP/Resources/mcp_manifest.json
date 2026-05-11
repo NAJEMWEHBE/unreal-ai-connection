@@ -1,7 +1,7 @@
 {
   "name": "UnrealClaudeMCP",
   "version": "0.9.1",
-  "description": "Drive Unreal Engine 5.7 from Claude (or any MCP client) over a local TCP socket. Seventy-four generic editor-automation tools (64 native C++ handlers plus 10 bridge-side synthetic tools) that work with any UE 5.7 project.",
+  "description": "Drive Unreal Engine 5.7 from Claude (or any MCP client) over a local TCP socket. Seventy-five generic editor-automation tools (64 native C++ handlers plus 11 bridge-side synthetic tools) that work with any UE 5.7 project.",
   "transport": {
     "type": "tcp",
     "host": "127.0.0.1",
@@ -635,6 +635,14 @@
         "path": "string (required) - package path to a UAudioBus asset, e.g. /Game/Audio/AB_Master; must be a non-empty string"
       },
       "returns": { "ok": "bool", "path": "string", "class": "string (leaf class name)", "package_path": "string (from obj.get_path_name())", "audio_bus_channels": "string (enum value stringified via .name; one of Mono | Stereo | Quad | FivePointOne | SevenPointOne)", "additional_properties": "array of {name: string, type: string (Python type-name), value: string (stringified for scalars; '<container:type>' for containers; '<unsupported>' otherwise)} - excludes audio_bus_channels (already curated above)", "error_code": "string (only on ok=False; one of 'asset_not_found', 'wrong_asset_type', 'marker_not_found', 'invalid_json')", "error_message": "string (only on ok=False)", "actual_class": "string (only on wrong_asset_type)" }
+    },
+    {
+      "name": "inspect_material_function",
+      "description": "Inspect a UMaterialFunction by package path: returns leaf class name, package path, description, expose_to_library flag, library_categories (stringified Text values), function inputs (name + input_type enum), function outputs (name), and additional editor-accessible UPROPERTYs discovered via dir() permissive enumeration. SYNTHETIC bridge-side handler that composes execute_unreal_python + get_log_lines via the marker pattern.",
+      "params": {
+        "path": "string (required) - package path to a UMaterialFunction asset, e.g. /Game/Materials/MF_PackedNormal; must be a non-empty string"
+      },
+      "returns": { "ok": "bool", "path": "string", "class": "string (leaf class name)", "package_path": "string (from obj.get_path_name())", "description": "string (asset description; empty when not set)", "exposed_to_library": "bool (whether the function appears in the material-function library)", "library_categories": "array of string (Text values stringified)", "inputs": "array of {name: string, type: string (always 'FunctionInput'), input_type: string (enum stringified)} - one entry per MaterialExpressionFunctionInput discovered in function_expressions", "outputs": "array of {name: string, type: string (always 'FunctionOutput')} - one entry per MaterialExpressionFunctionOutput", "additional_properties": "array of {name: string, type: string, value: string} - excludes the curated names", "error_code": "string (only on ok=False; one of 'asset_not_found', 'wrong_asset_type', 'marker_not_found', 'invalid_json')", "error_message": "string (only on ok=False)", "actual_class": "string (only on wrong_asset_type)" }
     }
   ]
 }

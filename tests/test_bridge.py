@@ -96,6 +96,7 @@ def test_tool_names_are_unique_and_match_handlers():
         "inspect_sound_class",
         "inspect_sound_submix",
         "inspect_audio_bus",
+        "inspect_material_function",
     }
     assert set(names) == expected
 
@@ -953,6 +954,75 @@ def test_inspect_audio_bus_rejects_missing_path():
     })
     assert resp["error"]["code"] == -32602
     assert "inspect_audio_bus" in resp["error"]["message"]
+
+
+def test_inspect_material_function_is_synthetic():
+    """inspect_material_function is a SYNTHETIC bridge-side handler. Opus-
+    direct authorship after PR #101 parallel-dispatch round where both
+    Codex and Copilot streams failed (Codex looped, Copilot's output had
+    wrong marker terminator + invalid TOOLS schema). Composes
+    execute_unreal_python + get_log_lines via the marker pattern. path is
+    required."""
+    t = next((t for t in bridge.TOOLS if t["name"] == "inspect_material_function"), None)
+    assert t is not None
+    assert t["inputSchema"]["required"] == ["path"]
+    assert t["inputSchema"]["properties"]["path"]["type"] == "string"
+    assert "inspect_material_function" in bridge.SYNTHETIC_TOOLS
+    assert bridge.SYNTHETIC_TOOLS["inspect_material_function"] is bridge.synthetic_inspect_material_function
+
+
+def test_inspect_material_function_happy_path():
+    """Two-round-trip happy path. Returns the enumerated inputs/outputs
+    discovered from function_expressions plus the description + library
+    categories + permissive additional_properties enumeration."""
+    exec_resp = {"jsonrpc": "2.0", "id": 1, "result": {"ok": True, "output": ""}}
+    body = {
+        "ok": True,
+        "path": "/Game/Materials/MF_PackedNormal",
+        "class": "MaterialFunction",
+        "package_path": "/Game/Materials/MF_PackedNormal.MF_PackedNormal",
+        "description": "Decodes a packed-format normal map",
+        "exposed_to_library": True,
+        "library_categories": ["Normal Maps", "Texture Packing"],
+        "inputs": [
+            {"name": "PackedNormal", "type": "FunctionInput", "input_type": "Vector3"},
+        ],
+        "outputs": [
+            {"name": "Normal", "type": "FunctionOutput"},
+        ],
+        "additional_properties": [],
+    }
+    marker_hex = "abc123def456"
+    log_line = f"__MATFUNC_{marker_hex}__{json.dumps(body)}__END__"
+    log_resp = {"jsonrpc": "2.0", "id": 1, "result": {"lines": [{"category": "LogPython", "message": log_line}]}}
+    fake_uuid = MagicMock()
+    fake_uuid.uuid4.return_value = MagicMock(hex=marker_hex)
+    with patch.object(bridge, "call_ue", side_effect=[exec_resp, log_resp]) as m, \
+         patch.object(bridge, "uuid", fake_uuid):
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 82, "method": "tools/call",
+            "params": {
+                "name": "inspect_material_function",
+                "arguments": {"path": "/Game/Materials/MF_PackedNormal"},
+            },
+        })
+
+    assert m.call_count == 2
+    assert m.call_args_list[0].args[0] == "execute_unreal_python"
+    assert m.call_args_list[1].args == ("get_log_lines", {"category_filter": "LogPython", "count": 1000})
+    assert resp["result"]["isError"] is False
+    got = json.loads(resp["result"]["content"][0]["text"])
+    assert got == body
+
+
+def test_inspect_material_function_rejects_missing_path():
+    """Schema enforces path as required."""
+    resp = bridge.handle({
+        "jsonrpc": "2.0", "id": 83, "method": "tools/call",
+        "params": {"name": "inspect_material_function", "arguments": {}},
+    })
+    assert resp["error"]["code"] == -32602
+    assert "inspect_material_function" in resp["error"]["message"]
 
 
 def test_screenshot_actor_happy_path():
