@@ -43,7 +43,7 @@
 //
 // Error format: "inspect_project_setting: <error_code>: <human-readable detail>".
 // Stable error codes: missing_required_field, settings_class_not_found,
-// not_a_developer_settings, property_not_found.
+// not_a_developer_settings, property_not_found, property_not_editable.
 
 #include "MCP/MCPHandler.h"
 
@@ -181,7 +181,7 @@ public:
             if (!Prop->HasAnyPropertyFlags(CPF_Edit) || Prop->HasAnyPropertyFlags(CPF_EditConst))
             {
                 OutError = FString::Printf(
-                    TEXT("inspect_project_setting: property_not_found: '%s' is not an editor-editable property of '%s' (VisibleAnywhere / non-edit UPROPERTY hidden by design)"),
+                    TEXT("inspect_project_setting: property_not_editable: '%s' on '%s' is visible-only or otherwise not editor-editable (CPF_Edit unset or CPF_EditConst set)"),
                     *SinglePropertyName, *ClassPath);
                 return nullptr;
             }

@@ -56,7 +56,13 @@ public:
                 const TSharedRef<FJsonObject> J = MakeShared<FJsonObject>();
                 J->SetStringField(TEXT("name"), A->GetName());
                 J->SetStringField(TEXT("label"), A->GetActorLabel());
-                J->SetStringField(TEXT("class"), A->GetClass()->GetPathName());
+                // 'class' is the short class name (e.g. 'StaticMeshActor') to
+                // stay consistent with sibling actor handlers (get_actors_in_level,
+                // spawn_actor, add_component). 'class_path' is the fully-qualified
+                // package path (e.g. '/Script/Engine.StaticMeshActor') for callers
+                // that need to uniquely identify the class across packages.
+                J->SetStringField(TEXT("class"), A->GetClass()->GetName());
+                J->SetStringField(TEXT("class_path"), A->GetClass()->GetPathName());
                 J->SetNumberField(TEXT("loc_x"), Loc.X);
                 J->SetNumberField(TEXT("loc_y"), Loc.Y);
                 J->SetNumberField(TEXT("loc_z"), Loc.Z);

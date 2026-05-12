@@ -79,6 +79,10 @@ public:
         // is-playing-only check because the queued request hasn't
         // ticked yet). EditorEngine.h:1808.
         const bool bPieInProgress = GEditor->IsPlaySessionInProgress();
+        // Cached so the in-progress/queued/active triple stays consistent
+        // for the duration of one handler call; avoids three reads of
+        // IsPlaySessionRequestQueued() across the query/stop branches.
+        const bool bPieQueued = GEditor->IsPlaySessionRequestQueued();
 
         if (Action == TEXT("query"))
         {
@@ -86,7 +90,7 @@ public:
             Out->SetBoolField(TEXT("ok"), true);
             Out->SetStringField(TEXT("action"), TEXT("query"));
             Out->SetBoolField(TEXT("is_playing"), bPieActive);
-            Out->SetBoolField(TEXT("is_play_queued"), GEditor->IsPlaySessionRequestQueued());
+            Out->SetBoolField(TEXT("is_play_queued"), bPieQueued);
             // IsSimulatingInEditor() accessor (EditorEngine.h:1811) —
             // bIsSimulatingInEditor on the engine is in the deprecated-
             // variables region (EditorEngine.h:3329) and the accessor is
@@ -108,7 +112,7 @@ public:
                 OutError = TEXT("pie_control: pie_not_active: no PIE session running or queued; nothing to stop");
                 return nullptr;
             }
-            if (!bPieActive && GEditor->IsPlaySessionRequestQueued())
+            if (!bPieActive && bPieQueued)
             {
                 GEditor->CancelRequestPlaySession();
                 TSharedPtr<FJsonObject> Out = MakeShared<FJsonObject>();
