@@ -254,7 +254,7 @@ tests/                            Pytest suite for the bridge (no UE required)
 | **Tools** | 80 live (64 native C++ handlers + 16 bridge-side synthetic tools) |
 | **Tested on** | UE 5.7.4 / Windows 11 / Visual Studio Build Tools 2022 / MSVC 14.44 / NETFXSDK 4.8.1 |
 | **Build status** | Plugin compiles + loads against UE 5.7.4 host on Windows 11; 64 handlers register, TCP server binds `127.0.0.1:18888`, bridge round-trip via `tools/call list_tools` returns full registry. |
-| **Bridge tests** | 251 pytest cases, ~99% coverage |
+| **Bridge tests** | 256 pytest cases, ~99% coverage |
 | **CI** | GitHub Actions on every push and PR |
 
 ---
