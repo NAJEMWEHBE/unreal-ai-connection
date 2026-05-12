@@ -1628,6 +1628,12 @@ def synthetic_compile_mod_pak(req_id, args):
     Dev Kits in 'installed-build mode' that block BuildPlugin (e.g. Conan
     Exiles Enhanced) — falling back to BuildMod cleanly.
     """
+    if not isinstance(args, dict):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "compile_mod_pak: invalid_arguments: arguments must be an object",
+        })
+
     import os
     import shutil
     import subprocess
