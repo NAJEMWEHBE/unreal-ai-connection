@@ -1544,6 +1544,12 @@ def synthetic_screenshot_actor(req_id, args):
     handler doing both ops in one game-thread call would race the
     camera move against the readback.
     """
+    if not isinstance(args, dict):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "screenshot_actor: invalid_arguments: arguments must be an object",
+        })
+
     name = args.get("name")
     if not isinstance(name, str) or not name:
         return make_response(req_id, error={
