@@ -8,6 +8,11 @@
 // as a file path FIRST and only falls back to literal source on some
 // inputs. Multi-line scripts with comments / quotes / paths embedded
 // confuse this heuristic. Writing to a real file bypasses the ambiguity.
+//
+// Error format: free-form OutError strings (legacy surface — predates the canonical
+// "<tool_name>: <error_code>: <detail>" convention used by later handlers). Migration
+// is deferred; bridge consumers treat OutError as human-readable text rather than
+// parsing for a code prefix.
 
 #include "MCP/MCPHandler.h"
 #include "IPythonScriptPlugin.h"
