@@ -1791,7 +1791,7 @@ def test_inspect_sound_submix_propagates_wrong_asset_type():
         "actual_class": "MyDataAsset",
     }
     marker_hex = "abc123def456"
-    log_line = f"__SUBMIX_{marker_hex}__{json.dumps(body)}__END__"
+    log_line = f"__SOUNDSUBMIX_{marker_hex}__{json.dumps(body)}__END__"
     log_resp = {"jsonrpc": "2.0", "id": 1, "result": {"lines": [{"category": "LogPython", "message": log_line}]}}
     fake_uuid = MagicMock()
     fake_uuid.uuid4.return_value = MagicMock(hex=marker_hex)
