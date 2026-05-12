@@ -91,3 +91,38 @@ def test_manifest_required_params_match_bridge_required():
             f"but bridge schema does not. Drift will cause MCP clients to "
             f"send malformed tools/call payloads."
         )
+
+
+def test_bridge_required_params_documented_in_manifest():
+    """Reverse-direction drift check. If the bridge's JSON Schema lists a
+    param in `required[]`, the manifest must document it (either as a key
+    in the params dict, or via free-form 'see docs/TOOLS.md' pointer). An
+    orphan-required in the bridge means doc-reading clients won't know to
+    send the field even though the bridge will reject without it.
+
+    Companion to test_manifest_required_params_match_bridge_required, which
+    only catches drift in the manifest -> bridge direction."""
+    manifest = _load_manifest()
+    manifest_by_name = {t["name"]: t for t in manifest["tools"]}
+
+    for bridge_tool in bridge.TOOLS:
+        name = bridge_tool["name"]
+        bridge_required = set(bridge_tool["inputSchema"].get("required", []))
+        if not bridge_required:
+            continue
+
+        manifest_tool = manifest_by_name[name]
+        params = manifest_tool.get("params") or {}
+
+        # Free-form pointer (e.g. "see docs/TOOLS.md"); we accept this as
+        # documentation-deferred and don't try to cross-check field-by-field.
+        if isinstance(params, str):
+            continue
+
+        documented_keys = set(params.keys()) if isinstance(params, dict) else set()
+        orphans = bridge_required - documented_keys
+        assert not orphans, (
+            f"Tool '{name}': bridge schema requires {orphans} but manifest "
+            f"params dict does not document them. Add an entry to "
+            f"manifest.tools[].params describing the required field."
+        )
