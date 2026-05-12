@@ -45,16 +45,19 @@ SERVER_NAME = "unreal-claude-mcp"
 SERVER_VERSION = "0.9.1"
 
 # Mirror of UnrealClaudeMCP/Resources/mcp_manifest.json - kept in sync manually.
-# 75 tool entries total. 64 are dispatched straight to UE C++ handlers
+# 80 tool entries total. 64 are dispatched straight to UE C++ handlers
 # (see UnrealClaudeMCPModule.cpp's Reg.Register(...) block). The remaining
-# 11 -- wait_for_events, get_camera_transform, set_camera_transform,
-# screenshot_actor, compile_mod_pak, bulk_delete_assets, inspect_data_asset,
-# inspect_sound_class, inspect_sound_submix, inspect_audio_bus,
-# inspect_material_function -- are bridge-side synthetic tools served by
+# 16 -- wait_for_events, get_camera_transform, set_camera_transform,
+# screenshot_actor, compile_mod_pak, compile_mod_pak_direct,
+# bulk_delete_assets, bulk_move_assets, bulk_rename_assets,
+# bulk_duplicate_assets, inspect_data_asset, inspect_sound_class,
+# inspect_sound_submix, inspect_audio_bus, inspect_material_function,
+# inspect_metasound -- are bridge-side synthetic tools served by
 # SYNTHETIC_TOOLS (see below) without a dedicated UE handler: they either
 # compose existing handlers (focus + screenshot, repeated poll, loop over
-# delete_asset), run the matching unreal.* Python via execute_unreal_python
-# with the marker pattern (most inspect_* shims), or (compile_mod_pak)
+# delete_asset / move_asset / rename_asset / duplicate_asset), run the
+# matching unreal.* Python via execute_unreal_python with the marker
+# pattern (most inspect_* shims), or (compile_mod_pak / compile_mod_pak_direct)
 # shell out to RunUAT.bat entirely outside the UE process.
 TOOLS = [
     {
