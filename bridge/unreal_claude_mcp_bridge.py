@@ -1273,6 +1273,12 @@ def synthetic_wait_for_events(req_id, args):
     [25, 1000] (faster than 25ms is wasteful given network round-trip
     overhead; slower than 1s defeats the purpose of long-poll).
     """
+    if not isinstance(args, dict):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "wait_for_events: invalid_arguments: arguments must be an object",
+        })
+
     # --- Validate + clamp params ---
     def _coerce_int(name, default, lo, hi):
         v = args.get(name, default)
