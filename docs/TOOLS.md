@@ -2690,6 +2690,54 @@ Returns `{"ok": false, "total": 3, "deleted": 2, "failed": 1, "results": [...]}`
 
 ---
 
+## bulk_move_assets
+
+Move multiple assets into a single destination folder by composing the [`move_asset`](#move_asset) C++ handler bridge-side. Each move leaves a redirector at the source per UE's standard move semantics, so existing references stay resolvable until [`fix_up_redirectors`](#fix_up_redirectors) sweeps them.
+
+**Bridge-side synthetic tool.** Pure Python — loops over `paths` and dispatches one `call_ue("move_asset", {"path": ..., "dest_folder": ...})` per entry. Mirrors `bulk_delete_assets`'s shape so client code can switch between the two with a one-tool-name change (delete vs. archive workflows).
+
+**Partial-failure model:** identical to [`bulk_delete_assets`](#bulk_delete_assets). `continue_on_error: true` (default) keeps moving after individual failures and surfaces per-path errors in `results[]`; `continue_on_error: false` stops at the first failure and returns the partial results collected so far.
+
+**Path validation:** each entry in `paths` must be a non-empty string. NUL byte (`\x00`) and `..` path segments are rejected envelope-level (`-32602`) before any move is attempted.
+
+**Params**
+- `paths` (array of string, required) - asset object paths to move, e.g. `["/Game/Foo", "/Game/Bar/Baz"]`. Same shape rules as [`bulk_delete_assets`](#bulk_delete_assets).
+- `dest_folder` (string, required) - destination folder for ALL moved assets, e.g. `/Game/Archive`. Same folder applies to every path; for per-asset destinations, call [`move_asset`](#move_asset) directly.
+- `continue_on_error` (bool, optional, default `true`) - when `false`, abort after the first per-path failure.
+
+**Result**
+- `ok` (bool) - `true` only when `failed == 0`
+- `total` (int) - `paths.length`
+- `moved` (int) - count of per-path successes
+- `failed` (int) - count of per-path failures
+- `results` (array) - one entry per attempted path, in input order:
+  - `path` (string) - source path
+  - `ok` (bool)
+  - `dest_path` (string or null) - destination path on success
+  - `error_code` (int or null) - preserved from the upstream `move_asset` response on failure
+  - `error_message` (string or null) - preserved from the upstream `move_asset` response on failure
+
+**Errors (envelope-level):** `-32602` (missing or non-list `paths`, non-string entry, NUL or `..` in any path, missing `dest_folder`, non-bool `continue_on_error`).
+
+**Example - happy path**
+```json
+{"jsonrpc":"2.0","id":1,"method":"bulk_move_assets","params":{
+  "paths": ["/Game/Foo", "/Game/Bar/Baz"],
+  "dest_folder": "/Game/Archive"
+}}
+```
+
+**Example - fail fast**
+```json
+{"jsonrpc":"2.0","id":2,"method":"bulk_move_assets","params":{
+  "paths": ["/Game/A", "/Game/B"],
+  "dest_folder": "/Game/Archive",
+  "continue_on_error": false
+}}
+```
+
+---
+
 ## inspect_data_asset
 
 Shallow-reflect a UDataAsset by package path: returns leaf class name, parent class name, full package path, and a per-property reflection list (name, Python type, stringified value).
