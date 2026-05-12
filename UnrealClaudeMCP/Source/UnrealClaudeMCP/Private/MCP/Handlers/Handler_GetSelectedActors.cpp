@@ -56,7 +56,7 @@ public:
                 const TSharedRef<FJsonObject> J = MakeShared<FJsonObject>();
                 J->SetStringField(TEXT("name"), A->GetName());
                 J->SetStringField(TEXT("label"), A->GetActorLabel());
-                J->SetStringField(TEXT("class"), A->GetClass()->GetName());
+                J->SetStringField(TEXT("class"), A->GetClass()->GetPathName());
                 J->SetNumberField(TEXT("loc_x"), Loc.X);
                 J->SetNumberField(TEXT("loc_y"), Loc.Y);
                 J->SetNumberField(TEXT("loc_z"), Loc.Z);

@@ -7,17 +7,25 @@
 // trigger PIE, observe the running state, then stop PIE — all without
 // human keyboard input.
 //
-// UE 5.7 surface used:
-//   - GEditor->IsPlayingSessionInEditor() — canonical state query;
-//     supersedes the older GEditor->PlayWorld != nullptr check (still
-//     works but less reliable across PIE start/end transitions).
-//     (Flagged by the pre-flight multi-agent review as a BLOCKER if
-//     the older form had been used.)
-//   - GEditor->RequestPlaySession(FRequestPlaySessionParams) for start.
-//     FRequestPlaySessionParams is the flexible canonical PIE-launch
-//     API; ULevelEditorSubsystem::EditorPlaySimulate() is a high-level
-//     wrapper around it. We use the underlying API for explicit
-//     simulate-vs-play mode control.
+// UE 5.7 surface used (cited against engine source):
+//   - GEditor->IsPlayingSessionInEditor() — EditorEngine.h:1803,
+//     returns true only when a PIE/SIE session is already RUNNING.
+//     Goes false again the tick after RequestPlaySession; does NOT
+//     reflect a queued-but-not-yet-started request.
+//   - GEditor->IsPlaySessionRequestQueued() — EditorEngine.h:1806,
+//     returns true when RequestPlaySession has been called but the
+//     editor has not yet ticked StartQueuedPlaySessionRequest().
+//   - GEditor->IsPlaySessionInProgress() — EditorEngine.h:1808,
+//     OR of the two above. This is the correct guard for "should I
+//     reject a new start request?" — closes the back-to-back
+//     start-call race that the more limited IsPlayingSessionInEditor
+//     check leaves open.
+//   - GEditor->RequestPlaySession(FRequestPlaySessionParams) —
+//     EditorEngine.h:1834 (StartQueuedPlaySessionRequest fires it on
+//     the next tick). FRequestPlaySessionParams (PlayInEditorDataTypes.h:126)
+//     defaults SessionDestination = EPlaySessionDestinationType::InProcess
+//     (PlayInEditorDataTypes.h:131) — same in-process viewport behaviour
+//     as the editor toolbar Play button.
 //   - GEditor->RequestEndPlayMap() for stop. Defers to the next tick;
 //     does NOT block the game thread.
 //
@@ -66,6 +74,11 @@ public:
         }
 
         const bool bPieActive = GEditor->IsPlayingSessionInEditor();
+        // IsPlaySessionInProgress() = playing OR queued; needed for the
+        // start-call race guard (back-to-back starts both pass an
+        // is-playing-only check because the queued request hasn't
+        // ticked yet). EditorEngine.h:1808.
+        const bool bPieInProgress = GEditor->IsPlaySessionInProgress();
 
         if (Action == TEXT("query"))
         {
@@ -73,18 +86,36 @@ public:
             Out->SetBoolField(TEXT("ok"), true);
             Out->SetStringField(TEXT("action"), TEXT("query"));
             Out->SetBoolField(TEXT("is_playing"), bPieActive);
-            // bIsSimulatingInEditor flag distinguishes simulate-mode from
-            // standalone play sessions while a session is active.
-            Out->SetBoolField(TEXT("is_simulating"), GEditor->bIsSimulatingInEditor);
+            Out->SetBoolField(TEXT("is_play_queued"), GEditor->IsPlaySessionRequestQueued());
+            // IsSimulatingInEditor() accessor (EditorEngine.h:1811) —
+            // bIsSimulatingInEditor on the engine is in the deprecated-
+            // variables region (EditorEngine.h:3329) and the accessor is
+            // the supported entry point.
+            Out->SetBoolField(TEXT("is_simulating"), GEditor->IsSimulatingInEditor());
             return Out;
         }
 
         if (Action == TEXT("stop"))
         {
-            if (!bPieActive)
+            // Symmetric with the start-call race guard: if a play
+            // request is queued but the editor has not yet ticked
+            // StartQueuedPlaySessionRequest, cancel the queued request
+            // (EditorEngine.h:1786) rather than letting it proceed and
+            // misleading the caller with `pie_not_active`. Both cases
+            // (running OR queued) end with no PIE session pending.
+            if (!bPieInProgress)
             {
-                OutError = TEXT("pie_control: pie_not_active: no PIE session running; nothing to stop");
+                OutError = TEXT("pie_control: pie_not_active: no PIE session running or queued; nothing to stop");
                 return nullptr;
+            }
+            if (!bPieActive && GEditor->IsPlaySessionRequestQueued())
+            {
+                GEditor->CancelRequestPlaySession();
+                TSharedPtr<FJsonObject> Out = MakeShared<FJsonObject>();
+                Out->SetBoolField(TEXT("ok"), true);
+                Out->SetStringField(TEXT("action"), TEXT("stop"));
+                Out->SetStringField(TEXT("note"), TEXT("Cancelled a queued PIE start request that had not yet ticked. No active session to end."));
+                return Out;
             }
             // Defers end-play to the next editor tick. Safe to call from
             // game-thread handlers; PIE shutdown happens asynchronously.
@@ -98,9 +129,14 @@ public:
 
         if (Action == TEXT("start"))
         {
-            if (bPieActive)
+            // Use IsPlaySessionInProgress() so a queued-but-not-yet-started
+            // request rejects subsequent rapid start calls. Plain
+            // IsPlayingSessionInEditor() goes true only after the editor
+            // ticks the queued request, leaving a window where a client
+            // retry could enqueue a duplicate launch.
+            if (bPieInProgress)
             {
-                OutError = TEXT("pie_control: pie_already_active: a PIE session is already running; call action=stop first");
+                OutError = TEXT("pie_control: pie_already_active: a PIE session is already running or queued; call action=stop or wait for the queued request to start before retrying");
                 return nullptr;
             }
 

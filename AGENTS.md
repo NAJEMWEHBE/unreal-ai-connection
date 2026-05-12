@@ -10,8 +10,8 @@ UE 5.7 plugin + Python bridge exposing editor automation to MCP-compliant client
 
 ## Where to look first
 
-- **C++ handlers** (64) — `UnrealClaudeMCP/Source/UnrealClaudeMCP/Private/MCP/Handlers/Handler_*.cpp`. Registered in `UnrealClaudeMCPModule.cpp`.
-- **Bridge-side synthetic tools** (11) — `bridge/unreal_claude_mcp_bridge.py`'s `SYNTHETIC_TOOLS` dict: `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `bulk_delete_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`.
+- **C++ handlers** (71) — `UnrealClaudeMCP/Source/UnrealClaudeMCP/Private/MCP/Handlers/Handler_*.cpp`. Registered in `UnrealClaudeMCPModule.cpp`.
+- **Bridge-side synthetic tools** (17) — `bridge/unreal_claude_mcp_bridge.py`'s `SYNTHETIC_TOOLS` dict: `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`.
 - **Tool catalog (manual 3-place sync)** — `UnrealClaudeMCP/Resources/mcp_manifest.json`, `bridge/unreal_claude_mcp_bridge.py`'s `TOOLS` list, `docs/TOOLS.md`. `tests/test_manifest_sync.py` catches drift between the first two.
 - **Architecture + UE 5.7 API gotchas** — `docs/ARCHITECTURE.md`.
 - **Host-build runbook** — top of `docs/HANDOFF.md`.

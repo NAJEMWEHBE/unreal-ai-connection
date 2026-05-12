@@ -11,12 +11,20 @@
 // (legacy InputSettings vs Enhanced Input). The LLM almost always needs
 // input context before touching gameplay code.
 //
-// UE 5.7 surface used:
+// UE 5.7 surface used (cited against engine source):
 //   - UInputSettings::GetDefault<UInputSettings>() — CDO, no instance load
-//   - UInputSettings::GetActionMappings(TArray<FInputActionKeyMapping>&)
-//   - UInputSettings::GetAxisMappings(TArray<FInputAxisKeyMapping>&)
+//   - UInputSettings::GetActionMappings() const — InputSettings.h:281,
+//     returns `const TArray<FInputActionKeyMapping>&`. There is NO
+//     by-filter overload; do not call GetActionMappings(NAME_None, ...).
+//   - UInputSettings::GetAxisMappings() const — InputSettings.h:283,
+//     returns `const TArray<FInputAxisKeyMapping>&`. Same shape.
 //   - FInputActionKeyMapping {ActionName, Key, bShift, bCtrl, bAlt, bCmd}
 //   - FInputAxisKeyMapping {AxisName, Key, Scale}
+//   - Enhanced Input detection: resolve `/Script/EnhancedInput.EnhancedPlayerInput`
+//     via FindObject<UClass>(nullptr, ...) (load-safe; returns null if
+//     the plugin module is not loaded into the running editor) and
+//     IsChildOf to handle custom subclasses that do not contain the
+//     literal "EnhancedPlayerInput" token in their name.
 //
 // Error format: this handler has no error paths — Handle always returns
 // a successful FJsonObject result. The OutError parameter is unused
@@ -53,9 +61,10 @@ public:
         }
 
         // Action mappings: discrete press/release events bound to a key
-        // + optional modifier-key flags.
-        TArray<FInputActionKeyMapping> ActionMappings;
-        Settings->GetActionMappings(NAME_None, ActionMappings);
+        // + optional modifier-key flags. UInputSettings exposes only the
+        // no-arg accessor returning a const ref to its internal array
+        // (InputSettings.h:281); there is no (NAME_None, OutArray) overload.
+        const TArray<FInputActionKeyMapping>& ActionMappings = Settings->GetActionMappings();
 
         TArray<TSharedPtr<FJsonValue>> ActionArr;
         ActionArr.Reserve(ActionMappings.Num());
@@ -74,9 +83,9 @@ public:
         Out->SetArrayField(TEXT("action_mappings"), ActionArr);
 
         // Axis mappings: continuous-value input (gamepad sticks, mouse,
-        // keyboard "as axis") + scale multiplier.
-        TArray<FInputAxisKeyMapping> AxisMappings;
-        Settings->GetAxisMappings(NAME_None, AxisMappings);
+        // keyboard "as axis") + scale multiplier. Same no-arg const-ref
+        // accessor pattern as actions (InputSettings.h:283).
+        const TArray<FInputAxisKeyMapping>& AxisMappings = Settings->GetAxisMappings();
 
         TArray<TSharedPtr<FJsonValue>> AxisArr;
         AxisArr.Reserve(AxisMappings.Num());
@@ -91,15 +100,24 @@ public:
         Out->SetNumberField(TEXT("axis_mapping_count"), AxisArr.Num());
         Out->SetArrayField(TEXT("axis_mappings"), AxisArr);
 
-        // Enhanced Input detection: if DefaultPlayerInputClass is something
-        // OTHER than UPlayerInput, the project is using Enhanced Input
-        // (UEnhancedPlayerInput) or a custom subclass. Surface the class
-        // path so callers can decide whether to migrate or extend.
+        // Enhanced Input detection: resolve the EnhancedPlayerInput class
+        // by path and IsChildOf-test against DefaultPlayerInputClass. This
+        // is correct for arbitrary custom subclasses (e.g.
+        // UMyGamePlayerInput : UEnhancedPlayerInput) whose names do not
+        // contain the literal "EnhancedPlayerInput" token. FindObject is
+        // load-safe — returns null if the EnhancedInput plugin module is
+        // not loaded, in which case we conservatively report false.
         const UClass* PlayerInputClass = Settings->GetDefaultPlayerInputClass();
         Out->SetStringField(TEXT("default_player_input_class"),
             PlayerInputClass ? PlayerInputClass->GetPathName() : TEXT(""));
-        const bool bUsingEnhancedInput = PlayerInputClass &&
-            PlayerInputClass->GetName().Contains(TEXT("EnhancedPlayerInput"));
+        bool bUsingEnhancedInput = false;
+        if (PlayerInputClass)
+        {
+            if (const UClass* EnhancedBase = FindObject<UClass>(nullptr, TEXT("/Script/EnhancedInput.EnhancedPlayerInput")))
+            {
+                bUsingEnhancedInput = PlayerInputClass->IsChildOf(EnhancedBase);
+            }
+        }
         Out->SetBoolField(TEXT("uses_enhanced_input"), bUsingEnhancedInput);
 
         if (bUsingEnhancedInput)

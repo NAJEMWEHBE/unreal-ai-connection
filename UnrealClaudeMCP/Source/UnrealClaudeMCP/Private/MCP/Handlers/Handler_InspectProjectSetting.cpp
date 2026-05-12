@@ -12,22 +12,33 @@
 //     class as a {name, type, value} record.
 //   - Single: pass 'property' → returns just that one property's value.
 //
-// UE 5.7 surface used:
+// UE 5.7 surface used (cited against engine source):
 //   - FindObject<UClass>(nullptr, *ClassPath) — ANY_PACKAGE was
 //     deprecated in 5.1; nullptr-outer + fully-qualified class path
 //     ('/Script/Engine.RendererSettings') is the canonical UE 5.7
-//     replacement. (Flagged MAJOR by the pre-flight multi-agent
-//     review before code was written.)
+//     replacement.
 //   - GetDefault<UDeveloperSettings>(C) — CDO read; UDeveloperSettings
 //     classes are always populated from .ini config at module load, so
 //     no LoadConfig() bootstrap is needed here for reflection.
 //   - TFieldIterator<FProperty>(C) — iterate properties; UE 5.7 still
 //     supports this with EFieldIterationFlags::Default semantics.
+//   - FProperty::PropertyFlags & CPF_Edit — Class.h flag indicating a
+//     property is editor-editable (UPROPERTY(EditAnywhere/EditDefaultsOnly/
+//     EditInstanceOnly/EditFixedSize)). We filter on this so bulk mode
+//     returns only what the Project Settings panel would surface.
+//   - FObjectPropertyBase::GetObjectPropertyValue — UnrealType.h:2844,
+//     non-loading for hard refs; FSoftObjectProperty::GetObjectPropertyValue
+//     (UnrealType.h:3382) DOES synchronously load. We dispatch on the
+//     concrete property type so soft refs emit GetPathName() off the
+//     un-resolved FSoftObjectPtr instead of triggering a load on the
+//     game thread.
 //
 // Stringification is shallow (mirrors inspect_data_asset's heuristic):
 //   - Scalars + strings → ExportText form
 //   - Containers (TArray/TMap/TSet) → "<container:<typename>>"
-//   - Object pointers → asset path via GetPathName()
+//   - Hard-object pointers → asset path via GetPathName() (no load)
+//   - Soft-object pointers → asset path via FSoftObjectPtr::ToString()
+//     (no load — this matters for cooked-but-unloaded settings refs)
 //   - Everything else → "<unsupported>"
 //
 // Error format: "inspect_project_setting: <error_code>: <human-readable detail>".
@@ -40,6 +51,7 @@
 #include "Dom/JsonValue.h"
 #include "Engine/DeveloperSettings.h"
 #include "UObject/Class.h"
+#include "UObject/SoftObjectPtr.h"
 #include "UObject/UnrealType.h"
 #include "UObject/Field.h"
 
@@ -61,13 +73,34 @@ namespace
             return FString::Printf(TEXT("<container:%s>"), *Prop->GetClass()->GetName());
         }
 
+        // Soft-object pointer: read the FSoftObjectPtr's stored path
+        // directly. FSoftObjectProperty's GetObjectPropertyValue override
+        // (UnrealType.h:3382) returns a UObject* by way of FSoftObjectPtr::Get(),
+        // which Resolves+may-load when the asset is registered-but-unloaded.
+        // The dedicated LoadObjectPropertyValue path (UnrealType.h:2831)
+        // is the explicit-load variant we never want for shallow inspection.
+        // Going through GetPropertyValuePtr_InContainer + ToString() reads
+        // the SoftObjectPath the property already holds with no resolution
+        // attempt at all — safe on the game thread regardless of asset size.
+        if (const FSoftObjectProperty* Soft = CastField<FSoftObjectProperty>(Prop))
+        {
+            const FSoftObjectPtr* SoftPtr =
+                Soft->GetPropertyValuePtr_InContainer(Container);
+            return SoftPtr ? SoftPtr->ToString() : FString();
+        }
+
+        // Hard-object pointer (UObject*, TObjectPtr, etc.). Use the
+        // non-loading GetObjectPropertyValue accessor (UnrealType.h:2844)
+        // — returns the currently-resolved UObject* without forcing
+        // load. Null is fine; we emit empty string for unset refs.
         if (const FObjectPropertyBase* Obj = CastField<FObjectPropertyBase>(Prop))
         {
-            if (const UObject* Val = Obj->LoadObjectPropertyValue(Obj->ContainerPtrToValuePtr<void>(Container)))
+            const void* ValuePtr = Obj->ContainerPtrToValuePtr<void>(Container);
+            if (const UObject* Val = Obj->GetObjectPropertyValue(ValuePtr))
             {
                 return Val->GetPathName();
             }
-            return TEXT("");
+            return FString();
         }
 
         // Scalars, strings, enums, structs (FName, FVector, etc.) all
@@ -131,7 +164,9 @@ public:
             return nullptr;
         }
 
-        // Single-property mode.
+        // Single-property mode. Apply the same editor-editable filter as
+        // bulk mode so the two modes do not diverge silently: a property
+        // bulk hides should error out by name too, not return a value.
         FString SinglePropertyName;
         if (Params->TryGetStringField(TEXT("property"), SinglePropertyName) && !SinglePropertyName.IsEmpty())
         {
@@ -139,7 +174,14 @@ public:
             if (!Prop)
             {
                 OutError = FString::Printf(
-                    TEXT("inspect_project_setting: property_not_found: '%s' is not a property of %s"),
+                    TEXT("inspect_project_setting: property_not_found: '%s' is not a property of '%s'"),
+                    *SinglePropertyName, *ClassPath);
+                return nullptr;
+            }
+            if (!Prop->HasAnyPropertyFlags(CPF_Edit) || Prop->HasAnyPropertyFlags(CPF_EditConst))
+            {
+                OutError = FString::Printf(
+                    TEXT("inspect_project_setting: property_not_found: '%s' is not an editor-editable property of '%s' (VisibleAnywhere / non-edit UPROPERTY hidden by design)"),
                     *SinglePropertyName, *ClassPath);
                 return nullptr;
             }
@@ -152,21 +194,42 @@ public:
             return Out;
         }
 
-        // Bulk mode: enumerate every property the developer-settings
-        // class declares. EFieldIterationFlags::Default surfaces both
-        // public + inherited properties — the latter matters for
-        // RendererSettings (inherits from UObject + UEngineBaseTypes
-        // hierarchy of UPROPERTY()s).
-        TArray<TSharedPtr<FJsonValue>> PropArr;
+        // Bulk mode: enumerate editor-editable properties on the
+        // developer-settings class. TFieldIterator surfaces inherited
+        // UPROPERTY()s too, which matters for settings classes that
+        // inherit configuration from a base (e.g. RendererSettings).
+        // Filter: CPF_Edit (ObjectMacros.h:419) AND NOT CPF_EditConst
+        // (ObjectMacros.h:436). VisibleAnywhere sets both flags, which
+        // is why CPF_Edit alone is insufficient — it would include
+        // visible-but-not-editable properties the Project Settings
+        // panel renders read-only and which the tool contract excludes.
+        // Output is alphabetised by name so the result is deterministic
+        // across iterator-order vagaries.
+        struct FPropRow
+        {
+            FString Name;
+            FString Type;
+            FString Value;
+        };
+        TArray<FPropRow> Rows;
         for (TFieldIterator<FProperty> It(SettingsClass); It; ++It)
         {
             const FProperty* Prop = *It;
             if (!Prop) continue;
+            if (!Prop->HasAnyPropertyFlags(CPF_Edit)) continue;
+            if (Prop->HasAnyPropertyFlags(CPF_EditConst)) continue;
+            Rows.Add({ Prop->GetName(), Prop->GetClass()->GetName(), StringifyProperty(Prop, CDO) });
+        }
+        Rows.Sort([](const FPropRow& A, const FPropRow& B) { return A.Name < B.Name; });
 
+        TArray<TSharedPtr<FJsonValue>> PropArr;
+        PropArr.Reserve(Rows.Num());
+        for (const FPropRow& R : Rows)
+        {
             const TSharedRef<FJsonObject> Entry = MakeShared<FJsonObject>();
-            Entry->SetStringField(TEXT("name"), Prop->GetName());
-            Entry->SetStringField(TEXT("type"), Prop->GetClass()->GetName());
-            Entry->SetStringField(TEXT("value"), StringifyProperty(Prop, CDO));
+            Entry->SetStringField(TEXT("name"), R.Name);
+            Entry->SetStringField(TEXT("type"), R.Type);
+            Entry->SetStringField(TEXT("value"), R.Value);
             PropArr.Add(MakeShared<FJsonValueObject>(Entry));
         }
 
