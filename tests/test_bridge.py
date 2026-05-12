@@ -2174,6 +2174,28 @@ def test_inspect_metasound_rejects_missing_path():
     assert "inspect_metasound" in resp["error"]["message"]
 
 
+def test_inspect_metasound_marker_not_found():
+    """If the LogPython buffer doesn't contain the __METASOUND_ marker after
+    exec, the bridge returns a marker_not_found logical-error envelope with
+    the canonical 'retry typically resolves' hint. Closes the last gap in
+    inspect_metasound's error-branch coverage."""
+    exec_resp = {"jsonrpc": "2.0", "id": 1, "result": {"ok": True, "output": ""}}
+    log_resp = {"jsonrpc": "2.0", "id": 1, "result": {"lines": [
+        {"category": "LogPython", "message": "Some other unrelated python log line"}
+    ]}}
+    with patch.object(bridge, "call_ue", side_effect=[exec_resp, log_resp]):
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 97, "method": "tools/call",
+            "params": {"name": "inspect_metasound", "arguments": {"path": "/Game/Audio/MS_Whatever"}},
+        })
+
+    assert resp["result"]["isError"] is False
+    got = json.loads(resp["result"]["content"][0]["text"])
+    assert got["ok"] is False
+    assert got["error_code"] == "marker_not_found"
+    assert "retry typically resolves" in got["error_message"]
+
+
 def test_screenshot_actor_happy_path():
     """When focus_actor and get_viewport_screenshot both succeed, the
     synthetic must compose their results: focus identity + screenshot bytes."""
