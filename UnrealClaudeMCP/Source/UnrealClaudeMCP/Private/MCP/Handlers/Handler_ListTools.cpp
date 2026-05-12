@@ -1,6 +1,9 @@
 // Copyright (c) 2026 HD Media. MIT licensed - see LICENSE.
 //
 // list_tools - meta-handler. Returns the names of every registered MCP method.
+//
+// Error format: this handler has no error paths — Handle always returns a successful
+// FJsonObject result. The OutError parameter is unused (marked /*OutError*/).
 
 #include "MCP/MCPHandler.h"
 
