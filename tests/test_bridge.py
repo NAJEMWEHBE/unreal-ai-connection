@@ -1287,6 +1287,45 @@ def test_bulk_rename_assets_partial_failure_stops_when_continue_on_error_false()
     assert body["results"][1]["error_code"] == -32000
 
 
+def test_bulk_rename_assets_partial_failure_continues_when_continue_on_error_true():
+    """Second rename fails, but continue_on_error=True (default) keeps the
+    loop going and surfaces per-entry errors in results[]. All three renames
+    attempted; the failure does NOT abort the third call. Pairs with the
+    existing _stops_when_continue_on_error_false test to cover both branches."""
+    ok_resp_1 = {"jsonrpc": "2.0", "id": 1, "result": {"ok": True}}
+    err_resp = {"jsonrpc": "2.0", "id": 1, "error": {
+        "code": -32000,
+        "message": "rename_asset: name_collision: '/Game/BarRenamed' already exists",
+    }}
+    ok_resp_2 = {"jsonrpc": "2.0", "id": 1, "result": {"ok": True}}
+    with patch.object(bridge, "call_ue", side_effect=[ok_resp_1, err_resp, ok_resp_2]) as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 61, "method": "tools/call",
+            "params": {
+                "name": "bulk_rename_assets",
+                "arguments": {
+                    "renames": [
+                        {"path": "/Game/Foo", "new_name": "FooRenamed"},
+                        {"path": "/Game/Bar", "new_name": "BarRenamed"},
+                        {"path": "/Game/Baz", "new_name": "BazRenamed"},
+                    ],
+                    "continue_on_error": True,
+                },
+            },
+        })
+
+    assert m.call_count == 3
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert body["ok"] is False
+    assert body["total"] == 3
+    assert body["renamed"] == 2
+    assert body["failed"] == 1
+    assert body["results"][0]["ok"] is True
+    assert body["results"][1]["ok"] is False
+    assert body["results"][1]["error_code"] == -32000
+    assert body["results"][2]["ok"] is True
+
+
 def test_bulk_rename_assets_rejects_missing_renames():
     """Schema enforces renames as required."""
     resp = bridge.handle({
