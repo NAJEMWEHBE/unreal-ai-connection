@@ -1599,7 +1599,7 @@ def synthetic_screenshot_actor(req_id, args: dict) -> dict:
     })
 
 
-def synthetic_compile_mod_pak(req_id, args):
+def synthetic_compile_mod_pak(req_id, args: dict) -> dict:
     """Bridge-side: compile a UE mod plugin to a .pak file via RunUAT BuildMod
     or BuildPlugin, headless. No UE Editor session required.
 
@@ -1809,7 +1809,7 @@ def synthetic_compile_mod_pak(req_id, args):
     })
 
 
-def synthetic_compile_mod_pak_direct(req_id, args):
+def synthetic_compile_mod_pak_direct(req_id, args: dict) -> dict:
     """Bridge-side: compile a .pak directly via UnrealPak.exe with a response
     file, bypassing RunUAT entirely.
 
