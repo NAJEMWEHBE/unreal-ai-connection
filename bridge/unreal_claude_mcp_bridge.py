@@ -1387,6 +1387,12 @@ def synthetic_set_camera_transform(req_id, args):
     the full set call. This is a second-order cost of going synthetic --
     in C++ we'd have direct access to UnrealEditorSubsystem's current state.
     """
+    if not isinstance(args, dict):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "set_camera_transform: invalid_arguments: arguments must be an object",
+        })
+
     location = args.get("location")
     rotation = args.get("rotation")
 
