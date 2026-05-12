@@ -1341,4 +1341,15 @@ The MCP servers in play this session: a NVIDIA cloud plugin (`mcp__plugin_nvidia
 
 **STANDING RULE (do not relax without explicit user request): multi-agent ensemble review on every substantive change.** The maintainer has provisioned NVIDIA cloud access, local OSS LLM tooling, Copilot CLI, and the Gemini CI bot specifically so Opus does not work solo. Use them. Pattern: dispatch 2-4 reviewers in parallel during ~30s waiting windows; integrate findings into the final diff before push. The codified version + per-provider configuration lives in the maintainer's private memory file (`feedback_multi_agent_workflow.md`), not in this public doc.
 
+**STANDING RULE (do not relax without explicit user request): UE 5.7 editor is launch-authorized in every session.** The maintainer (`najem`) granted standing permission on 2026-05-12 morning and reiterated it explicitly at the end of this autopilot-extension window after noticing the verification panel from `RESUME.md` was skipped because the editor wasn't running. **Do not "skip live verification" as a shortcut**; do not ask permission each session; do not wait for the next session. When live-reachable handlers matter (the canonical verification panel after a bridge-touching PR cycle, anything that exercises `127.0.0.1:18888`, the smoke-test suite, anything that proves a Rotator round-trip is lossless, anything that proves an inspect_* synthetic returns the correct logical-error envelope shape), **launch the editor immediately** using the path-quoting recipe in the top-of-doc / `CLAUDE.md`:
+
+```powershell
+Start-Process 'F:\UE_5.7\Engine\Binaries\Win64\UnrealEditor.exe' \
+    -ArgumentList '"F:\ax plug in\HDMediaVirtualStudio\HDMediaVirtualStudio.uproject"'
+```
+
+(The `-ArgumentList @('path with spaces')` form silently tokenises the path on whitespace; UE falls back to Project Browser. **Pre-quote the path inside the array element** — see PR #124's trap-table entry.) UE typically binds the bridge in ~2 minutes; if CPU stays at ~7% one core and `Saved/Logs/HDMediaVirtualStudio.log` is stale, re-check the path-quoting.
+
+Bash-side launches do not work — `Start-Process` is a PowerShell cmdlet, not a Bash command. Use the PowerShell tool (not the Bash tool) for the launch. This caught the autopilot-extension window once before the reinforcement; documenting here so the trap doesn't recur.
+
 **Seventeenth consecutive closing-note.** Session 2026-05-12 now spans 8+ documented windows.
