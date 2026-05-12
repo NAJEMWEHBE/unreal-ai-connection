@@ -4,7 +4,7 @@
 
 **Drive Unreal Engine 5 from Claude Code over a local TCP socket.**
 
-Sixty-eight editor-automation tools. Zero pixel-clicking. ~50ms round-trip.
+80 tools total. Zero pixel-clicking. ~50ms round-trip.
 
 [![CI](https://github.com/NAJEMWEHBE/UnrealClaudeMCP/actions/workflows/tests.yml/badge.svg)](https://github.com/NAJEMWEHBE/UnrealClaudeMCP/actions/workflows/tests.yml)
 [![License](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
