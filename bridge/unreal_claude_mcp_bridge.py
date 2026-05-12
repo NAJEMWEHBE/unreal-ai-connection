@@ -1258,7 +1258,7 @@ def _run_marker_pattern(req_id, tool_name: str, marker_prefix: str, py_code: str
     })
 
 
-def synthetic_wait_for_events(req_id, args):
+def synthetic_wait_for_events(req_id, args: dict) -> dict:
     """Bridge-side wait_for_events. Polls UE's poll_events handler at
     poll_interval_ms cadence until matching events arrive or timeout_ms
     expires. Lives in the bridge (not UE) because:
@@ -1333,7 +1333,7 @@ def synthetic_wait_for_events(req_id, args):
         time.sleep(poll_interval_s)
 
 
-def synthetic_get_camera_transform(req_id, args):
+def synthetic_get_camera_transform(req_id, args: dict) -> dict:
     """Bridge-side shim: read the level-editor viewport camera transform.
 
     Refactored on 2026-05-12 (deferred bridge-audit #3) to use the shared
@@ -1376,7 +1376,7 @@ def synthetic_get_camera_transform(req_id, args):
     return _run_marker_pattern(req_id, "get_camera_transform", marker_prefix, py_code)
 
 
-def synthetic_set_camera_transform(req_id, args):
+def synthetic_set_camera_transform(req_id, args: dict) -> dict:
     """Bridge-side shim: set the level-editor viewport camera transform.
 
     Partial-update semantics: if the caller omits 'location' (or 'rotation'),
@@ -1525,7 +1525,7 @@ def synthetic_set_camera_transform(req_id, args):
     })
 
 
-def synthetic_screenshot_actor(req_id, args):
+def synthetic_screenshot_actor(req_id, args: dict) -> dict:
     """Bridge-side composition: frame the viewport on an actor, then capture
     a screenshot. Useful for asset-pipeline thumbnail generation and for
     giving the LLM "look at this specific thing" context.
