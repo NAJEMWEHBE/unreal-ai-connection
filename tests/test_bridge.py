@@ -108,6 +108,8 @@ def test_tool_names_are_unique_and_match_handlers():
         "get_selected_actors",
         "inspect_input_mappings",
         "bulk_inspect_assets",
+        "pie_control",
+        "inspect_project_setting",
     }
     assert set(names) == expected
 
@@ -207,6 +209,32 @@ def test_inspect_input_mappings_in_tools_catalog():
     assert tool["inputSchema"]["type"] == "object"
     assert tool["inputSchema"]["properties"] == {}
     assert "inspect_input_mappings" not in bridge.SYNTHETIC_TOOLS
+
+
+def test_pie_control_in_tools_catalog():
+    """Wave A.5: pie_control is a new C++ handler. Required 'action' field;
+    optional 'mode' for start. Closes the validation feedback loop —
+    the LLM can now trigger PIE to test its edits."""
+    tool = next((t for t in bridge.TOOLS if t["name"] == "pie_control"), None)
+    assert tool is not None, "pie_control must be in TOOLS catalog"
+    assert tool["inputSchema"]["required"] == ["action"]
+    props = tool["inputSchema"]["properties"]
+    assert "action" in props and props["action"]["type"] == "string"
+    assert "mode" in props and props["mode"]["type"] == "string"
+    assert "pie_control" not in bridge.SYNTHETIC_TOOLS
+
+
+def test_inspect_project_setting_in_tools_catalog():
+    """Wave A.5: inspect_project_setting is a new C++ handler. Reflects
+    any UDeveloperSettings subclass. Required 'settings_class' (full
+    class path); optional 'property' for single-property mode."""
+    tool = next((t for t in bridge.TOOLS if t["name"] == "inspect_project_setting"), None)
+    assert tool is not None, "inspect_project_setting must be in TOOLS catalog"
+    assert tool["inputSchema"]["required"] == ["settings_class"]
+    props = tool["inputSchema"]["properties"]
+    assert "settings_class" in props and props["settings_class"]["type"] == "string"
+    assert "property" in props and props["property"]["type"] == "string"
+    assert "inspect_project_setting" not in bridge.SYNTHETIC_TOOLS
 
 
 def test_bulk_inspect_assets_is_synthetic():

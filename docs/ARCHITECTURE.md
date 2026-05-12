@@ -10,7 +10,7 @@ flowchart LR
     subgraph UE["UE Editor process"]
         TCP["FTcpListener<br/>127.0.0.1:18888"]
         Disp["FUCMCPDispatcher<br/>JSON-RPC parse / route"]
-        Reg["FUCMCPHandlerRegistry<br/>(69 C++ handlers)"]
+        Reg["FUCMCPHandlerRegistry<br/>(71 C++ handlers)"]
         Native["UE native C++<br/>UnrealEd · UMG · UMGEditor<br/>PythonScriptPlugin · AssetRegistry"]
     end
 

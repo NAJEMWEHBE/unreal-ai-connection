@@ -83,7 +83,7 @@ If you use Claude Code:
 2. Edit the path in `args` to point at the actual location of `bridge/unreal_claude_mcp_bridge.py`
 3. Restart Claude Code
 4. Claude Code will detect the new MCP server and prompt you to **Approve** it (security gate)
-5. After approval, all 86 tools are available to Claude in chat as `mcp__unreal-claude-mcp__*` (69 dispatched directly to UE, plus 17 bridge-side synthetic tools — camera read/write, focused-actor screenshot, `wait_for_events`, `compile_mod_pak` headless `.pak` build, `compile_mod_pak_direct` headless `.pak` build via UnrealPak (RunUAT bypass), `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, and `inspect_metasound`)
+5. After approval, all 88 tools are available to Claude in chat as `mcp__unreal-claude-mcp__*` (71 dispatched directly to UE, plus 17 bridge-side synthetic tools — camera read/write, focused-actor screenshot, `wait_for_events`, `compile_mod_pak` headless `.pak` build, `compile_mod_pak_direct` headless `.pak` build via UnrealPak (RunUAT bypass), `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, and `inspect_metasound`)
 
 You can now ask Claude things like:
 - "List all actors in the level"

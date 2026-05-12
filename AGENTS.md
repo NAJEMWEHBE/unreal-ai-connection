@@ -6,7 +6,7 @@ This file is read by Codex CLI, Copilot CLI, Gemini CLI, Cursor, and any other c
 
 ## Quick orientation
 
-UE 5.7 plugin + Python bridge exposing editor automation to MCP-compliant clients (Claude Code, Codex CLI, Copilot CLI, Cursor, Gemini CLI, Continue, …) over a localhost TCP socket. **86 tools total: 69 native C++ handlers + 17 bridge-side synthetic tools.** Vendor-neutral by design — the wire protocol is open MCP; the "Claude" in the repo name is decorative.
+UE 5.7 plugin + Python bridge exposing editor automation to MCP-compliant clients (Claude Code, Codex CLI, Copilot CLI, Cursor, Gemini CLI, Continue, …) over a localhost TCP socket. **88 tools total: 71 native C++ handlers + 17 bridge-side synthetic tools.** Vendor-neutral by design — the wire protocol is open MCP; the "Claude" in the repo name is decorative.
 
 ## Where to look first
 
@@ -33,7 +33,7 @@ The bridge is registered as `unreal-claude-mcp` in this project's `.mcp.json` (r
 ```
 codex mcp add unreal-claude-mcp -- py F:\UnrealClaudeMCP\bridge\unreal_claude_mcp_bridge.py
 ```
-After registration, all 86 tools become available through the standard MCP `tools/list` + `tools/call` flow. Open the host UE project with the plugin enabled before any tool call (the bridge surfaces a clear error otherwise).
+After registration, all 88 tools become available through the standard MCP `tools/list` + `tools/call` flow. Open the host UE project with the plugin enabled before any tool call (the bridge surfaces a clear error otherwise).
 
 ## Cross-agent prompt-discipline recipe (validated PR #90 + #92)
 

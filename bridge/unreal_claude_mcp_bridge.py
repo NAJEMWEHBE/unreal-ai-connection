@@ -13,7 +13,7 @@ plugin speaks raw JSON-RPC over a local TCP socket (default
 Behaviour:
   - "initialize"             returned synthetically (does NOT hit the UE server)
   - "notifications/*"        consumed silently
-  - "tools/list"             returns a static list of all 86 tools (69
+  - "tools/list"             returns a static list of all 88 tools (71
                              dispatched to the UE plugin's C++ handlers
                              plus 17 bridge-side synthetic tools served by
                              SYNTHETIC_TOOLS without crossing the wire as
@@ -45,7 +45,7 @@ SERVER_NAME = "unreal-claude-mcp"
 SERVER_VERSION = "0.9.1"
 
 # Mirror of UnrealClaudeMCP/Resources/mcp_manifest.json - kept in sync manually.
-# 86 tool entries total. 69 are dispatched straight to UE C++ handlers
+# 88 tool entries total. 71 are dispatched straight to UE C++ handlers
 # (see UnrealClaudeMCPModule.cpp's Reg.Register(...) block). The remaining
 # 17 -- wait_for_events, get_camera_transform, set_camera_transform,
 # screenshot_actor, compile_mod_pak, compile_mod_pak_direct,
@@ -106,6 +106,30 @@ TOOLS = [
         "name": "inspect_input_mappings",
         "description": "Dump the project's legacy UInputSettings: action_mappings (name+key+modifier flags) and axis_mappings (name+key+scale), plus a uses_enhanced_input flag that signals whether the project has migrated to the Enhanced Input system. The #1 context an LLM needs before touching gameplay code.",
         "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "pie_control",
+        "description": "Start / stop / query Play-In-Editor sessions. Closes the 'did my edit actually work?' loop — LLM can scaffold a gameplay change, trigger PIE, observe the running state, then stop. action=start with mode=play|simulate; action=stop tears down current session; action=query returns is_playing + is_simulating booleans.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "action": {"type": "string", "description": "One of: start, stop, query."},
+                "mode": {"type": "string", "description": "Only used when action=start. 'play' (default) launches a full PIE session in the active viewport; 'simulate' ticks the world without spawning a Player Controller."},
+            },
+            "required": ["action"],
+        },
+    },
+    {
+        "name": "inspect_project_setting",
+        "description": "Reflect any UDeveloperSettings subclass (RendererSettings, PhysicsSettings, InputSettings, etc.) and dump editable UPROPERTY values as JSON. Bulk mode (omit 'property') returns every editable property; single mode (pass 'property') returns just that one. Closes the gap where the LLM had no access to per-system Project Settings.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "settings_class": {"type": "string", "description": "Full class path of a UDeveloperSettings subclass (e.g. '/Script/Engine.RendererSettings')."},
+                "property": {"type": "string", "description": "Optional. When supplied, return just this property's name/type/value instead of the full bulk dump."},
+            },
+            "required": ["settings_class"],
+        },
     },
     {
         "name": "bulk_inspect_assets",

@@ -15,6 +15,6 @@ sys.path.insert(0, os.path.join(ROOT, "bridge"))
 # Bumps as new C++ handlers register or new synthetic tools land in
 # bridge/unreal_claude_mcp_bridge.py::SYNTHETIC_TOOLS. The split below is
 # informational; tests assert against the total via EXPECTED_TOOL_COUNT.
-EXPECTED_CPP_HANDLER_COUNT = 69
+EXPECTED_CPP_HANDLER_COUNT = 71
 EXPECTED_SYNTHETIC_TOOL_COUNT = 17
 EXPECTED_TOOL_COUNT = EXPECTED_CPP_HANDLER_COUNT + EXPECTED_SYNTHETIC_TOOL_COUNT

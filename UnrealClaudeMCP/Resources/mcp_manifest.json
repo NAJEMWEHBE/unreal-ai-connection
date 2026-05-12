@@ -1,7 +1,7 @@
 {
   "name": "UnrealClaudeMCP",
   "version": "0.9.1",
-  "description": "Drive Unreal Engine 5.7 from Claude (or any MCP client) over a local TCP socket. 86 tools total (69 native C++ handlers plus 17 bridge-side synthetic tools) that work with any UE 5.7 project.",
+  "description": "Drive Unreal Engine 5.7 from Claude (or any MCP client) over a local TCP socket. 88 tools total (71 native C++ handlers plus 17 bridge-side synthetic tools) that work with any UE 5.7 project.",
   "transport": {
     "type": "tcp",
     "host": "127.0.0.1",
@@ -49,6 +49,24 @@
       "name": "inspect_input_mappings",
       "description": "Dump the project's legacy UInputSettings (action + axis mappings) plus an Enhanced Input migration-status flag.",
       "params": {},
+      "returns": "see docs/TOOLS.md"
+    },
+    {
+      "name": "pie_control",
+      "description": "Start / stop / query Play-In-Editor sessions. Closes the 'did my edit work?' validation loop for AI-driven workflows.",
+      "params": {
+        "action": "string (required) - one of: start, stop, query",
+        "mode": "string (optional, default 'play') - 'play' or 'simulate'; only used when action=start"
+      },
+      "returns": "see docs/TOOLS.md"
+    },
+    {
+      "name": "inspect_project_setting",
+      "description": "Reflect any UDeveloperSettings subclass (RendererSettings, PhysicsSettings, InputSettings, etc.) and dump its editable UPROPERTY values as JSON.",
+      "params": {
+        "settings_class": "string (required) - full class path like '/Script/Engine.RendererSettings'",
+        "property": "string (optional) - single property name to return instead of bulk dump"
+      },
       "returns": "see docs/TOOLS.md"
     },
     {

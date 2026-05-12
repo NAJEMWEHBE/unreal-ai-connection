@@ -4,7 +4,7 @@
 
 ## Quick orientation (deeper detail in HANDOFF.md and ARCHITECTURE.md)
 
-UE 5.7 plugin + Python bridge exposing editor automation to MCP-compliant clients (Claude Code, Codex CLI, Cursor, Gemini CLI, Continue, …) over a localhost TCP socket. **86 tools total: 69 native C++ handlers + 17 bridge-side synthetic tools.** Vendor-neutral — the wire protocol is open MCP; the "Claude" in the repo name is decorative.
+UE 5.7 plugin + Python bridge exposing editor automation to MCP-compliant clients (Claude Code, Codex CLI, Cursor, Gemini CLI, Continue, …) over a localhost TCP socket. **88 tools total: 71 native C++ handlers + 17 bridge-side synthetic tools.** Vendor-neutral — the wire protocol is open MCP; the "Claude" in the repo name is decorative.
 
 ## Where to look first for any change
 
