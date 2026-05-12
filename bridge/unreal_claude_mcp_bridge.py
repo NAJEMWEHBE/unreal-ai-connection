@@ -1839,6 +1839,12 @@ def synthetic_compile_mod_pak_direct(req_id, args):
     Same shape as compile_mod_pak (BuildMod branch) so downstream tooling
     can switch between the two transparently.
     """
+    if not isinstance(args, dict):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "compile_mod_pak_direct: invalid_arguments: arguments must be an object",
+        })
+
     import os
     import subprocess
     import time
