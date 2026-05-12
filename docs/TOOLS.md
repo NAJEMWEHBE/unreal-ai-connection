@@ -2738,6 +2738,62 @@ Move multiple assets into a single destination folder by composing the [`move_as
 
 ---
 
+## bulk_rename_assets
+
+Rename multiple assets in one MCP call by composing the [`rename_asset`](#rename_asset) C++ handler bridge-side. Each rename leaves a redirector at the source per UE's standard rename semantics, so existing references continue to resolve until [`fix_up_redirectors`](#fix_up_redirectors) sweeps them.
+
+**Bridge-side synthetic tool.** Pure Python — loops over `items[]` and dispatches one `call_ue("rename_asset", {"path": ..., "new_name": ...})` per entry. Items take per-entry destinations (each asset has its own new name), unlike `bulk_move_assets` where all assets share one `dest_folder`.
+
+**Partial-failure model:** identical shape to the other `bulk_*_assets` synthetics. `continue_on_error: true` (default) keeps going after individual failures; `continue_on_error: false` aborts at the first failure.
+
+**Per-entry validation:**
+- `path` must be a non-empty string; NUL byte (`\x00`) and `..` segments rejected envelope-level.
+- `new_name` must be a non-empty string with no slash (`/`) or dot (`.`) characters — `rename_asset` is name-only, not a move. Cross-folder renames go through `bulk_move_assets`.
+
+**Params**
+- `items` (array of object, required) - per-entry rename instructions:
+  - `path` (string, required) - source asset object path
+  - `new_name` (string, required) - new asset name (no slashes or dots)
+- `continue_on_error` (bool, optional, default `true`) - when `false`, abort after the first per-entry failure.
+
+**Result**
+- `ok` (bool) - `true` only when `failed == 0`
+- `total` (int) - `items.length`
+- `renamed` (int) - count of per-entry successes
+- `failed` (int) - count of per-entry failures
+- `results` (array) - one entry per attempted item, in input order:
+  - `path` (string) - source path
+  - `new_name` (string) - requested new name
+  - `ok` (bool)
+  - `new_path` (string or null) - resulting asset path on success
+  - `error_code` (int or null) - preserved from the upstream `rename_asset` response on failure
+  - `error_message` (string or null) - preserved from the upstream `rename_asset` response on failure
+
+**Errors (envelope-level):** `-32602` (missing or non-list `items`, non-dict entry, missing `path` or `new_name`, NUL or `..` in `path`, slash or dot in `new_name`, non-bool `continue_on_error`).
+
+**Example - happy path**
+```json
+{"jsonrpc":"2.0","id":1,"method":"bulk_rename_assets","params":{
+  "items": [
+    {"path": "/Game/Foo/T_Old", "new_name": "T_New"},
+    {"path": "/Game/Bar/M_Old", "new_name": "M_New"}
+  ]
+}}
+```
+
+**Example - fail fast**
+```json
+{"jsonrpc":"2.0","id":2,"method":"bulk_rename_assets","params":{
+  "items": [
+    {"path": "/Game/A", "new_name": "A2"},
+    {"path": "/Game/B", "new_name": "B2"}
+  ],
+  "continue_on_error": false
+}}
+```
+
+---
+
 ## inspect_data_asset
 
 Shallow-reflect a UDataAsset by package path: returns leaf class name, parent class name, full package path, and a per-property reflection list (name, Python type, stringified value).
