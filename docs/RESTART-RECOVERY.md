@@ -158,7 +158,7 @@ Claude Code will auto-load `CLAUDE.md` (which references `docs/HANDOFF.md`). Sen
 
 After recovery, the project state is:
 
-- **81 tools shipped** (65 UE C++ handlers + 16 bridge-side synthetic)
+- **82 tools shipped** (66 UE C++ handlers + 16 bridge-side synthetic)
 - **Latest commit on main:** check via `git log -1 --oneline` — this file is necessarily behind on the SHA after every merge.
 - **Live verification on host machine:** **PASSING** as of the 2026-05-10 sprint (cold compile + editor + bridge round-trip proven on `HDMediaVirtualStudio` host project). New C++ handlers follow the cold-compile-before-merge cadence (HANDOFF.md "Session 2026-05-10").
 - **Next deferred handlers:** `inspect_data_asset`, `inspect_sound_class`, `inspect_metasound`, bulk delete/move, Sequencer keyframe authoring, Movie Render Queue — see HANDOFF.md "What to watch in the next session".

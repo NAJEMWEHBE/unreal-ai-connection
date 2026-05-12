@@ -1,7 +1,7 @@
 {
   "name": "UnrealClaudeMCP",
   "version": "0.9.1",
-  "description": "Drive Unreal Engine 5.7 from Claude (or any MCP client) over a local TCP socket. 81 tools total (65 native C++ handlers plus 16 bridge-side synthetic tools) that work with any UE 5.7 project.",
+  "description": "Drive Unreal Engine 5.7 from Claude (or any MCP client) over a local TCP socket. 82 tools total (66 native C++ handlers plus 16 bridge-side synthetic tools) that work with any UE 5.7 project.",
   "transport": {
     "type": "tcp",
     "host": "127.0.0.1",
@@ -19,6 +19,15 @@
       "name": "get_engine_version",
       "description": "Structured engine-version snapshot — major/minor/patch/changelist/branch as separate fields plus a 'minor_dotted' convenience like '5.7'.",
       "params": {},
+      "returns": "see docs/TOOLS.md"
+    },
+    {
+      "name": "list_levels",
+      "description": "Enumerate every UWorld asset (level) in the project. Optional path_under (default /Game/) + name_contains filter.",
+      "params": {
+        "path_under": "string (optional, default /Game/) - recursive package-path filter; must start with /Game/ or /Engine/",
+        "name_contains": "string (optional) - case-insensitive substring filter on the level asset name"
+      },
       "returns": "see docs/TOOLS.md"
     },
     {

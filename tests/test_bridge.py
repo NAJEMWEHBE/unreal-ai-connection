@@ -103,6 +103,7 @@ def test_tool_names_are_unique_and_match_handlers():
         "inspect_material_function",
         "inspect_metasound",
         "get_engine_version",
+        "list_levels",
     }
     assert set(names) == expected
 
@@ -145,6 +146,23 @@ def test_get_engine_version_in_tools_catalog():
     assert tool["inputSchema"]["properties"] == {}
     # NOT a synthetic — dispatches straight to the UE C++ handler.
     assert "get_engine_version" not in bridge.SYNTHETIC_TOOLS
+
+
+def test_list_levels_in_tools_catalog():
+    """Wave A: list_levels is a new C++ handler. Optional path_under +
+    name_contains (no required params). Closes the gap where
+    load_level_by_path required pre-knowledge of the package path."""
+    tool = next((t for t in bridge.TOOLS if t["name"] == "list_levels"), None)
+    assert tool is not None, "list_levels must be in TOOLS catalog"
+    props = tool["inputSchema"]["properties"]
+    assert "path_under" in props
+    assert props["path_under"]["type"] == "string"
+    assert "name_contains" in props
+    assert props["name_contains"]["type"] == "string"
+    # All params optional — no required field.
+    assert "required" not in tool["inputSchema"] or tool["inputSchema"]["required"] == []
+    # NOT a synthetic — dispatches straight to the UE C++ handler.
+    assert "list_levels" not in bridge.SYNTHETIC_TOOLS
 
 
 def test_move_asset_in_tools_catalog():
