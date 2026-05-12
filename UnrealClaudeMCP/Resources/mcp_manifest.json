@@ -1,7 +1,7 @@
 {
   "name": "UnrealClaudeMCP",
   "version": "0.9.1",
-  "description": "Drive Unreal Engine 5.7 from Claude (or any MCP client) over a local TCP socket. 80 tools total (64 native C++ handlers plus 16 bridge-side synthetic tools) that work with any UE 5.7 project.",
+  "description": "Drive Unreal Engine 5.7 from Claude (or any MCP client) over a local TCP socket. 81 tools total (65 native C++ handlers plus 16 bridge-side synthetic tools) that work with any UE 5.7 project.",
   "transport": {
     "type": "tcp",
     "host": "127.0.0.1",
@@ -14,6 +14,12 @@
       "description": "Run arbitrary unreal.* Python in the editor's embedded interpreter (universal escape hatch). Multi-line scripts work.",
       "params": { "code": "string (required) - Python source code to execute" },
       "returns": { "ok": "bool", "output": "string", "temp_script": "string" }
+    },
+    {
+      "name": "get_engine_version",
+      "description": "Structured engine-version snapshot — major/minor/patch/changelist/branch as separate fields plus a 'minor_dotted' convenience like '5.7'.",
+      "params": {},
+      "returns": "see docs/TOOLS.md"
     },
     {
       "name": "get_project_summary",

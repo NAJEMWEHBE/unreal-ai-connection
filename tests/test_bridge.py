@@ -102,6 +102,7 @@ def test_tool_names_are_unique_and_match_handlers():
         "inspect_audio_bus",
         "inspect_material_function",
         "inspect_metasound",
+        "get_engine_version",
     }
     assert set(names) == expected
 
@@ -130,6 +131,20 @@ def test_inspect_asset_in_tools_catalog():
     assert inspect is not None, "inspect_asset must be in TOOLS catalog"
     assert "path" in inspect["inputSchema"]["properties"]
     assert inspect["inputSchema"]["required"] == ["path"]
+
+
+def test_get_engine_version_in_tools_catalog():
+    """Wave A: get_engine_version is a new C++ handler with no params.
+    Returns structured engine version components separately so callers can
+    branch on (major, minor) without parsing the single 'engine_version'
+    string get_project_summary already emits."""
+    tool = next((t for t in bridge.TOOLS if t["name"] == "get_engine_version"), None)
+    assert tool is not None, "get_engine_version must be in TOOLS catalog"
+    # Mirrors get_project_summary / list_tools shape (no params).
+    assert tool["inputSchema"]["type"] == "object"
+    assert tool["inputSchema"]["properties"] == {}
+    # NOT a synthetic — dispatches straight to the UE C++ handler.
+    assert "get_engine_version" not in bridge.SYNTHETIC_TOOLS
 
 
 def test_move_asset_in_tools_catalog():

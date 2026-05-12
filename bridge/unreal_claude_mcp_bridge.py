@@ -13,7 +13,7 @@ plugin speaks raw JSON-RPC over a local TCP socket (default
 Behaviour:
   - "initialize"             returned synthetically (does NOT hit the UE server)
   - "notifications/*"        consumed silently
-  - "tools/list"             returns a static list of all 80 tools (64
+  - "tools/list"             returns a static list of all 81 tools (65
                              dispatched to the UE plugin's C++ handlers
                              plus 16 bridge-side synthetic tools served by
                              SYNTHETIC_TOOLS without crossing the wire as
@@ -68,6 +68,11 @@ TOOLS = [
             "properties": {"code": {"type": "string", "description": "Python source to execute"}},
             "required": ["code"],
         },
+    },
+    {
+        "name": "get_engine_version",
+        "description": "Structured engine-version snapshot — major / minor / patch / changelist / branch as separate fields, plus a 'minor_dotted' convenience like '5.7'. Use this when the LLM needs to branch on engine version without parsing get_project_summary's single 'engine_version' string.",
+        "inputSchema": {"type": "object", "properties": {}},
     },
     {
         "name": "get_project_summary",
