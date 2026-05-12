@@ -1931,7 +1931,7 @@ def synthetic_compile_mod_pak_direct(req_id, args):
     })
 
 
-def synthetic_bulk_delete_assets(req_id, args):
+def synthetic_bulk_delete_assets(req_id, args: dict) -> dict:
     """Bridge-side composition: delete multiple assets via the `delete_asset`
     C++ handler, returning a per-path partial-success structure.
 
@@ -2047,7 +2047,7 @@ def synthetic_bulk_delete_assets(req_id, args):
     })
 
 
-def synthetic_bulk_move_assets(req_id, args):
+def synthetic_bulk_move_assets(req_id, args: dict) -> dict:
     """Bridge-side composition: move multiple assets into a single destination
     folder by dispatching `move_asset` per path.
 
@@ -2173,7 +2173,7 @@ def synthetic_bulk_move_assets(req_id, args):
     })
 
 
-def synthetic_bulk_rename_assets(req_id, args):
+def synthetic_bulk_rename_assets(req_id, args: dict) -> dict:
     """Bridge-side composition: rename multiple assets in one call by
     dispatching `rename_asset` per pair.
 
@@ -2308,7 +2308,7 @@ def synthetic_bulk_rename_assets(req_id, args):
     })
 
 
-def synthetic_bulk_duplicate_assets(req_id, args):
+def synthetic_bulk_duplicate_assets(req_id, args: dict) -> dict:
     """Bridge-side composition: duplicate multiple assets in one call by
     dispatching `duplicate_asset` per pair.
 
