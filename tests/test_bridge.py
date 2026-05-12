@@ -1778,6 +1778,58 @@ def test_inspect_sound_submix_rejects_missing_path():
     assert "inspect_sound_submix" in resp["error"]["message"]
 
 
+def test_inspect_sound_submix_propagates_wrong_asset_type():
+    """When the loaded asset is not a USoundSubmixBase, embedded Python emits a
+    wrong_asset_type logical-error payload with the actual leaf class name. The
+    bridge propagates it verbatim as an ok=False success-envelope (NOT a JSON-RPC
+    error), so callers can branch on error_code without parsing exception text."""
+    exec_resp = {"jsonrpc": "2.0", "id": 1, "result": {"ok": True, "output": ""}}
+    body = {
+        "ok": False,
+        "error_code": "wrong_asset_type",
+        "error_message": "inspect_sound_submix: wrong_asset_type: /Game/Data/DA_NotASubmix",
+        "actual_class": "MyDataAsset",
+    }
+    marker_hex = "abc123def456"
+    log_line = f"__SUBMIX_{marker_hex}__{json.dumps(body)}__END__"
+    log_resp = {"jsonrpc": "2.0", "id": 1, "result": {"lines": [{"category": "LogPython", "message": log_line}]}}
+    fake_uuid = MagicMock()
+    fake_uuid.uuid4.return_value = MagicMock(hex=marker_hex)
+    with patch.object(bridge, "call_ue", side_effect=[exec_resp, log_resp]), \
+         patch.object(bridge, "uuid", fake_uuid):
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 90, "method": "tools/call",
+            "params": {"name": "inspect_sound_submix", "arguments": {"path": "/Game/Data/DA_NotASubmix"}},
+        })
+
+    assert resp["result"]["isError"] is False
+    got = json.loads(resp["result"]["content"][0]["text"])
+    assert got == body
+
+
+def test_inspect_sound_submix_marker_not_found():
+    """If the LogPython buffer doesn't contain the __SUBMIX_ marker after exec
+    (log overflowed between exec and read, or UE silently dropped log), the
+    bridge returns a marker_not_found logical-error envelope with the
+    'retry typically resolves' hint. Mirrors inspect_data_asset's behaviour
+    for the same failure mode (see test_inspect_data_asset_marker_not_found)."""
+    exec_resp = {"jsonrpc": "2.0", "id": 1, "result": {"ok": True, "output": ""}}
+    log_resp = {"jsonrpc": "2.0", "id": 1, "result": {"lines": [
+        {"category": "LogPython", "message": "Some other unrelated python log line"}
+    ]}}
+    with patch.object(bridge, "call_ue", side_effect=[exec_resp, log_resp]):
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 91, "method": "tools/call",
+            "params": {"name": "inspect_sound_submix", "arguments": {"path": "/Game/Audio/SX_Whatever"}},
+        })
+
+    assert resp["result"]["isError"] is False
+    got = json.loads(resp["result"]["content"][0]["text"])
+    assert got["ok"] is False
+    assert got["error_code"] == "marker_not_found"
+    assert "retry typically resolves" in got["error_message"]
+
+
 def test_inspect_audio_bus_is_synthetic():
     """inspect_audio_bus is a SYNTHETIC bridge-side handler (PR #99 - Copilot
     retry that recovered from PR #98 regression after the prompt explicitly
