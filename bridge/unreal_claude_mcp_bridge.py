@@ -2436,7 +2436,7 @@ def synthetic_bulk_duplicate_assets(req_id, args: dict) -> dict:
     })
 
 
-def synthetic_inspect_data_asset(req_id, args):
+def synthetic_inspect_data_asset(req_id, args: dict) -> dict:
     """Bridge-side shim: shallow-reflect a UDataAsset by package path.
 
     Canonical Python-shim pattern (per PR #46 + LANGUAGE-CHOICE-RETROSPECTIVE.md
@@ -2529,7 +2529,7 @@ def synthetic_inspect_data_asset(req_id, args):
     return _run_marker_pattern(req_id, "inspect_data_asset", f"__DATA_{marker}__", py_code, context=path)
 
 
-def synthetic_inspect_sound_class(req_id, args):
+def synthetic_inspect_sound_class(req_id, args: dict) -> dict:
     """Bridge-side shim: inspect a USoundClass by package path.
 
     Same canonical marker pattern as `synthetic_inspect_data_asset` (PR #92):
@@ -2657,7 +2657,7 @@ def synthetic_inspect_sound_class(req_id, args):
     return _run_marker_pattern(req_id, "inspect_sound_class", "__SOUNDCLASS_" + marker + "__", py_code, context=path)
 
 
-def synthetic_inspect_sound_submix(req_id, args):
+def synthetic_inspect_sound_submix(req_id, args: dict) -> dict:
     """Bridge-side shim: inspect a USoundSubmix by package path.
 
     Same canonical marker pattern as `synthetic_inspect_sound_class` (PR #98).
@@ -2764,7 +2764,7 @@ def synthetic_inspect_sound_submix(req_id, args):
     return _run_marker_pattern(req_id, "inspect_sound_submix", "__SOUNDSUBMIX_" + marker + "__", py_code, context=path)
 
 
-def synthetic_inspect_audio_bus(req_id, args):
+def synthetic_inspect_audio_bus(req_id, args: dict) -> dict:
     """Bridge-side shim: inspect a UAudioBus by package path.
 
     Same canonical marker pattern as `synthetic_inspect_sound_class`.
@@ -2865,7 +2865,7 @@ def synthetic_inspect_audio_bus(req_id, args):
     return _run_marker_pattern(req_id, "inspect_audio_bus", "__AUDIOBUS_" + marker + "__", py_code, context=path)
 
 
-def synthetic_inspect_material_function(req_id, args):
+def synthetic_inspect_material_function(req_id, args: dict) -> dict:
     """Bridge-side shim: inspect a UMaterialFunction by package path.
 
     Same canonical marker pattern as the rest of the inspect_* family
@@ -3006,7 +3006,7 @@ def synthetic_inspect_material_function(req_id, args):
     return _run_marker_pattern(req_id, "inspect_material_function", "__MATFUNC_" + marker + "__", py_code, context=path)
 
 
-def synthetic_inspect_metasound(req_id, args):
+def synthetic_inspect_metasound(req_id, args: dict) -> dict:
     """Bridge-side shim: inspect a MetaSoundSource or MetaSoundPatch by package path.
 
     Same canonical marker pattern as `synthetic_inspect_sound_class` /
