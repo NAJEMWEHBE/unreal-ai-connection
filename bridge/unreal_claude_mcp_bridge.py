@@ -1353,6 +1353,12 @@ def synthetic_get_camera_transform(req_id, args):
     transport errors and would have silently snapped the camera to (0,0,0)
     if a `marker_not_found` envelope was returned from get.
     """
+    if not isinstance(args, dict):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "get_camera_transform: invalid_arguments: arguments must be an object",
+        })
+
     marker_prefix = f"__CAM_{uuid.uuid4().hex[:12]}__"
     py_code = (
         "import unreal, json\n"
