@@ -8,6 +8,11 @@
 // Pass "compile": true on the LAST edit in a batch to recompile the BP;
 // compiling per-call has caused editor crashes when many edits arrive in
 // quick succession.
+//
+// Error format: free-form OutError strings (legacy surface — predates the canonical
+// "<tool_name>: <error_code>: <detail>" convention used by later handlers). Migration
+// is deferred; bridge consumers treat OutError as human-readable text rather than
+// parsing for a code prefix.
 
 #include "MCP/MCPHandler.h"
 
