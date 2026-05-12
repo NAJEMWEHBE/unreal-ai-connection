@@ -4,6 +4,11 @@
 // UEditorUtilityWidgetBlueprint. Bypasses the UE 5.7 Python reflection limit
 // on UWidgetBlueprint::WidgetTree (which is UPROPERTY() without EditAnywhere)
 // by accessing the field directly in C++.
+//
+// Error format: free-form OutError strings (legacy surface — predates the canonical
+// "<tool_name>: <error_code>: <detail>" convention used by later handlers). Migration
+// is deferred; bridge consumers treat OutError as human-readable text rather than
+// parsing for a code prefix.
 
 #include "MCP/MCPHandler.h"
 
