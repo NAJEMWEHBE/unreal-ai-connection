@@ -2,6 +2,11 @@
 //
 // inspect_blueprint - return parent class, declared variables, function/event
 // graph names of a Blueprint asset.
+//
+// Error format: free-form OutError strings (legacy surface — predates the canonical
+// "<tool_name>: <error_code>: <detail>" convention used by later handlers). Migration
+// is deferred; bridge consumers treat OutError as human-readable text rather than
+// parsing for a code prefix.
 
 #include "MCP/MCPHandler.h"
 
