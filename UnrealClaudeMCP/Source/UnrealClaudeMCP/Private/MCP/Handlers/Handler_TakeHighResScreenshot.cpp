@@ -3,6 +3,11 @@
 // take_high_res_screenshot - trigger UE's HighResShot via console command.
 // Output goes to Saved/Screenshots/<PlatformEditor>/HighresScreenshot00000.png
 // (e.g. WindowsEditor on Windows, MacEditor on Mac, LinuxEditor on Linux).
+//
+// Error format: free-form OutError strings (legacy surface — predates the canonical
+// "<tool_name>: <error_code>: <detail>" convention used by later handlers). Migration
+// is deferred; bridge consumers treat OutError as human-readable text rather than
+// parsing for a code prefix.
 
 #include "MCP/MCPHandler.h"
 
