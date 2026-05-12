@@ -1,6 +1,11 @@
 // Copyright (c) 2026 HD Media. MIT licensed - see LICENSE.
 //
 // load_level_by_path - load a UE level (UWorld asset) by its package path.
+//
+// Error format: free-form OutError strings (legacy surface — predates the canonical
+// "<tool_name>: <error_code>: <detail>" convention used by later handlers). Migration
+// is deferred; bridge consumers treat OutError as human-readable text rather than
+// parsing for a code prefix.
 
 #include "MCP/MCPHandler.h"
 
