@@ -3132,7 +3132,7 @@ SYNTHETIC_TOOLS = {
 }
 
 
-def handle(req):
+def handle(req: dict) -> dict | None:
     method = req.get("method", "")
     req_id = req.get("id")
     params = req.get("params") or {}
@@ -3175,7 +3175,7 @@ def handle(req):
     return None
 
 
-def main():
+def main() -> None:
     for line in sys.stdin:
         line = line.strip()
         if not line:
