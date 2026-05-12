@@ -1545,6 +1545,48 @@ def test_bulk_duplicate_assets_rejects_dotdot_in_dest_path():
     assert ".." in resp["error"]["message"]
 
 
+def test_bulk_duplicate_assets_rejects_missing_dest_path():
+    """Each entry's dest_path is required; missing it returns -32602 with
+    'dest_path' in the message. No call_ue dispatched. Parity with
+    bulk_move_assets_rejects_missing_dest_folder."""
+    with patch.object(bridge, "call_ue") as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 75, "method": "tools/call",
+            "params": {
+                "name": "bulk_duplicate_assets",
+                "arguments": {
+                    "duplicates": [{"path": "/Game/Foo"}],
+                },
+            },
+        })
+
+    assert m.call_count == 0, "validation must short-circuit before any call_ue"
+    assert resp["error"]["code"] == -32602
+    assert "dest_path" in resp["error"]["message"]
+
+
+def test_bulk_duplicate_assets_rejects_path_with_nul_byte():
+    """Same defensive shape-checks as bulk_move/bulk_rename: NUL byte in any
+    entry's path -> -32602, no call_ue dispatched."""
+    with patch.object(bridge, "call_ue") as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 76, "method": "tools/call",
+            "params": {
+                "name": "bulk_duplicate_assets",
+                "arguments": {
+                    "duplicates": [
+                        {"path": "/Game/Good", "dest_path": "/Game/Archive/Good"},
+                        {"path": "/Game/Bad\x00Asset", "dest_path": "/Game/Archive/Bad"},
+                    ],
+                },
+            },
+        })
+
+    assert m.call_count == 0, "validation must short-circuit before any call_ue"
+    assert resp["error"]["code"] == -32602
+    assert "NUL" in resp["error"]["message"] or "nul" in resp["error"]["message"].lower()
+
+
 def test_inspect_data_asset_is_synthetic():
     """inspect_data_asset is a SYNTHETIC bridge-side handler (PR #92 — Copilot
     parallel-dispatch retry after the PR #90 stream's prompt was hardened):
