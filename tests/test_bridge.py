@@ -2898,6 +2898,23 @@ def test_make_response_error_overrides_result():
     assert r["error"]["code"] == -1
 
 
+def test_make_response_round_trips_non_integer_req_ids():
+    """JSON-RPC 2.0 / MCP allow request ids of type string, integer, OR null.
+    make_response must round-trip whatever was passed in -- the wire-side
+    ID is what the client used to correlate request to response, so munging
+    it (e.g. coercing string -> int, or dropping null) would silently break
+    correlation for clients that use any non-integer convention.
+
+    Covers: string id, null id (rare but legal for notifications-as-RPC
+    edge cases), and a very large int near JSON-RPC's recommended ceiling.
+    """
+    for req_id in ("call-42-uuid-7c5e3", None, 9007199254740991):
+        r = bridge.make_response(req_id, result={"ok": True})
+        assert r["id"] == req_id, f"id was mutated for input {req_id!r}: got {r['id']!r}"
+        assert r["jsonrpc"] == "2.0", "jsonrpc literal must always be the string '2.0'"
+        assert r["result"] == {"ok": True}
+
+
 # -------- handle: initialize / notifications / unknown -----------------------
 
 def test_handle_initialize_returns_protocol_envelope():
