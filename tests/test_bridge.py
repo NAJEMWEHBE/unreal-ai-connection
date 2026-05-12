@@ -2881,6 +2881,36 @@ def test_execute_console_command_schema():
 
 # -------- make_response -------------------------------------------------------
 
+@pytest.mark.parametrize("synth_name", [
+    "wait_for_events",
+    "get_camera_transform",
+    "set_camera_transform",
+    "screenshot_actor",
+    "compile_mod_pak",
+    "compile_mod_pak_direct",
+])
+@pytest.mark.parametrize("bad_args", [None, [], "string", 42])
+def test_synthetic_returns_invalid_arguments_for_non_dict_args(synth_name, bad_args):
+    """PR6 added isinstance(args, dict) guards to 6 synthetics that previously
+    AttributeError'd on the first args.get() if a client sent params.arguments
+    as a list/null/string/int. The guard upgrades the failure to a clean
+    -32602 invalid_arguments envelope.
+
+    This test exercises the guard for each of the 6 newly-protected synthetics
+    across 4 bad-args shapes: None, list, string, int.
+
+    24 parameter combinations total — covers every (synthetic × bad-shape) pair.
+    """
+    synth = bridge.SYNTHETIC_TOOLS[synth_name]
+    resp = synth(req_id=99, args=bad_args)
+    assert "error" in resp, f"expected -32602 error envelope, got result instead: {resp}"
+    assert resp["error"]["code"] == -32602
+    msg = resp["error"]["message"]
+    assert msg.startswith(f"{synth_name}: invalid_arguments:"), (
+        f"error message does not follow '{synth_name}: invalid_arguments:' prefix: {msg}"
+    )
+
+
 def test_make_response_with_result():
     r = bridge.make_response(7, result={"ok": True})
     assert r == {"jsonrpc": "2.0", "id": 7, "result": {"ok": True}}
