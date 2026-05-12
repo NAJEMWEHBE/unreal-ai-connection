@@ -1472,6 +1472,46 @@ def test_bulk_duplicate_assets_partial_failure_stops_when_continue_on_error_fals
     assert body["results"][1]["dest_path"] == "/Game/Archive/Bar"
 
 
+def test_bulk_duplicate_assets_partial_failure_continues_when_continue_on_error_true():
+    """Second duplicate fails (e.g. dest already exists), but
+    continue_on_error=True (default) keeps the loop going. All three
+    duplicates attempted; per-entry error surfaced in results[]. Mirrors the
+    bulk_move / bulk_rename variants of the same test."""
+    ok_resp_1 = {"jsonrpc": "2.0", "id": 1, "result": {"ok": True}}
+    err_resp = {"jsonrpc": "2.0", "id": 1, "error": {
+        "code": -32000,
+        "message": "duplicate_asset: dest_exists: '/Game/Archive/Bar' already exists",
+    }}
+    ok_resp_2 = {"jsonrpc": "2.0", "id": 1, "result": {"ok": True}}
+    with patch.object(bridge, "call_ue", side_effect=[ok_resp_1, err_resp, ok_resp_2]) as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 71, "method": "tools/call",
+            "params": {
+                "name": "bulk_duplicate_assets",
+                "arguments": {
+                    "duplicates": [
+                        {"path": "/Game/Foo", "dest_path": "/Game/Archive/Foo"},
+                        {"path": "/Game/Bar", "dest_path": "/Game/Archive/Bar"},
+                        {"path": "/Game/Baz", "dest_path": "/Game/Archive/Baz"},
+                    ],
+                    "continue_on_error": True,
+                },
+            },
+        })
+
+    assert m.call_count == 3
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert body["ok"] is False
+    assert body["total"] == 3
+    assert body["duplicated"] == 2
+    assert body["failed"] == 1
+    assert body["results"][0]["ok"] is True
+    assert body["results"][1]["ok"] is False
+    assert body["results"][1]["error_code"] == -32000
+    assert body["results"][1]["dest_path"] == "/Game/Archive/Bar"
+    assert body["results"][2]["ok"] is True
+
+
 def test_bulk_duplicate_assets_rejects_missing_duplicates():
     """Schema enforces duplicates as required."""
     resp = bridge.handle({
