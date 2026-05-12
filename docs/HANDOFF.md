@@ -1467,7 +1467,7 @@ Wave A.5 used the **pre-COMMIT** multi-agent ensemble pattern (not retroactive �
 - MAJOR → `FindObject<UClass>(nullptr, *ClassPath)` chosen over deprecated `ANY_PACKAGE` (deprecated in UE 5.1)
 - MAJOR → `GEditor->RequestPlaySession(FRequestPlaySessionParams)` chosen over `EditorInvokeCommand` / `EditorPlaySimulate` as the canonical 5.7 launch API
 
-The pattern paid off again in CI: `test_no_personal_leaks.py` caught a comment-leak ("Nemotron" in two handler files) that a follow-up scrub-commit fixed. Local pytest had skipped it because `git ls-files` doesn't surface unstaged files — operational lesson recorded: **run pytest AFTER git add when adding new files**, not before.
+The pattern paid off again in CI: `test_no_personal_leaks.py` caught a comment-leak — two handler files had credited the specific pre-flight reviewer by name. A follow-up scrub-commit fixed both. Local pytest had skipped the leak because `git ls-files` doesn't surface unstaged files — operational lesson recorded: **run pytest AFTER git add when adding new files**, not before.
 
 **Tool / test totals at the end of this window:**
 
