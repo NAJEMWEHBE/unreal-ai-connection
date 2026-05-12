@@ -3029,6 +3029,53 @@ Returns `{"ok": false, "error_code": "wrong_asset_type", "error_message": "Asset
 
 ---
 
+## inspect_sound_submix
+
+Inspect a `USoundSubmix` (or any `USoundSubmixBase` subclass) by package path: returns the leaf class name, full package path, parent submix asset path, child submix asset paths, and editor-exposed properties (output volume / wet / dry levels, parent-effect-chain count, etc.) via permissive `dir()` enumeration.
+
+**Bridge-side synthetic tool.** Pure Python — composes [`execute_unreal_python`](#execute_unreal_python) + [`get_log_lines`](#get_log_lines) via the marker pattern, identical canonical six-step flow as [`inspect_sound_class`](#inspect_sound_class).
+
+**Marker token:** `__SUBMIX_<12-hex>__...__END__`.
+
+**Permissive property enumeration:** USoundSubmix exposes several editor-only properties that aren't worth hand-curating (output level scaling, dynamic processor chains, effect presets). The embedded script iterates `dir(obj)` filtered to non-underscore names and attempts `get_editor_property(n)` per name — UE raises for non-UPROPERTYs and the script catches + skips silently. Same heuristic as [`inspect_data_asset`](#inspect_data_asset).
+
+**Logical errors as `ok=False` success envelopes:**
+- `asset_not_found` - `EditorAssetLibrary.load_asset(path)` returned `None`.
+- `wrong_asset_type` - path resolved to a non-USoundSubmixBase asset. Response includes `actual_class`.
+- `marker_not_found` - LogPython buffer didn't contain the marker after exec. **Retry typically resolves.**
+- `invalid_json` - marker found but payload didn't JSON-decode.
+
+Transport-level errors (UE editor not running → `-32099`; Python interpreter raised → `-32603`) come back as JSON-RPC errors.
+
+**Params**
+- `path` (string, required) - package path to a USoundSubmix asset, e.g. `/Game/Audio/Submix_Music`.
+
+**Result (ok=true path)**
+- `ok` (bool) - `true`
+- `path` (string) - echoes input
+- `class` (string) - leaf class name from `cls.get_name()`, typically `"SoundSubmix"`
+- `package_path` (string) - full path with object name
+- `parent_submix` (string or null) - parent submix asset path; null when this is a root submix
+- `child_submixes` (array of string) - child submix asset paths; may be empty
+- `properties` (array of `{name, type, value}`) - permissive `dir()` reflection of editor-exposed properties
+
+**Result (ok=false path)**
+- `ok` (bool) - `false`
+- `error_code` (string) - `asset_not_found` / `wrong_asset_type` / `marker_not_found` / `invalid_json`
+- `error_message` (string)
+- `actual_class` (string, only on `wrong_asset_type`)
+
+**Errors (envelope-level):** `-32602` (missing or non-string `path`); `-32603` (UE editor unreachable, or `execute_unreal_python` raised).
+
+**Example - happy path**
+```json
+{"jsonrpc":"2.0","id":1,"method":"inspect_sound_submix","params":{
+  "path": "/Game/Audio/Submix_Music"
+}}
+```
+
+---
+
 ## Adding more tools
 
 See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the recipe. Short version: one `.cpp` file in `Source/UnrealClaudeMCP/Private/MCP/Handlers/`, two registration lines in `UnrealClaudeMCPModule.cpp`, one entry in `Resources/mcp_manifest.json`, one entry in `bridge/unreal_claude_mcp_bridge.py`'s `TOOLS` list, rebuild, restart.
