@@ -22,7 +22,7 @@
 #include "MCP/MCPHandler.h"
 
 #include "Dom/JsonObject.h"
-#include "FileHelpers.h"
+#include "EditorLoadingAndSavingUtils.h"
 
 class FHandler_SaveDirtyAssets : public IUCMCPHandler
 {
