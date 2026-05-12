@@ -3076,6 +3076,50 @@ Transport-level errors (UE editor not running → `-32099`; Python interpreter r
 
 ---
 
+## inspect_audio_bus
+
+Inspect a `UAudioBus` by package path: returns the leaf class name, full package path, the `AudioBusChannels` enum (Mono / Stereo / Quad / 5.1 / 7.1), and any other editor-exposed properties via permissive `dir()` enumeration.
+
+**Bridge-side synthetic tool.** Pure Python — composes [`execute_unreal_python`](#execute_unreal_python) + [`get_log_lines`](#get_log_lines) via the marker pattern, identical flow to [`inspect_sound_class`](#inspect_sound_class).
+
+**Marker token:** `__AUDIOBUS_<12-hex>__...__END__`.
+
+**Permissive property enumeration:** UAudioBus exposes only a small fixed property set in stock UE 5.7 (primarily channel count + tags), but plugins / project subclasses may add more. The embedded script reflects via `dir(obj)` + `get_editor_property(n)` and silently skips non-UPROPERTYs.
+
+**Logical errors as `ok=False` success envelopes:**
+- `asset_not_found` - load returned `None`.
+- `wrong_asset_type` - path resolved to a non-UAudioBus asset. Response includes `actual_class`.
+- `marker_not_found` - LogPython buffer didn't contain the marker. **Retry typically resolves.**
+- `invalid_json` - marker found but payload didn't JSON-decode.
+
+**Params**
+- `path` (string, required) - package path to a UAudioBus asset, e.g. `/Game/Audio/AB_MusicSends`.
+
+**Result (ok=true path)**
+- `ok` (bool) - `true`
+- `path` (string)
+- `class` (string) - typically `"AudioBus"`
+- `package_path` (string)
+- `audio_bus_channels` (string) - enum stringified, e.g. `"Stereo"`
+- `properties` (array of `{name, type, value}`) - permissive reflection of remaining editor-exposed properties
+
+**Result (ok=false path)**
+- `ok` (bool) - `false`
+- `error_code` (string)
+- `error_message` (string)
+- `actual_class` (string, only on `wrong_asset_type`)
+
+**Errors (envelope-level):** `-32602` (missing or non-string `path`); `-32603` (UE editor unreachable, or `execute_unreal_python` raised).
+
+**Example - happy path**
+```json
+{"jsonrpc":"2.0","id":1,"method":"inspect_audio_bus","params":{
+  "path": "/Game/Audio/AB_MusicSends"
+}}
+```
+
+---
+
 ## Adding more tools
 
 See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the recipe. Short version: one `.cpp` file in `Source/UnrealClaudeMCP/Private/MCP/Handlers/`, two registration lines in `UnrealClaudeMCPModule.cpp`, one entry in `Resources/mcp_manifest.json`, one entry in `bridge/unreal_claude_mcp_bridge.py`'s `TOOLS` list, rebuild, restart.
