@@ -13,6 +13,7 @@
 [![MCP](https://img.shields.io/badge/MCP-compatible-7c3aed)](https://modelcontextprotocol.io/)
 [![Tests](https://img.shields.io/badge/pytest-282_passing-success?logo=pytest&logoColor=white)](tests/)
 [![Tools](https://img.shields.io/badge/tools-80-blue)](docs/TOOLS.md)
+[![Changelog](https://img.shields.io/badge/changelog-keep_a_changelog-orange)](CHANGELOG.md)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](#contributing)
 
 ![UnrealClaudeMCP — abstract geometric AI core on the left, orange data streams flowing right into a wireframe low-poly 3D landscape with mountains and a glowing river](docs/images/hero-banner.png)
