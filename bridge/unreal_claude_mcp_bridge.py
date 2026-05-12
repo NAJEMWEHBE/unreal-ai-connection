@@ -1131,7 +1131,7 @@ def call_ue(method: str, params: dict | None) -> dict:
         }
 
 
-def _wrap_tool_result(req_id, result_obj):
+def _wrap_tool_result(req_id, result_obj: dict | list | str | int | float | bool | None) -> dict:
     """Wrap a result object as an MCP tools/call response (JSON-stringified into a text block)."""
     return make_response(req_id, {
         "content": [{"type": "text", "text": json.dumps(result_obj, indent=2)}],
