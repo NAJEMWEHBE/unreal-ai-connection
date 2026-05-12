@@ -11,8 +11,8 @@
 //   - GEditor->IsPlayingSessionInEditor() — canonical state query;
 //     supersedes the older GEditor->PlayWorld != nullptr check (still
 //     works but less reliable across PIE start/end transitions).
-//     (Flagged by NVIDIA Nemotron Super 49B pre-flight review as a
-//     BLOCKER if the older form had been used.)
+//     (Flagged by the pre-flight multi-agent review as a BLOCKER if
+//     the older form had been used.)
 //   - GEditor->RequestPlaySession(FRequestPlaySessionParams) for start.
 //     FRequestPlaySessionParams is the flexible canonical PIE-launch
 //     API; ULevelEditorSubsystem::EditorPlaySimulate() is a high-level

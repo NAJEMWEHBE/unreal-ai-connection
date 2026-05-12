@@ -16,7 +16,8 @@
 //   - FindObject<UClass>(nullptr, *ClassPath) — ANY_PACKAGE was
 //     deprecated in 5.1; nullptr-outer + fully-qualified class path
 //     ('/Script/Engine.RendererSettings') is the canonical UE 5.7
-//     replacement. (Flagged MAJOR by Nemotron Super 49B pre-flight.)
+//     replacement. (Flagged MAJOR by the pre-flight multi-agent
+//     review before code was written.)
 //   - GetDefault<UDeveloperSettings>(C) — CDO read; UDeveloperSettings
 //     classes are always populated from .ini config at module load, so
 //     no LoadConfig() bootstrap is needed here for reflection.
