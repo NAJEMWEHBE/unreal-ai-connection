@@ -2,6 +2,11 @@
 //
 // get_actors_in_level - return name/class/transform of every actor in the
 // active editor world. Equivalent to Blender MCP's get_objects_summary.
+//
+// Error format: free-form OutError strings (legacy surface — predates the canonical
+// "<tool_name>: <error_code>: <detail>" convention used by later handlers). Migration
+// is deferred; bridge consumers treat OutError as human-readable text rather than
+// parsing for a code prefix.
 
 #include "MCP/MCPHandler.h"
 
