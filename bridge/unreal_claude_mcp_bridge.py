@@ -107,6 +107,25 @@ TOOLS = [
         "inputSchema": {"type": "object", "properties": {}},
     },
     {
+        "name": "bulk_inspect_assets",
+        "description": "Inspect multiple assets in one MCP call by composing the inspect_asset C++ handler bridge-side. Returns per-path inspection data plus aggregate counts; partial failures isolated per result. Mirrors the bulk_*_assets family shape. Use for pipeline audits (e.g. enumerate 500 textures and report which lack a power-of-two source).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "paths": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Asset object paths to inspect (each non-empty, NUL + '..' segments rejected)."
+                },
+                "continue_on_error": {
+                    "type": "boolean",
+                    "description": "Default true. When false, stop at first per-path failure and return the partial results."
+                },
+            },
+            "required": ["paths"],
+        },
+    },
+    {
         "name": "get_project_summary",
         "description": "Project name, engine version, enabled plugins, asset counts.",
         "inputSchema": {"type": "object", "properties": {}},
@@ -3149,6 +3168,104 @@ def synthetic_inspect_metasound(req_id, args: dict) -> dict:
 # Map of tool-name -> bridge-side synthetic implementation. These are
 # tools that don't have a corresponding UE handler -- the bridge composes
 # existing UE handlers (or implements pure-protocol logic) to serve them.
+def synthetic_bulk_inspect_assets(req_id, args: dict) -> dict:
+    """Bridge-side composition: inspect multiple assets via the existing
+    `inspect_asset` C++ handler, returning a per-path partial-success
+    structure.
+
+    Loops over `paths` and dispatches one `call_ue("inspect_asset", ...)`
+    per entry, collecting result records. Mirrors the partial-failure
+    semantics of `bulk_delete_assets` / `bulk_move_assets`: by default
+    individual failures do not abort the loop, and partial success is
+    surfaced via `ok: False` + non-zero `failed` count.
+
+    Synthetic rather than C++ for the same reasons as the rest of the
+    bulk_* family — the loop is pure protocol-level composition over an
+    existing handler. For pipeline audits ("inspect 500 textures and
+    report which lack a power-of-two source"), one batched MCP call
+    replaces 500 individual round-trips.
+    """
+    if not isinstance(args, dict):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "bulk_inspect_assets: invalid_arguments: arguments must be an object",
+        })
+
+    if "paths" not in args:
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "bulk_inspect_assets: missing_required_field: 'paths' must be supplied as a list of non-empty strings",
+        })
+
+    paths = args.get("paths")
+    if not isinstance(paths, list):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "bulk_inspect_assets: invalid_field: 'paths' must be a list of non-empty strings",
+        })
+
+    for i, path in enumerate(paths):
+        if not isinstance(path, str) or not path:
+            return make_response(req_id, error={
+                "code": -32602,
+                "message": f"bulk_inspect_assets: invalid_path: paths[{i}] must be a non-empty string",
+            })
+        # Same NUL + `..` path-shape guards as the other bulk_* synthetics.
+        if "\x00" in path:
+            return make_response(req_id, error={
+                "code": -32602,
+                "message": f"bulk_inspect_assets: invalid_path: paths[{i}] contains a NUL byte",
+            })
+        if any(segment == ".." for segment in path.split("/")):
+            return make_response(req_id, error={
+                "code": -32602,
+                "message": f"bulk_inspect_assets: invalid_path: paths[{i}] contains a '..' segment",
+            })
+
+    continue_on_error = args.get("continue_on_error", True)
+    if not isinstance(continue_on_error, bool):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "bulk_inspect_assets: invalid_field: 'continue_on_error' must be a boolean",
+        })
+
+    results = []
+    inspected = 0
+    failed = 0
+    for path in paths:
+        ue_resp = call_ue("inspect_asset", {"path": path})
+        if "error" in ue_resp:
+            failed += 1
+            err = ue_resp["error"]
+            results.append({
+                "path": path,
+                "ok": False,
+                "data": None,
+                "error_code": err.get("code"),
+                "error_message": err.get("message"),
+            })
+            if not continue_on_error:
+                break
+        else:
+            inspected += 1
+            results.append({
+                "path": path,
+                "ok": True,
+                "data": ue_resp.get("result", {}),
+                "error_code": None,
+                "error_message": None,
+            })
+
+    body = {
+        "ok": failed == 0,
+        "total": len(paths),
+        "inspected": inspected,
+        "failed": failed,
+        "results": results,
+    }
+    return _wrap_tool_result(req_id, body)
+
+
 SYNTHETIC_TOOLS = {
     "wait_for_events": synthetic_wait_for_events,
     "get_camera_transform": synthetic_get_camera_transform,
@@ -3160,6 +3277,7 @@ SYNTHETIC_TOOLS = {
     "bulk_move_assets": synthetic_bulk_move_assets,
     "bulk_rename_assets": synthetic_bulk_rename_assets,
     "bulk_duplicate_assets": synthetic_bulk_duplicate_assets,
+    "bulk_inspect_assets": synthetic_bulk_inspect_assets,
     "inspect_data_asset": synthetic_inspect_data_asset,
     "inspect_sound_class": synthetic_inspect_sound_class,
     "inspect_sound_submix": synthetic_inspect_sound_submix,

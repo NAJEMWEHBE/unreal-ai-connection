@@ -107,6 +107,7 @@ def test_tool_names_are_unique_and_match_handlers():
         "save_dirty_assets",
         "get_selected_actors",
         "inspect_input_mappings",
+        "bulk_inspect_assets",
     }
     assert set(names) == expected
 
@@ -206,6 +207,87 @@ def test_inspect_input_mappings_in_tools_catalog():
     assert tool["inputSchema"]["type"] == "object"
     assert tool["inputSchema"]["properties"] == {}
     assert "inspect_input_mappings" not in bridge.SYNTHETIC_TOOLS
+
+
+def test_bulk_inspect_assets_is_synthetic():
+    """Wave A: bulk_inspect_assets is a SYNTHETIC bridge-side composition
+    over inspect_asset. Required 'paths' (list of strings); optional
+    continue_on_error (default true). Mirrors bulk_delete_assets shape."""
+    tool = next((t for t in bridge.TOOLS if t["name"] == "bulk_inspect_assets"), None)
+    assert tool is not None, "bulk_inspect_assets must be in TOOLS catalog"
+    assert tool["inputSchema"]["required"] == ["paths"]
+    props = tool["inputSchema"]["properties"]
+    assert props["paths"]["type"] == "array"
+    assert props["paths"]["items"]["type"] == "string"
+    assert "continue_on_error" in props
+    assert props["continue_on_error"]["type"] == "boolean"
+    assert "bulk_inspect_assets" in bridge.SYNTHETIC_TOOLS
+    assert bridge.SYNTHETIC_TOOLS["bulk_inspect_assets"] is bridge.synthetic_bulk_inspect_assets
+
+
+def test_bulk_inspect_assets_happy_path_composes_inspect_asset():
+    """Loop over paths, dispatch one call_ue('inspect_asset', ...) per entry,
+    accumulate per-path results with full inspection data on success."""
+    inspect_responses = [
+        {"jsonrpc": "2.0", "id": 1, "result": {"ok": True, "path": "/Game/A", "class": "Texture2D"}},
+        {"jsonrpc": "2.0", "id": 1, "result": {"ok": True, "path": "/Game/B", "class": "StaticMesh"}},
+    ]
+    with patch.object(bridge, "call_ue", side_effect=inspect_responses) as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 300, "method": "tools/call",
+            "params": {
+                "name": "bulk_inspect_assets",
+                "arguments": {"paths": ["/Game/A", "/Game/B"]},
+            },
+        })
+
+    assert m.call_count == 2
+    assert m.call_args_list[0].args == ("inspect_asset", {"path": "/Game/A"})
+    assert m.call_args_list[1].args == ("inspect_asset", {"path": "/Game/B"})
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert body["ok"] is True
+    assert body["total"] == 2
+    assert body["inspected"] == 2
+    assert body["failed"] == 0
+    assert body["results"][0]["data"]["class"] == "Texture2D"
+    assert body["results"][1]["data"]["class"] == "StaticMesh"
+
+
+def test_bulk_inspect_assets_partial_failure_continues_when_continue_on_error_true():
+    """Default partial-failure path. Second inspect fails; loop keeps going,
+    third still attempted. Per-path error_code/error_message preserved."""
+    ok_resp = {"jsonrpc": "2.0", "id": 1, "result": {"ok": True, "path": "/Game/A", "class": "Texture2D"}}
+    err_resp = {"jsonrpc": "2.0", "id": 1, "error": {"code": -32000, "message": "inspect_asset: asset_not_found: /Game/Missing"}}
+    ok_resp_2 = {"jsonrpc": "2.0", "id": 1, "result": {"ok": True, "path": "/Game/C", "class": "Material"}}
+    with patch.object(bridge, "call_ue", side_effect=[ok_resp, err_resp, ok_resp_2]) as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 301, "method": "tools/call",
+            "params": {
+                "name": "bulk_inspect_assets",
+                "arguments": {"paths": ["/Game/A", "/Game/Missing", "/Game/C"]},
+            },
+        })
+
+    assert m.call_count == 3
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert body["ok"] is False
+    assert body["total"] == 3
+    assert body["inspected"] == 2
+    assert body["failed"] == 1
+    assert body["results"][1]["ok"] is False
+    assert body["results"][1]["error_code"] == -32000
+
+
+def test_bulk_inspect_assets_rejects_missing_paths():
+    """Required 'paths' field absent -> -32602 with the canonical
+    missing_required_field shape."""
+    resp = bridge.handle({
+        "jsonrpc": "2.0", "id": 302, "method": "tools/call",
+        "params": {"name": "bulk_inspect_assets", "arguments": {}},
+    })
+    assert resp["error"]["code"] == -32602
+    assert "bulk_inspect_assets" in resp["error"]["message"]
+    assert "paths" in resp["error"]["message"]
 
 
 def test_move_asset_in_tools_catalog():

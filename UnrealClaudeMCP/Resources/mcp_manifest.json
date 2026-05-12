@@ -52,6 +52,15 @@
       "returns": "see docs/TOOLS.md"
     },
     {
+      "name": "bulk_inspect_assets",
+      "description": "Inspect multiple assets in one MCP call by composing inspect_asset bridge-side. Returns per-path inspection data plus aggregate counts; mirrors the bulk_*_assets family shape.",
+      "params": {
+        "paths": "array of string (required) - asset object paths to inspect",
+        "continue_on_error": "bool (optional, default true) - when false, stop at first failure"
+      },
+      "returns": "see docs/TOOLS.md"
+    },
+    {
       "name": "get_project_summary",
       "description": "Project name, engine version, enabled plugins, asset counts.",
       "params": {},
