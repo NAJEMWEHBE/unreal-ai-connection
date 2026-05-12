@@ -1890,6 +1890,55 @@ def test_inspect_audio_bus_rejects_missing_path():
     assert "inspect_audio_bus" in resp["error"]["message"]
 
 
+def test_inspect_audio_bus_propagates_wrong_asset_type():
+    """When the loaded asset is not a UAudioBus, embedded Python emits a
+    wrong_asset_type logical-error payload that the bridge propagates as an
+    ok=False success envelope. Same pattern as the other inspect_* synthetics."""
+    exec_resp = {"jsonrpc": "2.0", "id": 1, "result": {"ok": True, "output": ""}}
+    body = {
+        "ok": False,
+        "error_code": "wrong_asset_type",
+        "error_message": "inspect_audio_bus: wrong_asset_type: /Game/Data/DA_NotABus",
+        "actual_class": "MyDataAsset",
+    }
+    marker_hex = "abc123def456"
+    log_line = f"__AUDIOBUS_{marker_hex}__{json.dumps(body)}__END__"
+    log_resp = {"jsonrpc": "2.0", "id": 1, "result": {"lines": [{"category": "LogPython", "message": log_line}]}}
+    fake_uuid = MagicMock()
+    fake_uuid.uuid4.return_value = MagicMock(hex=marker_hex)
+    with patch.object(bridge, "call_ue", side_effect=[exec_resp, log_resp]), \
+         patch.object(bridge, "uuid", fake_uuid):
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 92, "method": "tools/call",
+            "params": {"name": "inspect_audio_bus", "arguments": {"path": "/Game/Data/DA_NotABus"}},
+        })
+
+    assert resp["result"]["isError"] is False
+    got = json.loads(resp["result"]["content"][0]["text"])
+    assert got == body
+
+
+def test_inspect_audio_bus_marker_not_found():
+    """If the LogPython buffer doesn't contain the __AUDIOBUS_ marker after
+    exec, the bridge returns a marker_not_found logical-error envelope with
+    the canonical 'retry typically resolves' hint."""
+    exec_resp = {"jsonrpc": "2.0", "id": 1, "result": {"ok": True, "output": ""}}
+    log_resp = {"jsonrpc": "2.0", "id": 1, "result": {"lines": [
+        {"category": "LogPython", "message": "Some other unrelated python log line"}
+    ]}}
+    with patch.object(bridge, "call_ue", side_effect=[exec_resp, log_resp]):
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 93, "method": "tools/call",
+            "params": {"name": "inspect_audio_bus", "arguments": {"path": "/Game/Audio/AB_Whatever"}},
+        })
+
+    assert resp["result"]["isError"] is False
+    got = json.loads(resp["result"]["content"][0]["text"])
+    assert got["ok"] is False
+    assert got["error_code"] == "marker_not_found"
+    assert "retry typically resolves" in got["error_message"]
+
+
 def test_inspect_material_function_is_synthetic():
     """inspect_material_function is a SYNTHETIC bridge-side handler. Opus-
     direct authorship after PR #101 parallel-dispatch round where both
