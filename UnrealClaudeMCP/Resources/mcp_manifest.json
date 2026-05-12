@@ -46,6 +46,12 @@
       "returns": "see docs/TOOLS.md"
     },
     {
+      "name": "inspect_input_mappings",
+      "description": "Dump the project's legacy UInputSettings (action + axis mappings) plus an Enhanced Input migration-status flag.",
+      "params": {},
+      "returns": "see docs/TOOLS.md"
+    },
+    {
       "name": "get_project_summary",
       "description": "Project name, engine version, enabled plugins, asset counts.",
       "params": {},

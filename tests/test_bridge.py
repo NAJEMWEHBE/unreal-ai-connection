@@ -106,6 +106,7 @@ def test_tool_names_are_unique_and_match_handlers():
         "list_levels",
         "save_dirty_assets",
         "get_selected_actors",
+        "inspect_input_mappings",
     }
     assert set(names) == expected
 
@@ -194,6 +195,17 @@ def test_get_selected_actors_in_tools_catalog():
     assert tool["inputSchema"]["type"] == "object"
     assert tool["inputSchema"]["properties"] == {}
     assert "get_selected_actors" not in bridge.SYNTHETIC_TOOLS
+
+
+def test_inspect_input_mappings_in_tools_catalog():
+    """Wave A: inspect_input_mappings is a new C++ handler. Returns the
+    project's legacy UInputSettings (action_mappings + axis_mappings) plus
+    a uses_enhanced_input flag. No params, no required field."""
+    tool = next((t for t in bridge.TOOLS if t["name"] == "inspect_input_mappings"), None)
+    assert tool is not None, "inspect_input_mappings must be in TOOLS catalog"
+    assert tool["inputSchema"]["type"] == "object"
+    assert tool["inputSchema"]["properties"] == {}
+    assert "inspect_input_mappings" not in bridge.SYNTHETIC_TOOLS
 
 
 def test_move_asset_in_tools_catalog():

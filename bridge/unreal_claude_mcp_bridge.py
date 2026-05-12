@@ -102,6 +102,11 @@ TOOLS = [
         "inputSchema": {"type": "object", "properties": {}},
     },
     {
+        "name": "inspect_input_mappings",
+        "description": "Dump the project's legacy UInputSettings: action_mappings (name+key+modifier flags) and axis_mappings (name+key+scale), plus a uses_enhanced_input flag that signals whether the project has migrated to the Enhanced Input system. The #1 context an LLM needs before touching gameplay code.",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
         "name": "get_project_summary",
         "description": "Project name, engine version, enabled plugins, asset counts.",
         "inputSchema": {"type": "object", "properties": {}},
