@@ -3120,6 +3120,51 @@ Inspect a `UAudioBus` by package path: returns the leaf class name, full package
 
 ---
 
+## inspect_material_function
+
+Inspect a `UMaterialFunction` (or `UMaterialFunctionMaterialLayer` / `UMaterialFunctionMaterialLayerBlend`) by package path: returns the leaf class name, full package path, exposed input/output pin names, and remaining editor-exposed properties via permissive `dir()` enumeration. Graph topology (node-to-node wiring) is NOT reflected here — that requires a dedicated traversal pass beyond surface-level metadata.
+
+**Bridge-side synthetic tool.** Pure Python — composes [`execute_unreal_python`](#execute_unreal_python) + [`get_log_lines`](#get_log_lines) via the marker pattern, identical flow to [`inspect_material`](#inspect_material) and [`inspect_sound_class`](#inspect_sound_class).
+
+**Marker token:** `__MATFUNC_<12-hex>__...__END__`.
+
+**Input/output pin enumeration:** UMaterialFunction's input pins live in `FunctionExpressions` (a TArray of `UMaterialExpressionFunctionInput*`); outputs live in matching `UMaterialExpressionFunctionOutput*`. The embedded script walks the expression list, casts each to the input/output expression classes, and reads `input_name` / `output_name`. Both arrays are returned as plain strings; type info (which scalar / vector / texture pin type) is deferred to a later release.
+
+**Logical errors as `ok=False` success envelopes:**
+- `asset_not_found` - load returned `None`.
+- `wrong_asset_type` - path resolved to a non-UMaterialFunction asset. Response includes `actual_class`.
+- `marker_not_found` - LogPython buffer didn't contain the marker. **Retry typically resolves.**
+- `invalid_json` - marker found but payload didn't JSON-decode.
+
+**Params**
+- `path` (string, required) - package path to a UMaterialFunction asset, e.g. `/Game/Materials/MF_BlendThreshold`.
+
+**Result (ok=true path)**
+- `ok` (bool) - `true`
+- `path` (string)
+- `class` (string) - typically `"MaterialFunction"` / `"MaterialFunctionMaterialLayer"` / `"MaterialFunctionMaterialLayerBlend"`
+- `package_path` (string)
+- `inputs` (array of string) - input pin names; may be empty
+- `outputs` (array of string) - output pin names; may be empty
+- `properties` (array of `{name, type, value}`) - permissive reflection of remaining editor-exposed properties
+
+**Result (ok=false path)**
+- `ok` (bool) - `false`
+- `error_code` (string)
+- `error_message` (string)
+- `actual_class` (string, only on `wrong_asset_type`)
+
+**Errors (envelope-level):** `-32602` (missing or non-string `path`); `-32603` (UE editor unreachable, or `execute_unreal_python` raised).
+
+**Example - happy path**
+```json
+{"jsonrpc":"2.0","id":1,"method":"inspect_material_function","params":{
+  "path": "/Game/Materials/MF_BlendThreshold"
+}}
+```
+
+---
+
 ## Adding more tools
 
 See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the recipe. Short version: one `.cpp` file in `Source/UnrealClaudeMCP/Private/MCP/Handlers/`, two registration lines in `UnrealClaudeMCPModule.cpp`, one entry in `Resources/mcp_manifest.json`, one entry in `bridge/unreal_claude_mcp_bridge.py`'s `TOOLS` list, rebuild, restart.
