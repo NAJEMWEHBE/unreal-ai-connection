@@ -1139,7 +1139,7 @@ def _wrap_tool_result(req_id, result_obj: dict | list | str | int | float | bool
     })
 
 
-def _run_marker_pattern(req_id, tool_name, marker_prefix, py_code, context=""):
+def _run_marker_pattern(req_id, tool_name: str, marker_prefix: str, py_code: str, context: str = "") -> dict:
     """Canonical Python-shim pattern for synthetic tools that need to run
     arbitrary `unreal.*` Python in the UE editor and read its JSON output.
 
