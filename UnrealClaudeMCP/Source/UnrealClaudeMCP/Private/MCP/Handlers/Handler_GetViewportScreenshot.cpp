@@ -2,6 +2,11 @@
 //
 // get_viewport_screenshot - capture the active editor viewport as a PNG and
 // return it base64-encoded inline.
+//
+// Error format: free-form OutError strings (legacy surface — predates the canonical
+// "<tool_name>: <error_code>: <detail>" convention used by later handlers). Migration
+// is deferred; bridge consumers treat OutError as human-readable text rather than
+// parsing for a code prefix.
 
 #include "MCP/MCPHandler.h"
 
