@@ -104,6 +104,7 @@ def test_tool_names_are_unique_and_match_handlers():
         "inspect_metasound",
         "get_engine_version",
         "list_levels",
+        "save_dirty_assets",
     }
     assert set(names) == expected
 
@@ -163,6 +164,23 @@ def test_list_levels_in_tools_catalog():
     assert "required" not in tool["inputSchema"] or tool["inputSchema"]["required"] == []
     # NOT a synthetic — dispatches straight to the UE C++ handler.
     assert "list_levels" not in bridge.SYNTHETIC_TOOLS
+
+
+def test_save_dirty_assets_in_tools_catalog():
+    """Wave A: save_dirty_assets is a new C++ handler closing the
+    persistence loop after every edit. Optional include_levels +
+    include_content (both default true) — mirrors editor 'Save All'."""
+    tool = next((t for t in bridge.TOOLS if t["name"] == "save_dirty_assets"), None)
+    assert tool is not None, "save_dirty_assets must be in TOOLS catalog"
+    props = tool["inputSchema"]["properties"]
+    assert "include_levels" in props
+    assert props["include_levels"]["type"] == "boolean"
+    assert "include_content" in props
+    assert props["include_content"]["type"] == "boolean"
+    # All params optional — no required field.
+    assert "required" not in tool["inputSchema"] or tool["inputSchema"]["required"] == []
+    # NOT a synthetic.
+    assert "save_dirty_assets" not in bridge.SYNTHETIC_TOOLS
 
 
 def test_move_asset_in_tools_catalog():

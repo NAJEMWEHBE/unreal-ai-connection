@@ -86,6 +86,17 @@ TOOLS = [
         },
     },
     {
+        "name": "save_dirty_assets",
+        "description": "Persist every in-memory-modified asset + map to disk. Same as editor 'Save All'. Closes the gap where edit-side tools (set_actor_property, set_mi_parameter, edit_widget_tree, etc.) mutated UObjects but left them dirty. Optional include_levels + include_content default to true.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "include_levels": {"type": "boolean", "description": "Save dirty .umap level packages (default true)."},
+                "include_content": {"type": "boolean", "description": "Save dirty .uasset content packages (default true)."},
+            },
+        },
+    },
+    {
         "name": "get_project_summary",
         "description": "Project name, engine version, enabled plugins, asset counts.",
         "inputSchema": {"type": "object", "properties": {}},

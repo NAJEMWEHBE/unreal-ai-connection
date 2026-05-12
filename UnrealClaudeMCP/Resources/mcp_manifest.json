@@ -31,6 +31,15 @@
       "returns": "see docs/TOOLS.md"
     },
     {
+      "name": "save_dirty_assets",
+      "description": "Persist every in-memory-modified asset + map to disk. Same as editor 'Save All'.",
+      "params": {
+        "include_levels": "bool (optional, default true) - save dirty .umap level packages",
+        "include_content": "bool (optional, default true) - save dirty .uasset content packages"
+      },
+      "returns": "see docs/TOOLS.md"
+    },
+    {
       "name": "get_project_summary",
       "description": "Project name, engine version, enabled plugins, asset counts.",
       "params": {},
