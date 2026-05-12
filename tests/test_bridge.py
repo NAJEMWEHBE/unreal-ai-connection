@@ -1784,6 +1784,50 @@ def test_marker_pattern_truncated_returns_marker_truncated_error_code():
     assert "/Game/Truncated" in got["error_message"]
 
 
+def test_marker_pattern_propagates_execute_unreal_python_failure_envelope():
+    """If execute_unreal_python returns `ok: False` (the embedded Python
+    interpreter raised — syntax error, runtime exception, etc), the marker
+    pattern must surface that as a -32603 transport-class error rather than
+    proceeding to scan logs for a marker that was never emitted.
+
+    The `output` field of the exec response (which carries the Python
+    traceback) must be surfaced in the error message so the caller can debug
+    without re-running the call.
+
+    Construction: exec_resp has ok=False + a traceback in output. Bridge
+    should short-circuit before the second call_ue (get_log_lines) and return
+    the error. No log scan happens; the bridge doesn't try to recover."""
+    traceback_text = (
+        'Traceback (most recent call last):\n'
+        '  File "<embed>", line 5, in <module>\n'
+        '    obj.get_editor_property("MissingProperty")\n'
+        'AttributeError: ...'
+    )
+    exec_resp = {"jsonrpc": "2.0", "id": 1, "result": {
+        "ok": False,
+        "output": traceback_text,
+    }}
+    with patch.object(bridge, "call_ue", side_effect=[exec_resp]) as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 200, "method": "tools/call",
+            "params": {"name": "inspect_data_asset", "arguments": {"path": "/Game/Foo"}},
+        })
+
+    # Only the exec round-trip happened; the bridge did NOT proceed to fetch
+    # logs because there's nothing to scan.
+    assert m.call_count == 1, (
+        f"bridge made {m.call_count} call_ue calls; expected 1 (exec only — "
+        f"no log scan when exec itself failed)"
+    )
+    assert m.call_args_list[0].args[0] == "execute_unreal_python"
+
+    # Failure surfaces as a JSON-RPC -32603 transport error (not a
+    # success-envelope with ok=False), because the caller can't usefully
+    # retry — the Python is broken, retry won't help.
+    assert "error" in resp, f"expected JSON-RPC error envelope, got: {resp}"
+    assert resp["error"]["code"] == -32603
+
+
 def test_marker_pattern_bad_json_returns_invalid_json_error_code():
     """If a LogPython line contains a full marker block (prefix + __END__)
     but the payload between them isn't valid JSON, the bridge must return
