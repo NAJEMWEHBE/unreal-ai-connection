@@ -3165,6 +3165,64 @@ Inspect a `UMaterialFunction` (or `UMaterialFunctionMaterialLayer` / `UMaterialF
 
 ---
 
+## inspect_metasound
+
+Inspect a `UMetaSoundSource` or `UMetaSoundPatch` asset by package path: returns the leaf class name (which of the two it is), full package path, and any other editor-exposed UPROPERTYs via permissive `dir()` enumeration. Graph structure (node / connection topology) is NOT reflected here — that requires a dedicated traversal pass.
+
+**Bridge-side synthetic tool.** Pure Python — composes [`execute_unreal_python`](#execute_unreal_python) + [`get_log_lines`](#get_log_lines) via the marker pattern, identical flow to [`inspect_sound_class`](#inspect_sound_class).
+
+**Marker token:** `__METASOUND_<12-hex>__...__END__`.
+
+**Accepts both subclasses:**
+- `UMetaSoundSource` - the player-attached emitter form (most common).
+- `UMetaSoundPatch` - a reusable subgraph that another MetaSound includes.
+
+Both inherit from common base; this tool accepts either and returns `class` distinguishing them in the response.
+
+**Permissive property enumeration:** MetaSound exposes a moderate fixed property set (output target, volume modulation, parameter pack metadata). Plugins / project subclasses may add more. The embedded script reflects via `dir(obj)` + `get_editor_property(n)` and silently skips non-UPROPERTYs. For graph-level introspection (nodes, connections, parameter inputs), use [`execute_unreal_python`](#execute_unreal_python) with a custom traversal.
+
+**Logical errors as `ok=False` success envelopes:**
+- `asset_not_found` - load returned `None`.
+- `wrong_asset_type` - path resolved to neither UMetaSoundSource nor UMetaSoundPatch. Response includes `actual_class`.
+- `metasound_unavailable` - the MetaSound plugin is not enabled in the running project; the embedded reflection couldn't `import unreal.MetaSoundSource`. Enable the MetaSound plugin to use this tool.
+- `marker_not_found` - LogPython buffer didn't contain the marker. **Retry typically resolves.**
+- `invalid_json` - marker found but payload didn't JSON-decode.
+
+**Params**
+- `path` (string, required) - package path to a MetaSound asset, e.g. `/Game/Audio/MS_Music`.
+
+**Result (ok=true path)**
+- `ok` (bool) - `true`
+- `path` (string)
+- `class` (string) - `"MetaSoundSource"` or `"MetaSoundPatch"`
+- `package_path` (string)
+- `properties` (array of `{name, type, value}`) - permissive reflection
+
+**Result (ok=false path)**
+- `ok` (bool) - `false`
+- `error_code` (string) - one of the five codes above
+- `error_message` (string)
+- `actual_class` (string, only on `wrong_asset_type`)
+
+**Errors (envelope-level):** `-32602` (missing or non-string `path`); `-32603` (UE editor unreachable, or `execute_unreal_python` raised).
+
+**Example - happy path**
+```json
+{"jsonrpc":"2.0","id":1,"method":"inspect_metasound","params":{
+  "path": "/Game/Audio/MS_Music"
+}}
+```
+
+**Example - metasound plugin not enabled**
+```json
+{"jsonrpc":"2.0","id":2,"method":"inspect_metasound","params":{
+  "path": "/Game/Audio/MS_Music"
+}}
+```
+Returns `{"ok": false, "error_code": "metasound_unavailable", "error_message": "MetaSound plugin not enabled - enable it in Plugins > Audio"}`.
+
+---
+
 ## Adding more tools
 
 See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the recipe. Short version: one `.cpp` file in `Source/UnrealClaudeMCP/Private/MCP/Handlers/`, two registration lines in `UnrealClaudeMCPModule.cpp`, one entry in `Resources/mcp_manifest.json`, one entry in `bridge/unreal_claude_mcp_bridge.py`'s `TOOLS` list, rebuild, restart.
