@@ -1083,14 +1083,17 @@ def recv_framed(sock: socket.socket) -> bytes:
     return recv_exact(sock, length)
 
 
-def write_msg(obj):
+def write_msg(obj: dict) -> None:
     """Write one MCP message to stdout (newline-delimited)."""
     sys.stdout.write(json.dumps(obj) + "\n")
     sys.stdout.flush()
 
 
-def make_response(req_id, result=None, error=None):
-    msg = {"jsonrpc": "2.0", "id": req_id}
+def make_response(req_id, result=None, error: dict | None = None) -> dict:
+    """Build a JSON-RPC 2.0 response envelope. `error` (if non-None) wins over
+    `result`. `req_id` is passed through verbatim — JSON-RPC / MCP allow int,
+    str, or null ids and the bridge must not coerce."""
+    msg: dict = {"jsonrpc": "2.0", "id": req_id}
     if error is not None:
         msg["error"] = error
     else:
@@ -1098,7 +1101,7 @@ def make_response(req_id, result=None, error=None):
     return msg
 
 
-def call_ue(method, params):
+def call_ue(method: str, params: dict | None) -> dict:
     """Send one JSON-RPC request to the UE server, return the response dict."""
     try:
         s = socket.socket()
