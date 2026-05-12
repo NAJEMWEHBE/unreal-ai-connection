@@ -13,9 +13,9 @@ plugin speaks raw JSON-RPC over a local TCP socket (default
 Behaviour:
   - "initialize"             returned synthetically (does NOT hit the UE server)
   - "notifications/*"        consumed silently
-  - "tools/list"             returns a static list of all 82 tools (66
+  - "tools/list"             returns a static list of all 86 tools (69
                              dispatched to the UE plugin's C++ handlers
-                             plus 16 bridge-side synthetic tools served by
+                             plus 17 bridge-side synthetic tools served by
                              SYNTHETIC_TOOLS without crossing the wire as
                              a single UE round-trip)
   - "tools/call"             unpacks {name, arguments} and forwards to the
@@ -45,19 +45,20 @@ SERVER_NAME = "unreal-claude-mcp"
 SERVER_VERSION = "0.9.1"
 
 # Mirror of UnrealClaudeMCP/Resources/mcp_manifest.json - kept in sync manually.
-# 80 tool entries total. 64 are dispatched straight to UE C++ handlers
+# 86 tool entries total. 69 are dispatched straight to UE C++ handlers
 # (see UnrealClaudeMCPModule.cpp's Reg.Register(...) block). The remaining
-# 16 -- wait_for_events, get_camera_transform, set_camera_transform,
+# 17 -- wait_for_events, get_camera_transform, set_camera_transform,
 # screenshot_actor, compile_mod_pak, compile_mod_pak_direct,
 # bulk_delete_assets, bulk_move_assets, bulk_rename_assets,
-# bulk_duplicate_assets, inspect_data_asset, inspect_sound_class,
-# inspect_sound_submix, inspect_audio_bus, inspect_material_function,
-# inspect_metasound -- are bridge-side synthetic tools served by
-# SYNTHETIC_TOOLS (see below) without a dedicated UE handler: they either
-# compose existing handlers (focus + screenshot, repeated poll, loop over
-# delete_asset / move_asset / rename_asset / duplicate_asset), run the
-# matching unreal.* Python via execute_unreal_python with the marker
-# pattern (most inspect_* shims), or (compile_mod_pak / compile_mod_pak_direct)
+# bulk_duplicate_assets, bulk_inspect_assets, inspect_data_asset,
+# inspect_sound_class, inspect_sound_submix, inspect_audio_bus,
+# inspect_material_function, inspect_metasound -- are bridge-side
+# synthetic tools served by SYNTHETIC_TOOLS (see below) without a
+# dedicated UE handler: they either compose existing handlers (focus +
+# screenshot, repeated poll, loop over delete_asset / move_asset /
+# rename_asset / duplicate_asset / inspect_asset), run the matching
+# unreal.* Python via execute_unreal_python with the marker pattern
+# (most inspect_* shims), or (compile_mod_pak / compile_mod_pak_direct)
 # shell out to RunUAT.bat entirely outside the UE process.
 TOOLS = [
     {
