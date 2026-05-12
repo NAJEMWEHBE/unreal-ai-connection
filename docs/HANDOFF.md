@@ -1352,4 +1352,14 @@ Start-Process 'F:\UE_5.7\Engine\Binaries\Win64\UnrealEditor.exe' \
 
 Bash-side launches do not work — `Start-Process` is a PowerShell cmdlet, not a Bash command. Use the PowerShell tool (not the Bash tool) for the launch. This caught the autopilot-extension window once before the reinforcement; documenting here so the trap doesn't recur.
 
+**Companion rule (reiterated by the maintainer 2026-05-13 right after the launch-permission reinforcement): close UE when verification work is done.** UE 5.7 in Editor mode reserves ~4 GB of RAM and keeps several CPU threads pinned; leaving it open between verification windows wastes resources the maintainer wants reclaimed. The right cadence is:
+
+```powershell
+# When the verification panel finishes (or any time UE is idle):
+Get-Process UnrealEditor -ErrorAction SilentlyContinue | Stop-Process -Force
+Get-Process UnrealTraceServer -ErrorAction SilentlyContinue | Stop-Process -Force
+```
+
+Then re-launch via the recipe above when the next live verification call is needed. The 2-minute warm-up is the cost; the cost of leaving it running idle for an hour is higher.
+
 **Seventeenth consecutive closing-note.** Session 2026-05-12 now spans 8+ documented windows.
