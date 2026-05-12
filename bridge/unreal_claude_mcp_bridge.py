@@ -97,6 +97,11 @@ TOOLS = [
         },
     },
     {
+        "name": "get_selected_actors",
+        "description": "Return name/label/class/transform of every actor currently selected in the editor's World Outliner / viewport. Companion to apply_python_to_selection — lets the LLM observe what is selected before running code against it.",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
         "name": "get_project_summary",
         "description": "Project name, engine version, enabled plugins, asset counts.",
         "inputSchema": {"type": "object", "properties": {}},

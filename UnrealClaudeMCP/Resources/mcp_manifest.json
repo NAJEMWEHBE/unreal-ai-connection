@@ -40,6 +40,12 @@
       "returns": "see docs/TOOLS.md"
     },
     {
+      "name": "get_selected_actors",
+      "description": "Return name/label/class/transform of every actor currently selected in the editor. Companion to apply_python_to_selection.",
+      "params": {},
+      "returns": "see docs/TOOLS.md"
+    },
+    {
       "name": "get_project_summary",
       "description": "Project name, engine version, enabled plugins, asset counts.",
       "params": {},

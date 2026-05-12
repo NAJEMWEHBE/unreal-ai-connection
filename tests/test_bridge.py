@@ -105,6 +105,7 @@ def test_tool_names_are_unique_and_match_handlers():
         "get_engine_version",
         "list_levels",
         "save_dirty_assets",
+        "get_selected_actors",
     }
     assert set(names) == expected
 
@@ -181,6 +182,18 @@ def test_save_dirty_assets_in_tools_catalog():
     assert "required" not in tool["inputSchema"] or tool["inputSchema"]["required"] == []
     # NOT a synthetic.
     assert "save_dirty_assets" not in bridge.SYNTHETIC_TOOLS
+
+
+def test_get_selected_actors_in_tools_catalog():
+    """Wave A: get_selected_actors is a new C++ handler. Companion to
+    apply_python_to_selection — lets the LLM observe what the user has
+    selected before running code against it. No params, no error paths
+    for empty selection (returns count:0)."""
+    tool = next((t for t in bridge.TOOLS if t["name"] == "get_selected_actors"), None)
+    assert tool is not None, "get_selected_actors must be in TOOLS catalog"
+    assert tool["inputSchema"]["type"] == "object"
+    assert tool["inputSchema"]["properties"] == {}
+    assert "get_selected_actors" not in bridge.SYNTHETIC_TOOLS
 
 
 def test_move_asset_in_tools_catalog():
