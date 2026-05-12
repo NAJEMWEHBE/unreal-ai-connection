@@ -614,6 +614,62 @@ def test_set_camera_transform_is_synthetic():
     assert bridge.SYNTHETIC_TOOLS["set_camera_transform"] is bridge.synthetic_set_camera_transform
 
 
+def test_set_camera_transform_no_op_read_when_both_location_and_rotation_omitted():
+    """Calling set_camera_transform with neither location nor rotation forwards
+    to synthetic_get_camera_transform (no-op read). The caller gets the
+    current camera state back without mutating anything; the embedded UE
+    Python for the SET branch is never compiled or sent.
+
+    This is a deliberate edge-case in the API: omit both fields and the call
+    is harmless. Tested here because the no-op-read branch had no coverage
+    despite being the safest call pattern callers might lean on for
+    "what's the current camera?" introspection."""
+    captured = []
+
+    def fake_call_ue(method, args):
+        captured.append((method, args))
+        if method == "execute_unreal_python":
+            return {"jsonrpc": "2.0", "id": 1, "result": {"ok": True, "output": ""}}
+        if method == "get_log_lines":
+            body = {
+                "location": {"x": 10.0, "y": 20.0, "z": 30.0},
+                "rotation": {"pitch": 5.0, "yaw": -45.0, "roll": 0.0},
+            }
+            log_line = f"__CAM_abc123def456__{json.dumps(body)}__END__"
+            return {"jsonrpc": "2.0", "id": 1, "result": {
+                "lines": [{"category": "LogPython", "message": log_line}],
+            }}
+        return {"jsonrpc": "2.0", "id": 1, "result": {"ok": True}}
+
+    fake_uuid = MagicMock()
+    fake_uuid.uuid4.return_value = MagicMock(hex="abc123def456")
+    with patch.object(bridge, "call_ue", side_effect=fake_call_ue), \
+         patch.object(bridge, "uuid", fake_uuid):
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 100, "method": "tools/call",
+            "params": {"name": "set_camera_transform", "arguments": {}},
+        })
+
+    # The no-op-read branch forwards to get_camera_transform, which runs
+    # the marker pattern: execute_unreal_python + get_log_lines.
+    assert any(method == "execute_unreal_python" for method, _ in captured)
+    assert any(method == "get_log_lines" for method, _ in captured)
+
+    # No SET-side py_code emitted (no `unreal.UnrealEditorSubsystem` mention
+    # in the exec call, which is the SET-branch signature).
+    set_branch_calls = [
+        args for method, args in captured
+        if method == "execute_unreal_python"
+        and "set_level_viewport_camera_info" in args.get("code", "")
+    ]
+    assert not set_branch_calls, "no-op-read must not run the SET-side py_code"
+
+    # Response surfaces the read-back camera state directly.
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert body["location"] == {"x": 10.0, "y": 20.0, "z": 30.0}
+    assert body["rotation"] == {"pitch": 5.0, "yaw": -45.0, "roll": 0.0}
+
+
 def test_set_camera_transform_uses_property_set_not_positional_rotator() -> None:
     """The embedded Python that set_camera_transform sends to UE must use
     property-set assignment (`_r.pitch = ...; _r.yaw = ...; _r.roll = ...`)
