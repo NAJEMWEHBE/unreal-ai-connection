@@ -1095,6 +1095,44 @@ def test_bulk_move_assets_partial_failure_stops_when_continue_on_error_false():
     assert body["results"][1]["error_code"] == -32000
 
 
+def test_bulk_move_assets_partial_failure_continues_when_continue_on_error_true():
+    """Second path fails, but continue_on_error=True (default) keeps the loop
+    going and surfaces per-path errors in results[]. All three paths attempted;
+    the failure does NOT abort the third call. Mirrors the
+    _stops_when_continue_on_error_false test but exercises the default-on
+    branch that the original partial-failure test never covered."""
+    ok_resp_1 = {"jsonrpc": "2.0", "id": 1, "result": {"ok": True}}
+    err_resp = {"jsonrpc": "2.0", "id": 1, "error": {
+        "code": -32000,
+        "message": "move_asset: not_found: '/Game/Bar'",
+    }}
+    ok_resp_2 = {"jsonrpc": "2.0", "id": 1, "result": {"ok": True}}
+    with patch.object(bridge, "call_ue", side_effect=[ok_resp_1, err_resp, ok_resp_2]) as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 51, "method": "tools/call",
+            "params": {
+                "name": "bulk_move_assets",
+                "arguments": {
+                    "paths": ["/Game/Foo", "/Game/Bar", "/Game/Baz"],
+                    "dest_folder": "/Game/Archive",
+                    "continue_on_error": True,
+                },
+            },
+        })
+
+    assert m.call_count == 3
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert body["ok"] is False
+    assert body["total"] == 3
+    assert body["moved"] == 2
+    assert body["failed"] == 1
+    assert body["dest_folder"] == "/Game/Archive"
+    assert body["results"][0]["ok"] is True
+    assert body["results"][1]["ok"] is False
+    assert body["results"][1]["error_code"] == -32000
+    assert body["results"][2]["ok"] is True
+
+
 def test_bulk_move_assets_rejects_missing_paths():
     """Schema enforces paths as required; missing it returns -32602."""
     resp = bridge.handle({
