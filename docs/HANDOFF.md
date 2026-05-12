@@ -1286,28 +1286,29 @@ This window picked up after the 16th closing-note and pushed a "documentation + 
 
 User explicit directive: "always from the beginning till the end, multi-agent work. You're the leader, and you review all of the codes that you receive from all of the AI models." The rule is now baked into the operating expectation, not a per-PR choice. Every substantive change in this session was reviewed by at least one external model before push.
 
-**Multi-agent roster wired this session:**
+**Multi-agent roster wired this session (slot names; specific provider/model identifiers live in the maintainer's local memory file, not this public doc):**
 
-| Slot | Tool | Used for |
-|---|---|---|
-| Orchestrator + integrator | Opus 4.7 | Reviews every diff, integrates, ships PRs |
-| C++ author | Codex CLI (GPT-5.5, xhigh, 1.5x) | Sequencer / MRQ (attended sessions) |
-| Python author + recon | Sonnet 4.6 (general-purpose subagent, READ-ONLY) | Codebase recon, opportunity scans |
-| C++ trap-hunter | NVIDIA `nemotron-super-49b` (`nvidia/llama-3.3-nemotron-super-49b-v1`) | Pre-flight UE 5.7 API audits |
-| Python diff reviewer | NVIDIA `llama-3.3-70b` | Convention / dispatch checks |
-| Reasoning ensemble | NVIDIA `qwen3-next-80b` + `kimi-k2.6` + `deepseek-v4-pro` | High-stakes diff ensemble |
-| Local first-opinion | Local Ollama `nemotron3:33b` | Free + fast trap-hunt |
-| Local scaffold | Local Ollama `gemma4:e4b` (8B) | Quick design hints |
-| PR-level second opinion | GitHub Copilot CLI (`gh copilot`) | Diff explanation pre-merge |
-| Post-PR safety net | Gemini auto-review (CI bot) | Automatic on PR open |
+| Slot | Used for |
+|---|---|
+| Orchestrator + integrator | Opus reviews every diff, integrates, ships PRs |
+| C++ author | Codex CLI (Sequencer / MRQ on attended sessions) |
+| Python author + recon | Sonnet subagent (read-only — codebase recon + opportunity scans) |
+| C++ trap-hunter | NVIDIA-cloud reasoning model — pre-flight UE 5.7 API audits |
+| Python diff reviewer | NVIDIA-cloud 70B-class instruct model — convention / dispatch checks |
+| Reasoning ensemble | NVIDIA-cloud (3 different vendors / MoE topologies fan-out for high-stakes diffs) |
+| Local first-opinion | Local OSS LLM (~33B reasoning-tuned) — free + fast trap-hunt |
+| Local scaffold | Local OSS LLM (~8B) — quick design hints |
+| PR-level second opinion | GitHub Copilot CLI (`gh copilot`) — diff explanation pre-merge |
+| Post-PR safety net | Gemini auto-review (CI bot) — automatic on PR open |
 
-**Models unavailable but provisioned on disk (do not re-try unless hardware changes):**
-- Local Ollama `nemotron-3-super:latest` (NVIDIA flagship 123.6B MoE, on disk at `F:\ollama\models\manifests\registry.ollama.ai\library\nemotron-3-super\`) — OOM on current RAM (needs 76.6 GiB, system has ~37 GiB). The NVIDIA-cloud-hosted variant (`nemotron-super-49b`) substitutes; same NVIDIA tuning lineage, smaller (49B) + remote.
-- Old `mcp__NVIDIA_Models__*` endpoint — disconnected mid-session. New `mcp__plugin_nvidia-models_nvidia-models__*` plugin replaces it with stronger roster (Llama 4 Maverick, Nemotron Super 49B, Kimi K2.6, Qwen3-Next 80B, DeepSeek V4 Pro).
+The MCP servers in play this session: a NVIDIA cloud plugin (`mcp__plugin_nvidia-models_*`) and a local OSS LLM bridge (`mcp__local-llm__*`). The older standalone NVIDIA endpoint disconnected mid-session; the new plugin replaces it with a stronger roster.
 
-**User naming conventions (write to memory so the next session doesn't re-learn):**
-- **"gamma"** = `gemma4:e4b` (Google Gemma 4 local Ollama). NOT Gemini, NOT Gamma.app.
-- **"the super one"** = Nemotron Super. As of this session it means the NVIDIA-cloud-hosted `nemotron-super-49b` (the local 123.6B variant is OOM-locked).
+**On-disk provisioning that the next session may try and should know about:**
+- A local-OSS flagship MoE model is provisioned on the F: drive but OOM-locked on the current RAM budget (needs ~76 GiB, system has ~37 GiB). A cloud-hosted variant in the same tuning lineage substitutes.
+
+**User naming conventions (memorize so the next session doesn't re-learn them):**
+- "gamma" = the local OSS ~8B model. NOT Gemini, NOT Gamma.app.
+- "the super one" = the NVIDIA-tuned reasoning model. After this session, that means the NVIDIA-cloud-hosted variant (the local 123.6B variant remains OOM-locked).
 
 **PRs shipped in this autopilot-extension window (12 PRs, ~62 atomic commits):**
 
@@ -1338,6 +1339,6 @@ User explicit directive: "always from the beginning till the end, multi-agent wo
 - **C++-only deferred items unchanged:** Sequencer keyframe authoring + Movie Render Queue still pending. Both need attended Codex per multi-agent partitioning (Codex codes C++, Sonnet codes Python, Opus reviews + integrates).
 - **Drift_sweep extension now covers bridge module + manifest + ARCHITECTURE.** Don't bypass; the next stale-count bump auto-fails CI.
 
-**STANDING RULE (do not relax without explicit user request): multi-agent ensemble review on every substantive change.** User has paid for the NVIDIA API, downloaded local Ollama models on F: drive, configured Copilot CLI, and wired the Gemini CI bot specifically so Opus does not work solo. Use them. Pattern: dispatch 2-4 reviewers in parallel during ~30s waiting windows; integrate findings into the final diff before push. See `~/.claude/projects/F--UnrealClaudeMCP/memory/feedback_multi_agent_workflow.md` for the codified version.
+**STANDING RULE (do not relax without explicit user request): multi-agent ensemble review on every substantive change.** The maintainer has provisioned NVIDIA cloud access, local OSS LLM tooling, Copilot CLI, and the Gemini CI bot specifically so Opus does not work solo. Use them. Pattern: dispatch 2-4 reviewers in parallel during ~30s waiting windows; integrate findings into the final diff before push. The codified version + per-provider configuration lives in the maintainer's private memory file (`feedback_multi_agent_workflow.md`), not in this public doc.
 
 **Seventeenth consecutive closing-note.** Session 2026-05-12 now spans 8+ documented windows.
