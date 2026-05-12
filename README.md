@@ -258,6 +258,7 @@ tests/                            Pytest suite for the bridge (no UE required)
 | **Build status** | Plugin compiles + loads against UE 5.7.4 host on Windows 11; 64 handlers register, TCP server binds `127.0.0.1:18888`, bridge round-trip via `tools/call list_tools` returns full registry. |
 | **Bridge tests** | 259 pytest cases, ~99% coverage |
 | **CI** | GitHub Actions on every push and PR |
+| **Development workflow** | Multi-agent ensemble — Opus orchestrates, Codex authors C++, Sonnet handles Python + recon, NVIDIA cloud + local OSS LLMs run pre-PR diff review, Copilot CLI gives a second opinion, Gemini auto-review fires on every PR open. No single model gates a merge. |
 
 ---
 
