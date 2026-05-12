@@ -3105,8 +3105,10 @@ def test_synthetic_inspect_asset_not_found_messages_use_canonical_prefix() -> No
     redundant = "asset_not_found: Asset" + " not found:"
 
     # Find all synthetic_inspect_* function blocks and check each.
+    # The optional `\s*->\s*\w+` allows for a return-type annotation
+    # (PR7 added `-> dict` to every synthetic; pattern must still match).
     blocks = re.findall(
-        r"def\s+synthetic_inspect_\w+\([^)]*\):.*?(?=\ndef\s|\Z)",
+        r"def\s+synthetic_inspect_\w+\([^)]*\)(?:\s*->\s*\w+)?:.*?(?=\ndef\s|\Z)",
         bridge_src,
         flags=re.DOTALL,
     )
