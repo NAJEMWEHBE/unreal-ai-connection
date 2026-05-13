@@ -14,7 +14,7 @@
 | Plugin version | `0.9.1` |
 | UE target | `5.7` |
 | pytest baseline | **396** passing |
-| Latest milestone PR | **#172** — README interactive upgrade (TOC + sequence diagram + collapsibles + MCP pitch) |
+| Latest landed PR | **#172** — README interactive upgrade (TOC + sequence diagram + collapsibles + MCP pitch). HANDOFF.md tracks the latest *closing-note* milestone (#170) separately; the two metrics intentionally diverge. |
 | Source of truth | `tests/conftest.py` `EXPECTED_TOOL_COUNT` / `EXPECTED_SYNTHETIC_TOOL_COUNT` |
 | Live HEAD | run `git log -1 origin/main` (intentionally not pinned in docs) |
 
@@ -30,17 +30,17 @@ The main thread (Opus) acts as **leader / integrator / decision-maker only**. Ev
 
 ### Standing rules (5, all load-bearing)
 
-Canonical text lives in `docs/HANDOFF.md` lines 88–101. Quick summary:
+Canonical text lives in the **"Standing rules"** section of `docs/HANDOFF.md` (line numbers shift as the doc evolves; reference by section name). Quick summary:
 
-1. **Multi-agent ensemble review** on every substantive change. Pre-COMMIT, not post-PR-push. Local OSS LLM runtime + GitHub PR bots primarily; Claude sub-agents reserved for escalation.
+1. **Multi-agent ensemble review** on every substantive change. Pre-COMMIT, not post-PR-push. Local OSS LLM runtime + GitHub PR bots primarily; LLM sub-agents reserved for escalation.
 2. **UE 5.7 editor launch is pre-authorized** in every session. Path-quoting recipe documented; do not ask permission each session.
 3. **UE editor must be closed when verification work finishes.** Cadence is "open, verify, close" — not "open and leave running for the session."
-4. **Delegation-by-default** (token conservation). Routing table in `docs/HANDOFF.md` L98.
+4. **Delegation-by-default** (token conservation). Routing table in the "Delegation-by-default" bullet of `docs/HANDOFF.md`'s "Standing rules" section.
 5. **Bot-review gate before any merge.** Apply or dismiss-with-reason. **Mechanical-fix follow-up exception** (reconciles with directive #7): when a follow-up commit on the same branch applies bot findings as direct surgical fixes (no new logic), self-merge is permitted without waiting for a second-pass bot review.
 
 ### Operating directives (1–11)
 
-Canonical text in `docs/HANDOFF.md` lines 70–85. Highlights:
+Canonical text in the **"Operating directives"** section of `docs/HANDOFF.md` (reference by section name; line numbers shift over time). Highlights:
 
 1. **"Do everything"** — autonomous execution; pick a reasonable path and ship.
 2. **"Don't get hallucinated"** — every UE 5.7 API claim grounded in actual source (`F:/UE_5.7/Engine/Source/...`) with header.h:line citations.
@@ -50,7 +50,7 @@ Canonical text in `docs/HANDOFF.md` lines 70–85. Highlights:
 6. **Trap-table awareness** — known UE 5.7 API surface gotchas in HANDOFF.md.
 7. **Ship optimistically for mechanical PRs** — read bot reviews post-merge for low-risk doc-only / test-only PRs; mechanical-fix exception explicitly carves this out.
 8. **Repo file map awareness** — handler-per-file, single registration line per tool.
-9. **Multi-agent fleet expanded** — Codex (C++ specialty), Sonnet code-explorer (one PR ahead, API research), Sonnet code-reviewer (pre-merge), main thread (final synthesis + integration).
+9. **Multi-agent fleet expanded** — Codex CLI (C++ specialty), read-only Explore sub-agent (one PR ahead, API research), parallel code-reviewer sub-agent (pre-merge), main thread (final synthesis + integration).
 10. **Vendor-neutral framing** in any user-facing copy — no baked-in "Claude Code" specifically.
 11. **Standing rules supersede directives where they conflict** — rule #5's bot-review gate overrides directive #4's "merge yourself" if a finding is unresolved.
 
@@ -60,11 +60,11 @@ Canonical text in `docs/HANDOFF.md` lines 70–85. Highlights:
 
 | Slot | Role | When to dispatch |
 |---|---|---|
-| Main thread (Opus) | Orchestrator + final reviewer + integrator | Always. Never delegates "decide" — only "do." |
-| `general-purpose` sub-agent (Sonnet) | Multi-file edits, exploration with writes, synthesis of long reads | Code/doc writes spanning 3+ files; bot-review readout summaries; memory-file writes |
-| `Explore` (Sonnet, read-only) | Recon / mapping / inventory passes | Plan-mode Phase 1; pre-flight before complex changes |
-| `codex-rescue` (cloud Codex) | Adversarial UE 5.7 API audit | Diff-review of C++ handlers; trap-hunting against UE 5.7 source on disk |
-| `feature-dev:code-reviewer` (Sonnet) | Parallel pre-commit review (escalation) | When local OSS LLM unavailable and a diff is high-stakes |
+| Main thread (host LLM agent) | Orchestrator + final reviewer + integrator | Always. Never delegates "decide" — only "do." |
+| `general-purpose` sub-agent | Multi-file edits, exploration with writes, synthesis of long reads | Code/doc writes spanning 3+ files; bot-review readout summaries; memory-file writes |
+| `Explore` (read-only sub-agent) | Recon / mapping / inventory passes | Plan-mode Phase 1; pre-flight before complex changes |
+| `codex-rescue` (cloud reasoning agent) | Adversarial UE 5.7 API audit | Diff-review of C++ handlers; trap-hunting against UE 5.7 source on disk |
+| `feature-dev:code-reviewer` (parallel reviewer sub-agent) | Parallel pre-commit review (escalation) | When local OSS LLM unavailable and a diff is high-stakes |
 | Local OSS LLM runtime | Free pre-commit ensemble review (deferred) | Once daemon env-var bug is fixed; primary pre-commit reviewer |
 | NVIDIA cloud reasoning models | Trap-hunting, reasoning ensemble for high-stakes diffs | Cross-check critical UE API claims; second opinion on architectural diffs |
 | Codex CLI (cloud) | C++ implementation specialty | New C++ handler writes; UE 5.7 API verification |
@@ -75,16 +75,16 @@ Canonical text in `docs/HANDOFF.md` lines 70–85. Highlights:
 - **Gemini auto-review** — `gemini-code-assist[bot]`. Daily quota; can be exhausted.
 - **CodeRabbit** — `coderabbitai[bot]`. Walkthrough + inline; sometimes "review skipped" for docs-only PRs.
 - **chatgpt-codex-connector** — Codex GitHub bot, P0/P1/P2 badge system; strong on C++ API claim verification.
-- **greptile-apps** — diff-aware reviewer; surfaces P0–P3 findings. Newest member of the roster.
+- **greptile-apps** — diff-aware reviewer; surfaces P0/P1/P2 findings (three tiers, no P3). Newest member of the roster.
 - **GitHub Copilot CLI** — `gh copilot` for diff explanation pre-merge.
 
 ### When to use which (decision tree)
 
-- New C++ handler? → Codex CLI for code; codex-rescue for pre-flight API audit; pre-COMMIT ensemble (local + general-purpose Sonnet review); post-push GitHub bots.
-- New bridge-side synthetic? → general-purpose Sonnet writes; main thread reviews; post-push GitHub bots.
+- New C++ handler? → Codex CLI for code; codex-rescue for pre-flight API audit; pre-COMMIT ensemble (local OSS LLM + general-purpose sub-agent review); post-push GitHub bots.
+- New bridge-side synthetic? → general-purpose sub-agent writes; main thread reviews; post-push GitHub bots.
 - Bug fix < 50 lines? → main thread directly; post-push bots gate the merge.
 - Doc-only change? → main thread directly; post-push bots gate (mechanical-fix exception often applies on follow-ups).
-- Multi-file mechanical refactor? → general-purpose Sonnet (or `caveman:cavecrew-builder` if ≤2 files).
+- Multi-file mechanical refactor? → general-purpose sub-agent (or `caveman:cavecrew-builder` if ≤2 files).
 - Bot-review readout? → direct `gh api` Bash readout (zero sub-agent cost). Delegate only if findings are numerous and need summarization.
 
 ---
@@ -245,7 +245,7 @@ User brings a real photo. The plugin turns it into an Unreal output — studio b
 
 ### Pre-requisites
 
-1. **Host UE 5.7 cold-compile** — still pending from Wave A / A.5. See `docs/HANDOFF.md` "Verification runbook" (steps 1–6). Without the rebuild, 7 C++ handlers return JSON-RPC `-32601` (method not found).
+1. **Host UE 5.7 cold-compile** — still pending from Wave A / A.5. See `docs/HANDOFF.md` "Verification runbook" (steps 1–6). Without the rebuild, 7 C++ handlers return JSON-RPC `-32601` (method not found). Note: `HANDOFF.md`'s verification-runbook step 5 currently reads "17 bridge-side synthetic tools" / "Total tools visible to MCP clients: 88" — pre-Wave-B/C/D numbers. Mentally substitute **29 synthetic tools** / **100 total** until that doc's count is refreshed.
 2. UE editor running with the plugin loaded; TCP server bound on `127.0.0.1:18888`.
 3. MCP client connected (bridge wired in client's `.mcp.json`).
 4. (Optional, for local pre-commit ensemble review during the test run) admin-shell fix for the local-daemon env-var bug.
