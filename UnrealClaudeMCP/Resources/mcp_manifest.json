@@ -208,7 +208,7 @@
       "params": {
         "name": "string (required) - actor label OR FName",
         "property": "string (required) - UPROPERTY name",
-        "value": "any (required) - coerced to FProperty type"
+        "value": "string | number | integer | bool | array | object (required) - polymorphic JSON; coerced to FProperty type. Use JSON arrays for TArray / TSet (e.g. OverrideMaterials) and JSON objects for FVector / FRotator / FLinearColor / FInstancedStruct / TMap. The typed schema (instead of 'any') prevents MCP clients from stringifying array values before wire transport — root cause of the 'expected JSON array for TArray' bug documented in the PR #174 100-tool scorecard."
       },
       "returns": { "ok": "bool", "name": "string", "property": "string", "old_value": "any", "new_value": "any" }
     },

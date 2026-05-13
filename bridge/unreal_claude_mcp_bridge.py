@@ -807,7 +807,7 @@ TOOLS = [
             "properties": {
                 "name": {"type": "string", "description": "Actor label or FName."},
                 "property": {"type": "string", "description": "UPROPERTY name (case-sensitive)."},
-                "value": {"description": "JSON value coerced based on the FProperty type. See docs/TOOLS.md for the supported types table."},
+                "value": {"type": ["string", "number", "integer", "boolean", "array", "object"], "description": "JSON value coerced based on the FProperty type. Polymorphic: primitives for scalar UPROPERTYs, JSON arrays for TArray / TSet (e.g. OverrideMaterials), and JSON objects for FVector / FRotator / FLinearColor / FInstancedStruct / TMap. Declaring the JSON-Schema type union (instead of leaving value untyped) prevents MCP clients from coercing array values to JSON strings before wire transport, which is the root cause of the `expected JSON array for TArray at <path>` error documented in the PR #174 100-tool scorecard (TArray transport bug, Stage 5). Mirrors set_console_variable's polymorphic-value pattern. See docs/TOOLS.md for the full supported-types table."},
             },
             "required": ["name", "property", "value"],
         },
