@@ -3702,13 +3702,13 @@ def test_set_actor_property_schema():
     assert props["name"]["type"] == "string"
     assert props["property"]["type"] == "string"
     # Polymorphic value type — guards against MCP client coercing arrays to strings
-    # before wire transport (root cause of the 'expected JSON array for TArray'
-    # bug documented in the PR #174 100-tool scorecard). Mirrors set_console_variable.
+    # before wire transport. Includes null for explicit clear on nullable properties
+    # (parity with bulk_set_actor_property). JSON Schema 'number' covers integers,
+    # so 'integer' is intentionally omitted to mirror set_console_variable.
     value_type = props["value"]["type"]
     assert isinstance(value_type, list)
-    assert "array" in value_type
-    assert "object" in value_type
-    assert {"string", "number", "boolean"}.issubset(set(value_type))
+    assert {"string", "number", "boolean", "array", "object", "null"}.issubset(set(value_type))
+    assert "integer" not in value_type, "drop 'integer'; 'number' covers it per JSON Schema"
 
 
 def test_set_actor_property_manifest_value_documents_polymorphic_types():
@@ -3725,7 +3725,7 @@ def test_set_actor_property_manifest_value_documents_polymorphic_types():
     )
     value_desc = tool["params"]["value"]
     assert "any" not in value_desc.split(" - ")[0]
-    for typ in ("string", "number", "bool", "array", "object"):
+    for typ in ("string", "number", "boolean", "array", "object", "null"):
         assert typ in value_desc
 
 
