@@ -118,6 +118,10 @@ def test_tool_names_are_unique_and_match_handlers():
         "bulk_focus_actors",
         "bulk_screenshot_actors",
         "bulk_set_actor_property",
+        "compare_assets",
+        "bulk_set_console_variables",
+        "inspect_dependency_graph",
+        "bulk_fix_redirectors",
     }
     assert set(names) == expected
 
@@ -4572,3 +4576,601 @@ def test_bulk_set_actor_property_rejects_too_many_assignments():
     assert m.call_count == 0
     assert resp["error"]["code"] == -32602
     assert "too_many_assignments" in resp["error"]["message"]
+
+
+# ---- compare_assets (Wave D) -----------------------------------------------
+
+def test_compare_assets_is_synthetic():
+    """Wave D: compare_assets is a SYNTHETIC bridge-side composition over
+    inspect_asset on two paths. path_a + path_b REQUIRED; fields optional."""
+    tool = next((t for t in bridge.TOOLS if t["name"] == "compare_assets"), None)
+    assert tool is not None
+    assert set(tool["inputSchema"]["required"]) == {"path_a", "path_b"}
+    props = tool["inputSchema"]["properties"]
+    assert props["path_a"]["type"] == "string"
+    assert props["path_b"]["type"] == "string"
+    assert props["fields"]["type"] == "array"
+    assert "compare_assets" in bridge.SYNTHETIC_TOOLS
+    assert bridge.SYNTHETIC_TOOLS["compare_assets"] is bridge.synthetic_compare_assets
+
+
+def test_compare_assets_identical_returns_no_differences():
+    """Two inspect_asset results with the same data (other than path) ->
+    identical=True, differences=[]."""
+    common = {"class": "Texture2D", "dependencies": [], "referencers": []}
+    resp_a = {"jsonrpc": "2.0", "id": 1, "result": {"path": "/Game/A", **common}}
+    resp_b = {"jsonrpc": "2.0", "id": 1, "result": {"path": "/Game/B", **common}}
+    with patch.object(bridge, "call_ue", side_effect=[resp_a, resp_b]) as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 600, "method": "tools/call",
+            "params": {"name": "compare_assets", "arguments": {
+                "path_a": "/Game/A", "path_b": "/Game/B",
+            }},
+        })
+    assert m.call_count == 2
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert body["ok"] is True
+    assert body["identical"] is True
+    assert body["differences"] == []
+    # 'path' must be excluded from the compared field list.
+    assert "path" not in body["fields_compared"]
+
+
+def test_compare_assets_diff_records_each_differing_field():
+    """Two inspect_asset results that differ on `class` and `dependencies` ->
+    identical=False, differences lists both fields with both values."""
+    resp_a = {"jsonrpc": "2.0", "id": 1, "result": {
+        "path": "/Game/A", "class": "Texture2D",
+        "dependencies": ["/Game/X"], "referencers": [],
+    }}
+    resp_b = {"jsonrpc": "2.0", "id": 1, "result": {
+        "path": "/Game/B", "class": "Material",
+        "dependencies": ["/Game/Y"], "referencers": [],
+    }}
+    with patch.object(bridge, "call_ue", side_effect=[resp_a, resp_b]):
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 601, "method": "tools/call",
+            "params": {"name": "compare_assets", "arguments": {
+                "path_a": "/Game/A", "path_b": "/Game/B",
+            }},
+        })
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert body["identical"] is False
+    field_names = {d["field"] for d in body["differences"]}
+    assert {"class", "dependencies"}.issubset(field_names)
+    class_diff = next(d for d in body["differences"] if d["field"] == "class")
+    assert class_diff["value_a"] == "Texture2D"
+    assert class_diff["value_b"] == "Material"
+
+
+def test_compare_assets_fields_whitelist_scopes_diff():
+    """fields=['class'] restricts comparison to that field only; differences
+    in other fields are NOT reported."""
+    resp_a = {"jsonrpc": "2.0", "id": 1, "result": {
+        "path": "/Game/A", "class": "Texture2D",
+        "dependencies": ["/Game/X"],
+    }}
+    resp_b = {"jsonrpc": "2.0", "id": 1, "result": {
+        "path": "/Game/B", "class": "Texture2D",
+        "dependencies": ["/Game/Y"],  # would differ but is NOT compared
+    }}
+    with patch.object(bridge, "call_ue", side_effect=[resp_a, resp_b]):
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 602, "method": "tools/call",
+            "params": {"name": "compare_assets", "arguments": {
+                "path_a": "/Game/A", "path_b": "/Game/B",
+                "fields": ["class"],
+            }},
+        })
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert body["identical"] is True
+    assert body["fields_compared"] == ["class"]
+    assert body["differences"] == []
+
+
+def test_compare_assets_rejects_missing_path_a():
+    resp = bridge.handle({
+        "jsonrpc": "2.0", "id": 603, "method": "tools/call",
+        "params": {"name": "compare_assets", "arguments": {"path_b": "/Game/B"}},
+    })
+    assert resp["error"]["code"] == -32602
+    assert "missing_required_field" in resp["error"]["message"]
+    assert "path_a" in resp["error"]["message"]
+
+
+def test_compare_assets_rejects_missing_path_b():
+    resp = bridge.handle({
+        "jsonrpc": "2.0", "id": 604, "method": "tools/call",
+        "params": {"name": "compare_assets", "arguments": {"path_a": "/Game/A"}},
+    })
+    assert resp["error"]["code"] == -32602
+    assert "missing_required_field" in resp["error"]["message"]
+    assert "path_b" in resp["error"]["message"]
+
+
+def test_compare_assets_surfaces_inspect_failure_on_path_a():
+    """Per-side inspect failure -> distinct error code (inspect_failed_a)."""
+    err_resp = {"jsonrpc": "2.0", "id": 1, "error": {"code": -32000, "message": "asset_not_found"}}
+    with patch.object(bridge, "call_ue", side_effect=[err_resp]):
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 605, "method": "tools/call",
+            "params": {"name": "compare_assets", "arguments": {
+                "path_a": "/Game/Missing", "path_b": "/Game/B",
+            }},
+        })
+    assert "error" in resp
+    assert "inspect_failed_a" in resp["error"]["message"]
+
+
+def test_compare_assets_rejects_path_with_nul_byte():
+    """NUL byte rejected at path validation before any call_ue."""
+    with patch.object(bridge, "call_ue") as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 606, "method": "tools/call",
+            "params": {"name": "compare_assets", "arguments": {
+                "path_a": "/Game/Bad\x00Path", "path_b": "/Game/B",
+            }},
+        })
+    assert m.call_count == 0
+    assert resp["error"]["code"] == -32602
+    assert "NUL" in resp["error"]["message"]
+
+
+# ---- bulk_set_console_variables (Wave D) -----------------------------------
+
+def test_bulk_set_console_variables_is_synthetic():
+    """Wave D: bulk_set_console_variables is SYNTHETIC composing
+    get_console_variable + set_console_variable. assignments REQUIRED;
+    rollback_on_error optional (default true)."""
+    tool = next((t for t in bridge.TOOLS if t["name"] == "bulk_set_console_variables"), None)
+    assert tool is not None
+    assert tool["inputSchema"]["required"] == ["assignments"]
+    props = tool["inputSchema"]["properties"]
+    assert props["assignments"]["type"] == "object"
+    assert props["rollback_on_error"]["type"] == "boolean"
+    assert "bulk_set_console_variables" in bridge.SYNTHETIC_TOOLS
+    assert bridge.SYNTHETIC_TOOLS["bulk_set_console_variables"] is bridge.synthetic_bulk_set_console_variables
+
+
+def test_bulk_set_console_variables_happy_path():
+    """All gets + sets succeed -> ok=true, applied lists each {name, old, new},
+    failed=[], rolled_back=False."""
+    get_a = {"jsonrpc": "2.0", "id": 1, "result": {"value_string": "1"}}
+    set_a = {"jsonrpc": "2.0", "id": 1, "result": {"ok": True}}
+    get_b = {"jsonrpc": "2.0", "id": 1, "result": {"value_string": "0"}}
+    set_b = {"jsonrpc": "2.0", "id": 1, "result": {"ok": True}}
+    with patch.object(bridge, "call_ue", side_effect=[get_a, set_a, get_b, set_b]) as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 610, "method": "tools/call",
+            "params": {"name": "bulk_set_console_variables", "arguments": {
+                "assignments": {"r.ScreenPercentage": 50, "r.Shadow.Quality": 2},
+            }},
+        })
+    assert m.call_count == 4  # 2 gets + 2 sets
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert body["ok"] is True
+    assert body["total"] == 2
+    assert len(body["applied"]) == 2
+    assert body["failed"] == []
+    assert body["rolled_back"] is False
+    assert "rollback_failures" not in body
+    names = {a["name"] for a in body["applied"]}
+    assert names == {"r.ScreenPercentage", "r.Shadow.Quality"}
+
+
+def test_bulk_set_console_variables_rollback_success_on_set_failure():
+    """First cvar applies, second set fails -> first cvar restored to old
+    value (rollback succeeds), failed lists the second, rolled_back=True,
+    rollback_failures absent (no restore attempt failed)."""
+    get_a = {"jsonrpc": "2.0", "id": 1, "result": {"value_string": "1"}}
+    set_a = {"jsonrpc": "2.0", "id": 1, "result": {"ok": True}}
+    get_b = {"jsonrpc": "2.0", "id": 1, "result": {"value_string": "0"}}
+    set_b_err = {"jsonrpc": "2.0", "id": 1, "error": {"code": -32000, "message": "readonly"}}
+    restore_a = {"jsonrpc": "2.0", "id": 1, "result": {"ok": True}}
+    with patch.object(bridge, "call_ue", side_effect=[get_a, set_a, get_b, set_b_err, restore_a]) as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 611, "method": "tools/call",
+            "params": {"name": "bulk_set_console_variables", "arguments": {
+                "assignments": {"r.ScreenPercentage": 50, "r.ReadOnlyCVar": 2},
+            }},
+        })
+    assert m.call_count == 5  # 2 gets + 2 set-attempts + 1 restore
+    # 5th call is the restore -- set_console_variable with old_value.
+    assert m.call_args_list[4].args == (
+        "set_console_variable",
+        {"name": "r.ScreenPercentage", "value": "1"},
+    )
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert body["ok"] is False
+    assert len(body["failed"]) == 1
+    assert body["failed"][0]["name"] == "r.ReadOnlyCVar"
+    assert "set_failed" in body["failed"][0]["error"]["message"]
+    assert body["rolled_back"] is True
+    assert "rollback_failures" not in body
+
+
+def test_bulk_set_console_variables_rollback_failure_recorded():
+    """First cvar applies, second set fails, restore of first ALSO fails ->
+    rollback_failures lists the broken restore."""
+    get_a = {"jsonrpc": "2.0", "id": 1, "result": {"value_string": "1"}}
+    set_a = {"jsonrpc": "2.0", "id": 1, "result": {"ok": True}}
+    get_b = {"jsonrpc": "2.0", "id": 1, "result": {"value_string": "0"}}
+    set_b_err = {"jsonrpc": "2.0", "id": 1, "error": {"code": -32000, "message": "readonly"}}
+    restore_err = {"jsonrpc": "2.0", "id": 1, "error": {"code": -32000, "message": "still readonly"}}
+    with patch.object(bridge, "call_ue", side_effect=[get_a, set_a, get_b, set_b_err, restore_err]):
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 612, "method": "tools/call",
+            "params": {"name": "bulk_set_console_variables", "arguments": {
+                "assignments": {"cvar_a": 50, "cvar_b": 2},
+            }},
+        })
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert body["rolled_back"] is True
+    assert "rollback_failures" in body
+    assert len(body["rollback_failures"]) == 1
+    assert body["rollback_failures"][0]["name"] == "cvar_a"
+    assert "rollback_failed" in body["rollback_failures"][0]["error"]["message"]
+
+
+def test_bulk_set_console_variables_continue_on_error_does_not_rollback():
+    """rollback_on_error=False: second failure does NOT trigger rollback of
+    the first. applied still records the first; failed records the second;
+    rolled_back=False."""
+    get_a = {"jsonrpc": "2.0", "id": 1, "result": {"value_string": "1"}}
+    set_a = {"jsonrpc": "2.0", "id": 1, "result": {"ok": True}}
+    get_b = {"jsonrpc": "2.0", "id": 1, "result": {"value_string": "0"}}
+    set_b_err = {"jsonrpc": "2.0", "id": 1, "error": {"code": -32000, "message": "boom"}}
+    get_c = {"jsonrpc": "2.0", "id": 1, "result": {"value_string": "2"}}
+    set_c = {"jsonrpc": "2.0", "id": 1, "result": {"ok": True}}
+    with patch.object(bridge, "call_ue", side_effect=[get_a, set_a, get_b, set_b_err, get_c, set_c]) as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 613, "method": "tools/call",
+            "params": {"name": "bulk_set_console_variables", "arguments": {
+                "assignments": {"cvar_a": 50, "cvar_b": 2, "cvar_c": 99},
+                "rollback_on_error": False,
+            }},
+        })
+    # All three attempted (no rollback halts after failure)
+    assert m.call_count == 6
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert body["ok"] is False
+    assert body["rolled_back"] is False
+    assert len(body["applied"]) == 2  # cvar_a + cvar_c
+    assert len(body["failed"]) == 1   # cvar_b
+
+
+def test_bulk_set_console_variables_rejects_missing_assignments():
+    resp = bridge.handle({
+        "jsonrpc": "2.0", "id": 614, "method": "tools/call",
+        "params": {"name": "bulk_set_console_variables", "arguments": {}},
+    })
+    assert resp["error"]["code"] == -32602
+    assert "missing_required_field" in resp["error"]["message"]
+
+
+def test_bulk_set_console_variables_rejects_non_dict_assignments():
+    """assignments must be a dict, not a list."""
+    with patch.object(bridge, "call_ue") as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 615, "method": "tools/call",
+            "params": {"name": "bulk_set_console_variables", "arguments": {
+                "assignments": [{"name": "cvar_a", "value": 1}],  # wrong shape
+            }},
+        })
+    assert m.call_count == 0
+    assert resp["error"]["code"] == -32602
+    assert "invalid_assignments_shape" in resp["error"]["message"]
+
+
+def test_bulk_set_console_variables_rejects_invalid_value_type():
+    """Value must be string|number|bool, never a dict or list."""
+    with patch.object(bridge, "call_ue") as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 616, "method": "tools/call",
+            "params": {"name": "bulk_set_console_variables", "arguments": {
+                "assignments": {"cvar_a": {"nested": "object"}},
+            }},
+        })
+    assert m.call_count == 0
+    assert resp["error"]["code"] == -32602
+    assert "assignment_value_invalid_type" in resp["error"]["message"]
+
+
+def test_bulk_set_console_variables_rejects_too_many_assignments():
+    assignments = {f"cvar_{i}": i for i in range(51)}
+    with patch.object(bridge, "call_ue") as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 617, "method": "tools/call",
+            "params": {"name": "bulk_set_console_variables", "arguments": {
+                "assignments": assignments,
+            }},
+        })
+    assert m.call_count == 0
+    assert resp["error"]["code"] == -32602
+    assert "too_many_assignments" in resp["error"]["message"]
+
+
+# ---- inspect_dependency_graph (Wave D) --------------------------------------
+
+def test_inspect_dependency_graph_is_synthetic():
+    """Wave D: inspect_dependency_graph is SYNTHETIC composing inspect_asset
+    BFS (defaulting to dependencies-down). path REQUIRED; depth +
+    include_referencers optional."""
+    tool = next((t for t in bridge.TOOLS if t["name"] == "inspect_dependency_graph"), None)
+    assert tool is not None
+    assert tool["inputSchema"]["required"] == ["path"]
+    props = tool["inputSchema"]["properties"]
+    assert props["path"]["type"] == "string"
+    assert props["depth"]["type"] == "integer"
+    assert props["include_referencers"]["type"] == "boolean"
+    assert "inspect_dependency_graph" in bridge.SYNTHETIC_TOOLS
+    assert bridge.SYNTHETIC_TOOLS["inspect_dependency_graph"] is bridge.synthetic_inspect_dependency_graph
+
+
+def test_inspect_dependency_graph_default_direction_is_down():
+    """Without include_referencers, BFS follows dependencies only. Edges
+    flow node -> neighbor with direction='down'."""
+    root_resp = {"jsonrpc": "2.0", "id": 1, "result": {
+        "dependencies": ["/Game/M_Stone"], "referencers": ["/Game/Ignored"],
+    }}
+    leaf = {"jsonrpc": "2.0", "id": 1, "result": {"dependencies": [], "referencers": []}}
+    with patch.object(bridge, "call_ue", side_effect=[root_resp, leaf]) as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 620, "method": "tools/call",
+            "params": {"name": "inspect_dependency_graph", "arguments": {
+                "path": "/Game/BP_Block",
+            }},
+        })
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert body["ok"] is True
+    assert body["include_referencers"] is False
+    assert body["node_count"] == 2
+    # The referencer entry must NOT be in the graph.
+    assert "/Game/Ignored" not in body["nodes"]
+    assert body["edges"] == [{"from": "/Game/BP_Block", "to": "/Game/M_Stone", "direction": "down"}]
+    # depth defaults to 2; only root + 1 dep at depth 1 (leaf has no deps).
+    assert m.call_count == 2
+
+
+def test_inspect_dependency_graph_bidirectional_sweep():
+    """include_referencers=True follows both dependencies (down) AND
+    referencers (up) in the same BFS, deduplicating across both."""
+    root_resp = {"jsonrpc": "2.0", "id": 1, "result": {
+        "dependencies": ["/Game/Down"], "referencers": ["/Game/Up"],
+    }}
+    leaf_down = {"jsonrpc": "2.0", "id": 1, "result": {"dependencies": [], "referencers": []}}
+    leaf_up = {"jsonrpc": "2.0", "id": 1, "result": {"dependencies": [], "referencers": []}}
+    with patch.object(bridge, "call_ue", side_effect=[root_resp, leaf_down, leaf_up]):
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 621, "method": "tools/call",
+            "params": {"name": "inspect_dependency_graph", "arguments": {
+                "path": "/Game/Root",
+                "depth": 2,
+                "include_referencers": True,
+            }},
+        })
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert body["include_referencers"] is True
+    assert body["node_count"] == 3  # root + down + up
+    directions = {e["direction"] for e in body["edges"]}
+    assert directions == {"up", "down"}
+    # Down edge: root -> /Game/Down
+    down_edge = next(e for e in body["edges"] if e["direction"] == "down")
+    assert down_edge == {"from": "/Game/Root", "to": "/Game/Down", "direction": "down"}
+    # Up edge: /Game/Up -> root
+    up_edge = next(e for e in body["edges"] if e["direction"] == "up")
+    assert up_edge == {"from": "/Game/Up", "to": "/Game/Root", "direction": "up"}
+
+
+def test_inspect_dependency_graph_depth_truncation():
+    """When the BFS hits the depth bound with neighbors still to expand,
+    truncated=True."""
+    # Depth 1: root has 1 dep; BFS stops after depth 1 with that dep's deps
+    # un-expanded -> truncated.
+    root_resp = {"jsonrpc": "2.0", "id": 1, "result": {
+        "dependencies": ["/Game/Mid"], "referencers": [],
+    }}
+    mid_resp = {"jsonrpc": "2.0", "id": 1, "result": {
+        "dependencies": ["/Game/Leaf"], "referencers": [],
+    }}
+    with patch.object(bridge, "call_ue", side_effect=[root_resp, mid_resp]):
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 622, "method": "tools/call",
+            "params": {"name": "inspect_dependency_graph", "arguments": {
+                "path": "/Game/Root",
+                "depth": 1,
+            }},
+        })
+    body = json.loads(resp["result"]["content"][0]["text"])
+    # root expanded at depth 0, mid never expanded (depth=1 means one level
+    # of expansion only). The depth-1 iteration discovers /Game/Leaf via mid
+    # ... wait, depth=1 expands the root only. mid is in the next_frontier
+    # but its inspect call doesn't happen because the loop hits its bound.
+    # So truncated must be True because mid is still in the frontier.
+    assert body["truncated"] is True
+
+
+def test_inspect_dependency_graph_no_truncation_when_exhausted():
+    """When BFS exhausts the graph before hitting depth, truncated=False."""
+    root_resp = {"jsonrpc": "2.0", "id": 1, "result": {
+        "dependencies": ["/Game/Leaf"], "referencers": [],
+    }}
+    leaf = {"jsonrpc": "2.0", "id": 1, "result": {"dependencies": [], "referencers": []}}
+    with patch.object(bridge, "call_ue", side_effect=[root_resp, leaf]):
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 623, "method": "tools/call",
+            "params": {"name": "inspect_dependency_graph", "arguments": {
+                "path": "/Game/Root",
+                "depth": 8,
+            }},
+        })
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert body["truncated"] is False
+
+
+def test_inspect_dependency_graph_rejects_missing_path():
+    resp = bridge.handle({
+        "jsonrpc": "2.0", "id": 624, "method": "tools/call",
+        "params": {"name": "inspect_dependency_graph", "arguments": {}},
+    })
+    assert resp["error"]["code"] == -32602
+    assert "missing_required_field" in resp["error"]["message"]
+
+
+def test_inspect_dependency_graph_rejects_invalid_depth():
+    resp = bridge.handle({
+        "jsonrpc": "2.0", "id": 625, "method": "tools/call",
+        "params": {"name": "inspect_dependency_graph", "arguments": {
+            "path": "/Game/Root", "depth": 99,
+        }},
+    })
+    assert resp["error"]["code"] == -32602
+    assert "invalid_depth" in resp["error"]["message"]
+
+
+def test_inspect_dependency_graph_surfaces_root_not_found():
+    err_resp = {"jsonrpc": "2.0", "id": 1, "error": {
+        "code": -32000, "message": "asset_not_found: /Game/Missing"}}
+    with patch.object(bridge, "call_ue", side_effect=[err_resp]):
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 626, "method": "tools/call",
+            "params": {"name": "inspect_dependency_graph", "arguments": {
+                "path": "/Game/Missing",
+            }},
+        })
+    assert resp["error"]["code"] == -32602
+    assert "asset_not_found" in resp["error"]["message"]
+
+
+# ---- bulk_fix_redirectors (Wave D) ------------------------------------------
+
+def test_bulk_fix_redirectors_is_synthetic():
+    """Wave D: bulk_fix_redirectors is a SYNTHETIC bridge-side composition
+    over fix_up_redirectors. folders REQUIRED; recursive + continue_on_error
+    optional."""
+    tool = next((t for t in bridge.TOOLS if t["name"] == "bulk_fix_redirectors"), None)
+    assert tool is not None
+    assert tool["inputSchema"]["required"] == ["folders"]
+    props = tool["inputSchema"]["properties"]
+    assert props["folders"]["type"] == "array"
+    assert props["folders"]["items"]["type"] == "string"
+    assert props["recursive"]["type"] == "boolean"
+    assert props["continue_on_error"]["type"] == "boolean"
+    assert "bulk_fix_redirectors" in bridge.SYNTHETIC_TOOLS
+    assert bridge.SYNTHETIC_TOOLS["bulk_fix_redirectors"] is bridge.synthetic_bulk_fix_redirectors
+
+
+def test_bulk_fix_redirectors_happy_path():
+    """All folders fix-up succeed -> ok=true, succeeded==total, failed=[]."""
+    ok_resp = {"jsonrpc": "2.0", "id": 1, "result": {"ok": True}}
+    with patch.object(bridge, "call_ue", side_effect=[ok_resp, ok_resp]) as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 630, "method": "tools/call",
+            "params": {"name": "bulk_fix_redirectors", "arguments": {
+                "folders": ["/Game/Materials", "/Game/Textures"],
+            }},
+        })
+    assert m.call_count == 2
+    assert m.call_args_list[0].args == ("fix_up_redirectors", {"path": "/Game/Materials"})
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert body["ok"] is True
+    assert body["total"] == 2
+    assert body["succeeded"] == 2
+    assert body["failed"] == []
+    assert body["recursive"] is True
+    assert "halted_at_index" not in body
+
+
+def test_bulk_fix_redirectors_continue_on_error_records_failure():
+    """Second folder fails; third still attempted; failed[] records the
+    failure with the upstream code preserved."""
+    ok_resp = {"jsonrpc": "2.0", "id": 1, "result": {"ok": True}}
+    err_resp = {"jsonrpc": "2.0", "id": 1, "error": {"code": -32000, "message": "permission denied"}}
+    with patch.object(bridge, "call_ue", side_effect=[ok_resp, err_resp, ok_resp]) as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 631, "method": "tools/call",
+            "params": {"name": "bulk_fix_redirectors", "arguments": {
+                "folders": ["/Game/A", "/Game/B", "/Game/C"],
+            }},
+        })
+    assert m.call_count == 3
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert body["ok"] is False
+    assert body["succeeded"] == 2
+    assert len(body["failed"]) == 1
+    assert body["failed"][0]["folder"] == "/Game/B"
+    assert body["failed"][0]["error"]["code"] == -32000
+    assert "fix_failed" in body["failed"][0]["error"]["message"]
+
+
+def test_bulk_fix_redirectors_halts_on_error_when_continue_false():
+    """continue_on_error=false: first failure halts; halted_at_index records
+    the index; third folder never attempted."""
+    err_resp = {"jsonrpc": "2.0", "id": 1, "error": {"code": -32000, "message": "boom"}}
+    with patch.object(bridge, "call_ue", side_effect=[err_resp]) as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 632, "method": "tools/call",
+            "params": {"name": "bulk_fix_redirectors", "arguments": {
+                "folders": ["/Game/A", "/Game/B", "/Game/C"],
+                "continue_on_error": False,
+            }},
+        })
+    assert m.call_count == 1
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert body["ok"] is False
+    assert body["total"] == 3
+    assert body["succeeded"] == 0
+    assert len(body["failed"]) == 1
+    assert body["halted_at_index"] == 0
+
+
+def test_bulk_fix_redirectors_rejects_missing_folders():
+    resp = bridge.handle({
+        "jsonrpc": "2.0", "id": 633, "method": "tools/call",
+        "params": {"name": "bulk_fix_redirectors", "arguments": {}},
+    })
+    assert resp["error"]["code"] == -32602
+    assert "missing_required_field" in resp["error"]["message"]
+
+
+def test_bulk_fix_redirectors_rejects_non_list_folders():
+    """folders must be a list, never a string."""
+    with patch.object(bridge, "call_ue") as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 634, "method": "tools/call",
+            "params": {"name": "bulk_fix_redirectors", "arguments": {
+                "folders": "/Game/A",  # wrong shape
+            }},
+        })
+    assert m.call_count == 0
+    assert resp["error"]["code"] == -32602
+    assert "invalid_folders_shape" in resp["error"]["message"]
+
+
+def test_bulk_fix_redirectors_rejects_folder_with_nul_byte():
+    """NUL byte in any folder -> -32602 + folder_invalid before any UE call."""
+    with patch.object(bridge, "call_ue") as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 635, "method": "tools/call",
+            "params": {"name": "bulk_fix_redirectors", "arguments": {
+                "folders": ["/Game/Good", "/Game/Bad\x00Path"],
+            }},
+        })
+    assert m.call_count == 0
+    assert resp["error"]["code"] == -32602
+    assert "folder_invalid" in resp["error"]["message"]
+    assert "folders[1]" in resp["error"]["message"]
+
+
+def test_bulk_fix_redirectors_rejects_too_many_folders():
+    folders = [f"/Game/Folder{i}" for i in range(101)]
+    with patch.object(bridge, "call_ue") as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 636, "method": "tools/call",
+            "params": {"name": "bulk_fix_redirectors", "arguments": {
+                "folders": folders,
+            }},
+        })
+    assert m.call_count == 0
+    assert resp["error"]["code"] == -32602
+    assert "too_many_folders" in resp["error"]["message"]

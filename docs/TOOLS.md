@@ -1,6 +1,6 @@
 # MCP Tools Reference
 
-**96 tools total.** 71 are JSON-RPC 2.0 methods served on `127.0.0.1:18888` directly by the plugin's C++ handlers. The remaining 25 — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property` — are bridge-side **synthetic tools** that are intercepted by `bridge/unreal_claude_mcp_bridge.py` and served by composing existing handlers (or running Python via `execute_unreal_python`, or — for `compile_mod_pak` — shelling out to `RunUAT.bat` entirely outside the UE process). They are visible to MCP clients exactly like the C++ tools but cannot be reached by sending raw JSON-RPC to the TCP socket — only via the MCP bridge or by replicating their composition manually. The "Implementation" header on each entry below indicates whether a tool is C++ or bridge-side.
+**100 tools total.** 71 are JSON-RPC 2.0 methods served on `127.0.0.1:18888` directly by the plugin's C++ handlers. The remaining 29 — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors` — are bridge-side **synthetic tools** that are intercepted by `bridge/unreal_claude_mcp_bridge.py` and served by composing existing handlers (or running Python via `execute_unreal_python`, or — for `compile_mod_pak` — shelling out to `RunUAT.bat` entirely outside the UE process). They are visible to MCP clients exactly like the C++ tools but cannot be reached by sending raw JSON-RPC to the TCP socket — only via the MCP bridge or by replicating their composition manually. The "Implementation" header on each entry below indicates whether a tool is C++ or bridge-side.
 
 Each tool's params and result are documented with a working example.
 
@@ -13,7 +13,7 @@ s.send(json.dumps({"jsonrpc":"2.0","id":1,"method":"<METHOD>","params":{...}}).e
 print(s.recv(65536).decode())
 ```
 
-Synthetic tools (all 25: `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`) must be reached through the MCP bridge.
+Synthetic tools (all 29: `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`) must be reached through the MCP bridge.
 
 ---
 
@@ -3542,6 +3542,191 @@ Apply many UPROPERTY mutations across many actors in one MCP call. Composes [`se
     {"actor": "Crate_A", "property": "bHidden", "value": true},
     {"actor": "Crate_B", "property": "bHidden", "value": true}
   ],
+  "continue_on_error": false
+}}
+```
+
+---
+
+## compare_assets
+
+Symmetric diff between two assets' [`inspect_asset`](#inspect_asset) outputs. Useful for "what changed between these two versions of the same Blueprint?" walkthroughs and cross-checking duplicated assets that should be identical.
+
+**Bridge-side synthetic tool.** Pure Python — composes [`inspect_asset`](#inspect_asset) on both paths and diffs the resulting dicts. The `path` field is excluded from comparison (each response trivially echoes its own path).
+
+**Scoping the diff:** pass `fields` to restrict comparison to a whitelist of inspect_asset field names. When omitted, the synthetic compares the union of both responses' keys (minus `path`).
+
+**Params**
+- `path_a` (string, required) — first asset path
+- `path_b` (string, required) — second asset path
+- `fields` (array of string, optional) — whitelist of field names to compare; `path` is always excluded
+
+**Result**
+- `ok` (bool) — always `true` on success
+- `path_a` (string) — echo of input
+- `path_b` (string) — echo of input
+- `identical` (bool) — `true` when `differences` is empty
+- `fields_compared` (array of string) — fields actually diffed
+- `differences` (array of `{field, value_a, value_b}`) — one entry per differing field
+
+**Errors (envelope-level):** `-32602` (`missing_required_field` for `path_a` or `path_b`, `invalid_field` for non-list / non-string-element `fields`, NUL or `..` in either path); `inspect_failed_a` / `inspect_failed_b` (one per side) preserving the upstream `inspect_asset` error code.
+
+**Example — full diff**
+```json
+{"jsonrpc":"2.0","id":1,"method":"compare_assets","params":{
+  "path_a": "/Game/Blueprints/BP_Stone_v1.BP_Stone_v1",
+  "path_b": "/Game/Blueprints/BP_Stone_v2.BP_Stone_v2"
+}}
+```
+
+**Example — scoped diff**
+```json
+{"jsonrpc":"2.0","id":2,"method":"compare_assets","params":{
+  "path_a": "/Game/Materials/M_Stone.M_Stone",
+  "path_b": "/Game/Materials/M_Stone_LOW.M_Stone_LOW",
+  "fields": ["dependencies", "referencers"]
+}}
+```
+
+---
+
+## bulk_set_console_variables
+
+Set multiple Console Variables in one MCP call with optional atomic rollback. Useful for "apply a scalability set then revert if any single CVar fails" patterns.
+
+**Bridge-side synthetic tool.** Pure Python — composes [`get_console_variable`](#get_console_variable) (to capture each pre-value) plus [`set_console_variable`](#set_console_variable) (to apply each new value). On any per-CVar failure when `rollback_on_error=true`, the synthetic walks back every already-applied change to its captured pre-value; per-restore failures are surfaced in `rollback_failures` so the caller knows which CVars are still in their mutated state.
+
+**Rollback model:**
+- `rollback_on_error: true` (default) — first failure halts the loop, then every already-applied change is restored to its captured pre-value.
+- `rollback_on_error: false` — failures are recorded but applied changes are NOT restored.
+
+**Params**
+- `assignments` (object, required) — mapping of `{cvar_name: new_value}`; max 50 entries; each value must be string, number, or boolean
+- `rollback_on_error` (bool, optional, default `true`)
+
+**Result**
+- `ok` (bool) — `true` only when `failed` is empty
+- `total` (int) — `assignments` size
+- `applied` (array) — `{name, old_value, new_value}` per successfully applied CVar; `old_value` is captured from `get_console_variable`'s `value_string`
+- `failed` (array) — `{name, error: {code, message}}` per failure
+- `rolled_back` (bool) — `true` when a rollback pass was performed
+- `rollback_failures` (array, optional) — `{name, error}` per failed restore; present only when rollback was attempted AND some restore failed
+
+**Errors (envelope-level):** `-32602` (`missing_required_field` / `invalid_assignments_shape` / `assignment_value_invalid_type` / `too_many_assignments` / non-bool `rollback_on_error`); per-CVar `get_failed` / `set_failed` (recorded in `failed`); per-CVar `rollback_failed` (recorded in `rollback_failures`).
+
+**Example — apply scalability set**
+```json
+{"jsonrpc":"2.0","id":1,"method":"bulk_set_console_variables","params":{
+  "assignments": {
+    "r.ScreenPercentage": 50,
+    "r.Shadow.Quality": 2,
+    "r.PostProcessAAQuality": 3
+  }
+}}
+```
+
+**Example — apply best-effort (no rollback)**
+```json
+{"jsonrpc":"2.0","id":2,"method":"bulk_set_console_variables","params":{
+  "assignments": {
+    "r.VSync": false,
+    "r.ScreenPercentage": 100
+  },
+  "rollback_on_error": false
+}}
+```
+
+---
+
+## inspect_dependency_graph
+
+Walk the asset dependency graph BFS from a root, defaulting to following dependencies (downward). Useful for packaging audits ("what does this asset pull in?") and for the bidirectional sweep that asks "what's the full neighborhood of this asset?".
+
+**Bridge-side synthetic tool.** Pure Python — composes [`inspect_asset`](#inspect_asset) recursively. Distinct from [`get_reference_chain`](#get_reference_chain) in that it defaults to `direction=down` (packaging-audit framing) and supports a single bidirectional pass via `include_referencers=true` instead of two separate calls. De-duplicates visited nodes across both directions.
+
+**Edge orientation:** each edge carries a `direction` field — `"down"` for dependency edges (`node -> neighbor`) and `"up"` for referencer edges (`neighbor -> node`).
+
+**Truncation:** `truncated: true` when the BFS hit the depth bound and there were still neighbors to expand at that frontier. Increase `depth` to widen the walk.
+
+**Soft-failure semantics:** non-root per-node `inspect_asset` failures are swallowed (BFS continues from known neighbors). Root failure SURFACES (`asset_not_found` -> `-32602`, other inspect failures -> `-32603`).
+
+**Params**
+- `path` (string, required) — root asset path
+- `depth` (int, optional, default 2, range 1..8) — BFS depth bound
+- `include_referencers` (bool, optional, default `false`) — when `true`, also follow referencers upward in the same BFS
+
+**Result**
+- `ok` (bool) — always `true` on success
+- `root` (string) — echo of input
+- `depth` (int) — echo of input
+- `include_referencers` (bool) — echo of input
+- `node_count` (int) — de-duplicated visited count, including the root
+- `edge_count` (int) — length of `edges`
+- `nodes` (array of string) — sorted asset paths visited
+- `edges` (array of `{from, to, direction}`) — `direction` is `"down"` or `"up"`
+- `truncated` (bool)
+
+**Errors (envelope-level):** `-32602` (`missing_required_field` for `path`, `invalid_depth`, NUL or `..` in `path`, non-bool `include_referencers`, root `asset_not_found`); `-32603` (transport / non-not-found root inspect failure).
+
+**Example — packaging audit (downstream only)**
+```json
+{"jsonrpc":"2.0","id":1,"method":"inspect_dependency_graph","params":{
+  "path": "/Game/Blueprints/BP_Player.BP_Player",
+  "depth": 3
+}}
+```
+
+**Example — bidirectional neighborhood**
+```json
+{"jsonrpc":"2.0","id":2,"method":"inspect_dependency_graph","params":{
+  "path": "/Game/Materials/M_Stone.M_Stone",
+  "depth": 2,
+  "include_referencers": true
+}}
+```
+
+---
+
+## bulk_fix_redirectors
+
+Resolve UObjectRedirector stubs across multiple content folders in one MCP call. Useful as a follow-up after a sweep of [`bulk_move_assets`](#bulk_move_assets) / [`bulk_rename_assets`](#bulk_rename_assets) calls (each of which leaves redirectors at source paths) so the LLM does not have to issue one [`fix_up_redirectors`](#fix_up_redirectors) per touched folder.
+
+**Bridge-side synthetic tool.** Pure Python — loops over `folders` and dispatches one `call_ue("fix_up_redirectors", {"path": ...})` per entry. Mirrors the [`bulk_compile_blueprints`](#bulk_compile_blueprints) partial-failure shape.
+
+**Path validation:** each entry must be a non-empty string. NUL byte and `..` segment rejected envelope-level (`-32602` + `folder_invalid`) before any UE call. Max 100 entries per call.
+
+**Recursive flag:** `recursive` is informational and echoed back in the response. [`fix_up_redirectors`](#fix_up_redirectors) itself always operates recursively under the supplied path; the flag exists so callers can capture intent without tracking it separately.
+
+**Params**
+- `folders` (array of string, required) — content folder paths (each non-empty, NUL + `..` segments rejected, max 100 entries)
+- `recursive` (bool, optional, default `true`)
+- `continue_on_error` (bool, optional, default `true`) — when `false`, abort after the first per-folder failure and emit `halted_at_index`
+
+**Result**
+- `ok` (bool) — `true` only when `failed` is empty
+- `total` (int) — `folders.length`
+- `succeeded` (int) — count of per-folder successes
+- `failed` (array) — `{folder, error: {code, message}}` per failure, preserving the upstream `fix_up_redirectors` error code
+- `recursive` (bool) — echo of input
+- `halted_at_index` (int, optional) — present only when `continue_on_error=false` stopped the loop early
+
+**Errors (envelope-level):** `-32602` (`missing_required_field` / `invalid_folders_shape` / `folder_must_be_string` / `folder_invalid` / `too_many_folders` / non-bool `recursive` / non-bool `continue_on_error`).
+
+**Example — clean up after batch moves**
+```json
+{"jsonrpc":"2.0","id":1,"method":"bulk_fix_redirectors","params":{
+  "folders": [
+    "/Game/Materials",
+    "/Game/Textures",
+    "/Game/Audio"
+  ]
+}}
+```
+
+**Example — halt on first failure**
+```json
+{"jsonrpc":"2.0","id":2,"method":"bulk_fix_redirectors","params":{
+  "folders": ["/Game/A", "/Game/B", "/Game/C"],
   "continue_on_error": false
 }}
 ```

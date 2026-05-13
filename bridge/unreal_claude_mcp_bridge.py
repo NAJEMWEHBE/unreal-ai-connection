@@ -13,9 +13,9 @@ plugin speaks raw JSON-RPC over a local TCP socket (default
 Behaviour:
   - "initialize"             returned synthetically (does NOT hit the UE server)
   - "notifications/*"        consumed silently
-  - "tools/list"             returns a static list of all 96 tools (71
+  - "tools/list"             returns a static list of all 100 tools (71
                              dispatched to the UE plugin's C++ handlers
-                             plus 25 bridge-side synthetic tools served by
+                             plus 29 bridge-side synthetic tools served by
                              SYNTHETIC_TOOLS without crossing the wire as
                              a single UE round-trip)
   - "tools/call"             unpacks {name, arguments} and forwards to the
@@ -319,6 +319,92 @@ TOOLS = [
                 },
             },
             "required": ["assignments"],
+        },
+    },
+    {
+        "name": "compare_assets",
+        "description": "Symmetric diff between two assets' inspect_asset outputs. Composes inspect_asset bridge-side on both paths and returns the fields that differ. Useful for 'what changed between these two versions of the same blueprint?' walkthroughs and for cross-checking duplicated assets that should be identical. The `path` field is excluded from comparison (trivially different between the two inputs).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path_a": {
+                    "type": "string",
+                    "description": "First asset path (e.g. /Game/Blueprints/BP_A.BP_A)."
+                },
+                "path_b": {
+                    "type": "string",
+                    "description": "Second asset path; same shape as path_a."
+                },
+                "fields": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Optional whitelist of inspect_asset field names to compare. When omitted, the synthetic diffs the union of both responses' keys (minus 'path'). Use this to scope the diff to a known-volatile subset (e.g. ['dependencies', 'referencers'])."
+                },
+            },
+            "required": ["path_a", "path_b"],
+        },
+    },
+    {
+        "name": "bulk_set_console_variables",
+        "description": "Set multiple Console Variables in one MCP call with optional atomic rollback. Composes get_console_variable (to capture each pre-value) plus set_console_variable (to apply each new value); on any per-cvar failure when rollback_on_error=true, the synthetic walks back every applied change to its captured pre-value. Mirrors the editor's 'apply scalability set then revert if any fail' pattern, with an explicit rollback failure list so callers know which restores themselves failed.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "assignments": {
+                    "type": "object",
+                    "description": "Mapping of {cvar_name: new_value}. Each name must be a non-empty string; each value must be string, number, or boolean (matching set_console_variable's polymorphic value). Max 50 entries per call."
+                },
+                "rollback_on_error": {
+                    "type": "boolean",
+                    "description": "Default true. When true, any failure halts the loop, then every already-applied change is restored to its captured pre-value. When false, failures are recorded but applied changes are NOT restored."
+                },
+            },
+            "required": ["assignments"],
+        },
+    },
+    {
+        "name": "inspect_dependency_graph",
+        "description": "Walk the asset dependency graph BFS from a root (dependencies, downward by default). Composes inspect_asset recursively; optionally also follows referencers (upward) for a bidirectional sweep. Distinct from get_reference_chain in that it defaults to direction=down (dependencies, packaging-audit framing) and supports a single bidirectional pass instead of forcing two separate calls. De-duplicates visited nodes across both directions.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "description": "Root asset path to walk from."
+                },
+                "depth": {
+                    "type": "integer",
+                    "description": "BFS depth bound. Default 2, range 1..8 (the bidirectional sweep can produce a vast subgraph past depth 4 in any non-trivial project)."
+                },
+                "include_referencers": {
+                    "type": "boolean",
+                    "description": "Default false. When true, also follow referencers upward in the same BFS; edges record direction ('up' for referencer edges, 'down' for dependency edges)."
+                },
+            },
+            "required": ["path"],
+        },
+    },
+    {
+        "name": "bulk_fix_redirectors",
+        "description": "Resolve UObjectRedirector stubs across multiple content folders in one MCP call. Composes fix_up_redirectors per folder. Useful as a follow-up to a sweep of bulk_move_assets / bulk_rename_assets calls (each of which leaves redirectors at the source paths) so the LLM does not have to issue one fix_up_redirectors per touched folder.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "folders": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Content folder paths under which to fix up redirectors (e.g. ['/Game/Materials', '/Game/Textures']). Each non-empty, NUL + '..' segments rejected, max 100 entries."
+                },
+                "recursive": {
+                    "type": "boolean",
+                    "description": "Default true. Echoed back in the response for clarity; fix_up_redirectors itself always operates recursively under the supplied path -- this field exists so callers can capture intent without having to track it separately."
+                },
+                "continue_on_error": {
+                    "type": "boolean",
+                    "description": "Default true. When false, stop at the first per-folder fix-up failure and emit halted_at_index."
+                },
+            },
+            "required": ["folders"],
         },
     },
     {
@@ -4455,6 +4541,460 @@ def synthetic_bulk_set_actor_property(req_id, args: dict) -> dict:
     return _wrap_tool_result(req_id, body)
 
 
+def synthetic_compare_assets(req_id, args: dict) -> dict:
+    """Bridge-side composition: symmetric diff between two assets' inspect_asset
+    outputs.
+
+    Composes two `call_ue("inspect_asset", {path})` requests and returns the
+    fields that differ. The 'path' field is excluded from comparison because
+    it is trivially different between the two inputs (each response echoes
+    its own path).
+
+    When `fields` is supplied, only those names are compared (intersection
+    with each response). When omitted, the union of both responses' keys
+    (minus 'path') is diffed.
+
+    Synthetic rather than C++ because the diff is pure dict comparison over
+    the existing inspect_asset handler -- no UE side-effect, no shared state.
+    """
+    if not isinstance(args, dict):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "compare_assets: invalid_arguments: arguments must be an object",
+        })
+
+    if "path_a" not in args:
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "compare_assets: missing_required_field: 'path_a' is required",
+        })
+    if "path_b" not in args:
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "compare_assets: missing_required_field: 'path_b' is required",
+        })
+
+    path_a = args.get("path_a")
+    err = _validate_asset_path("compare_assets", path_a, "path_a")
+    if err is not None:
+        return make_response(req_id, error={"code": -32602, "message": err})
+
+    path_b = args.get("path_b")
+    err = _validate_asset_path("compare_assets", path_b, "path_b")
+    if err is not None:
+        return make_response(req_id, error={"code": -32602, "message": err})
+
+    fields = args.get("fields")
+    if fields is not None:
+        if not isinstance(fields, list):
+            return make_response(req_id, error={
+                "code": -32602,
+                "message": "compare_assets: invalid_field: 'fields' must be a list of strings",
+            })
+        for i, f in enumerate(fields):
+            if not isinstance(f, str) or not f:
+                return make_response(req_id, error={
+                    "code": -32602,
+                    "message": f"compare_assets: invalid_field: fields[{i}] must be a non-empty string",
+                })
+
+    resp_a = call_ue("inspect_asset", {"path": path_a})
+    if "error" in resp_a:
+        upstream = resp_a.get("error", {}) or {}
+        return make_response(req_id, error={
+            "code": upstream.get("code", -32603) or -32603,
+            "message": f"compare_assets: inspect_failed_a: inspecting '{path_a}' failed: {upstream.get('message') or ''}",
+        })
+
+    resp_b = call_ue("inspect_asset", {"path": path_b})
+    if "error" in resp_b:
+        upstream = resp_b.get("error", {}) or {}
+        return make_response(req_id, error={
+            "code": upstream.get("code", -32603) or -32603,
+            "message": f"compare_assets: inspect_failed_b: inspecting '{path_b}' failed: {upstream.get('message') or ''}",
+        })
+
+    result_a = resp_a.get("result") or {}
+    result_b = resp_b.get("result") or {}
+
+    # The 'path' field is trivially different (each result echoes its own
+    # path) -- exclude it so the diff is meaningful.
+    if fields:
+        compared = [f for f in fields if f != "path"]
+    else:
+        union = set(result_a.keys()) | set(result_b.keys())
+        union.discard("path")
+        compared = sorted(union)
+
+    differences: list[dict] = []
+    for field in compared:
+        va = result_a.get(field)
+        vb = result_b.get(field)
+        if va != vb:
+            differences.append({
+                "field": field,
+                "value_a": va,
+                "value_b": vb,
+            })
+
+    return _wrap_tool_result(req_id, {
+        "ok": True,
+        "path_a": path_a,
+        "path_b": path_b,
+        "identical": len(differences) == 0,
+        "fields_compared": compared,
+        "differences": differences,
+    })
+
+
+def synthetic_bulk_set_console_variables(req_id, args: dict) -> dict:
+    """Bridge-side composition: set multiple CVars in one MCP call with
+    optional atomic rollback.
+
+    Pipeline per assignment:
+      1. call_ue("get_console_variable", {name}) -- capture pre-value's
+         value_string for rollback.
+      2. call_ue("set_console_variable", {name, value}) -- apply new value.
+
+    On any failure when rollback_on_error=true: stop applying further
+    assignments AND walk back every already-applied change by issuing
+    set_console_variable with its captured pre-value. Per-restore failures
+    are surfaced in `rollback_failures` so the caller knows which CVars
+    are still in their mutated state.
+
+    Mirrors the bulk_compile_blueprints partial-failure shape but adds the
+    rollback ledger because cvar mutations have observable side-effects on
+    the running editor (unlike bulk_inspect_assets which is read-only).
+    """
+    if not isinstance(args, dict):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "bulk_set_console_variables: invalid_arguments: arguments must be an object",
+        })
+
+    if "assignments" not in args:
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "bulk_set_console_variables: missing_required_field: 'assignments' must be supplied as an object mapping cvar_name -> new_value",
+        })
+
+    assignments = args.get("assignments")
+    if not isinstance(assignments, dict):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "bulk_set_console_variables: invalid_assignments_shape: 'assignments' must be an object (mapping cvar_name -> new_value)",
+        })
+
+    if len(assignments) > 50:
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": f"bulk_set_console_variables: too_many_assignments: at most 50 assignments per call (got {len(assignments)})",
+        })
+
+    for name, value in assignments.items():
+        if not isinstance(name, str) or not name:
+            return make_response(req_id, error={
+                "code": -32602,
+                "message": "bulk_set_console_variables: invalid_assignments_shape: cvar names must be non-empty strings",
+            })
+        # set_console_variable accepts string|number|bool. Mirror that here so
+        # we reject mistyped values before any UE round-trip.
+        if not isinstance(value, (str, int, float, bool)):
+            return make_response(req_id, error={
+                "code": -32602,
+                "message": f"bulk_set_console_variables: assignment_value_invalid_type: assignments['{name}'] must be a string, number, or boolean",
+            })
+
+    rollback_on_error = args.get("rollback_on_error", True)
+    if not isinstance(rollback_on_error, bool):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "bulk_set_console_variables: invalid_field: 'rollback_on_error' must be a boolean",
+        })
+
+    applied: list[dict] = []
+    failed: list[dict] = []
+    captured: list[tuple[str, str]] = []  # (name, pre_value_string) for rollback
+
+    for name, value in assignments.items():
+        # Capture old value first.
+        get_resp = call_ue("get_console_variable", {"name": name})
+        if "error" in get_resp:
+            upstream = get_resp.get("error", {}) or {}
+            failed.append({
+                "name": name,
+                "error": {
+                    "code": upstream.get("code", -32603) or -32603,
+                    "message": f"bulk_set_console_variables: get_failed: capturing pre-value for '{name}' failed: {upstream.get('message') or ''}",
+                },
+            })
+            if rollback_on_error:
+                break
+            continue
+
+        old_value = (get_resp.get("result") or {}).get("value_string", "")
+
+        # Apply new value.
+        set_resp = call_ue("set_console_variable", {"name": name, "value": value})
+        if "error" in set_resp:
+            upstream = set_resp.get("error", {}) or {}
+            failed.append({
+                "name": name,
+                "error": {
+                    "code": upstream.get("code", -32603) or -32603,
+                    "message": f"bulk_set_console_variables: set_failed: applying '{name}' failed: {upstream.get('message') or ''}",
+                },
+            })
+            if rollback_on_error:
+                break
+            continue
+
+        captured.append((name, old_value))
+        applied.append({"name": name, "old_value": old_value, "new_value": value})
+
+    rolled_back = False
+    rollback_failures: list[dict] = []
+    if rollback_on_error and failed and captured:
+        rolled_back = True
+        for name, old_value in captured:
+            restore_resp = call_ue("set_console_variable", {"name": name, "value": old_value})
+            if "error" in restore_resp:
+                upstream = restore_resp.get("error", {}) or {}
+                rollback_failures.append({
+                    "name": name,
+                    "error": {
+                        "code": upstream.get("code", -32603) or -32603,
+                        "message": f"bulk_set_console_variables: rollback_failed: restoring '{name}' to pre-value failed: {upstream.get('message') or ''}",
+                    },
+                })
+
+    body: dict = {
+        "ok": len(failed) == 0,
+        "total": len(assignments),
+        "applied": applied,
+        "failed": failed,
+        "rolled_back": rolled_back,
+    }
+    if rolled_back and rollback_failures:
+        body["rollback_failures"] = rollback_failures
+    return _wrap_tool_result(req_id, body)
+
+
+def synthetic_inspect_dependency_graph(req_id, args: dict) -> dict:
+    """Bridge-side composition: BFS the asset dependency graph from a root,
+    optionally bidirectional.
+
+    Mirrors get_reference_chain's BFS shape but:
+      - defaults to direction=down (dependencies) -- this synthetic is
+        framed for packaging audits, not impact-of-change.
+      - when include_referencers=true, also expands referencers in the same
+        BFS, recording direction per edge. Visited de-duplication spans
+        both directions so a single asset reached via two paths is
+        inspected once.
+      - edges carry a `direction` field so the caller can render the
+        bidirectional graph without losing edge orientation.
+
+    Per-node inspect failures are SWALLOWED (BFS continues from known
+    neighbors). Root failure SURFACES (asset_not_found -> -32602,
+    other inspect failures -> -32603).
+    """
+    if not isinstance(args, dict):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "inspect_dependency_graph: invalid_arguments: arguments must be an object",
+        })
+
+    if "path" not in args:
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "inspect_dependency_graph: missing_required_field: 'path' is required",
+        })
+
+    root = args.get("path")
+    err = _validate_asset_path("inspect_dependency_graph", root, "path")
+    if err is not None:
+        return make_response(req_id, error={"code": -32602, "message": err})
+
+    depth = args.get("depth", 2)
+    if not isinstance(depth, int) or isinstance(depth, bool) or depth < 1 or depth > 8:
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "inspect_dependency_graph: invalid_depth: 'depth' must be an integer between 1 and 8",
+        })
+
+    include_referencers = args.get("include_referencers", False)
+    if not isinstance(include_referencers, bool):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "inspect_dependency_graph: invalid_field: 'include_referencers' must be a boolean",
+        })
+
+    visited: set[str] = {root}
+    edges: list[dict] = []
+    frontier: list[str] = [root]
+    truncated = False
+
+    for _ in range(depth):
+        next_frontier: list[str] = []
+        for node in frontier:
+            inspect_resp = call_ue("inspect_asset", {"path": node})
+            if "error" in inspect_resp:
+                if node == root:
+                    upstream = inspect_resp.get("error", {}) or {}
+                    msg = upstream.get("message", "") or ""
+                    if "asset_not_found" in msg.lower() or "not_found" in msg.lower():
+                        return make_response(req_id, error={
+                            "code": -32602,
+                            "message": f"inspect_dependency_graph: asset_not_found: root path '{root}' not in asset registry",
+                        })
+                    return make_response(req_id, error={
+                        "code": upstream.get("code", -32603) or -32603,
+                        "message": f"inspect_dependency_graph: inspect_failed: inspecting root '{root}' failed: {msg}",
+                    })
+                # Non-root inspect failure: skip the node, continue BFS.
+                continue
+
+            result = inspect_resp.get("result") or {}
+
+            # Always follow dependencies (down).
+            deps = result.get("dependencies") or []
+            if isinstance(deps, list):
+                for neighbor in deps:
+                    if not isinstance(neighbor, str) or not neighbor:
+                        continue
+                    edges.append({"from": node, "to": neighbor, "direction": "down"})
+                    if neighbor not in visited:
+                        visited.add(neighbor)
+                        next_frontier.append(neighbor)
+
+            # Optionally also follow referencers (up).
+            if include_referencers:
+                refs = result.get("referencers") or []
+                if isinstance(refs, list):
+                    for neighbor in refs:
+                        if not isinstance(neighbor, str) or not neighbor:
+                            continue
+                        edges.append({"from": neighbor, "to": node, "direction": "up"})
+                        if neighbor not in visited:
+                            visited.add(neighbor)
+                            next_frontier.append(neighbor)
+        if not next_frontier:
+            break
+        frontier = next_frontier
+    else:
+        truncated = bool(frontier)
+
+    return _wrap_tool_result(req_id, {
+        "ok": True,
+        "root": root,
+        "depth": depth,
+        "include_referencers": include_referencers,
+        "node_count": len(visited),
+        "edge_count": len(edges),
+        "nodes": sorted(visited),
+        "edges": edges,
+        "truncated": truncated,
+    })
+
+
+def synthetic_bulk_fix_redirectors(req_id, args: dict) -> dict:
+    """Bridge-side composition: resolve UObjectRedirector stubs across many
+    folders by dispatching `fix_up_redirectors` per folder.
+
+    Mirrors bulk_compile_blueprints's partial-failure shape. The optional
+    `recursive` flag is informational (fix_up_redirectors itself always
+    operates recursively under the supplied path) -- it is echoed back so
+    callers can capture intent without tracking it separately.
+
+    Synthetic rather than C++ for the same reason as the rest of the
+    bulk_* family.
+    """
+    if not isinstance(args, dict):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "bulk_fix_redirectors: invalid_arguments: arguments must be an object",
+        })
+
+    if "folders" not in args:
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "bulk_fix_redirectors: missing_required_field: 'folders' must be supplied as a list of content folder paths",
+        })
+
+    folders = args.get("folders")
+    if not isinstance(folders, list):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "bulk_fix_redirectors: invalid_folders_shape: 'folders' must be a list of strings",
+        })
+
+    if len(folders) > 100:
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": f"bulk_fix_redirectors: too_many_folders: at most 100 folders per call (got {len(folders)})",
+        })
+
+    for i, folder in enumerate(folders):
+        if not isinstance(folder, str) or not folder:
+            return make_response(req_id, error={
+                "code": -32602,
+                "message": f"bulk_fix_redirectors: folder_must_be_string: folders[{i}] must be a non-empty string",
+            })
+        err = _validate_asset_path("bulk_fix_redirectors", folder, f"folders[{i}]")
+        if err is not None:
+            # _validate_asset_path emits path_must_be_string / path_invalid;
+            # remap to folder_invalid so the error code matches the spec.
+            return make_response(req_id, error={
+                "code": -32602,
+                "message": err.replace("path_must_be_string", "folder_invalid").replace("path_invalid", "folder_invalid"),
+            })
+
+    recursive = args.get("recursive", True)
+    if not isinstance(recursive, bool):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "bulk_fix_redirectors: invalid_field: 'recursive' must be a boolean",
+        })
+
+    continue_on_error = args.get("continue_on_error", True)
+    if not isinstance(continue_on_error, bool):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "bulk_fix_redirectors: invalid_field: 'continue_on_error' must be a boolean",
+        })
+
+    succeeded = 0
+    failed: list[dict] = []
+    halted_at_index: int | None = None
+    for i, folder in enumerate(folders):
+        fix_resp = call_ue("fix_up_redirectors", {"path": folder})
+        if "error" in fix_resp:
+            upstream = fix_resp.get("error", {}) or {}
+            failed.append({
+                "folder": folder,
+                "error": {
+                    "code": upstream.get("code", -32603) or -32603,
+                    "message": f"bulk_fix_redirectors: fix_failed: fix_up_redirectors on '{folder}' failed: {upstream.get('message') or ''}",
+                },
+            })
+            if not continue_on_error:
+                halted_at_index = i
+                break
+        else:
+            succeeded += 1
+
+    body: dict = {
+        "ok": len(failed) == 0,
+        "total": len(folders),
+        "succeeded": succeeded,
+        "failed": failed,
+        "recursive": recursive,
+    }
+    if halted_at_index is not None:
+        body["halted_at_index"] = halted_at_index
+    return _wrap_tool_result(req_id, body)
+
+
 SYNTHETIC_TOOLS = {
     "wait_for_events": synthetic_wait_for_events,
     "get_camera_transform": synthetic_get_camera_transform,
@@ -4481,6 +5021,10 @@ SYNTHETIC_TOOLS = {
     "bulk_focus_actors": synthetic_bulk_focus_actors,
     "bulk_screenshot_actors": synthetic_bulk_screenshot_actors,
     "bulk_set_actor_property": synthetic_bulk_set_actor_property,
+    "compare_assets": synthetic_compare_assets,
+    "bulk_set_console_variables": synthetic_bulk_set_console_variables,
+    "inspect_dependency_graph": synthetic_inspect_dependency_graph,
+    "bulk_fix_redirectors": synthetic_bulk_fix_redirectors,
 }
 
 

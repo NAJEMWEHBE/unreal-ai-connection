@@ -1,7 +1,7 @@
 {
   "name": "UnrealClaudeMCP",
   "version": "0.9.1",
-  "description": "Drive Unreal Engine 5.7 from any MCP-compliant client (Claude Code, Codex CLI, Cursor, Gemini CLI, Continue, ...) over a local TCP socket. 96 tools total (71 native C++ handlers plus 25 bridge-side synthetic tools) that work with any UE 5.7 project.",
+  "description": "Drive Unreal Engine 5.7 from any MCP-compliant client (Claude Code, Codex CLI, Cursor, Gemini CLI, Continue, ...) over a local TCP socket. 100 tools total (71 native C++ handlers plus 29 bridge-side synthetic tools) that work with any UE 5.7 project.",
   "transport": {
     "type": "tcp",
     "host": "127.0.0.1",
@@ -830,6 +830,45 @@
         "continue_on_error": "bool (optional, default true) - when false, halt at the first per-assignment failure and emit halted_at_index"
       },
       "returns": { "ok": "bool (true only when failed is empty)", "total": "int (assignments.length)", "succeeded": "int (count of per-assignment successes)", "failed": "array of {actor: string, property: string, error: {code: int, message: string}}", "halted_at_index": "int - present only when continue_on_error=false stopped the loop early; the 0-based index of the failed assignment" }
+    },
+    {
+      "name": "compare_assets",
+      "description": "Symmetric diff between two assets' inspect_asset outputs. SYNTHETIC bridge-side handler that composes inspect_asset on both paths and returns the fields that differ. Useful for 'what changed between these two versions of the same blueprint?' walkthroughs and for cross-checking duplicated assets that should be identical. The 'path' field is excluded from comparison (trivially different between the two inputs).",
+      "params": {
+        "path_a": "string (required) - first asset path",
+        "path_b": "string (required) - second asset path",
+        "fields": "array of string (optional) - whitelist of inspect_asset field names to compare; when omitted, the synthetic diffs the union of both responses' keys (minus 'path')"
+      },
+      "returns": { "ok": "bool (always true on success)", "path_a": "string (echo of input)", "path_b": "string (echo of input)", "identical": "bool (true when differences is empty)", "fields_compared": "array of string (the fields actually diffed; 'path' is never included)", "differences": "array of {field: string, value_a: any, value_b: any} - one entry per differing field" }
+    },
+    {
+      "name": "bulk_set_console_variables",
+      "description": "Set multiple Console Variables in one MCP call with optional atomic rollback. SYNTHETIC bridge-side handler that composes get_console_variable (to capture each pre-value) plus set_console_variable (to apply each new value). On any per-cvar failure when rollback_on_error=true, the synthetic walks back every applied change to its captured pre-value, with rollback_failures listing any restore attempts that themselves failed.",
+      "params": {
+        "assignments": "object (required) - mapping of {cvar_name: new_value}; each name a non-empty string; each value a string, number, or boolean; max 50 entries",
+        "rollback_on_error": "bool (optional, default true) - when true, halt at first failure and restore every applied change to its captured pre-value; when false, record failures but keep applied changes"
+      },
+      "returns": { "ok": "bool (true only when failed is empty)", "total": "int (assignments size)", "applied": "array of {name: string, old_value: string, new_value: any} - one entry per successfully applied cvar; old_value comes from get_console_variable's value_string", "failed": "array of {name: string, error: {code: int, message: string}}", "rolled_back": "bool (true when a rollback pass was performed)", "rollback_failures": "array of {name: string, error: {code: int, message: string}} - present only when rollback was attempted AND some restore failed" }
+    },
+    {
+      "name": "inspect_dependency_graph",
+      "description": "Walk the asset dependency graph BFS from a root (dependencies, downward by default). SYNTHETIC bridge-side handler that composes inspect_asset recursively. Optionally also follows referencers (upward) for a single bidirectional sweep. Distinct from get_reference_chain in that it defaults to direction=down (packaging-audit framing) and supports a bidirectional pass instead of two separate calls. De-duplicates visited nodes across both directions.",
+      "params": {
+        "path": "string (required) - root asset path to walk from",
+        "depth": "int (optional, default 2, range 1..8) - BFS depth bound",
+        "include_referencers": "bool (optional, default false) - when true, also follow referencers upward in the same BFS"
+      },
+      "returns": { "ok": "bool", "root": "string (echo of input)", "depth": "int (echo of input)", "include_referencers": "bool (echo of input)", "node_count": "int (de-duplicated visited count, including root)", "edge_count": "int (length of edges array)", "nodes": "array of string (sorted asset paths visited)", "edges": "array of {from: string, to: string, direction: string ('down' for dependency edges, 'up' for referencer edges)}", "truncated": "bool (true when the BFS hit depth and there were still neighbors to expand)" }
+    },
+    {
+      "name": "bulk_fix_redirectors",
+      "description": "Resolve UObjectRedirector stubs across multiple content folders in one MCP call. SYNTHETIC bridge-side handler that composes fix_up_redirectors per folder. Useful as a follow-up to sweeps of bulk_move_assets / bulk_rename_assets calls (each of which leaves redirectors at source paths) so the LLM does not have to issue one fix_up_redirectors per touched folder.",
+      "params": {
+        "folders": "array of string (required) - content folder paths under which to fix up redirectors; each non-empty, NUL + '..' segments rejected, max 100 entries",
+        "recursive": "bool (optional, default true) - echoed back in the response for clarity; fix_up_redirectors itself always operates recursively under the supplied path",
+        "continue_on_error": "bool (optional, default true) - when false, halt at the first per-folder fix-up failure and emit halted_at_index"
+      },
+      "returns": { "ok": "bool (true only when failed is empty)", "total": "int (folders.length)", "succeeded": "int (count of per-folder successes)", "failed": "array of {folder: string, error: {code: int, message: string}}", "recursive": "bool (echo of input)", "halted_at_index": "int - present only when continue_on_error=false stopped the loop early" }
     }
   ]
 }
