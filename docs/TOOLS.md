@@ -1,6 +1,6 @@
 # MCP Tools Reference
 
-**88 tools total.** 71 are JSON-RPC 2.0 methods served on `127.0.0.1:18888` directly by the plugin's C++ handlers. The remaining 17 — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound` — are bridge-side **synthetic tools** that are intercepted by `bridge/unreal_claude_mcp_bridge.py` and served by composing existing handlers (or running Python via `execute_unreal_python`, or — for `compile_mod_pak` — shelling out to `RunUAT.bat` entirely outside the UE process). They are visible to MCP clients exactly like the C++ tools but cannot be reached by sending raw JSON-RPC to the TCP socket — only via the MCP bridge or by replicating their composition manually. The "Implementation" header on each entry below indicates whether a tool is C++ or bridge-side.
+**92 tools total.** 71 are JSON-RPC 2.0 methods served on `127.0.0.1:18888` directly by the plugin's C++ handlers. The remaining 21 — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status` — are bridge-side **synthetic tools** that are intercepted by `bridge/unreal_claude_mcp_bridge.py` and served by composing existing handlers (or running Python via `execute_unreal_python`, or — for `compile_mod_pak` — shelling out to `RunUAT.bat` entirely outside the UE process). They are visible to MCP clients exactly like the C++ tools but cannot be reached by sending raw JSON-RPC to the TCP socket — only via the MCP bridge or by replicating their composition manually. The "Implementation" header on each entry below indicates whether a tool is C++ or bridge-side.
 
 Each tool's params and result are documented with a working example.
 
@@ -13,7 +13,7 @@ s.send(json.dumps({"jsonrpc":"2.0","id":1,"method":"<METHOD>","params":{...}}).e
 print(s.recv(65536).decode())
 ```
 
-Synthetic tools (all 17: `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`) must be reached through the MCP bridge.
+Synthetic tools (all 21: `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`) must be reached through the MCP bridge.
 
 ---
 
@@ -3220,6 +3220,184 @@ Both inherit from common base; this tool accepts either and returns `class` dist
 }}
 ```
 Returns `{"ok": false, "error_code": "metasound_unavailable", "error_message": "MetaSound plugin not enabled - enable it in Plugins > Audio"}`.
+
+---
+
+## find_unused_assets
+
+Enumerate assets under a content path and report which have **zero referencers** — i.e. nothing in the project links to them. Useful for content cleanup audits before shipping (test fixtures, abandoned variants, generated-then-forgotten content).
+
+**Bridge-side synthetic tool.** Pure Python — composes [`find_assets`](#find_assets) (one round-trip to enumerate candidates) + [`inspect_asset`](#inspect_asset) per result (reads each asset's `referencers` array; empty list = unused). Stops once `limit` unused assets are found OR the scan exhausts. `truncated` flags when there were more candidates than the inner scan window covered.
+
+When no `class_filter` is supplied, the synthetic falls back to `/Script/CoreUObject.Object` (root of every UE asset class) so the `path_under` filter alone controls the scan range.
+
+**Soft-failure semantics:** per-asset `inspect_asset` failures are swallowed silently; only when EVERY candidate's inspect failed does the synthetic surface an `inspect_failed` error (otherwise a confusing "0 unused found" would mask the underlying issue).
+
+**Params**
+- `path_under` (string, optional, default `/Game`) — folder to scan recursively
+- `class_filter` (string, optional) — UE class path (e.g. `/Script/Engine.Texture2D`) to scan only assets of one type
+- `limit` (integer, optional, default 100, max 10000) — max unused assets to return; scan stops once this many are found
+
+**Result**
+- `ok` (bool) — always `true` on success (use the envelope-level error for failures)
+- `scanned` (int) — number of candidates inspected
+- `unused_count` (int) — length of `unused`
+- `unused` (array of `{path, class}`) — assets with zero referencers (in scan order)
+- `truncated` (bool) — `true` when more candidates existed beyond what was scanned
+
+**Errors (envelope-level):** `-32602` (invalid `path_under` / `class_filter` / `limit`); `-32603` (transport / every inspect failed — `find_failed` / `inspect_failed`).
+
+**Example — happy path**
+```json
+{"jsonrpc":"2.0","id":1,"method":"find_unused_assets","params":{
+  "path_under": "/Game/TestFixtures",
+  "limit": 50
+}}
+```
+
+**Example — narrow to one asset type**
+```json
+{"jsonrpc":"2.0","id":2,"method":"find_unused_assets","params":{
+  "path_under": "/Game/Textures",
+  "class_filter": "/Script/Engine.Texture2D",
+  "limit": 200
+}}
+```
+
+---
+
+## get_reference_chain
+
+Walk the asset reference graph BFS from a root, returning every node and edge up to a depth bound. Useful for impact analysis (`direction=up`: "if I delete this asset, what breaks?") and dependency audits (`direction=down`: "what does this asset pull in?").
+
+**Bridge-side synthetic tool.** Pure Python — composes [`inspect_asset`](#inspect_asset) recursively (BFS). Each call reads `referencers` (direction=up) or `dependencies` (direction=down). De-duplicates visited nodes so cycles in the asset graph don't loop infinitely.
+
+**Direction semantics:**
+- `up` — start at `root`, expand to every asset that has `root` in its dependencies. Edges flow `neighbor -> node` (the neighbor references the node).
+- `down` — start at `root`, expand to every asset listed in `root`'s dependencies. Edges flow `node -> neighbor` (the node depends on the neighbor).
+
+The result is a flat node + edge list rather than a tree because real asset graphs are DAGs; a flat shape lets the caller render whatever they want (tree, graph, table).
+
+**Truncation:** `truncated: true` when the BFS hit the depth bound and there were still neighbors to expand at that frontier. Increase `depth` to widen the walk.
+
+**Soft-failure semantics:** non-root per-node `inspect_asset` failures are swallowed; the BFS continues. The root's failure DOES surface (`asset_not_found` -> `-32602`, other inspect failures -> `-32603`).
+
+**Params**
+- `path` (string, required) — root asset path
+- `depth` (integer, optional, default 3, max 8) — BFS depth bound; 8 hops is already a vast subgraph in any non-trivial project
+- `direction` (string, optional, default `up`) — one of `up` or `down`
+
+**Result**
+- `ok` (bool) — always `true` on success
+- `root` (string) — echo of input
+- `direction` (string) — `"up"` or `"down"`
+- `depth` (int) — echo of input
+- `node_count` (int) — de-duplicated visited count, including the root
+- `edge_count` (int) — length of `edges`
+- `edges` (array of `{from, to}`) — asset path pairs
+- `truncated` (bool) — `true` when the BFS hit `depth` with neighbors remaining
+
+**Errors (envelope-level):** `-32602` (missing or non-string `path`, invalid `depth`, invalid `direction`, NUL or `..` in `path`, root `asset_not_found`); `-32603` (transport / non-not-found root inspect failure).
+
+**Example — impact analysis (who references this material?)**
+```json
+{"jsonrpc":"2.0","id":1,"method":"get_reference_chain","params":{
+  "path": "/Game/Materials/M_Stone.M_Stone",
+  "depth": 2,
+  "direction": "up"
+}}
+```
+
+**Example — dependency audit (what does this BP pull in?)**
+```json
+{"jsonrpc":"2.0","id":2,"method":"get_reference_chain","params":{
+  "path": "/Game/Blueprints/BP_Player.BP_Player",
+  "depth": 4,
+  "direction": "down"
+}}
+```
+
+---
+
+## bulk_compile_blueprints
+
+Recompile multiple Blueprints in one MCP call by composing the [`compile_blueprint`](#compile_blueprint) C++ handler bridge-side. Useful after batch-mutating Blueprint properties via [`execute_unreal_python`](#execute_unreal_python) or other tooling.
+
+**Bridge-side synthetic tool.** Pure Python — loops over `paths` and dispatches one `call_ue("compile_blueprint", {"path": ...})` per entry. Mirrors the [`bulk_inspect_assets`](#bulk_inspect_assets) shape (paths list + continue_on_error + per-path result envelope).
+
+**Path validation:** each entry must be a non-empty string. NUL byte and `..` segment rejected envelope-level (`-32602`) before any compile is attempted. Max 1000 entries per call.
+
+**Partial-failure model:** identical to [`bulk_delete_assets`](#bulk_delete_assets). `continue_on_error: true` (default) keeps compiling after individual failures; `continue_on_error: false` stops at the first failure and returns partial results.
+
+**Params**
+- `paths` (array of string, required) — Blueprint asset paths to compile (each non-empty, NUL + `..` segments rejected, max 1000 entries)
+- `continue_on_error` (bool, optional, default `true`) — when `false`, abort after the first per-path compile failure
+
+**Result**
+- `ok` (bool) — `true` only when `failed == 0`
+- `total` (int) — `paths.length`
+- `succeeded` (int) — count of per-path successes
+- `failed` (int) — count of per-path failures
+- `results` (array) — one entry per attempted compile, in input order:
+  - `path` (string)
+  - `ok` (bool)
+  - `error` (object, only on failure) — `{code: int, message: string}` preserved from the upstream `compile_blueprint` response
+
+**Errors (envelope-level):** `-32602` (`missing_required_field` / `invalid_paths_shape` / `path_must_be_string` / `path_invalid` / non-bool `continue_on_error`).
+
+**Example — happy path**
+```json
+{"jsonrpc":"2.0","id":1,"method":"bulk_compile_blueprints","params":{
+  "paths": ["/Game/Blueprints/BP_A", "/Game/Blueprints/BP_B"]
+}}
+```
+
+**Example — fail fast**
+```json
+{"jsonrpc":"2.0","id":2,"method":"bulk_compile_blueprints","params":{
+  "paths": ["/Game/Blueprints/BP_A", "/Game/Blueprints/BP_B"],
+  "continue_on_error": false
+}}
+```
+
+---
+
+## audit_blueprint_compile_status
+
+Enumerate every Blueprint under a content path and bucket each by compile-status (`UpToDate` / `Dirty` / `Error` / `Unknown` / `BeingCreated`). **READ-ONLY** — no recompile triggered. Pair with [`bulk_compile_blueprints`](#bulk_compile_blueprints) to actually fix anything found.
+
+**Bridge-side synthetic tool.** Pure Python — composes [`find_assets`](#find_assets) (one round-trip enumerating `/Script/Engine.Blueprint` under `path_under`) + [`inspect_blueprint`](#inspect_blueprint) per result. Reads each asset's `blueprint_status` field.
+
+**Caveat:** the current `inspect_blueprint` C++ handler does NOT surface `blueprint_status` (verified against UE 5.7 source on 2026-05-13). Until the field lands C++-side, every scanned BP is reported as `Unknown`. The audit shape stays stable across that future enhancement — adding the field flips the buckets automatically with no schema change.
+
+**Soft-failure semantics:** per-asset `inspect_blueprint` failures count toward the `Unknown` bucket rather than aborting; only when EVERY candidate's inspect failed does the synthetic surface `inspect_failed` (a meaningless audit would otherwise hide the underlying issue).
+
+**Params**
+- `path_under` (string, optional, default `/Game`) — content path to scan recursively
+- `compile_failures_only` (bool, optional, default `true`) — when `true`, `problem_assets` only lists Blueprints whose status is `Error` or `Unknown`; when `false`, every scanned BP is listed
+
+**Result**
+- `ok` (bool) — always `true` on success
+- `scanned` (int) — number of BPs inspected
+- `by_status` (object) — `{UpToDate, Dirty, Error, Unknown, BeingCreated}` integer counts
+- `problem_assets` (array of `{path, status}`) — filtered per `compile_failures_only`
+
+**Errors (envelope-level):** `-32602` (invalid `path_under` / `compile_failures_only`); `-32603` (transport / every inspect failed — `find_failed` / `inspect_failed`).
+
+**Example — failures-only (default)**
+```json
+{"jsonrpc":"2.0","id":1,"method":"audit_blueprint_compile_status","params":{
+  "path_under": "/Game/Blueprints"
+}}
+```
+
+**Example — full breakdown**
+```json
+{"jsonrpc":"2.0","id":2,"method":"audit_blueprint_compile_status","params":{
+  "path_under": "/Game",
+  "compile_failures_only": false
+}}
+```
 
 ---
 

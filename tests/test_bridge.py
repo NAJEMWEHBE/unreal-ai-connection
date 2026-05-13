@@ -110,6 +110,10 @@ def test_tool_names_are_unique_and_match_handlers():
         "bulk_inspect_assets",
         "pie_control",
         "inspect_project_setting",
+        "find_unused_assets",
+        "get_reference_chain",
+        "bulk_compile_blueprints",
+        "audit_blueprint_compile_status",
     }
     assert set(names) == expected
 
@@ -316,6 +320,571 @@ def test_bulk_inspect_assets_rejects_missing_paths():
     assert resp["error"]["code"] == -32602
     assert "bulk_inspect_assets" in resp["error"]["message"]
     assert "paths" in resp["error"]["message"]
+
+
+# ============================================================================
+# Wave B asset-hygiene synthetic tools
+# (find_unused_assets, get_reference_chain, bulk_compile_blueprints,
+# audit_blueprint_compile_status)
+# ============================================================================
+
+
+# ---- find_unused_assets ----------------------------------------------------
+
+def test_find_unused_assets_is_synthetic():
+    """Wave B: find_unused_assets is a SYNTHETIC bridge-side composition over
+    find_assets + inspect_asset. All params optional (path_under default
+    /Game; limit default 100)."""
+    tool = next((t for t in bridge.TOOLS if t["name"] == "find_unused_assets"), None)
+    assert tool is not None, "find_unused_assets must be in TOOLS catalog"
+    # No required fields -- everything has a default.
+    assert tool["inputSchema"].get("required", []) == []
+    props = tool["inputSchema"]["properties"]
+    assert props["path_under"]["type"] == "string"
+    assert props["class_filter"]["type"] == "string"
+    assert props["limit"]["type"] == "integer"
+    assert "find_unused_assets" in bridge.SYNTHETIC_TOOLS
+    assert bridge.SYNTHETIC_TOOLS["find_unused_assets"] is bridge.synthetic_find_unused_assets
+
+
+def test_find_unused_assets_happy_path():
+    """find_assets returns 3 candidates; per-asset inspect_asset reports
+    referencer arrays. Empty referencers list -> 'unused'."""
+    find_resp = {
+        "jsonrpc": "2.0", "id": 1, "result": {
+            "ok": True, "matched": 3, "returned": 3,
+            "assets": [
+                {"name": "T_Unused", "package_path": "/Game/Tex/T_Unused", "class": "Texture2D"},
+                {"name": "T_Used", "package_path": "/Game/Tex/T_Used", "class": "Texture2D"},
+                {"name": "T_AlsoUnused", "package_path": "/Game/Tex/T_AlsoUnused", "class": "Texture2D"},
+            ],
+        },
+    }
+    inspect_unused = {"jsonrpc": "2.0", "id": 1, "result": {"ok": True, "referencers": []}}
+    inspect_used = {"jsonrpc": "2.0", "id": 1, "result": {"ok": True, "referencers": ["/Game/Maps/M_Demo"]}}
+    inspect_unused_2 = {"jsonrpc": "2.0", "id": 1, "result": {"ok": True, "referencers": []}}
+    with patch.object(bridge, "call_ue", side_effect=[find_resp, inspect_unused, inspect_used, inspect_unused_2]):
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 400, "method": "tools/call",
+            "params": {"name": "find_unused_assets", "arguments": {"path_under": "/Game/Tex"}},
+        })
+
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert body["ok"] is True
+    assert body["scanned"] == 3
+    assert body["unused_count"] == 2
+    paths = [u["path"] for u in body["unused"]]
+    assert "/Game/Tex/T_Unused" in paths
+    assert "/Game/Tex/T_AlsoUnused" in paths
+    assert "/Game/Tex/T_Used" not in paths
+    assert body["truncated"] is False
+
+
+def test_find_unused_assets_swallows_individual_inspect_failures():
+    """When SOME inspect_asset calls fail, the loop continues; only when
+    EVERY inspect fails does the synthetic surface inspect_failed."""
+    find_resp = {
+        "jsonrpc": "2.0", "id": 1, "result": {
+            "ok": True, "matched": 2, "returned": 2,
+            "assets": [
+                {"name": "A", "package_path": "/Game/A", "class": "Texture2D"},
+                {"name": "B", "package_path": "/Game/B", "class": "Texture2D"},
+            ],
+        },
+    }
+    inspect_ok_unused = {"jsonrpc": "2.0", "id": 1, "result": {"ok": True, "referencers": []}}
+    inspect_err = {"jsonrpc": "2.0", "id": 1, "error": {"code": -32000, "message": "asset_not_found"}}
+    with patch.object(bridge, "call_ue", side_effect=[find_resp, inspect_ok_unused, inspect_err]):
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 401, "method": "tools/call",
+            "params": {"name": "find_unused_assets", "arguments": {}},
+        })
+
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert body["ok"] is True  # individual failure swallowed
+    assert body["scanned"] == 2
+    assert body["unused_count"] == 1
+    assert body["unused"][0]["path"] == "/Game/A"
+
+
+def test_find_unused_assets_all_inspects_fail_surfaces_error():
+    """When EVERY inspect fails, an inspect_failed envelope-level error
+    surfaces -- a confusing '0 unused found' would otherwise mask the
+    underlying issue."""
+    find_resp = {
+        "jsonrpc": "2.0", "id": 1, "result": {
+            "ok": True, "matched": 2, "returned": 2,
+            "assets": [
+                {"name": "A", "package_path": "/Game/A", "class": "Texture2D"},
+                {"name": "B", "package_path": "/Game/B", "class": "Texture2D"},
+            ],
+        },
+    }
+    inspect_err = {"jsonrpc": "2.0", "id": 1, "error": {"code": -32000, "message": "asset_not_found"}}
+    with patch.object(bridge, "call_ue", side_effect=[find_resp, inspect_err, inspect_err]):
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 402, "method": "tools/call",
+            "params": {"name": "find_unused_assets", "arguments": {}},
+        })
+
+    assert "error" in resp
+    assert resp["error"]["code"] == -32603
+    assert "inspect_failed" in resp["error"]["message"]
+
+
+def test_find_unused_assets_rejects_invalid_limit():
+    """limit must be 1..10000; out-of-range -> -32602."""
+    resp = bridge.handle({
+        "jsonrpc": "2.0", "id": 403, "method": "tools/call",
+        "params": {"name": "find_unused_assets", "arguments": {"limit": 20000}},
+    })
+    assert resp["error"]["code"] == -32602
+    assert "limit" in resp["error"]["message"]
+
+
+def test_find_unused_assets_find_failed_propagates():
+    """When the underlying find_assets call errors, the synthetic surfaces
+    find_failed verbatim."""
+    find_err = {"jsonrpc": "2.0", "id": 1, "error": {"code": -32099, "message": "UE unreachable"}}
+    with patch.object(bridge, "call_ue", side_effect=[find_err]):
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 404, "method": "tools/call",
+            "params": {"name": "find_unused_assets", "arguments": {}},
+        })
+    assert "error" in resp
+    assert "find_failed" in resp["error"]["message"]
+
+
+# ---- get_reference_chain ---------------------------------------------------
+
+def test_get_reference_chain_is_synthetic():
+    """Wave B: get_reference_chain is a SYNTHETIC bridge-side composition
+    over inspect_asset (BFS recursion). path is REQUIRED; depth + direction
+    optional."""
+    tool = next((t for t in bridge.TOOLS if t["name"] == "get_reference_chain"), None)
+    assert tool is not None, "get_reference_chain must be in TOOLS catalog"
+    assert tool["inputSchema"]["required"] == ["path"]
+    props = tool["inputSchema"]["properties"]
+    assert props["path"]["type"] == "string"
+    assert props["depth"]["type"] == "integer"
+    assert props["direction"]["enum"] == ["up", "down"]
+    assert "get_reference_chain" in bridge.SYNTHETIC_TOOLS
+    assert bridge.SYNTHETIC_TOOLS["get_reference_chain"] is bridge.synthetic_get_reference_chain
+
+
+def test_get_reference_chain_happy_path_up_direction():
+    """BFS up from /Game/M_Stone: 1 referencer at depth 1 (/Game/BP_Block);
+    /Game/BP_Block itself has no further referencers. node_count=2,
+    edge_count=1, truncated=False."""
+    root_resp = {"jsonrpc": "2.0", "id": 1, "result": {
+        "referencers": ["/Game/BP_Block"], "dependencies": []}}
+    bp_resp = {"jsonrpc": "2.0", "id": 1, "result": {"referencers": [], "dependencies": []}}
+    with patch.object(bridge, "call_ue", side_effect=[root_resp, bp_resp]) as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 410, "method": "tools/call",
+            "params": {"name": "get_reference_chain", "arguments": {
+                "path": "/Game/M_Stone.M_Stone", "depth": 3, "direction": "up",
+            }},
+        })
+
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert body["ok"] is True
+    assert body["root"] == "/Game/M_Stone.M_Stone"
+    assert body["direction"] == "up"
+    assert body["node_count"] == 2
+    assert body["edge_count"] == 1
+    # For up direction, edges flow neighbor -> node.
+    assert body["edges"][0] == {"from": "/Game/BP_Block", "to": "/Game/M_Stone.M_Stone"}
+    assert body["truncated"] is False
+    assert m.call_count == 2
+
+
+def test_get_reference_chain_happy_path_down_direction():
+    """BFS down from /Game/BP_Block: 2 deps at depth 1; each has no deps.
+    edges flow node -> neighbor."""
+    root_resp = {"jsonrpc": "2.0", "id": 1, "result": {
+        "referencers": [], "dependencies": ["/Game/M_Stone", "/Game/T_Stone"]}}
+    leaf1 = {"jsonrpc": "2.0", "id": 1, "result": {"referencers": [], "dependencies": []}}
+    leaf2 = {"jsonrpc": "2.0", "id": 1, "result": {"referencers": [], "dependencies": []}}
+    with patch.object(bridge, "call_ue", side_effect=[root_resp, leaf1, leaf2]):
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 411, "method": "tools/call",
+            "params": {"name": "get_reference_chain", "arguments": {
+                "path": "/Game/BP_Block", "direction": "down",
+            }},
+        })
+
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert body["direction"] == "down"
+    assert body["node_count"] == 3  # root + 2 deps
+    assert body["edge_count"] == 2
+    for edge in body["edges"]:
+        assert edge["from"] == "/Game/BP_Block"
+        assert edge["to"] in ("/Game/M_Stone", "/Game/T_Stone")
+
+
+def test_get_reference_chain_dedupes_visited_nodes_on_cycle():
+    """A cycle in the asset graph (A refs B, B refs A) must NOT loop
+    infinitely. Each node inspected once; second sighting is de-duped."""
+    a_resp = {"jsonrpc": "2.0", "id": 1, "result": {"referencers": ["/Game/B"], "dependencies": []}}
+    b_resp = {"jsonrpc": "2.0", "id": 1, "result": {"referencers": ["/Game/A"], "dependencies": []}}
+    # If de-dup is broken, call_ue would keep getting called past 2.
+    with patch.object(bridge, "call_ue", side_effect=[a_resp, b_resp, a_resp, b_resp, a_resp]) as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 412, "method": "tools/call",
+            "params": {"name": "get_reference_chain", "arguments": {
+                "path": "/Game/A", "depth": 5, "direction": "up",
+            }},
+        })
+
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert body["ok"] is True
+    # Exactly 2 distinct nodes visited (A + B). Each inspected at most once
+    # in the de-duped BFS.
+    assert body["node_count"] == 2
+    assert m.call_count <= 3  # A at depth 0, B at depth 1, possibly A re-checked once via cycle
+
+
+def test_get_reference_chain_rejects_root_not_found():
+    """When the ROOT's inspect_asset returns asset_not_found, the synthetic
+    surfaces -32602 asset_not_found at envelope-level."""
+    err_resp = {"jsonrpc": "2.0", "id": 1, "error": {
+        "code": -32000, "message": "inspect_asset: asset_not_found: /Game/Missing"}}
+    with patch.object(bridge, "call_ue", side_effect=[err_resp]):
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 413, "method": "tools/call",
+            "params": {"name": "get_reference_chain", "arguments": {
+                "path": "/Game/Missing",
+            }},
+        })
+
+    assert "error" in resp
+    assert resp["error"]["code"] == -32602
+    assert "asset_not_found" in resp["error"]["message"]
+
+
+def test_get_reference_chain_rejects_invalid_direction():
+    """direction must be 'up' or 'down'."""
+    resp = bridge.handle({
+        "jsonrpc": "2.0", "id": 414, "method": "tools/call",
+        "params": {"name": "get_reference_chain", "arguments": {
+            "path": "/Game/Foo", "direction": "sideways",
+        }},
+    })
+    assert resp["error"]["code"] == -32602
+    assert "invalid_direction" in resp["error"]["message"]
+
+
+def test_get_reference_chain_rejects_invalid_depth():
+    """depth must be 1..8."""
+    resp = bridge.handle({
+        "jsonrpc": "2.0", "id": 415, "method": "tools/call",
+        "params": {"name": "get_reference_chain", "arguments": {
+            "path": "/Game/Foo", "depth": 99,
+        }},
+    })
+    assert resp["error"]["code"] == -32602
+    assert "invalid_depth" in resp["error"]["message"]
+
+
+def test_get_reference_chain_rejects_path_with_nul_byte():
+    """NUL byte rejected at path validation before any call_ue."""
+    with patch.object(bridge, "call_ue") as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 416, "method": "tools/call",
+            "params": {"name": "get_reference_chain", "arguments": {
+                "path": "/Game/Bad\x00Path",
+            }},
+        })
+    assert m.call_count == 0
+    assert resp["error"]["code"] == -32602
+    assert "NUL" in resp["error"]["message"]
+
+
+# ---- bulk_compile_blueprints -----------------------------------------------
+
+def test_bulk_compile_blueprints_is_synthetic():
+    """Wave B: bulk_compile_blueprints is a SYNTHETIC bridge-side composition
+    over compile_blueprint. paths REQUIRED; continue_on_error optional
+    (default true)."""
+    tool = next((t for t in bridge.TOOLS if t["name"] == "bulk_compile_blueprints"), None)
+    assert tool is not None
+    assert tool["inputSchema"]["required"] == ["paths"]
+    props = tool["inputSchema"]["properties"]
+    assert props["paths"]["type"] == "array"
+    assert props["paths"]["items"]["type"] == "string"
+    assert props["continue_on_error"]["type"] == "boolean"
+    assert "bulk_compile_blueprints" in bridge.SYNTHETIC_TOOLS
+    assert bridge.SYNTHETIC_TOOLS["bulk_compile_blueprints"] is bridge.synthetic_bulk_compile_blueprints
+
+
+def test_bulk_compile_blueprints_happy_path():
+    """All compiles succeed -> ok=true, succeeded==total, failed==0."""
+    compile_resp = {"jsonrpc": "2.0", "id": 1, "result": {"ok": True}}
+    with patch.object(bridge, "call_ue", side_effect=[compile_resp, compile_resp]) as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 420, "method": "tools/call",
+            "params": {"name": "bulk_compile_blueprints", "arguments": {
+                "paths": ["/Game/BP_A", "/Game/BP_B"],
+            }},
+        })
+
+    assert m.call_count == 2
+    assert m.call_args_list[0].args == ("compile_blueprint", {"path": "/Game/BP_A"})
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert body["ok"] is True
+    assert body["total"] == 2
+    assert body["succeeded"] == 2
+    assert body["failed"] == 0
+    assert all(r["ok"] for r in body["results"])
+
+
+def test_bulk_compile_blueprints_partial_failure_continues_by_default():
+    """continue_on_error=true (default): second compile fails, third still
+    attempted; per-path error preserved."""
+    ok_resp = {"jsonrpc": "2.0", "id": 1, "result": {"ok": True}}
+    err_resp = {"jsonrpc": "2.0", "id": 1, "error": {"code": -32000, "message": "compile error"}}
+    with patch.object(bridge, "call_ue", side_effect=[ok_resp, err_resp, ok_resp]) as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 421, "method": "tools/call",
+            "params": {"name": "bulk_compile_blueprints", "arguments": {
+                "paths": ["/Game/BP_A", "/Game/BP_B", "/Game/BP_C"],
+            }},
+        })
+
+    assert m.call_count == 3
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert body["ok"] is False
+    assert body["succeeded"] == 2
+    assert body["failed"] == 1
+    assert body["results"][1]["ok"] is False
+    assert body["results"][1]["error"]["code"] == -32000
+
+
+def test_bulk_compile_blueprints_continue_on_error_false_halts():
+    """continue_on_error=false: first failure aborts; third path never
+    attempted."""
+    err_resp = {"jsonrpc": "2.0", "id": 1, "error": {"code": -32000, "message": "compile error"}}
+    with patch.object(bridge, "call_ue", side_effect=[err_resp]) as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 422, "method": "tools/call",
+            "params": {"name": "bulk_compile_blueprints", "arguments": {
+                "paths": ["/Game/BP_A", "/Game/BP_B", "/Game/BP_C"],
+                "continue_on_error": False,
+            }},
+        })
+
+    assert m.call_count == 1
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert body["ok"] is False
+    assert body["total"] == 3
+    assert body["succeeded"] == 0
+    assert body["failed"] == 1
+    assert len(body["results"]) == 1
+
+
+def test_bulk_compile_blueprints_rejects_missing_paths():
+    """paths is required at schema level."""
+    resp = bridge.handle({
+        "jsonrpc": "2.0", "id": 423, "method": "tools/call",
+        "params": {"name": "bulk_compile_blueprints", "arguments": {}},
+    })
+    assert resp["error"]["code"] == -32602
+    assert "missing_required_field" in resp["error"]["message"]
+
+
+def test_bulk_compile_blueprints_rejects_path_with_nul_byte():
+    """NUL byte in any path -> -32602 + path_invalid before any compile call."""
+    with patch.object(bridge, "call_ue") as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 424, "method": "tools/call",
+            "params": {"name": "bulk_compile_blueprints", "arguments": {
+                "paths": ["/Game/Good", "/Game/Bad\x00Path"],
+            }},
+        })
+    assert m.call_count == 0
+    assert resp["error"]["code"] == -32602
+    assert "paths[1]" in resp["error"]["message"]
+    assert "NUL" in resp["error"]["message"]
+
+
+def test_bulk_compile_blueprints_rejects_path_with_dotdot_segment():
+    """`..` as a path SEGMENT -> -32602 + path_invalid before any compile."""
+    with patch.object(bridge, "call_ue") as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 425, "method": "tools/call",
+            "params": {"name": "bulk_compile_blueprints", "arguments": {
+                "paths": ["/Game/Foo/../Bar"],
+            }},
+        })
+    assert m.call_count == 0
+    assert resp["error"]["code"] == -32602
+    assert ".." in resp["error"]["message"]
+
+
+def test_bulk_compile_blueprints_rejects_too_many_paths():
+    """More than 1000 paths -> -32602 (invalid_paths_shape)."""
+    paths = [f"/Game/BP_{i}" for i in range(1001)]
+    with patch.object(bridge, "call_ue") as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 426, "method": "tools/call",
+            "params": {"name": "bulk_compile_blueprints", "arguments": {"paths": paths}},
+        })
+    assert m.call_count == 0
+    assert resp["error"]["code"] == -32602
+    assert "invalid_paths_shape" in resp["error"]["message"]
+
+
+# ---- audit_blueprint_compile_status ---------------------------------------
+
+def test_audit_blueprint_compile_status_is_synthetic():
+    """Wave B: audit_blueprint_compile_status is a SYNTHETIC bridge-side
+    composition over find_assets + inspect_blueprint. All params optional."""
+    tool = next((t for t in bridge.TOOLS if t["name"] == "audit_blueprint_compile_status"), None)
+    assert tool is not None
+    assert tool["inputSchema"].get("required", []) == []
+    props = tool["inputSchema"]["properties"]
+    assert props["path_under"]["type"] == "string"
+    assert props["compile_failures_only"]["type"] == "boolean"
+    assert "audit_blueprint_compile_status" in bridge.SYNTHETIC_TOOLS
+    assert bridge.SYNTHETIC_TOOLS["audit_blueprint_compile_status"] is bridge.synthetic_audit_blueprint_compile_status
+
+
+def test_audit_blueprint_compile_status_happy_path_failures_only():
+    """find_assets returns 2 BPs; inspect_blueprint returns Error for one
+    and UpToDate for the other. compile_failures_only=true (default) ->
+    problem_assets only includes the Error BP."""
+    find_resp = {
+        "jsonrpc": "2.0", "id": 1, "result": {
+            "ok": True, "matched": 2, "returned": 2,
+            "assets": [
+                {"name": "BP_Broken", "package_path": "/Game/BP_Broken", "class": "Blueprint"},
+                {"name": "BP_Good", "package_path": "/Game/BP_Good", "class": "Blueprint"},
+            ],
+        },
+    }
+    broken = {"jsonrpc": "2.0", "id": 1, "result": {"blueprint_status": "Error"}}
+    good = {"jsonrpc": "2.0", "id": 1, "result": {"blueprint_status": "UpToDate"}}
+    with patch.object(bridge, "call_ue", side_effect=[find_resp, broken, good]):
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 430, "method": "tools/call",
+            "params": {"name": "audit_blueprint_compile_status", "arguments": {}},
+        })
+
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert body["ok"] is True
+    assert body["scanned"] == 2
+    assert body["by_status"]["Error"] == 1
+    assert body["by_status"]["UpToDate"] == 1
+    assert len(body["problem_assets"]) == 1
+    assert body["problem_assets"][0]["path"] == "/Game/BP_Broken"
+    assert body["problem_assets"][0]["status"] == "Error"
+
+
+def test_audit_blueprint_compile_status_compile_failures_only_false_lists_all():
+    """compile_failures_only=false -> problem_assets includes every scanned
+    BP regardless of status."""
+    find_resp = {
+        "jsonrpc": "2.0", "id": 1, "result": {
+            "ok": True, "matched": 2, "returned": 2,
+            "assets": [
+                {"name": "BP_A", "package_path": "/Game/BP_A", "class": "Blueprint"},
+                {"name": "BP_B", "package_path": "/Game/BP_B", "class": "Blueprint"},
+            ],
+        },
+    }
+    up_to_date = {"jsonrpc": "2.0", "id": 1, "result": {"blueprint_status": "UpToDate"}}
+    with patch.object(bridge, "call_ue", side_effect=[find_resp, up_to_date, up_to_date]):
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 431, "method": "tools/call",
+            "params": {"name": "audit_blueprint_compile_status", "arguments": {
+                "compile_failures_only": False,
+            }},
+        })
+
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert len(body["problem_assets"]) == 2
+
+
+def test_audit_blueprint_compile_status_missing_status_field_buckets_unknown():
+    """When inspect_blueprint doesn't return blueprint_status (current UE 5.7
+    state), every BP buckets as Unknown. The audit shape stays stable for
+    when the C++ side eventually adds the field."""
+    find_resp = {
+        "jsonrpc": "2.0", "id": 1, "result": {
+            "ok": True, "matched": 1, "returned": 1,
+            "assets": [{"name": "BP_X", "package_path": "/Game/BP_X", "class": "Blueprint"}],
+        },
+    }
+    # inspect_blueprint result without blueprint_status field (matches
+    # current Handler_InspectBlueprint.cpp output as of UE 5.7).
+    inspect_no_status = {"jsonrpc": "2.0", "id": 1, "result": {
+        "parent_class": "Actor", "variables": [], "function_graphs": [], "event_graphs": []}}
+    with patch.object(bridge, "call_ue", side_effect=[find_resp, inspect_no_status]):
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 432, "method": "tools/call",
+            "params": {"name": "audit_blueprint_compile_status", "arguments": {}},
+        })
+
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert body["by_status"]["Unknown"] == 1
+    assert len(body["problem_assets"]) == 1  # Unknown counts as a "problem" under failures_only=true
+
+
+def test_audit_blueprint_compile_status_find_failed_propagates():
+    """When find_assets fails, the synthetic surfaces find_failed."""
+    find_err = {"jsonrpc": "2.0", "id": 1, "error": {"code": -32099, "message": "UE unreachable"}}
+    with patch.object(bridge, "call_ue", side_effect=[find_err]):
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 433, "method": "tools/call",
+            "params": {"name": "audit_blueprint_compile_status", "arguments": {}},
+        })
+    assert "error" in resp
+    assert "find_failed" in resp["error"]["message"]
+
+
+def test_audit_blueprint_compile_status_rejects_non_bool_compile_failures_only():
+    """compile_failures_only must be a bool."""
+    resp = bridge.handle({
+        "jsonrpc": "2.0", "id": 434, "method": "tools/call",
+        "params": {"name": "audit_blueprint_compile_status", "arguments": {
+            "compile_failures_only": "yes",
+        }},
+    })
+    assert resp["error"]["code"] == -32602
+    assert "compile_failures_only" in resp["error"]["message"]
+
+
+# ---- shared _validate_asset_path helper -----------------------------------
+
+def test_validate_asset_path_helper_accepts_valid_path():
+    """The hoisted shared helper returns None on valid paths."""
+    assert bridge._validate_asset_path("tool", "/Game/Foo/Bar", "path") is None
+
+
+def test_validate_asset_path_helper_rejects_non_string():
+    msg = bridge._validate_asset_path("tool", 42, "path")
+    assert msg is not None
+    assert "path_must_be_string" in msg
+
+
+def test_validate_asset_path_helper_rejects_nul_byte():
+    msg = bridge._validate_asset_path("tool", "/Game/A\x00B", "paths[0]")
+    assert msg is not None
+    assert "NUL" in msg
+    assert "paths[0]" in msg
+
+
+def test_validate_asset_path_helper_rejects_dotdot_segment():
+    msg = bridge._validate_asset_path("tool", "/Game/Foo/../Bar", "path")
+    assert msg is not None
+    assert ".." in msg
+
+
+def test_validate_asset_path_helper_allows_consecutive_dots_inside_segment():
+    """`/Game/My..Asset` is a legitimate asset name shape; segment-aware
+    check must let it through (the same allowance as bulk_delete_assets)."""
+    assert bridge._validate_asset_path("tool", "/Game/My..Asset", "path") is None
 
 
 def test_move_asset_in_tools_catalog():

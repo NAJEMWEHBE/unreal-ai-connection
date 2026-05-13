@@ -1,7 +1,7 @@
 {
   "name": "UnrealClaudeMCP",
   "version": "0.9.1",
-  "description": "Drive Unreal Engine 5.7 from any MCP-compliant client (Claude Code, Codex CLI, Cursor, Gemini CLI, Continue, ...) over a local TCP socket. 88 tools total (71 native C++ handlers plus 17 bridge-side synthetic tools) that work with any UE 5.7 project.",
+  "description": "Drive Unreal Engine 5.7 from any MCP-compliant client (Claude Code, Codex CLI, Cursor, Gemini CLI, Continue, ...) over a local TCP socket. 92 tools total (71 native C++ handlers plus 21 bridge-side synthetic tools) that work with any UE 5.7 project.",
   "transport": {
     "type": "tcp",
     "host": "127.0.0.1",
@@ -755,6 +755,44 @@
         "path": "string (required) - package path to a MetaSoundSource or MetaSoundPatch asset, e.g. /Game/Audio/MS_Music; must be a non-empty string"
       },
       "returns": { "ok": "bool", "path": "string", "class": "string (leaf class name -- MetaSoundSource or MetaSoundPatch)", "package_path": "string (from obj.get_path_name())", "additional_properties": "array of {name: string, type: string (Python type-name), value: string (stringified for scalars; '<container:type>' for list/tuple/dict; '<unsupported>' otherwise)} - shallow reflection only, no recursion", "error_code": "string (only on ok=False; one of 'asset_not_found', 'wrong_asset_type', 'metasound_unavailable', 'marker_not_found', 'invalid_json')", "error_message": "string (only on ok=False)", "actual_class": "string (only on wrong_asset_type)" }
+    },
+    {
+      "name": "find_unused_assets",
+      "description": "Enumerate assets under a content path and report which have ZERO referencers (nothing in the project links to them). SYNTHETIC bridge-side handler that composes find_assets + inspect_asset. Useful for content cleanup audits before shipping; returns the first `limit` unused assets plus a `truncated` flag.",
+      "params": {
+        "path_under": "string (optional, default /Game) - folder to scan recursively",
+        "class_filter": "string (optional) - UE class path filter, e.g. /Script/Engine.Texture2D, narrows scan to one asset type",
+        "limit": "int (optional, default 100, max 10000) - max unused assets to return; scan stops once this many are found"
+      },
+      "returns": { "ok": "bool", "scanned": "int (number of candidates inspected)", "unused_count": "int (length of unused array)", "unused": "array of {path: string, class: string} - assets with zero referencers", "truncated": "bool (true when more candidates existed beyond what was scanned)" }
+    },
+    {
+      "name": "get_reference_chain",
+      "description": "Walk the asset reference graph BFS from a root, returning every node and edge up to a depth bound. SYNTHETIC bridge-side handler that composes inspect_asset recursively. direction=up follows referencers (impact-of-change analysis); direction=down follows dependencies (packaging audits). De-duplicates visited nodes so cycles don't loop.",
+      "params": {
+        "path": "string (required) - root asset path to walk from",
+        "depth": "int (optional, default 3, max 8) - BFS depth bound; 8 hops is already a vast subgraph in any non-trivial project",
+        "direction": "string (optional, default 'up') - one of 'up' (referencers) or 'down' (dependencies)"
+      },
+      "returns": { "ok": "bool", "root": "string (echo of input)", "direction": "string ('up' or 'down')", "depth": "int (echo of input)", "node_count": "int (de-duplicated visited count, including root)", "edge_count": "int (length of edges array)", "edges": "array of {from: string, to: string} - asset path pairs; for direction=up edges flow neighbor->node, for direction=down edges flow node->neighbor", "truncated": "bool (true when the BFS hit depth and there were still neighbors to expand)" }
+    },
+    {
+      "name": "bulk_compile_blueprints",
+      "description": "Recompile multiple Blueprints in one MCP call by composing the compile_blueprint C++ handler bridge-side. Returns per-path results plus aggregate counts. Mirrors the bulk_*_assets family shape. SYNTHETIC bridge-side handler. Useful after batch-mutating BPs via execute_unreal_python or other tooling.",
+      "params": {
+        "paths": "array of string (required) - Blueprint asset paths to compile; each non-empty, NUL + '..' segments rejected, max 1000 entries",
+        "continue_on_error": "bool (optional, default true) - when true keep compiling after individual failures; when false stop at the first failed compile"
+      },
+      "returns": { "ok": "bool (true only when failed == 0)", "total": "int (paths.length)", "succeeded": "int (count of per-path successes)", "failed": "int (count of per-path failures)", "results": "array of {path: string, ok: bool, error?: {code: int, message: string}} - one entry per attempted compile; preserves the upstream JSON-RPC error code per failure" }
+    },
+    {
+      "name": "audit_blueprint_compile_status",
+      "description": "Enumerate every Blueprint under a content path and bucket each by compile-status (UpToDate/Dirty/Error/Unknown/BeingCreated). READ-ONLY -- no recompile triggered. SYNTHETIC bridge-side handler that composes find_assets + inspect_blueprint. Until the C++ inspect_blueprint handler surfaces blueprint_status, every scanned BP falls into the Unknown bucket; the audit shape stays stable across that future C++ enhancement.",
+      "params": {
+        "path_under": "string (optional, default /Game) - content path to scan recursively",
+        "compile_failures_only": "bool (optional, default true) - when true, problem_assets only lists Error/Unknown; when false, every scanned BP is listed"
+      },
+      "returns": { "ok": "bool", "scanned": "int (number of BPs inspected)", "by_status": "object with five integer keys: UpToDate, Dirty, Error, Unknown, BeingCreated", "problem_assets": "array of {path: string, status: string} - filtered per compile_failures_only" }
     }
   ]
 }

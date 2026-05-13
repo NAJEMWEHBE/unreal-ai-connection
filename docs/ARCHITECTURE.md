@@ -5,7 +5,7 @@
 ```mermaid
 flowchart LR
     Client["MCP client<br/>(Claude Code, etc.)"]
-    Bridge["bridge.py<br/>(Python, stdio)<br/>+ 17 synthetic tools"]
+    Bridge["bridge.py<br/>(Python, stdio)<br/>+ 21 synthetic tools"]
 
     subgraph UE["UE Editor process"]
         TCP["FTcpListener<br/>127.0.0.1:18888"]

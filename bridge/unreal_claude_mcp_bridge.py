@@ -13,9 +13,9 @@ plugin speaks raw JSON-RPC over a local TCP socket (default
 Behaviour:
   - "initialize"             returned synthetically (does NOT hit the UE server)
   - "notifications/*"        consumed silently
-  - "tools/list"             returns a static list of all 88 tools (71
+  - "tools/list"             returns a static list of all 92 tools (71
                              dispatched to the UE plugin's C++ handlers
-                             plus 17 bridge-side synthetic tools served by
+                             plus 21 bridge-side synthetic tools served by
                              SYNTHETIC_TOOLS without crossing the wire as
                              a single UE round-trip)
   - "tools/call"             unpacks {name, arguments} and forwards to the
@@ -45,21 +45,24 @@ SERVER_NAME = "unreal-claude-mcp"
 SERVER_VERSION = "0.9.1"
 
 # Mirror of UnrealClaudeMCP/Resources/mcp_manifest.json - kept in sync manually.
-# 88 tool entries total. 71 are dispatched straight to UE C++ handlers
+# 92 tool entries total. 71 are dispatched straight to UE C++ handlers
 # (see UnrealClaudeMCPModule.cpp's Reg.Register(...) block). The remaining
-# 17 -- wait_for_events, get_camera_transform, set_camera_transform,
+# 21 -- wait_for_events, get_camera_transform, set_camera_transform,
 # screenshot_actor, compile_mod_pak, compile_mod_pak_direct,
 # bulk_delete_assets, bulk_move_assets, bulk_rename_assets,
 # bulk_duplicate_assets, bulk_inspect_assets, inspect_data_asset,
 # inspect_sound_class, inspect_sound_submix, inspect_audio_bus,
-# inspect_material_function, inspect_metasound -- are bridge-side
-# synthetic tools served by SYNTHETIC_TOOLS (see below) without a
-# dedicated UE handler: they either compose existing handlers (focus +
-# screenshot, repeated poll, loop over delete_asset / move_asset /
-# rename_asset / duplicate_asset / inspect_asset), run the matching
-# unreal.* Python via execute_unreal_python with the marker pattern
-# (most inspect_* shims), or (compile_mod_pak / compile_mod_pak_direct)
-# shell out to RunUAT.bat entirely outside the UE process.
+# inspect_material_function, inspect_metasound, find_unused_assets,
+# get_reference_chain, bulk_compile_blueprints,
+# audit_blueprint_compile_status -- are bridge-side synthetic tools
+# served by SYNTHETIC_TOOLS (see below) without a dedicated UE handler:
+# they either compose existing handlers (focus + screenshot, repeated
+# poll, loop over delete_asset / move_asset / rename_asset /
+# duplicate_asset / inspect_asset / inspect_blueprint /
+# compile_blueprint / find_assets), run the matching unreal.* Python
+# via execute_unreal_python with the marker pattern (most inspect_*
+# shims), or (compile_mod_pak / compile_mod_pak_direct) shell out to
+# RunUAT.bat entirely outside the UE process.
 TOOLS = [
     {
         "name": "execute_unreal_python",
@@ -148,6 +151,86 @@ TOOLS = [
                 },
             },
             "required": ["paths"],
+        },
+    },
+    {
+        "name": "find_unused_assets",
+        "description": "Enumerate assets under a content path and report which have zero referencers (i.e. nothing in the project references them). Composes find_assets + inspect_asset bridge-side. Useful for content cleanup audits before shipping. Returns the first `limit` unused assets and a `truncated` flag when more remain.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path_under": {
+                    "type": "string",
+                    "description": "Folder to scan. Default /Game. Recursive."
+                },
+                "class_filter": {
+                    "type": "string",
+                    "description": "Optional UE class path filter (e.g. /Script/Engine.Texture2D) to scan only assets of one type."
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Max unused assets to return (default 100, max 10000). Scan halts once this many unused are found OR the scan exhausts."
+                },
+            },
+        },
+    },
+    {
+        "name": "get_reference_chain",
+        "description": "Walk the asset reference graph BFS from a root, returning every node and edge up to a depth bound. Composes inspect_asset recursively. `direction=up` follows referencers (who references me) — useful for impact-of-change analysis before deleting/renaming. `direction=down` follows dependencies (what I reference) — useful for dependency audits before packaging.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "description": "Root asset path to walk from. Required."
+                },
+                "depth": {
+                    "type": "integer",
+                    "description": "BFS depth bound. Default 3, max 8 (8 hops is already a vast subgraph in any non-trivial project)."
+                },
+                "direction": {
+                    "type": "string",
+                    "enum": ["up", "down"],
+                    "description": "Default 'up'. 'up' follows referencers; 'down' follows dependencies."
+                },
+            },
+            "required": ["path"],
+        },
+    },
+    {
+        "name": "bulk_compile_blueprints",
+        "description": "Recompile multiple Blueprints in one MCP call by composing the compile_blueprint C++ handler bridge-side. Returns per-path success/failure plus aggregate counts. Mirrors the bulk_*_assets family shape (paths list + continue_on_error). Useful after batch-mutating BPs via execute_unreal_python or other tooling.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "paths": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Blueprint asset paths to compile (each non-empty, NUL + '..' segments rejected, max 1000 entries)."
+                },
+                "continue_on_error": {
+                    "type": "boolean",
+                    "description": "Default true. When false, stop at first per-path compile failure and return the partial results."
+                },
+            },
+            "required": ["paths"],
+        },
+    },
+    {
+        "name": "audit_blueprint_compile_status",
+        "description": "Enumerate every Blueprint under a content path and report its compile-status bucket (UpToDate/Dirty/Error/Unknown/BeingCreated). Composes find_assets + inspect_blueprint bridge-side. This is a READ-ONLY audit (no recompile triggered); pair with bulk_compile_blueprints to actually fix anything found. The inspect_blueprint handler currently does not surface blueprint_status — entries report Unknown for that bucket until the C++ side adds the field.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path_under": {
+                    "type": "string",
+                    "description": "Content path to scan. Default /Game. Recursive."
+                },
+                "compile_failures_only": {
+                    "type": "boolean",
+                    "description": "Default true. When true, problem_assets only lists Blueprints whose status is Error or Unknown. When false, problem_assets lists every scanned Blueprint."
+                },
+            },
         },
     },
     {
@@ -1218,6 +1301,50 @@ def _wrap_tool_result(req_id, result_obj: dict | list | str | int | float | bool
         "content": [{"type": "text", "text": json.dumps(result_obj, indent=2)}],
         "isError": False,
     })
+
+
+def _validate_asset_path(tool_name: str, path, label: str) -> str | None:
+    """Shape-check a single UE asset path; return an error message or None.
+
+    Hoisted out of the bulk_*_assets family of synthetics in the
+    feat/wave-b-asset-hygiene-synthetics branch. The four older synthetics
+    (bulk_delete_assets / bulk_move_assets / bulk_rename_assets /
+    bulk_duplicate_assets / bulk_inspect_assets) duplicate the same NUL +
+    '..' segment guard; rather than refactor those tested-green call sites
+    in this branch, the new wave-B synthetics (`find_unused_assets`,
+    `get_reference_chain`, `bulk_compile_blueprints`,
+    `audit_blueprint_compile_status`) consume this helper. Existing
+    synthetics may be migrated in a future cleanup pass.
+
+    UE asset paths look like `/Game/...`, `/Engine/...`, or
+    `/<MountPoint>/...`. Embedded NUL bytes or `..` segments are never
+    legitimate and almost always indicate either input corruption or
+    path-traversal intent; reject early with a caller-actionable -32602
+    error_code rather than forwarding malformed paths to the C++ handler.
+
+    Args:
+        tool_name: synthetic tool's name (used as error-message prefix).
+        path: the value to check (string or otherwise).
+        label: caller-supplied context for the error message
+            (e.g. "paths[0]" or "path"). Goes into the message verbatim
+            so the caller can pinpoint which input field failed.
+
+    Returns:
+        None when `path` passes all checks; an error message string
+        otherwise. The message follows the canonical
+        `<tool>: <error_code>: <detail>` shape with `path_invalid` as
+        the error code (matching the wave-B spec). Caller wraps the
+        returned string in `make_response(req_id, error={...})`.
+    """
+    if not isinstance(path, str) or not path:
+        return f"{tool_name}: path_must_be_string: {label} must be a non-empty string"
+    if "\x00" in path:
+        return f"{tool_name}: path_invalid: {label} contains a NUL byte"
+    # Block `..` as a path SEGMENT (between slashes or at ends), not as a
+    # substring -- legitimate asset names like `My..Asset` should still pass.
+    if any(segment == ".." for segment in path.split("/")):
+        return f"{tool_name}: path_invalid: {label} contains a '..' segment"
+    return None
 
 
 def _run_marker_pattern(req_id, tool_name: str, marker_prefix: str, py_code: str, context: str = "") -> dict:
@@ -3291,6 +3418,461 @@ def synthetic_bulk_inspect_assets(req_id, args: dict) -> dict:
     return _wrap_tool_result(req_id, body)
 
 
+def synthetic_find_unused_assets(req_id, args: dict) -> dict:
+    """Bridge-side composition: list assets under a path that have ZERO
+    referencers (nothing in the project links to them).
+
+    Pipeline:
+      1. call_ue("find_assets", {class_path?, path_under, limit}) -- one
+         round-trip to enumerate candidate assets in the scan range.
+         class_path defaults to /Script/Engine.Object (effectively
+         "all asset classes") when no filter is supplied; find_assets'
+         own schema requires class_path so the synthetic injects this
+         catch-all default and lets the C++ handler filter by path.
+      2. For each candidate, call_ue("inspect_asset", {path}) -- the
+         per-asset round-trip reads the `referencers` array. An empty
+         referencers list means the asset is unused.
+      3. Stop early once `limit` unused assets have been found OR the
+         scan exhausts. `truncated` indicates whether more candidates
+         existed beyond what was scanned.
+
+    Per-asset inspect failures are SWALLOWED unless every inspect fails
+    -- this preserves the "soft audit" semantic. If the scan returned
+    candidates but every inspect_asset returned an error, the synthetic
+    surfaces `inspect_failed` so the caller knows to investigate (a
+    confusing "0 unused found" would otherwise hide the issue).
+
+    Synthetic rather than C++ because the loop is pure protocol-level
+    composition over find_assets + inspect_asset. A native C++ handler
+    would have to duplicate find_assets' AssetRegistry query plus
+    inspect_asset's referencer lookup -- needlessly so.
+    """
+    if not isinstance(args, dict):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "find_unused_assets: invalid_arguments: arguments must be an object",
+        })
+
+    path_under = args.get("path_under", "/Game")
+    if not isinstance(path_under, str) or not path_under:
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "find_unused_assets: invalid_field: 'path_under' must be a non-empty string when supplied",
+        })
+
+    class_filter = args.get("class_filter")
+    if class_filter is not None and (not isinstance(class_filter, str) or not class_filter):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "find_unused_assets: invalid_field: 'class_filter' must be a non-empty string when supplied",
+        })
+
+    limit = args.get("limit", 100)
+    if not isinstance(limit, int) or isinstance(limit, bool) or limit < 1 or limit > 10000:
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "find_unused_assets: invalid_field: 'limit' must be an integer between 1 and 10000",
+        })
+
+    # find_assets requires class_path. Default to UObject (root of every
+    # UE asset class) when caller didn't pin a class_filter; the path_under
+    # narrows the scan range.
+    find_params: dict = {
+        "class_path": class_filter if class_filter else "/Script/CoreUObject.Object",
+        "path_under": path_under,
+        # Pull a wider candidate window than `limit` so transient inspect
+        # failures don't starve the result. Cap at find_assets' upper bound
+        # (500 per its schema) which is the safe maximum for one
+        # round-trip.
+        "limit": min(500, max(100, limit * 5)),
+    }
+    find_resp = call_ue("find_assets", find_params)
+    if "error" in find_resp:
+        upstream = find_resp.get("error", {}) or {}
+        return make_response(req_id, error={
+            "code": upstream.get("code", -32603) or -32603,
+            "message": f"find_unused_assets: find_failed: {upstream.get('message') or 'find_assets returned an error'}",
+        })
+
+    candidates = (find_resp.get("result") or {}).get("assets") or []
+    scanned = 0
+    inspect_failures = 0
+    unused: list[dict] = []
+    for asset in candidates:
+        if not isinstance(asset, dict):
+            continue
+        pkg = asset.get("package_path")
+        if not isinstance(pkg, str) or not pkg:
+            continue
+        # Reconstruct the object path inspect_asset wants: /Game/Foo/Bar.Bar.
+        name = asset.get("name")
+        object_path = f"{pkg}.{name}" if isinstance(name, str) and name else pkg
+        inspect_resp = call_ue("inspect_asset", {"path": object_path})
+        scanned += 1
+        if "error" in inspect_resp:
+            inspect_failures += 1
+            continue
+        result = inspect_resp.get("result") or {}
+        referencers = result.get("referencers")
+        if isinstance(referencers, list) and len(referencers) == 0:
+            unused.append({
+                "path": pkg,
+                "class": asset.get("class") or "",
+            })
+            if len(unused) >= limit:
+                break
+
+    # All inspects failed -> bubble the error up. A "0 unused, 0 scanned"
+    # response would otherwise be confused with a clean codebase.
+    if scanned > 0 and inspect_failures == scanned:
+        return make_response(req_id, error={
+            "code": -32603,
+            "message": "find_unused_assets: inspect_failed: every candidate's inspect_asset call failed; cannot determine unused set",
+        })
+
+    truncated = len(unused) >= limit and scanned < len(candidates)
+    return _wrap_tool_result(req_id, {
+        "ok": True,
+        "scanned": scanned,
+        "unused_count": len(unused),
+        "unused": unused,
+        "truncated": truncated,
+    })
+
+
+def synthetic_get_reference_chain(req_id, args: dict) -> dict:
+    """Bridge-side composition: BFS the asset reference graph from a root,
+    up to `depth` hops.
+
+    Composes inspect_asset recursively. Each call reads either
+    `referencers` (direction=up, "who references me") or `dependencies`
+    (direction=down, "what I reference"). De-duplicates visited nodes so
+    cycles in the asset graph don't loop infinitely.
+
+    Direction semantics:
+      - `up`: starting from `root`, expand to every asset that has
+        `root` in its dependencies. Useful for impact analysis ("if I
+        delete X, what breaks?").
+      - `down`: starting from `root`, expand to every asset listed in
+        `root`'s dependencies. Useful for dependency audits ("what does
+        X pull in?").
+
+    Returns the BFS as a node + edge list rather than a tree because
+    real asset graphs are DAGs and a flat edge representation lets the
+    caller render whatever shape they want (tree, graph, table).
+
+    `truncated` is set when the BFS hit the depth bound and there were
+    still neighbors to expand at that frontier.
+
+    Per-node inspect failures are SWALLOWED -- the BFS continues from
+    whatever neighbors are known. Path validation (NUL + '..') applies
+    to the root.
+    """
+    if not isinstance(args, dict):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "get_reference_chain: invalid_arguments: arguments must be an object",
+        })
+
+    if "path" not in args:
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "get_reference_chain: missing_required_field: 'path' is required",
+        })
+
+    root = args.get("path")
+    err = _validate_asset_path("get_reference_chain", root, "path")
+    if err is not None:
+        return make_response(req_id, error={"code": -32602, "message": err})
+
+    depth = args.get("depth", 3)
+    if not isinstance(depth, int) or isinstance(depth, bool) or depth < 1 or depth > 8:
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "get_reference_chain: invalid_depth: 'depth' must be an integer between 1 and 8",
+        })
+
+    direction = args.get("direction", "up")
+    if direction not in ("up", "down"):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "get_reference_chain: invalid_direction: 'direction' must be 'up' or 'down'",
+        })
+
+    # BFS: frontier holds nodes to expand at the current depth.
+    visited: set[str] = {root}
+    edges: list[dict] = []
+    frontier: list[str] = [root]
+    root_ok = False
+    truncated = False
+    neighbor_field = "referencers" if direction == "up" else "dependencies"
+
+    for _ in range(depth):
+        next_frontier: list[str] = []
+        for node in frontier:
+            inspect_resp = call_ue("inspect_asset", {"path": node})
+            if "error" in inspect_resp:
+                if node == root:
+                    upstream = inspect_resp.get("error", {}) or {}
+                    msg = upstream.get("message", "") or ""
+                    # Surface asset_not_found verbatim when the root doesn't
+                    # exist -- nothing useful to walk from.
+                    if "asset_not_found" in msg.lower() or "not_found" in msg.lower():
+                        return make_response(req_id, error={
+                            "code": -32602,
+                            "message": f"get_reference_chain: asset_not_found: root path '{root}' not in asset registry",
+                        })
+                    return make_response(req_id, error={
+                        "code": upstream.get("code", -32603) or -32603,
+                        "message": f"get_reference_chain: inspect_failed: inspecting root '{root}' failed: {msg}",
+                    })
+                # Non-root inspect failure: skip the node, continue BFS.
+                continue
+            if node == root:
+                root_ok = True
+            neighbors = (inspect_resp.get("result") or {}).get(neighbor_field) or []
+            if not isinstance(neighbors, list):
+                continue
+            for neighbor in neighbors:
+                if not isinstance(neighbor, str) or not neighbor:
+                    continue
+                edge = (
+                    {"from": neighbor, "to": node}
+                    if direction == "up"
+                    else {"from": node, "to": neighbor}
+                )
+                edges.append(edge)
+                if neighbor not in visited:
+                    visited.add(neighbor)
+                    next_frontier.append(neighbor)
+        if not next_frontier:
+            break
+        frontier = next_frontier
+    else:
+        # Loop completed all `depth` iterations without breaking -- the
+        # frontier at the last depth still had neighbors that would have
+        # been expanded at depth+1. That counts as truncation.
+        truncated = bool(frontier)
+
+    # Root never resolved (unlikely after the validation pass above) but
+    # we still return a clean envelope -- node_count counts everything
+    # visited, including the root.
+    if not root_ok and not edges:
+        # Root inspect failed in a non-not_found way already returned above.
+        # Reaching here means root inspect returned success with no
+        # neighbors; that's a valid "no references" answer.
+        pass
+
+    return _wrap_tool_result(req_id, {
+        "ok": True,
+        "root": root,
+        "direction": direction,
+        "depth": depth,
+        "node_count": len(visited),
+        "edge_count": len(edges),
+        "edges": edges,
+        "truncated": truncated,
+    })
+
+
+def synthetic_bulk_compile_blueprints(req_id, args: dict) -> dict:
+    """Bridge-side composition: compile multiple Blueprints in one MCP call
+    by dispatching `compile_blueprint` per path.
+
+    Mirrors `bulk_inspect_assets`'s shape (paths list + continue_on_error
+    + per-path result envelope). Useful after batch-mutating Blueprint
+    properties via execute_unreal_python or other tooling.
+
+    Path validation reuses _validate_asset_path; per-path compile
+    failures preserve the upstream JSON-RPC error code so callers can
+    distinguish transport errors (-32099) from logical compile errors.
+
+    Synthetic rather than C++ because the loop is pure protocol-level
+    composition over the existing compile_blueprint handler.
+    """
+    if not isinstance(args, dict):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "bulk_compile_blueprints: invalid_arguments: arguments must be an object",
+        })
+
+    if "paths" not in args:
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "bulk_compile_blueprints: missing_required_field: 'paths' must be supplied as a list of Blueprint asset paths",
+        })
+
+    paths = args.get("paths")
+    if not isinstance(paths, list):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "bulk_compile_blueprints: invalid_paths_shape: 'paths' must be a list of strings",
+        })
+
+    if len(paths) > 1000:
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": f"bulk_compile_blueprints: invalid_paths_shape: at most 1000 paths per call (got {len(paths)})",
+        })
+
+    for i, path in enumerate(paths):
+        err = _validate_asset_path("bulk_compile_blueprints", path, f"paths[{i}]")
+        if err is not None:
+            return make_response(req_id, error={"code": -32602, "message": err})
+
+    continue_on_error = args.get("continue_on_error", True)
+    if not isinstance(continue_on_error, bool):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "bulk_compile_blueprints: invalid_field: 'continue_on_error' must be a boolean",
+        })
+
+    results: list[dict] = []
+    succeeded = 0
+    failed = 0
+    for path in paths:
+        compile_resp = call_ue("compile_blueprint", {"path": path})
+        if "error" in compile_resp:
+            failed += 1
+            upstream = compile_resp.get("error", {}) or {}
+            code = upstream.get("code", -32603)
+            if code is None:
+                code = -32603
+            results.append({
+                "path": path,
+                "ok": False,
+                "error": {
+                    "code": code,
+                    "message": upstream.get("message") or "",
+                },
+            })
+            if not continue_on_error:
+                break
+        else:
+            succeeded += 1
+            results.append({"path": path, "ok": True})
+
+    return _wrap_tool_result(req_id, {
+        "ok": failed == 0,
+        "total": len(paths),
+        "succeeded": succeeded,
+        "failed": failed,
+        "results": results,
+    })
+
+
+def synthetic_audit_blueprint_compile_status(req_id, args: dict) -> dict:
+    """Bridge-side composition: enumerate every Blueprint under a content
+    path and bucket each by its compile-status.
+
+    Pipeline:
+      1. call_ue("find_assets", {class_path: /Script/Engine.Blueprint,
+         path_under, limit: 500}) -- one round-trip to enumerate
+         Blueprint assets in the scan range.
+      2. For each, call_ue("inspect_blueprint", {path}) -- per-asset
+         round-trip that reads (or will read once the C++ side adds it)
+         a `blueprint_status` field. Buckets: UpToDate, Dirty, Error,
+         Unknown, BeingCreated.
+      3. Aggregate into `by_status` counts plus a `problem_assets`
+         filtered list (Error+Unknown when compile_failures_only=true,
+         otherwise every scanned BP).
+
+    READ-ONLY: no compile is triggered. Pair with `bulk_compile_blueprints`
+    to actually fix anything found.
+
+    NB: inspect_blueprint currently does NOT return blueprint_status
+    (verified against UE 5.7 Handler_InspectBlueprint.cpp on 2026-05-13).
+    Until the field lands, every scanned BP falls into the `Unknown`
+    bucket. The synthetic still functions; it just always reports
+    Unknown until the C++ handler adds the field.
+    """
+    if not isinstance(args, dict):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "audit_blueprint_compile_status: invalid_arguments: arguments must be an object",
+        })
+
+    path_under = args.get("path_under", "/Game")
+    if not isinstance(path_under, str) or not path_under:
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "audit_blueprint_compile_status: invalid_field: 'path_under' must be a non-empty string when supplied",
+        })
+
+    compile_failures_only = args.get("compile_failures_only", True)
+    if not isinstance(compile_failures_only, bool):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "audit_blueprint_compile_status: invalid_field: 'compile_failures_only' must be a boolean",
+        })
+
+    find_resp = call_ue("find_assets", {
+        "class_path": "/Script/Engine.Blueprint",
+        "path_under": path_under,
+        "limit": 500,
+    })
+    if "error" in find_resp:
+        upstream = find_resp.get("error", {}) or {}
+        return make_response(req_id, error={
+            "code": upstream.get("code", -32603) or -32603,
+            "message": f"audit_blueprint_compile_status: find_failed: {upstream.get('message') or 'find_assets returned an error'}",
+        })
+
+    candidates = (find_resp.get("result") or {}).get("assets") or []
+    by_status = {
+        "UpToDate": 0,
+        "Dirty": 0,
+        "Error": 0,
+        "Unknown": 0,
+        "BeingCreated": 0,
+    }
+    problem_assets: list[dict] = []
+    scanned = 0
+    inspect_failures = 0
+    for asset in candidates:
+        if not isinstance(asset, dict):
+            continue
+        pkg = asset.get("package_path")
+        if not isinstance(pkg, str) or not pkg:
+            continue
+        name = asset.get("name")
+        object_path = f"{pkg}.{name}" if isinstance(name, str) and name else pkg
+        inspect_resp = call_ue("inspect_blueprint", {"path": object_path})
+        scanned += 1
+        if "error" in inspect_resp:
+            inspect_failures += 1
+            # Treat inspect failures as Unknown rather than aborting --
+            # the asset registry listed the BP so it exists, even if a
+            # transient inspect failed.
+            status = "Unknown"
+        else:
+            result = inspect_resp.get("result") or {}
+            raw_status = result.get("blueprint_status")
+            if isinstance(raw_status, str) and raw_status in by_status:
+                status = raw_status
+            else:
+                status = "Unknown"
+        by_status[status] += 1
+        if compile_failures_only:
+            if status in ("Error", "Unknown"):
+                problem_assets.append({"path": pkg, "status": status})
+        else:
+            problem_assets.append({"path": pkg, "status": status})
+
+    if scanned > 0 and inspect_failures == scanned:
+        return make_response(req_id, error={
+            "code": -32603,
+            "message": "audit_blueprint_compile_status: inspect_failed: every candidate's inspect_blueprint call failed; audit results meaningless",
+        })
+
+    return _wrap_tool_result(req_id, {
+        "ok": True,
+        "scanned": scanned,
+        "by_status": by_status,
+        "problem_assets": problem_assets,
+    })
+
+
 SYNTHETIC_TOOLS = {
     "wait_for_events": synthetic_wait_for_events,
     "get_camera_transform": synthetic_get_camera_transform,
@@ -3309,6 +3891,10 @@ SYNTHETIC_TOOLS = {
     "inspect_audio_bus": synthetic_inspect_audio_bus,
     "inspect_material_function": synthetic_inspect_material_function,
     "inspect_metasound": synthetic_inspect_metasound,
+    "find_unused_assets": synthetic_find_unused_assets,
+    "get_reference_chain": synthetic_get_reference_chain,
+    "bulk_compile_blueprints": synthetic_bulk_compile_blueprints,
+    "audit_blueprint_compile_status": synthetic_audit_blueprint_compile_status,
 }
 
 
