@@ -2,7 +2,7 @@
 
 Single source of truth for resuming work on UnrealClaudeMCP in a fresh session of any MCP-compliant client. Read this first; it captures everything carried in the prior session's working memory.
 
-> Earlier closing notes (1st through 17th, sessions 2026-05-09 through the morning of 2026-05-13) are archived to [`docs/HANDOFF-archive.md`](HANDOFF-archive.md). This active file keeps the latest three for quick pickup.
+> Earlier closing notes (1st through 16th, sessions 2026-05-09 through 2026-05-12 evening) are archived to [`docs/HANDOFF-archive.md`](HANDOFF-archive.md). This active file keeps the latest three consecutive notes (17th-19th) for quick pickup.
 
 ---
 
@@ -303,7 +303,7 @@ For specific resumption:
 
 ## Closing notes from prior sessions
 
-> **Note:** Closing notes 1 through 17 (sessions 2026-05-09 through morning 2026-05-13) are archived in [`HANDOFF-archive.md`](HANDOFF-archive.md). Only the latest three are kept active here.
+> **Note:** Consecutive closing notes 1 through 16 (sessions 2026-05-09 through 2026-05-12 evening) are archived in [`HANDOFF-archive.md`](HANDOFF-archive.md). Only the latest three (17th-19th) are kept active here.
 
 **Session 2026-05-12 (autopilot extension — multi-agent ensemble shipped, 12 PRs of doc + test hardening):**
 

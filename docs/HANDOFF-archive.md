@@ -1,6 +1,6 @@
 # HANDOFF archive
 
-> Historical session log — chronological, append-only, do not edit. This file holds closing notes 1 through 17 (sessions 2026-05-09 through morning 2026-05-13). The active [`HANDOFF.md`](HANDOFF.md) keeps only the latest three closing notes for fast pickup; everything older lives here for grep-ability and audit trail.
+> Historical session log — chronological, append-only, do not edit. This file holds **consecutive closing notes 1 through 16** (sessions 2026-05-09 through 2026-05-12 evening). The active [`HANDOFF.md`](HANDOFF.md) keeps only the latest three consecutive notes (17th-19th) for fast pickup; everything older lives here for grep-ability and audit trail. Chronological session indices in the TOC below run 1-22; entries 18-22 represent sessions whose closing-note text is also in this archive (they map to consecutive-notes 11-16).
 
 ## Table of contents (chronological)
 
@@ -28,9 +28,8 @@
 | 20 | 2026-05-12 (autopilot — first new tool: bulk_move_assets) | 77 tools |
 | 21 | 2026-05-12 (autopilot — inspect_metasound + bulk_rename_assets) | 79 tools |
 | 22 | 2026-05-12 (autopilot — bulk_duplicate_assets; bulk_* family complete) | 80 tools |
-| 23 | 2026-05-12 (autopilot extension — multi-agent ensemble + 12 doc/test PRs) | 80 tools; pytest 243 → 282 |
 
-Note: starting from the 17th consecutive closing-note (Session 2026-05-12 autopilot extension above as table entry #23), the active HANDOFF.md keeps the live record. The 18th and 19th consecutive notes (2026-05-13 resume + Wave A/A.5) are in the active file.
+Note: TOC stops at chronological-session #22 because the 17th consecutive closing-note onward lives in the active [`HANDOFF.md`](HANDOFF.md). That covers the 2026-05-12 autopilot-extension session (chronological #23), the 2026-05-13 resume-window session, and the 2026-05-13 community-roadmap + Wave A/A.5 session. Cross-reference by consecutive-note number: archive holds 1-16, active holds 17-19.
 
 ---
 
