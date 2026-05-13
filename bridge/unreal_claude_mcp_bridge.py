@@ -13,9 +13,9 @@ plugin speaks raw JSON-RPC over a local TCP socket (default
 Behaviour:
   - "initialize"             returned synthetically (does NOT hit the UE server)
   - "notifications/*"        consumed silently
-  - "tools/list"             returns a static list of all 92 tools (71
+  - "tools/list"             returns a static list of all 96 tools (71
                              dispatched to the UE plugin's C++ handlers
-                             plus 21 bridge-side synthetic tools served by
+                             plus 25 bridge-side synthetic tools served by
                              SYNTHETIC_TOOLS without crossing the wire as
                              a single UE round-trip)
   - "tools/call"             unpacks {name, arguments} and forwards to the
@@ -45,22 +45,24 @@ SERVER_NAME = "unreal-claude-mcp"
 SERVER_VERSION = "0.9.1"
 
 # Mirror of UnrealClaudeMCP/Resources/mcp_manifest.json - kept in sync manually.
-# 92 tool entries total. 71 are dispatched straight to UE C++ handlers
+# 96 tool entries total. 71 are dispatched straight to UE C++ handlers
 # (see UnrealClaudeMCPModule.cpp's Reg.Register(...) block). The remaining
-# 21 -- wait_for_events, get_camera_transform, set_camera_transform,
+# 25 -- wait_for_events, get_camera_transform, set_camera_transform,
 # screenshot_actor, compile_mod_pak, compile_mod_pak_direct,
 # bulk_delete_assets, bulk_move_assets, bulk_rename_assets,
 # bulk_duplicate_assets, bulk_inspect_assets, inspect_data_asset,
 # inspect_sound_class, inspect_sound_submix, inspect_audio_bus,
 # inspect_material_function, inspect_metasound, find_unused_assets,
 # get_reference_chain, bulk_compile_blueprints,
-# audit_blueprint_compile_status -- are bridge-side synthetic tools
-# served by SYNTHETIC_TOOLS (see below) without a dedicated UE handler:
-# they either compose existing handlers (focus + screenshot, repeated
-# poll, loop over delete_asset / move_asset / rename_asset /
-# duplicate_asset / inspect_asset / inspect_blueprint /
-# compile_blueprint / find_assets), run the matching unreal.* Python
-# via execute_unreal_python with the marker pattern (most inspect_*
+# audit_blueprint_compile_status, find_actors_by_class,
+# bulk_focus_actors, bulk_screenshot_actors, bulk_set_actor_property
+# -- are bridge-side synthetic tools served by SYNTHETIC_TOOLS (see
+# below) without a dedicated UE handler: they either compose existing
+# handlers (focus + screenshot, repeated poll, loop over delete_asset /
+# move_asset / rename_asset / duplicate_asset / inspect_asset /
+# inspect_blueprint / compile_blueprint / find_assets / focus_actor /
+# set_actor_property), run the matching unreal.* Python via
+# execute_unreal_python with the marker pattern (most inspect_*
 # shims), or (compile_mod_pak / compile_mod_pak_direct) shell out to
 # RunUAT.bat entirely outside the UE process.
 TOOLS = [
@@ -231,6 +233,92 @@ TOOLS = [
                     "description": "Default true. When true, problem_assets only lists Blueprints whose status is Error or Unknown. When false, problem_assets lists every scanned Blueprint."
                 },
             },
+        },
+    },
+    {
+        "name": "find_actors_by_class",
+        "description": "Filter the current level's actors by class. Composes get_actors_in_level bridge-side and matches each actor's short class name against the supplied class_name (accepts either a short name like 'StaticMeshActor' or a class path like '/Script/Engine.StaticMeshActor' — the synthetic strips the path prefix and matches case-insensitively). Useful for 'find every light' / 'find every spawn point' walkthroughs without forcing the LLM to grep through a thousand-actor get_actors_in_level dump.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "class_name": {
+                    "type": "string",
+                    "description": "Short class name (e.g. 'StaticMeshActor') or full class path (e.g. '/Script/Engine.StaticMeshActor'). Match is case-insensitive against the actor's short class name; class-path inputs have everything up to and including the final '.' stripped before comparison."
+                },
+                "level": {
+                    "type": "string",
+                    "description": "Optional UWorld package path to load before enumerating (e.g. '/Game/Maps/MyMap'). When omitted, the active editor level is scanned in place."
+                },
+            },
+            "required": ["class_name"],
+        },
+    },
+    {
+        "name": "bulk_focus_actors",
+        "description": "Frame the viewport on each actor in a sequence, optionally capturing a screenshot after each focus settles. Composes focus_actor (plus, when screenshot_each=true, get_viewport_screenshot) per name. Useful for 'show me each enemy / spawn / light in turn' walkthroughs where one screenshot_actor at a time would force the LLM into a polling loop.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "names": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Actor labels or unique names; each non-empty, max 100 entries."
+                },
+                "delay_ms": {
+                    "type": "integer",
+                    "description": "Settle delay between focus calls in milliseconds (default 500, max 10000). Sleeps BETWEEN calls, not after the last."
+                },
+                "screenshot_each": {
+                    "type": "boolean",
+                    "description": "Default false. When true, capture a viewport PNG after each focus settles and emit a parallel 'screenshots' array."
+                },
+            },
+            "required": ["names"],
+        },
+    },
+    {
+        "name": "bulk_screenshot_actors",
+        "description": "Frame and screenshot each actor in a sequence. Composes screenshot_actor (which itself composes focus_actor + get_viewport_screenshot) per name. Same shape as bulk_focus_actors but always captures a PNG — convenient for thumbnail-pipeline runs where every actor in a list needs a deterministic centered shot.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "names": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Actor labels or unique names; each non-empty, max 50 entries (smaller cap than bulk_focus_actors because each entry yields a PNG)."
+                },
+                "delay_ms": {
+                    "type": "integer",
+                    "description": "Settle delay between actors in milliseconds (default 500, max 10000). Sleeps BETWEEN actors, not after the last."
+                },
+            },
+            "required": ["names"],
+        },
+    },
+    {
+        "name": "bulk_set_actor_property",
+        "description": "Apply many UPROPERTY mutations across many actors in one MCP call. Composes set_actor_property bridge-side; mirrors the bulk_*_assets family shape (assignments list + continue_on_error). Each assignment specifies its own {actor, property, value} so this is NOT 'set the same property on N actors' — it's 'run N individual sets'. Useful after batch-spawning to push initial-state mutations without N round-trips.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "assignments": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "actor": {"type": "string", "description": "Actor label or FName."},
+                            "property": {"type": "string", "description": "UPROPERTY name (case-sensitive)."},
+                            "value": {"description": "JSON value coerced based on the FProperty type."},
+                        },
+                    },
+                    "description": "List of {actor, property, value} triples; each actor and property non-empty, max 200 entries."
+                },
+                "continue_on_error": {
+                    "type": "boolean",
+                    "description": "Default true. When false, stop at the first per-assignment failure and return the partial results plus halted_at_index."
+                },
+            },
+            "required": ["assignments"],
         },
     },
     {
@@ -3873,6 +3961,467 @@ def synthetic_audit_blueprint_compile_status(req_id, args: dict) -> dict:
     })
 
 
+def synthetic_find_actors_by_class(req_id, args: dict) -> dict:
+    """Bridge-side composition: filter the active level's actors by class.
+
+    Pipeline:
+      1. Optionally call_ue("load_level_by_path", {"path": level}) when
+         the caller supplied a `level` UWorld path — get_actors_in_level
+         only enumerates the active editor world, so the level must be
+         current.
+      2. call_ue("get_actors_in_level", {}) -- one round-trip to fetch
+         every actor's name/label/class/transform.
+      3. Filter client-side by class name. Input accepts either a short
+         class name (`StaticMeshActor`) or a full class path
+         (`/Script/Engine.StaticMeshActor`); the synthetic strips
+         everything up to and including the final `.` before
+         case-insensitive comparison against each actor's `class` field.
+
+    The UE C++ handler currently emits only `class` (short name); the
+    synthetic re-projects the flat `loc_x/y/z` + `yaw/pitch/roll` into a
+    structured `transform: {loc, rot}` envelope for caller convenience.
+    Scale is not emitted by the handler so it is omitted rather than
+    fabricated.
+
+    Synthetic rather than C++ because the loop is pure protocol-level
+    composition over get_actors_in_level — adding a class filter
+    server-side would only duplicate logic the bridge can do trivially.
+    """
+    if not isinstance(args, dict):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "find_actors_by_class: invalid_arguments: arguments must be an object",
+        })
+
+    if "class_name" not in args:
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "find_actors_by_class: missing_required_field: 'class_name' must be supplied",
+        })
+
+    class_name = args.get("class_name")
+    if not isinstance(class_name, str) or not class_name:
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "find_actors_by_class: missing_required_field: 'class_name' must be a non-empty string",
+        })
+
+    level = args.get("level")
+    if level is not None and (not isinstance(level, str) or not level):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "find_actors_by_class: invalid_field: 'level' must be a non-empty string when supplied",
+        })
+
+    if isinstance(level, str):
+        load_resp = call_ue("load_level_by_path", {"path": level})
+        if "error" in load_resp:
+            upstream = load_resp.get("error", {}) or {}
+            return make_response(req_id, error={
+                "code": upstream.get("code", -32603) or -32603,
+                "message": f"find_actors_by_class: get_actors_failed: load_level_by_path for '{level}' failed: {upstream.get('message') or ''}",
+            })
+
+    actors_resp = call_ue("get_actors_in_level", {})
+    if "error" in actors_resp:
+        upstream = actors_resp.get("error", {}) or {}
+        return make_response(req_id, error={
+            "code": upstream.get("code", -32603) or -32603,
+            "message": f"find_actors_by_class: get_actors_failed: {upstream.get('message') or 'get_actors_in_level returned an error'}",
+        })
+
+    result = actors_resp.get("result") or {}
+    all_actors = result.get("actors") or []
+    total_in_level = result.get("total_actors", len(all_actors))
+
+    # Strip everything up to and including the final '.' so a class-path
+    # input like '/Script/Engine.StaticMeshActor' matches the C++
+    # handler's short-name output 'StaticMeshActor'.
+    needle_short = class_name.rsplit(".", 1)[-1].lower()
+
+    matched: list[dict] = []
+    for actor in all_actors:
+        if not isinstance(actor, dict):
+            continue
+        cls = actor.get("class")
+        if not isinstance(cls, str):
+            continue
+        if cls.lower() != needle_short:
+            continue
+        matched.append({
+            "name": actor.get("name"),
+            "label": actor.get("label"),
+            "class": cls,
+            "class_path": actor.get("class_path"),
+            "transform": {
+                "loc": {
+                    "x": actor.get("loc_x"),
+                    "y": actor.get("loc_y"),
+                    "z": actor.get("loc_z"),
+                },
+                "rot": {
+                    "pitch": actor.get("pitch"),
+                    "yaw": actor.get("yaw"),
+                    "roll": actor.get("roll"),
+                },
+            },
+        })
+
+    return _wrap_tool_result(req_id, {
+        "ok": True,
+        "class_name": class_name,
+        "total_in_level": total_in_level,
+        "count": len(matched),
+        "actors": matched,
+    })
+
+
+def _validate_actor_names(tool_name: str, args: dict, max_names: int) -> tuple[list[str], dict | None]:
+    """Shape-check `names` list for the bulk_*_actors family.
+
+    Returns (names, error_envelope). When error_envelope is not None the
+    caller should return it immediately; otherwise `names` holds the
+    validated list.
+    """
+    if "names" not in args:
+        return [], {
+            "code": -32602,
+            "message": f"{tool_name}: missing_required_field: 'names' must be supplied as a list of actor names",
+        }
+    names = args.get("names")
+    if not isinstance(names, list):
+        return [], {
+            "code": -32602,
+            "message": f"{tool_name}: invalid_names_shape: 'names' must be a list of strings",
+        }
+    if len(names) > max_names:
+        return [], {
+            "code": -32602,
+            "message": f"{tool_name}: too_many_names: at most {max_names} names per call (got {len(names)})",
+        }
+    for i, name in enumerate(names):
+        if not isinstance(name, str) or not name:
+            return [], {
+                "code": -32602,
+                "message": f"{tool_name}: name_must_be_string: names[{i}] must be a non-empty string",
+            }
+    return names, None
+
+
+def _validate_delay_ms(tool_name: str, args: dict) -> tuple[int, dict | None]:
+    """Shape-check optional `delay_ms`; default 500, max 10000.
+
+    Returns (delay_ms, error_envelope). Booleans are rejected (Python's
+    bool is an int subclass — accepting True would coerce to 1ms).
+    """
+    delay_ms = args.get("delay_ms", 500)
+    if isinstance(delay_ms, bool) or not isinstance(delay_ms, int):
+        return 0, {
+            "code": -32602,
+            "message": f"{tool_name}: invalid_delay: 'delay_ms' must be an integer between 0 and 10000",
+        }
+    if delay_ms < 0 or delay_ms > 10000:
+        return 0, {
+            "code": -32602,
+            "message": f"{tool_name}: invalid_delay: 'delay_ms' must be an integer between 0 and 10000 (got {delay_ms})",
+        }
+    return delay_ms, None
+
+
+def synthetic_bulk_focus_actors(req_id, args: dict) -> dict:
+    """Bridge-side composition: visit each actor in sequence, framing the
+    viewport on each, and optionally capturing a viewport screenshot
+    after each focus.
+
+    Composition:
+      For each name in `names`:
+        1. focus_actor {name} -- viewport reframe
+        2. time.sleep(delay_ms / 1000) -- settle viewport + LOD (skipped
+           after the last entry)
+        3. if screenshot_each: get_viewport_screenshot {} -- capture PNG
+
+    Useful for `show me each enemy / spawn / light in turn` walkthroughs
+    that would otherwise force the LLM into a focus -> screenshot ->
+    focus polling loop. `screenshot_each=false` keeps the round-trip
+    count down when only the side-effect of moving the viewport matters
+    (e.g. preparing a recorded sequence).
+
+    Synthetic rather than C++ because the loop is pure protocol-level
+    composition; a C++ handler would have to duplicate focus_actor +
+    get_viewport_screenshot internals.
+    """
+    if not isinstance(args, dict):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "bulk_focus_actors: invalid_arguments: arguments must be an object",
+        })
+
+    names, err = _validate_actor_names("bulk_focus_actors", args, max_names=100)
+    if err is not None:
+        return make_response(req_id, error=err)
+
+    delay_ms, err = _validate_delay_ms("bulk_focus_actors", args)
+    if err is not None:
+        return make_response(req_id, error=err)
+
+    screenshot_each = args.get("screenshot_each", False)
+    if not isinstance(screenshot_each, bool):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "bulk_focus_actors: invalid_field: 'screenshot_each' must be a boolean",
+        })
+
+    focused = 0
+    failed: list[dict] = []
+    screenshots: list[dict] = []
+    for i, name in enumerate(names):
+        focus_resp = call_ue("focus_actor", {"name": name})
+        if "error" in focus_resp:
+            upstream = focus_resp.get("error", {}) or {}
+            failed.append({
+                "name": name,
+                "error": {
+                    "code": upstream.get("code", -32603) or -32603,
+                    "message": f"bulk_focus_actors: focus_failed: focus_actor on '{name}' failed: {upstream.get('message') or ''}",
+                },
+            })
+        else:
+            focused += 1
+            if screenshot_each:
+                shot_resp = call_ue("get_viewport_screenshot", {})
+                if "error" in shot_resp:
+                    upstream = shot_resp.get("error", {}) or {}
+                    failed.append({
+                        "name": name,
+                        "error": {
+                            "code": upstream.get("code", -32603) or -32603,
+                            "message": f"bulk_focus_actors: screenshot_failed: get_viewport_screenshot after '{name}' failed: {upstream.get('message') or ''}",
+                        },
+                    })
+                else:
+                    shot_result = shot_resp.get("result", {}) or {}
+                    screenshots.append({
+                        "name": name,
+                        "png_base64": shot_result.get("png_base64"),
+                    })
+
+        # Sleep BETWEEN calls (not after the last). delay_ms == 0 means
+        # no settle window.
+        if delay_ms > 0 and i < len(names) - 1:
+            time.sleep(delay_ms / 1000.0)
+
+    body: dict = {
+        "ok": len(failed) == 0,
+        "total": len(names),
+        "focused": focused,
+        "failed": failed,
+    }
+    if screenshot_each:
+        body["screenshots"] = screenshots
+    return _wrap_tool_result(req_id, body)
+
+
+def synthetic_bulk_screenshot_actors(req_id, args: dict) -> dict:
+    """Bridge-side composition: focus + screenshot each actor in a
+    sequence by dispatching the existing `screenshot_actor` synthetic
+    (which itself composes focus_actor + get_viewport_screenshot).
+
+    Composition:
+      For each name in `names`:
+        1. screenshot_actor {name} -- the existing synthetic handles
+           focus + capture in one logical step (separate UE round-trips
+           under the hood so the camera-move-then-capture race is
+           avoided)
+        2. time.sleep(delay_ms / 1000) -- settle delay between actors,
+           skipped after the last entry
+
+    Useful for thumbnail-pipeline runs: 'screenshot each StaticMeshActor
+    in the level' becomes one MCP call instead of N. The same delay-ms
+    knob as bulk_focus_actors lets callers tune for LOD/streaming.
+
+    Synthetic rather than C++ because screenshot_actor itself is a
+    bridge-side composition; nesting C++ over Python over C++ would
+    double the round-trip cost without functional gain.
+    """
+    if not isinstance(args, dict):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "bulk_screenshot_actors: invalid_arguments: arguments must be an object",
+        })
+
+    names, err = _validate_actor_names("bulk_screenshot_actors", args, max_names=50)
+    if err is not None:
+        return make_response(req_id, error=err)
+
+    delay_ms, err = _validate_delay_ms("bulk_screenshot_actors", args)
+    if err is not None:
+        return make_response(req_id, error=err)
+
+    succeeded = 0
+    results: list[dict] = []
+    for i, name in enumerate(names):
+        # Re-enter the synthetic dispatcher rather than calling call_ue
+        # directly: screenshot_actor is itself a synthetic so it has no
+        # UE handler to dispatch to.
+        shot_resp = synthetic_screenshot_actor(req_id, {"name": name})
+        if "error" in shot_resp:
+            upstream = shot_resp.get("error", {}) or {}
+            results.append({
+                "name": name,
+                "ok": False,
+                "error": {
+                    "code": upstream.get("code", -32603) or -32603,
+                    "message": upstream.get("message") or f"bulk_screenshot_actors: screenshot_failed: screenshot_actor on '{name}' failed",
+                },
+            })
+        else:
+            # screenshot_actor wraps its body in {"result": {"content":
+            # [{"type": "text", "text": json_blob}], "isError": false}}.
+            # Unwrap the inner JSON so the bulk results stay flat.
+            content = (shot_resp.get("result") or {}).get("content") or []
+            inner_text = content[0].get("text") if content else "{}"
+            try:
+                inner = json.loads(inner_text) if isinstance(inner_text, str) else {}
+            except json.JSONDecodeError:
+                inner = {}
+            succeeded += 1
+            results.append({
+                "name": name,
+                "ok": True,
+                "png_base64": inner.get("png_base64"),
+                "focused": inner.get("focused"),
+                "loc": inner.get("loc"),
+            })
+
+        if delay_ms > 0 and i < len(names) - 1:
+            time.sleep(delay_ms / 1000.0)
+
+    return _wrap_tool_result(req_id, {
+        "ok": succeeded == len(names),
+        "total": len(names),
+        "succeeded": succeeded,
+        "results": results,
+    })
+
+
+def synthetic_bulk_set_actor_property(req_id, args: dict) -> dict:
+    """Bridge-side composition: apply many UPROPERTY mutations across
+    many actors by dispatching `set_actor_property` per assignment.
+
+    Composition:
+      For each {actor, property, value} in `assignments`:
+        1. set_actor_property {name=actor, property, value}
+        2. on failure: record + continue (continue_on_error=true,
+           default) OR halt and record halted_at_index
+           (continue_on_error=false)
+
+    Each assignment is independent — this is NOT 'set the same property
+    on N actors', it's 'run N individual sets'. Useful after batch-
+    spawning to apply initial-state mutations (e.g. paint each enemy's
+    AI tag, set per-actor team colors) without N round-trips.
+
+    Mirrors the bulk_compile_blueprints partial-failure semantics:
+    ok=true only when failed==0; halted_at_index appears only when
+    continue_on_error=false stopped the loop early.
+
+    Synthetic rather than C++ for the same reasons as the rest of the
+    bulk_* family.
+    """
+    if not isinstance(args, dict):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "bulk_set_actor_property: invalid_arguments: arguments must be an object",
+        })
+
+    if "assignments" not in args:
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "bulk_set_actor_property: missing_required_field: 'assignments' must be supplied as a list of {actor, property, value} objects",
+        })
+
+    assignments = args.get("assignments")
+    if not isinstance(assignments, list):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "bulk_set_actor_property: invalid_assignments_shape: 'assignments' must be a list of objects",
+        })
+
+    if len(assignments) > 200:
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": f"bulk_set_actor_property: too_many_assignments: at most 200 assignments per call (got {len(assignments)})",
+        })
+
+    for i, assignment in enumerate(assignments):
+        if not isinstance(assignment, dict):
+            return make_response(req_id, error={
+                "code": -32602,
+                "message": f"bulk_set_actor_property: assignment_must_be_object: assignments[{i}] must be an object",
+            })
+        actor = assignment.get("actor")
+        if not isinstance(actor, str) or not actor:
+            return make_response(req_id, error={
+                "code": -32602,
+                "message": f"bulk_set_actor_property: assignment_missing_field: assignments[{i}].'actor' must be a non-empty string",
+            })
+        prop = assignment.get("property")
+        if not isinstance(prop, str) or not prop:
+            return make_response(req_id, error={
+                "code": -32602,
+                "message": f"bulk_set_actor_property: assignment_missing_field: assignments[{i}].'property' must be a non-empty string",
+            })
+        if "value" not in assignment:
+            return make_response(req_id, error={
+                "code": -32602,
+                "message": f"bulk_set_actor_property: assignment_missing_field: assignments[{i}].'value' is required (use null for explicit-null intent)",
+            })
+
+    continue_on_error = args.get("continue_on_error", True)
+    if not isinstance(continue_on_error, bool):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "bulk_set_actor_property: invalid_field: 'continue_on_error' must be a boolean",
+        })
+
+    succeeded = 0
+    failed: list[dict] = []
+    halted_at_index: int | None = None
+    for i, assignment in enumerate(assignments):
+        actor = assignment["actor"]
+        prop = assignment["property"]
+        value = assignment["value"]
+        set_resp = call_ue("set_actor_property", {
+            "name": actor,
+            "property": prop,
+            "value": value,
+        })
+        if "error" in set_resp:
+            upstream = set_resp.get("error", {}) or {}
+            failed.append({
+                "actor": actor,
+                "property": prop,
+                "error": {
+                    "code": upstream.get("code", -32603) or -32603,
+                    "message": f"bulk_set_actor_property: set_failed: set_actor_property on '{actor}'.'{prop}' failed: {upstream.get('message') or ''}",
+                },
+            })
+            if not continue_on_error:
+                halted_at_index = i
+                break
+        else:
+            succeeded += 1
+
+    body: dict = {
+        "ok": len(failed) == 0,
+        "total": len(assignments),
+        "succeeded": succeeded,
+        "failed": failed,
+    }
+    if halted_at_index is not None:
+        body["halted_at_index"] = halted_at_index
+    return _wrap_tool_result(req_id, body)
+
+
 SYNTHETIC_TOOLS = {
     "wait_for_events": synthetic_wait_for_events,
     "get_camera_transform": synthetic_get_camera_transform,
@@ -3895,6 +4444,10 @@ SYNTHETIC_TOOLS = {
     "get_reference_chain": synthetic_get_reference_chain,
     "bulk_compile_blueprints": synthetic_bulk_compile_blueprints,
     "audit_blueprint_compile_status": synthetic_audit_blueprint_compile_status,
+    "find_actors_by_class": synthetic_find_actors_by_class,
+    "bulk_focus_actors": synthetic_bulk_focus_actors,
+    "bulk_screenshot_actors": synthetic_bulk_screenshot_actors,
+    "bulk_set_actor_property": synthetic_bulk_set_actor_property,
 }
 
 

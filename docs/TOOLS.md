@@ -1,6 +1,6 @@
 # MCP Tools Reference
 
-**92 tools total.** 71 are JSON-RPC 2.0 methods served on `127.0.0.1:18888` directly by the plugin's C++ handlers. The remaining 21 — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status` — are bridge-side **synthetic tools** that are intercepted by `bridge/unreal_claude_mcp_bridge.py` and served by composing existing handlers (or running Python via `execute_unreal_python`, or — for `compile_mod_pak` — shelling out to `RunUAT.bat` entirely outside the UE process). They are visible to MCP clients exactly like the C++ tools but cannot be reached by sending raw JSON-RPC to the TCP socket — only via the MCP bridge or by replicating their composition manually. The "Implementation" header on each entry below indicates whether a tool is C++ or bridge-side.
+**96 tools total.** 71 are JSON-RPC 2.0 methods served on `127.0.0.1:18888` directly by the plugin's C++ handlers. The remaining 25 — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property` — are bridge-side **synthetic tools** that are intercepted by `bridge/unreal_claude_mcp_bridge.py` and served by composing existing handlers (or running Python via `execute_unreal_python`, or — for `compile_mod_pak` — shelling out to `RunUAT.bat` entirely outside the UE process). They are visible to MCP clients exactly like the C++ tools but cannot be reached by sending raw JSON-RPC to the TCP socket — only via the MCP bridge or by replicating their composition manually. The "Implementation" header on each entry below indicates whether a tool is C++ or bridge-side.
 
 Each tool's params and result are documented with a working example.
 
@@ -13,7 +13,7 @@ s.send(json.dumps({"jsonrpc":"2.0","id":1,"method":"<METHOD>","params":{...}}).e
 print(s.recv(65536).decode())
 ```
 
-Synthetic tools (all 21: `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`) must be reached through the MCP bridge.
+Synthetic tools (all 25: `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`) must be reached through the MCP bridge.
 
 ---
 
@@ -3396,6 +3396,153 @@ Enumerate every Blueprint under a content path and bucket each by compile-status
 {"jsonrpc":"2.0","id":2,"method":"audit_blueprint_compile_status","params":{
   "path_under": "/Game",
   "compile_failures_only": false
+}}
+```
+
+---
+
+## find_actors_by_class
+
+Filter the active level's actors by class in one MCP call. Composes [`get_actors_in_level`](#get_actors_in_level) bridge-side and matches each actor's short class name against the supplied `class_name` (which may itself be a short name like `StaticMeshActor` or a full class path like `/Script/Engine.StaticMeshActor` — the synthetic strips everything up to and including the final `.` then compares case-insensitively).
+
+**Bridge-side synthetic tool.** Pure Python — one round-trip to `get_actors_in_level`, then client-side filtering. When `level` is supplied, runs [`load_level_by_path`](#load_level_by_path) first because `get_actors_in_level` only enumerates the active editor world.
+
+**Caveat:** the C++ `get_actors_in_level` handler currently emits the short `class` name only (no `class_path` field). The synthetic re-projects each actor's flat `loc_x/y/z` + `yaw/pitch/roll` into a structured `transform: {loc, rot}` envelope; scale is not emitted by the handler so it is omitted rather than fabricated.
+
+**Params**
+- `class_name` (string, required) — short class name (e.g. `StaticMeshActor`) or full class path (e.g. `/Script/Engine.StaticMeshActor`); class-path inputs are stripped to the trailing short name
+- `level` (string, optional) — UWorld package path; when supplied, `load_level_by_path` runs first
+
+**Result**
+- `ok` (bool) — always `true` on success
+- `class_name` (string) — echo of input
+- `total_in_level` (int) — total actors the C++ handler enumerated before filtering
+- `count` (int) — number of actors matching `class_name`
+- `actors` (array) — one entry per match: `{name, label, class, class_path: string|null, transform: {loc: {x, y, z}, rot: {pitch, yaw, roll}}}`
+
+**Errors (envelope-level):** `-32602` (`missing_required_field` / `invalid_field`); `-32603` (transport — `get_actors_failed` for either the optional level-load step or the actors enumeration).
+
+**Example — filter the current level**
+```json
+{"jsonrpc":"2.0","id":1,"method":"find_actors_by_class","params":{
+  "class_name": "StaticMeshActor"
+}}
+```
+
+**Example — switch level first**
+```json
+{"jsonrpc":"2.0","id":2,"method":"find_actors_by_class","params":{
+  "class_name": "/Script/Engine.PointLight",
+  "level": "/Game/Maps/StressTest"
+}}
+```
+
+---
+
+## bulk_focus_actors
+
+Frame the viewport on each actor in a sequence, optionally capturing a screenshot after each focus settles. Composes [`focus_actor`](#focus_actor) per name (plus [`get_viewport_screenshot`](#get_viewport_screenshot) when `screenshot_each=true`). Useful for "show me each enemy / spawn / light in turn" walkthroughs where one [`screenshot_actor`](#screenshot_actor) at a time would force the caller into a polling loop.
+
+**Bridge-side synthetic tool.** Pure Python — loops over `names`, sleeping `delay_ms` between focus calls (not after the last) so LOD and viewport settling stays bounded. Per-name failures land in `failed[]` and the loop keeps running — there is no `continue_on_error` knob because frame-then-capture is independently retryable per actor.
+
+**Params**
+- `names` (array of string, required) — actor labels or unique names, each non-empty, max 100 entries
+- `delay_ms` (int, optional, default `500`) — settle delay between focus calls in milliseconds; clamped to `0..10000`
+- `screenshot_each` (bool, optional, default `false`) — when `true`, capture a viewport PNG after each focus and emit a parallel `screenshots` array
+
+**Result**
+- `ok` (bool) — `true` only when `failed` is empty
+- `total` (int) — `names.length`
+- `focused` (int) — number of successful focuses
+- `failed` (array) — `{name, error: {code, message}}` per failure
+- `screenshots` (array) — `{name, png_base64}` entries; present **only** when `screenshot_each=true`
+
+**Errors (envelope-level):** `-32602` (`missing_required_field` / `invalid_names_shape` / `name_must_be_string` / `too_many_names` / `invalid_delay` / non-bool `screenshot_each`).
+
+**Example — walk the list, no screenshots**
+```json
+{"jsonrpc":"2.0","id":1,"method":"bulk_focus_actors","params":{
+  "names": ["Spawn_Player", "Spawn_Boss", "Spawn_Loot"],
+  "delay_ms": 250
+}}
+```
+
+**Example — walk the list and grab a thumbnail per actor**
+```json
+{"jsonrpc":"2.0","id":2,"method":"bulk_focus_actors","params":{
+  "names": ["Enemy_01", "Enemy_02", "Enemy_03"],
+  "screenshot_each": true
+}}
+```
+
+---
+
+## bulk_screenshot_actors
+
+Frame and screenshot each actor in a sequence. Composes [`screenshot_actor`](#screenshot_actor) (itself a synthetic over `focus_actor` + `get_viewport_screenshot`) per name. Same shape as [`bulk_focus_actors`](#bulk_focus_actors) but every entry always yields a PNG — convenient for thumbnail-pipeline runs.
+
+**Bridge-side synthetic tool.** Pure Python. Caps at 50 entries (tighter than `bulk_focus_actors`' 100) because each entry yields a base64 PNG payload — at full cap the response body is non-trivial.
+
+**Params**
+- `names` (array of string, required) — actor labels or unique names, each non-empty, max 50 entries
+- `delay_ms` (int, optional, default `500`) — settle delay between actors in milliseconds; clamped to `0..10000`
+
+**Result**
+- `ok` (bool) — `true` only when every entry succeeded
+- `total` (int) — `names.length`
+- `succeeded` (int) — count of per-name successes
+- `results` (array) — one entry per name in input order: `{name, ok, png_base64?, focused?, loc?, error?}`
+
+**Errors (envelope-level):** `-32602` (`missing_required_field` / `invalid_names_shape` / `name_must_be_string` / `too_many_names` / `invalid_delay`).
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"bulk_screenshot_actors","params":{
+  "names": ["Prop_Crate", "Prop_Barrel", "Prop_Sign"],
+  "delay_ms": 750
+}}
+```
+
+---
+
+## bulk_set_actor_property
+
+Apply many UPROPERTY mutations across many actors in one MCP call. Composes [`set_actor_property`](#set_actor_property) per assignment; mirrors the [`bulk_compile_blueprints`](#bulk_compile_blueprints) partial-failure semantics (`continue_on_error` default `true`).
+
+**Bridge-side synthetic tool.** Each assignment is independent — this is **NOT** "set the same property on N actors", it is "run N individual sets". Useful after batch-spawning to push initial-state mutations (paint per-actor team tags, set initial AI states, etc.) without N round-trips.
+
+**Params**
+- `assignments` (array of object, required) — `{actor: string, property: string, value: any}` triples; each actor and property non-empty, `value` mandatory (use `null` for explicit-null intent), max 200 entries
+- `continue_on_error` (bool, optional, default `true`) — when `false`, halt at the first per-assignment failure and emit `halted_at_index`
+
+**Result**
+- `ok` (bool) — `true` only when `failed` is empty
+- `total` (int) — `assignments.length`
+- `succeeded` (int) — count of per-assignment successes
+- `failed` (array) — `{actor, property, error: {code, message}}` per failure, preserving the upstream `set_actor_property` error code
+- `halted_at_index` (int) — present **only** when `continue_on_error=false` stopped the loop early; the 0-based index of the failed assignment
+
+**Errors (envelope-level):** `-32602` (`missing_required_field` / `invalid_assignments_shape` / `assignment_must_be_object` / `assignment_missing_field` / `too_many_assignments` / non-bool `continue_on_error`).
+
+**Example — paint team tags across many actors**
+```json
+{"jsonrpc":"2.0","id":1,"method":"bulk_set_actor_property","params":{
+  "assignments": [
+    {"actor": "Enemy_01", "property": "Tags", "value": ["Red"]},
+    {"actor": "Enemy_02", "property": "Tags", "value": ["Red"]},
+    {"actor": "Ally_01",  "property": "Tags", "value": ["Blue"]}
+  ]
+}}
+```
+
+**Example — fail fast**
+```json
+{"jsonrpc":"2.0","id":2,"method":"bulk_set_actor_property","params":{
+  "assignments": [
+    {"actor": "Crate_A", "property": "bHidden", "value": true},
+    {"actor": "Crate_B", "property": "bHidden", "value": true}
+  ],
+  "continue_on_error": false
 }}
 ```
 

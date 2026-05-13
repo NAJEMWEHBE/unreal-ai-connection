@@ -114,6 +114,10 @@ def test_tool_names_are_unique_and_match_handlers():
         "get_reference_chain",
         "bulk_compile_blueprints",
         "audit_blueprint_compile_status",
+        "find_actors_by_class",
+        "bulk_focus_actors",
+        "bulk_screenshot_actors",
+        "bulk_set_actor_property",
     }
     assert set(names) == expected
 
@@ -4037,3 +4041,534 @@ def test_synthetic_inspect_asset_not_found_messages_use_canonical_prefix() -> No
         "synthetic_inspect_* error-message shape drift detected:\n  "
         + "\n  ".join(offenders)
     )
+
+
+# ---- find_actors_by_class (Wave C) -----------------------------------------
+
+def test_find_actors_by_class_is_synthetic():
+    """Wave C: find_actors_by_class is a SYNTHETIC bridge-side composition
+    over get_actors_in_level. class_name REQUIRED; level optional."""
+    tool = next((t for t in bridge.TOOLS if t["name"] == "find_actors_by_class"), None)
+    assert tool is not None
+    assert tool["inputSchema"]["required"] == ["class_name"]
+    props = tool["inputSchema"]["properties"]
+    assert props["class_name"]["type"] == "string"
+    assert props["level"]["type"] == "string"
+    assert "find_actors_by_class" in bridge.SYNTHETIC_TOOLS
+    assert bridge.SYNTHETIC_TOOLS["find_actors_by_class"] is bridge.synthetic_find_actors_by_class
+
+
+def test_find_actors_by_class_short_name_filters_client_side():
+    """Short class name matches the C++ handler's `class` short-name field
+    case-insensitively. total_in_level echoes the handler's total."""
+    actors_resp = {"jsonrpc": "2.0", "id": 1, "result": {
+        "world": "Test",
+        "total_actors": 3,
+        "returned": 3,
+        "actors": [
+            {"name": "SM1", "label": "Cube_A", "class": "StaticMeshActor",
+             "loc_x": 1.0, "loc_y": 2.0, "loc_z": 3.0,
+             "yaw": 0.0, "pitch": 0.0, "roll": 0.0},
+            {"name": "PL1", "label": "Light1", "class": "PointLight",
+             "loc_x": 4.0, "loc_y": 5.0, "loc_z": 6.0,
+             "yaw": 10.0, "pitch": 20.0, "roll": 30.0},
+            {"name": "SM2", "label": "Cube_B", "class": "StaticMeshActor",
+             "loc_x": 7.0, "loc_y": 8.0, "loc_z": 9.0,
+             "yaw": 0.0, "pitch": 0.0, "roll": 0.0},
+        ],
+    }}
+    with patch.object(bridge, "call_ue", side_effect=[actors_resp]) as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 500, "method": "tools/call",
+            "params": {"name": "find_actors_by_class", "arguments": {
+                "class_name": "StaticMeshActor",
+            }},
+        })
+
+    assert m.call_count == 1
+    assert m.call_args_list[0].args == ("get_actors_in_level", {})
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert body["ok"] is True
+    assert body["class_name"] == "StaticMeshActor"
+    assert body["total_in_level"] == 3
+    assert body["count"] == 2
+    names = [a["name"] for a in body["actors"]]
+    assert names == ["SM1", "SM2"]
+    # Re-projection: structured transform envelope
+    first = body["actors"][0]
+    assert first["transform"]["loc"] == {"x": 1.0, "y": 2.0, "z": 3.0}
+    assert first["transform"]["rot"]["yaw"] == 0.0
+
+
+def test_find_actors_by_class_class_path_input_strips_to_short_name():
+    """A full class path like '/Script/Engine.PointLight' is stripped to
+    'PointLight' before matching against the handler's short-name field."""
+    actors_resp = {"jsonrpc": "2.0", "id": 1, "result": {
+        "world": "Test", "total_actors": 1, "returned": 1,
+        "actors": [
+            {"name": "PL1", "label": "Light1", "class": "PointLight",
+             "loc_x": 0, "loc_y": 0, "loc_z": 0,
+             "yaw": 0, "pitch": 0, "roll": 0},
+        ],
+    }}
+    with patch.object(bridge, "call_ue", side_effect=[actors_resp]):
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 501, "method": "tools/call",
+            "params": {"name": "find_actors_by_class", "arguments": {
+                "class_name": "/Script/Engine.PointLight",
+            }},
+        })
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert body["count"] == 1
+    assert body["actors"][0]["class"] == "PointLight"
+    # The synthetic echoes the caller's input class_name verbatim so the
+    # caller can correlate the request.
+    assert body["class_name"] == "/Script/Engine.PointLight"
+
+
+def test_find_actors_by_class_rejects_missing_class_name():
+    resp = bridge.handle({
+        "jsonrpc": "2.0", "id": 502, "method": "tools/call",
+        "params": {"name": "find_actors_by_class", "arguments": {}},
+    })
+    assert resp["error"]["code"] == -32602
+    assert "missing_required_field" in resp["error"]["message"]
+    assert "class_name" in resp["error"]["message"]
+
+
+def test_find_actors_by_class_loads_level_when_supplied():
+    """When `level` is given, load_level_by_path runs before
+    get_actors_in_level."""
+    load_resp = {"jsonrpc": "2.0", "id": 1, "result": {"ok": True}}
+    actors_resp = {"jsonrpc": "2.0", "id": 1, "result": {
+        "world": "MyMap", "total_actors": 0, "returned": 0, "actors": [],
+    }}
+    with patch.object(bridge, "call_ue", side_effect=[load_resp, actors_resp]) as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 503, "method": "tools/call",
+            "params": {"name": "find_actors_by_class", "arguments": {
+                "class_name": "StaticMeshActor",
+                "level": "/Game/Maps/MyMap",
+            }},
+        })
+    assert m.call_count == 2
+    assert m.call_args_list[0].args == ("load_level_by_path", {"path": "/Game/Maps/MyMap"})
+    assert m.call_args_list[1].args == ("get_actors_in_level", {})
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert body["count"] == 0
+
+
+def test_find_actors_by_class_get_actors_failure_propagates():
+    """Upstream get_actors_in_level failure surfaces as get_actors_failed."""
+    err_resp = {"jsonrpc": "2.0", "id": 1, "error": {"code": -32099, "message": "UE unreachable"}}
+    with patch.object(bridge, "call_ue", side_effect=[err_resp]):
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 504, "method": "tools/call",
+            "params": {"name": "find_actors_by_class", "arguments": {
+                "class_name": "StaticMeshActor",
+            }},
+        })
+    assert resp["error"]["code"] == -32099
+    assert "get_actors_failed" in resp["error"]["message"]
+
+
+# ---- bulk_focus_actors (Wave C) --------------------------------------------
+
+def test_bulk_focus_actors_is_synthetic():
+    """Wave C: bulk_focus_actors is a SYNTHETIC bridge-side composition
+    over focus_actor + optionally get_viewport_screenshot. names
+    REQUIRED; delay_ms and screenshot_each optional."""
+    tool = next((t for t in bridge.TOOLS if t["name"] == "bulk_focus_actors"), None)
+    assert tool is not None
+    assert tool["inputSchema"]["required"] == ["names"]
+    props = tool["inputSchema"]["properties"]
+    assert props["names"]["type"] == "array"
+    assert props["names"]["items"]["type"] == "string"
+    assert props["delay_ms"]["type"] == "integer"
+    assert props["screenshot_each"]["type"] == "boolean"
+    assert "bulk_focus_actors" in bridge.SYNTHETIC_TOOLS
+    assert bridge.SYNTHETIC_TOOLS["bulk_focus_actors"] is bridge.synthetic_bulk_focus_actors
+
+
+def test_bulk_focus_actors_happy_path_no_screenshots():
+    """All focuses succeed; default screenshot_each=false means no
+    screenshots field."""
+    focus_resp = {"jsonrpc": "2.0", "id": 1, "result": {
+        "focused": "Label", "name": "Name",
+        "loc_x": 0, "loc_y": 0, "loc_z": 0}}
+    with patch.object(bridge, "call_ue", side_effect=[focus_resp, focus_resp]) as m, \
+         patch.object(bridge.time, "sleep") as sleep_m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 510, "method": "tools/call",
+            "params": {"name": "bulk_focus_actors", "arguments": {
+                "names": ["A", "B"],
+                "delay_ms": 0,  # skip sleeps so the test is fast
+            }},
+        })
+    assert m.call_count == 2
+    assert m.call_args_list[0].args == ("focus_actor", {"name": "A"})
+    # delay_ms=0 short-circuits the sleep call
+    assert sleep_m.call_count == 0
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert body["ok"] is True
+    assert body["total"] == 2
+    assert body["focused"] == 2
+    assert body["failed"] == []
+    assert "screenshots" not in body
+
+
+def test_bulk_focus_actors_with_screenshot_each_emits_screenshots():
+    """screenshot_each=true: get_viewport_screenshot runs after every
+    focus. The screenshots array parallels the input order."""
+    focus_resp = {"jsonrpc": "2.0", "id": 1, "result": {"focused": "L", "name": "N"}}
+    shot_resp = {"jsonrpc": "2.0", "id": 1, "result": {"png_base64": "AAA"}}
+    with patch.object(bridge, "call_ue", side_effect=[
+        focus_resp, shot_resp, focus_resp, shot_resp]) as m, \
+         patch.object(bridge.time, "sleep"):
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 511, "method": "tools/call",
+            "params": {"name": "bulk_focus_actors", "arguments": {
+                "names": ["A", "B"],
+                "screenshot_each": True,
+                "delay_ms": 0,
+            }},
+        })
+    assert m.call_count == 4
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert body["ok"] is True
+    assert len(body["screenshots"]) == 2
+    assert body["screenshots"][0]["name"] == "A"
+    assert body["screenshots"][0]["png_base64"] == "AAA"
+
+
+def test_bulk_focus_actors_partial_failure_other_items_still_run():
+    """First focus fails, second still attempted; per-name error
+    captured under failed[]."""
+    err_resp = {"jsonrpc": "2.0", "id": 1, "error": {"code": -32000, "message": "actor not found"}}
+    ok_resp = {"jsonrpc": "2.0", "id": 1, "result": {"focused": "L", "name": "N"}}
+    with patch.object(bridge, "call_ue", side_effect=[err_resp, ok_resp]) as m, \
+         patch.object(bridge.time, "sleep"):
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 512, "method": "tools/call",
+            "params": {"name": "bulk_focus_actors", "arguments": {
+                "names": ["Bad", "Good"],
+                "delay_ms": 0,
+            }},
+        })
+    assert m.call_count == 2
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert body["ok"] is False
+    assert body["focused"] == 1
+    assert len(body["failed"]) == 1
+    assert body["failed"][0]["name"] == "Bad"
+    assert "focus_failed" in body["failed"][0]["error"]["message"]
+
+
+def test_bulk_focus_actors_rejects_missing_names():
+    resp = bridge.handle({
+        "jsonrpc": "2.0", "id": 513, "method": "tools/call",
+        "params": {"name": "bulk_focus_actors", "arguments": {}},
+    })
+    assert resp["error"]["code"] == -32602
+    assert "missing_required_field" in resp["error"]["message"]
+
+
+def test_bulk_focus_actors_rejects_non_string_name():
+    """Numeric inside the names list rejected before any call_ue."""
+    with patch.object(bridge, "call_ue") as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 514, "method": "tools/call",
+            "params": {"name": "bulk_focus_actors", "arguments": {
+                "names": ["Good", 42],
+            }},
+        })
+    assert m.call_count == 0
+    assert resp["error"]["code"] == -32602
+    assert "name_must_be_string" in resp["error"]["message"]
+    assert "names[1]" in resp["error"]["message"]
+
+
+def test_bulk_focus_actors_rejects_too_many_names():
+    names = [f"A{i}" for i in range(101)]
+    with patch.object(bridge, "call_ue") as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 515, "method": "tools/call",
+            "params": {"name": "bulk_focus_actors", "arguments": {"names": names}},
+        })
+    assert m.call_count == 0
+    assert resp["error"]["code"] == -32602
+    assert "too_many_names" in resp["error"]["message"]
+
+
+def test_bulk_focus_actors_rejects_invalid_delay():
+    resp = bridge.handle({
+        "jsonrpc": "2.0", "id": 516, "method": "tools/call",
+        "params": {"name": "bulk_focus_actors", "arguments": {
+            "names": ["A"],
+            "delay_ms": 99999,
+        }},
+    })
+    assert resp["error"]["code"] == -32602
+    assert "invalid_delay" in resp["error"]["message"]
+
+
+# ---- bulk_screenshot_actors (Wave C) ---------------------------------------
+
+def test_bulk_screenshot_actors_is_synthetic():
+    """Wave C: bulk_screenshot_actors is a SYNTHETIC bridge-side
+    composition over screenshot_actor. names REQUIRED; delay_ms
+    optional."""
+    tool = next((t for t in bridge.TOOLS if t["name"] == "bulk_screenshot_actors"), None)
+    assert tool is not None
+    assert tool["inputSchema"]["required"] == ["names"]
+    props = tool["inputSchema"]["properties"]
+    assert props["names"]["type"] == "array"
+    assert props["names"]["items"]["type"] == "string"
+    assert props["delay_ms"]["type"] == "integer"
+    assert "bulk_screenshot_actors" in bridge.SYNTHETIC_TOOLS
+    assert bridge.SYNTHETIC_TOOLS["bulk_screenshot_actors"] is bridge.synthetic_bulk_screenshot_actors
+
+
+def test_bulk_screenshot_actors_happy_path_unwraps_inner_envelope():
+    """screenshot_actor returns a wrapped envelope; bulk_screenshot_actors
+    must unwrap it so the inner png_base64 / focused / loc fields land
+    flat on each result entry."""
+    # screenshot_actor composes focus_actor + get_viewport_screenshot,
+    # so call_ue is hit twice per name.
+    focus_resp = {"jsonrpc": "2.0", "id": 1, "result": {
+        "focused": "Label_A", "name": "A",
+        "loc_x": 1.0, "loc_y": 2.0, "loc_z": 3.0}}
+    shot_resp = {"jsonrpc": "2.0", "id": 1, "result": {
+        "width": 1920, "height": 1080, "png_base64": "AAA"}}
+    with patch.object(bridge, "call_ue", side_effect=[
+        focus_resp, shot_resp, focus_resp, shot_resp]) as m, \
+         patch.object(bridge.time, "sleep"):
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 520, "method": "tools/call",
+            "params": {"name": "bulk_screenshot_actors", "arguments": {
+                "names": ["A", "B"],
+                "delay_ms": 0,
+            }},
+        })
+    assert m.call_count == 4
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert body["ok"] is True
+    assert body["total"] == 2
+    assert body["succeeded"] == 2
+    assert body["results"][0]["name"] == "A"
+    assert body["results"][0]["ok"] is True
+    assert body["results"][0]["png_base64"] == "AAA"
+    assert body["results"][0]["focused"] == "Label_A"
+
+
+def test_bulk_screenshot_actors_partial_failure_other_items_still_run():
+    """focus_actor on the first name fails; second name's screenshot
+    still attempted. The first entry is failed; the second succeeded."""
+    focus_err = {"jsonrpc": "2.0", "id": 1, "error": {"code": -32000, "message": "Actor not found: Bad"}}
+    focus_ok = {"jsonrpc": "2.0", "id": 1, "result": {"focused": "L", "name": "Good"}}
+    shot_ok = {"jsonrpc": "2.0", "id": 1, "result": {"png_base64": "BBB"}}
+    with patch.object(bridge, "call_ue", side_effect=[focus_err, focus_ok, shot_ok]) as m, \
+         patch.object(bridge.time, "sleep"):
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 521, "method": "tools/call",
+            "params": {"name": "bulk_screenshot_actors", "arguments": {
+                "names": ["Bad", "Good"],
+                "delay_ms": 0,
+            }},
+        })
+    assert m.call_count == 3
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert body["ok"] is False
+    assert body["succeeded"] == 1
+    assert body["results"][0]["ok"] is False
+    assert "screenshot_failed" in body["results"][0]["error"]["message"] or \
+           "focus_failed" in body["results"][0]["error"]["message"]
+    assert body["results"][1]["ok"] is True
+
+
+def test_bulk_screenshot_actors_rejects_missing_names():
+    resp = bridge.handle({
+        "jsonrpc": "2.0", "id": 522, "method": "tools/call",
+        "params": {"name": "bulk_screenshot_actors", "arguments": {}},
+    })
+    assert resp["error"]["code"] == -32602
+    assert "missing_required_field" in resp["error"]["message"]
+
+
+def test_bulk_screenshot_actors_rejects_too_many_names():
+    """bulk_screenshot_actors caps at 50 (tighter than bulk_focus_actors'
+    100) because each entry yields a PNG."""
+    names = [f"A{i}" for i in range(51)]
+    with patch.object(bridge, "call_ue") as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 523, "method": "tools/call",
+            "params": {"name": "bulk_screenshot_actors", "arguments": {"names": names}},
+        })
+    assert m.call_count == 0
+    assert resp["error"]["code"] == -32602
+    assert "too_many_names" in resp["error"]["message"]
+
+
+def test_bulk_screenshot_actors_rejects_invalid_delay():
+    resp = bridge.handle({
+        "jsonrpc": "2.0", "id": 524, "method": "tools/call",
+        "params": {"name": "bulk_screenshot_actors", "arguments": {
+            "names": ["A"],
+            "delay_ms": -5,
+        }},
+    })
+    assert resp["error"]["code"] == -32602
+    assert "invalid_delay" in resp["error"]["message"]
+
+
+# ---- bulk_set_actor_property (Wave C) --------------------------------------
+
+def test_bulk_set_actor_property_is_synthetic():
+    """Wave C: bulk_set_actor_property is a SYNTHETIC bridge-side
+    composition over set_actor_property. assignments REQUIRED;
+    continue_on_error optional (default true)."""
+    tool = next((t for t in bridge.TOOLS if t["name"] == "bulk_set_actor_property"), None)
+    assert tool is not None
+    assert tool["inputSchema"]["required"] == ["assignments"]
+    props = tool["inputSchema"]["properties"]
+    assert props["assignments"]["type"] == "array"
+    assert props["continue_on_error"]["type"] == "boolean"
+    assert "bulk_set_actor_property" in bridge.SYNTHETIC_TOOLS
+    assert bridge.SYNTHETIC_TOOLS["bulk_set_actor_property"] is bridge.synthetic_bulk_set_actor_property
+
+
+def test_bulk_set_actor_property_happy_path():
+    """All sets succeed -> ok=true, succeeded==total, failed==[]."""
+    ok_resp = {"jsonrpc": "2.0", "id": 1, "result": {"ok": True}}
+    with patch.object(bridge, "call_ue", side_effect=[ok_resp, ok_resp]) as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 530, "method": "tools/call",
+            "params": {"name": "bulk_set_actor_property", "arguments": {
+                "assignments": [
+                    {"actor": "ActorA", "property": "Tag", "value": "Red"},
+                    {"actor": "ActorB", "property": "Tag", "value": "Blue"},
+                ],
+            }},
+        })
+    assert m.call_count == 2
+    assert m.call_args_list[0].args == (
+        "set_actor_property",
+        {"name": "ActorA", "property": "Tag", "value": "Red"},
+    )
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert body["ok"] is True
+    assert body["total"] == 2
+    assert body["succeeded"] == 2
+    assert body["failed"] == []
+    assert "halted_at_index" not in body
+
+
+def test_bulk_set_actor_property_continue_on_error_true_records_failure():
+    """Second set fails; third still attempted. failed[] records the
+    actor+property+error preserving the upstream code."""
+    ok_resp = {"jsonrpc": "2.0", "id": 1, "result": {"ok": True}}
+    err_resp = {"jsonrpc": "2.0", "id": 1, "error": {"code": -32000, "message": "actor_not_found"}}
+    with patch.object(bridge, "call_ue", side_effect=[ok_resp, err_resp, ok_resp]) as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 531, "method": "tools/call",
+            "params": {"name": "bulk_set_actor_property", "arguments": {
+                "assignments": [
+                    {"actor": "A", "property": "Tag", "value": "X"},
+                    {"actor": "B", "property": "Tag", "value": "Y"},
+                    {"actor": "C", "property": "Tag", "value": "Z"},
+                ],
+            }},
+        })
+    assert m.call_count == 3
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert body["ok"] is False
+    assert body["succeeded"] == 2
+    assert len(body["failed"]) == 1
+    assert body["failed"][0]["actor"] == "B"
+    assert body["failed"][0]["property"] == "Tag"
+    assert body["failed"][0]["error"]["code"] == -32000
+    assert "set_failed" in body["failed"][0]["error"]["message"]
+
+
+def test_bulk_set_actor_property_continue_on_error_false_halts():
+    """continue_on_error=false: first failure aborts; halted_at_index
+    records where; third assignment never reached."""
+    err_resp = {"jsonrpc": "2.0", "id": 1, "error": {"code": -32000, "message": "boom"}}
+    with patch.object(bridge, "call_ue", side_effect=[err_resp]) as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 532, "method": "tools/call",
+            "params": {"name": "bulk_set_actor_property", "arguments": {
+                "assignments": [
+                    {"actor": "A", "property": "Tag", "value": "X"},
+                    {"actor": "B", "property": "Tag", "value": "Y"},
+                    {"actor": "C", "property": "Tag", "value": "Z"},
+                ],
+                "continue_on_error": False,
+            }},
+        })
+    assert m.call_count == 1
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert body["ok"] is False
+    assert body["total"] == 3
+    assert body["succeeded"] == 0
+    assert len(body["failed"]) == 1
+    assert body["halted_at_index"] == 0
+
+
+def test_bulk_set_actor_property_rejects_missing_assignments():
+    resp = bridge.handle({
+        "jsonrpc": "2.0", "id": 533, "method": "tools/call",
+        "params": {"name": "bulk_set_actor_property", "arguments": {}},
+    })
+    assert resp["error"]["code"] == -32602
+    assert "missing_required_field" in resp["error"]["message"]
+
+
+def test_bulk_set_actor_property_rejects_non_object_assignment():
+    """Each entry in assignments must be an object."""
+    with patch.object(bridge, "call_ue") as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 534, "method": "tools/call",
+            "params": {"name": "bulk_set_actor_property", "arguments": {
+                "assignments": [
+                    {"actor": "A", "property": "Tag", "value": "X"},
+                    "not-an-object",
+                ],
+            }},
+        })
+    assert m.call_count == 0
+    assert resp["error"]["code"] == -32602
+    assert "assignment_must_be_object" in resp["error"]["message"]
+    assert "assignments[1]" in resp["error"]["message"]
+
+
+def test_bulk_set_actor_property_rejects_missing_value_field():
+    """`value` is required per assignment (use null for explicit-null
+    intent — its absence is rejected)."""
+    with patch.object(bridge, "call_ue") as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 535, "method": "tools/call",
+            "params": {"name": "bulk_set_actor_property", "arguments": {
+                "assignments": [
+                    {"actor": "A", "property": "Tag"},
+                ],
+            }},
+        })
+    assert m.call_count == 0
+    assert resp["error"]["code"] == -32602
+    assert "assignment_missing_field" in resp["error"]["message"]
+    assert "value" in resp["error"]["message"]
+
+
+def test_bulk_set_actor_property_rejects_too_many_assignments():
+    assignments = [{"actor": f"A{i}", "property": "Tag", "value": i} for i in range(201)]
+    with patch.object(bridge, "call_ue") as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 536, "method": "tools/call",
+            "params": {"name": "bulk_set_actor_property", "arguments": {
+                "assignments": assignments,
+            }},
+        })
+    assert m.call_count == 0
+    assert resp["error"]["code"] == -32602
+    assert "too_many_assignments" in resp["error"]["message"]

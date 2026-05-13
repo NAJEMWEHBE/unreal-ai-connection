@@ -1,7 +1,7 @@
 {
   "name": "UnrealClaudeMCP",
   "version": "0.9.1",
-  "description": "Drive Unreal Engine 5.7 from any MCP-compliant client (Claude Code, Codex CLI, Cursor, Gemini CLI, Continue, ...) over a local TCP socket. 92 tools total (71 native C++ handlers plus 21 bridge-side synthetic tools) that work with any UE 5.7 project.",
+  "description": "Drive Unreal Engine 5.7 from any MCP-compliant client (Claude Code, Codex CLI, Cursor, Gemini CLI, Continue, ...) over a local TCP socket. 96 tools total (71 native C++ handlers plus 25 bridge-side synthetic tools) that work with any UE 5.7 project.",
   "transport": {
     "type": "tcp",
     "host": "127.0.0.1",
@@ -793,6 +793,43 @@
         "compile_failures_only": "bool (optional, default true) - when true, problem_assets only lists Error/Unknown; when false, every scanned BP is listed"
       },
       "returns": { "ok": "bool", "scanned": "int (number of BPs inspected)", "by_status": "object with five integer keys: UpToDate, Dirty, Error, Unknown, BeingCreated", "problem_assets": "array of {path: string, status: string} - filtered per compile_failures_only" }
+    },
+    {
+      "name": "find_actors_by_class",
+      "description": "Filter the active level's actors by class. SYNTHETIC bridge-side handler that composes get_actors_in_level and matches each actor's short class name against the supplied class_name. Useful for narrowing a thousand-actor dump down to one class (every light, every spawn point, every static-mesh actor) in a single MCP call.",
+      "params": {
+        "class_name": "string (required) - short class name (e.g. 'StaticMeshActor') or full class path (e.g. '/Script/Engine.StaticMeshActor'); class-path inputs are stripped to the trailing short name then matched case-insensitively against the C++ handler's 'class' field",
+        "level": "string (optional) - UWorld package path; needed when the search target is not the active editor world; load_level_by_path runs first when supplied"
+      },
+      "returns": { "ok": "bool", "class_name": "string (echo of input)", "total_in_level": "int (total actors the C++ handler enumerated before filtering)", "count": "int (number of actors matching class_name)", "actors": "array of {name: string, label: string, class: string (short name), class_path: string|null (echoed from handler when present), transform: {loc: {x,y,z}, rot: {pitch,yaw,roll}}}" }
+    },
+    {
+      "name": "bulk_focus_actors",
+      "description": "Frame the viewport on each actor in a sequence, optionally capturing a screenshot after each focus settles. SYNTHETIC bridge-side handler that composes focus_actor (plus, when screenshot_each=true, get_viewport_screenshot) per name. Sleeps delay_ms between calls -- not after the last -- so LOD and viewport settling stays bounded.",
+      "params": {
+        "names": "array of string (required) - actor labels or unique names, each non-empty, max 100 entries",
+        "delay_ms": "int (optional, default 500) - settle delay between focus calls in milliseconds; clamped to 0..10000",
+        "screenshot_each": "bool (optional, default false) - when true, capture a viewport PNG after each focus and emit a parallel 'screenshots' array"
+      },
+      "returns": { "ok": "bool (true only when failed is empty)", "total": "int (names.length)", "focused": "int (number of successful focuses)", "failed": "array of {name: string, error: {code: int, message: string}}", "screenshots": "array of {name: string, png_base64: string} - present only when screenshot_each=true" }
+    },
+    {
+      "name": "bulk_screenshot_actors",
+      "description": "Frame and screenshot each actor in a sequence. SYNTHETIC bridge-side handler that composes screenshot_actor (itself a synthetic over focus_actor + get_viewport_screenshot) per name. Convenient for thumbnail-pipeline runs where every actor in a list needs a deterministic centered shot. Caps at 50 entries because each yields a PNG payload.",
+      "params": {
+        "names": "array of string (required) - actor labels or unique names, each non-empty, max 50 entries",
+        "delay_ms": "int (optional, default 500) - settle delay between actors in milliseconds; clamped to 0..10000"
+      },
+      "returns": { "ok": "bool (true only when every entry succeeded)", "total": "int (names.length)", "succeeded": "int (count of per-name successes)", "results": "array of {name: string, ok: bool, png_base64?: string, focused?: string, loc?: {x,y,z}, error?: {code: int, message: string}}" }
+    },
+    {
+      "name": "bulk_set_actor_property",
+      "description": "Apply many UPROPERTY mutations across many actors in one MCP call. SYNTHETIC bridge-side handler that composes set_actor_property per assignment. Mirrors the bulk_compile_blueprints partial-failure semantics. NOT 'set the same property on N actors' -- each assignment is independent.",
+      "params": {
+        "assignments": "array of {actor: string, property: string, value: any} (required) - each actor and property non-empty, value mandatory (use null for explicit-null intent), max 200 entries",
+        "continue_on_error": "bool (optional, default true) - when false, halt at the first per-assignment failure and emit halted_at_index"
+      },
+      "returns": { "ok": "bool (true only when failed is empty)", "total": "int (assignments.length)", "succeeded": "int (count of per-assignment successes)", "failed": "array of {actor: string, property: string, error: {code: int, message: string}}", "halted_at_index": "int - present only when continue_on_error=false stopped the loop early; the 0-based index of the failed assignment" }
     }
   ]
 }
