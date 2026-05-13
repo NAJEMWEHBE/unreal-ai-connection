@@ -35,7 +35,7 @@ Recent waves that landed in the current session lineage:
 **Pending verification on host machine (PRIMARY next-action item):**
 
 The 7 new C++ handlers from Waves A + A.5 (`get_engine_version`, `list_levels`, `save_dirty_assets`, `get_selected_actors`, `inspect_input_mappings`, `pie_control`, `inspect_project_setting`) shipped with bridge-side schema + tests green, but **the host project still needs a cold rebuild** to register the new C++ handlers in the running editor. Until that happens:
-- MCP `tools/list` already shows all 88 entries (bridge knows them from `TOOLS`)
+- MCP `tools/list` already shows all 100 entries (bridge knows them from `TOOLS`)
 - Calls to the 7 new C++ handler names will return JSON-RPC `-32601` (method not found) — the running plugin DLL doesn't have the new `Reg.Register(...)` lines compiled in yet
 - The 1 new synthetic from Wave A (`bulk_inspect_assets`) IS reachable today (bridge-side composition; no UE rebuild needed)
 
@@ -62,7 +62,7 @@ The 7 new C++ handlers from Waves A + A.5 (`get_engine_version`, `list_levels`, 
    ```
    Robocopy exit codes 0–7 mean success. The `/XD Binaries Intermediate` exclusion preserves the host's UBT cache so step 4 stays incremental.
 4. `& "F:\UE_5.7\Engine\Build\BatchFiles\Build.bat" <HostProjectName>Editor Win64 Development -project="<full path to host .uproject>"` — must end with `Result: Succeeded`. The target is `<HostProjectName>Editor`, NOT `<PluginName>Editor`. For the canonical host project, that's `HDMediaVirtualStudioEditor`.
-5. Open the host `.uproject` in UE editor (use the path-quoting recipe in CLAUDE.md — pre-quote inside the `-ArgumentList` array element). Confirm **71 UE C++ handlers register** in the Output Log. Filter by `LogUCMCPHandler` and you should see exactly 71 lines `Registered handler '<name>'`. The 17 bridge-side synthetic tools never reach the UE process and so never appear in the Output Log; they're served by `SYNTHETIC_TOOLS` in `bridge/unreal_claude_mcp_bridge.py`. Total tools visible to MCP clients: 88. The TCP server then binds `127.0.0.1:18888` (~10s on warm DDC, 1–5 min cold). With the module: `$proc = Start-UCMCPEditor -ProjectPath "<full path>"; $ready = Wait-UCMCPReady; $check = Test-UCMCPHandlers -LogPath "<host-project>\Saved\Logs\<HostProjectName>.log" -ExpectedCount 71`.
+5. Open the host `.uproject` in UE editor (use the path-quoting recipe in CLAUDE.md — pre-quote inside the `-ArgumentList` array element). Confirm **71 UE C++ handlers register** in the Output Log. Filter by `LogUCMCPHandler` and you should see exactly 71 lines `Registered handler '<name>'`. The 29 bridge-side synthetic tools never reach the UE process and so never appear in the Output Log; they're served by `SYNTHETIC_TOOLS` in `bridge/unreal_claude_mcp_bridge.py`. Total tools visible to MCP clients: 100. The TCP server then binds `127.0.0.1:18888` (~10s on warm DDC, 1–5 min cold). With the module: `$proc = Start-UCMCPEditor -ProjectPath "<full path>"; $ready = Wait-UCMCPReady; $check = Test-UCMCPHandlers -LogPath "<host-project>\Saved\Logs\<HostProjectName>.log" -ExpectedCount 71`.
 6. **Smoke** — `py -3 examples\smoke_test.py --material-instance /Game/SmokeTest_MI --sequence /Game/SmokeTest_LS`. Then run the Wave A/A.5 live verification panel above.
 
 ---
@@ -225,14 +225,14 @@ UnrealClaudeMCP/                               UE plugin (drops into <Project>/P
                                                inspect_sound_class / inspect_sound_submix /
                                                inspect_audio_bus / inspect_material_function /
                                                inspect_metasound are SYNTHETIC (bridge-side) -- they
-                                               do NOT have a Handler_*.cpp file. 17 synthetics total.
+                                               do NOT have a Handler_*.cpp file. 29 synthetics total.
     UnrealClaudeMCP.Build.cs                   Module deps.
-  Resources/mcp_manifest.json                  Tool catalog (mirrors bridge TOOLS, 88 entries)
+  Resources/mcp_manifest.json                  Tool catalog (mirrors bridge TOOLS, 100 entries)
   UnrealClaudeMCP.uplugin                      Plugin manifest (v0.9.1 / UE 5.7)
 
 bridge/
   unreal_claude_mcp_bridge.py                  stdio↔TCP bridge.
-                                               - SYNTHETIC_TOOLS dict (17 entries).
+                                               - SYNTHETIC_TOOLS dict (29 entries).
                                                - synthetic_* functions (one per synthetic tool).
                                                - Marker pattern for round-tripping results from
                                                  execute_unreal_python (UUID per call + log search,
@@ -271,7 +271,7 @@ tests/
   test_no_personal_leaks.py                    CI guard: forbidden-pattern scan over tracked files.
 
 docs/
-  TOOLS.md                                     Per-tool params/results/examples (88 sections)
+  TOOLS.md                                     Per-tool params/results/examples (100 sections)
   ARCHITECTURE.md                              How pieces fit; UE 5.7 API gotchas
   INSTALLATION.md                              Step-by-step install
   HANDOFF.md                                   This file (latest 3 closing notes only)
@@ -296,7 +296,7 @@ CONTRIBUTING.md                                Project conventions, 10-step new-
 2. Send: *"Read `docs/HANDOFF.md` and continue from there. The user is in autonomy mode — pick the next reasonable thing to do."*
 3. **Verify Codex tooling** (per directive #8): `ToolSearch query="codex"` and/or `Bash codex --help`. If reachable, the multi-agent collaboration model is live.
 4. **Verify the multi-agent fleet** (per directive #9 and standing rule #1): the explorer / reviewer subagents are usable in any session via the Agent tool. The `general-purpose` subagent works for research but **NOT for file writes** (sandbox isolation).
-5. The fresh session reads this doc, absorbs the directives, sees **88 tools shipped (71 C++ + 17 synthetic)**, and proceeds.
+5. The fresh session reads this doc, absorbs the directives, sees **100 tools shipped (71 C++ + 29 synthetic)**, and proceeds.
 
 For specific resumption:
 - *"Live-verify Waves A + A.5"* → host rebuild via the runbook above, then run the Wave A/A.5 verification panel
