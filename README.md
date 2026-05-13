@@ -102,7 +102,7 @@ The wire format is `stdio MCP` between client and bridge, then a tight `length-p
 ### Python execution (5 tools)
 
 <details>
-<summary>Click to expand the Python-execution tool table</summary>
+<summary><b>Python execution</b> — click to expand the tool table</summary>
 
 | Tool | Purpose |
 |---|---|
@@ -117,7 +117,7 @@ The wire format is `stdio MCP` between client and bridge, then a tight `length-p
 ### Project / asset registry (8 tools)
 
 <details>
-<summary>Click to expand the asset-registry tool table</summary>
+<summary><b>Project / asset registry</b> — click to expand the tool table</summary>
 
 | Tool | Purpose |
 |---|---|
@@ -135,8 +135,7 @@ The wire format is `stdio MCP` between client and bridge, then a tight `length-p
 ### Blueprint / widget / animation introspection (14 tools)
 
 <details>
-<summary>Click to expand the BP/widget/anim tool table</summary>
-
+<summary><b>Blueprint / widget / animation introspection</b> — click to expand the tool table</summary>
 
 | Tool | Purpose |
 |---|---|
@@ -160,7 +159,7 @@ The wire format is `stdio MCP` between client and bridge, then a tight `length-p
 ### Materials (4 tools)
 
 <details>
-<summary>Click to expand the materials tool table</summary>
+<summary><b>Materials</b> — click to expand the tool table</summary>
 
 | Tool | Purpose |
 |---|---|
@@ -174,7 +173,7 @@ The wire format is `stdio MCP` between client and bridge, then a tight `length-p
 ### Textures (3 tools)
 
 <details>
-<summary>Click to expand the textures tool table</summary>
+<summary><b>Textures</b> — click to expand the tool table</summary>
 
 | Tool | Purpose |
 |---|---|
@@ -187,7 +186,7 @@ The wire format is `stdio MCP` between client and bridge, then a tight `length-p
 ### Level Sequences (3 tools)
 
 <details>
-<summary>Click to expand the Level Sequence tool table</summary>
+<summary><b>Level Sequences</b> — click to expand the tool table</summary>
 
 | Tool | Purpose |
 |---|---|
@@ -200,8 +199,7 @@ The wire format is `stdio MCP` between client and bridge, then a tight `length-p
 ### Level / actor authoring (16 tools)
 
 <details>
-<summary>Click to expand the level/actor authoring tool table</summary>
-
+<summary><b>Level / actor authoring</b> — click to expand the tool table</summary>
 
 | Tool | Purpose |
 |---|---|
@@ -227,7 +225,7 @@ The wire format is `stdio MCP` between client and bridge, then a tight `length-p
 ### Viewport / screenshots (2 tools)
 
 <details>
-<summary>Click to expand the viewport / screenshots tool table</summary>
+<summary><b>Viewport / screenshots</b> — click to expand the tool table</summary>
 
 | Tool | Purpose |
 |---|---|
@@ -239,7 +237,7 @@ The wire format is `stdio MCP` between client and bridge, then a tight `length-p
 ### Console / logs (5 tools)
 
 <details>
-<summary>Click to expand the console / logs tool table</summary>
+<summary><b>Console / logs</b> — click to expand the tool table</summary>
 
 | Tool | Purpose |
 |---|---|
@@ -254,7 +252,7 @@ The wire format is `stdio MCP` between client and bridge, then a tight `length-p
 ### Long-running tasks (4 tools)
 
 <details>
-<summary>Click to expand the long-running tasks tool table</summary>
+<summary><b>Long-running tasks</b> — click to expand the tool table</summary>
 
 | Tool | Purpose |
 |---|---|
@@ -268,7 +266,7 @@ The wire format is `stdio MCP` between client and bridge, then a tight `length-p
 ### Event push / subscriptions (5 tools)
 
 <details>
-<summary>Click to expand the event-push / subscriptions tool table</summary>
+<summary><b>Event push / subscriptions</b> — click to expand the tool table</summary>
 
 | Tool | Purpose |
 |---|---|
@@ -283,7 +281,7 @@ The wire format is `stdio MCP` between client and bridge, then a tight `length-p
 ### Audio (3 tools — introspection trio)
 
 <details>
-<summary>Click to expand the audio tool table</summary>
+<summary><b>Audio</b> — click to expand the tool table</summary>
 
 | Tool | Purpose |
 |---|---|
@@ -296,7 +294,7 @@ The wire format is `stdio MCP` between client and bridge, then a tight `length-p
 ### Camera (3 tools — bridge-side synthetic)
 
 <details>
-<summary>Click to expand the camera tool table</summary>
+<summary><b>Camera</b> — click to expand the tool table</summary>
 
 | Tool | Purpose |
 |---|---|
@@ -309,7 +307,7 @@ The wire format is `stdio MCP` between client and bridge, then a tight `length-p
 ### Self-introspection (1 tool)
 
 <details>
-<summary>Click to expand the self-introspection tool table</summary>
+<summary><b>Self-introspection</b> — click to expand the tool table</summary>
 
 | Tool | Purpose |
 |---|---|
