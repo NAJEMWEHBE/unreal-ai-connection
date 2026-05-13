@@ -1008,7 +1008,7 @@ Start-Process 'F:\UE_5.7\Engine\Binaries\Win64\UnrealEditor.exe' \
     -ArgumentList '"F:\ax plug in\HDMediaVirtualStudio\HDMediaVirtualStudio.uproject"'
 ```
 
-(The `-ArgumentList @('path with spaces')` form silently tokenises the path on whitespace; UE falls back to Project Browser. **Pre-quote the path inside the array element** — see PR #124's trap-table entry.) UE typically binds the bridge in ~2 minutes; if CPU stays at ~7% one core and `Saved/Logs/HDMediaVirtualStudio.log` is stale, re-check the path-quoting.
+(The `-ArgumentList @('path with spaces')` form silently tokenizes the path on whitespace; UE falls back to Project Browser. **Pre-quote the path inside the array element** — see PR #124's trap-table entry.) UE typically binds the bridge in ~2 minutes; if CPU stays at ~7% one core and `Saved/Logs/HDMediaVirtualStudio.log` is stale, re-check the path-quoting.
 
 Bash-side launches do not work — `Start-Process` is a PowerShell cmdlet, not a Bash command. Use the PowerShell tool (not the Bash tool) for the launch. This caught the autopilot-extension window once before the reinforcement; documenting here so the trap doesn't recur.
 
