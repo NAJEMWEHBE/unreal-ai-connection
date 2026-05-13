@@ -4756,7 +4756,13 @@ def synthetic_bulk_set_console_variables(req_id, args: dict) -> dict:
     rollback_failures: list[dict] = []
     if rollback_on_error and failed and captured:
         rolled_back = True
-        for name, old_value in captured:
+        # Restore in REVERSE order of application so inter-dependent
+        # CVars unwind correctly (a later-applied CVar may depend on an
+        # earlier one — restoring the dependent first leaves the
+        # dependency in an inconsistent intermediate state). Best-
+        # practice rollback semantics; flagged by gemini-code-assist
+        # on PR #169.
+        for name, old_value in reversed(captured):
             restore_resp = call_ue("set_console_variable", {"name": name, "value": old_value})
             if "error" in restore_resp:
                 upstream = restore_resp.get("error", {}) or {}
