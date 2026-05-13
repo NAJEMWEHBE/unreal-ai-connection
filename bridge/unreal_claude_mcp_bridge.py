@@ -4038,6 +4038,15 @@ def synthetic_find_actors_by_class(req_id, args: dict) -> dict:
     # input like '/Script/Engine.StaticMeshActor' matches the C++
     # handler's short-name output 'StaticMeshActor'.
     needle_short = class_name.rsplit(".", 1)[-1].lower()
+    # Guard against trailing-dot or dot-only input that strips to empty.
+    # Without this, every actor.class would compare unequal to "" and the
+    # call silently returns count=0 with no error. Surface as -32602
+    # invalid_field so callers know the input shape was malformed.
+    if not needle_short:
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": f"find_actors_by_class: invalid_field: 'class_name' resolves to empty after trimming class-path prefix (input was '{class_name}')",
+        })
 
     matched: list[dict] = []
     for actor in all_actors:
@@ -4188,6 +4197,15 @@ def synthetic_bulk_focus_actors(req_id, args: dict) -> dict:
         else:
             focused += 1
             if screenshot_each:
+                # Settle window BEFORE the screenshot so the captured
+                # frame reflects the post-focus viewport (LODs streamed,
+                # camera lerp finished). Without this delay, the
+                # screenshot races the focus_actor side-effect and may
+                # capture the previous frame. Applied per-iteration
+                # rather than between iterations (the original spec was
+                # ambiguous; CodeRabbit flagged the race in PR #168).
+                if delay_ms > 0:
+                    time.sleep(delay_ms / 1000.0)
                 shot_resp = call_ue("get_viewport_screenshot", {})
                 if "error" in shot_resp:
                     upstream = shot_resp.get("error", {}) or {}
@@ -4205,9 +4223,12 @@ def synthetic_bulk_focus_actors(req_id, args: dict) -> dict:
                         "png_base64": shot_result.get("png_base64"),
                     })
 
-        # Sleep BETWEEN calls (not after the last). delay_ms == 0 means
-        # no settle window.
-        if delay_ms > 0 and i < len(names) - 1:
+        # Settle delay: when screenshot_each=true we sleep BEFORE the
+        # screenshot inside the iteration (see block above — moved there
+        # for correctness). For the non-screenshot path we still want a
+        # delay between focus calls so LODs / streaming have time to
+        # update before the next focus_actor call. delay_ms == 0 disables.
+        if delay_ms > 0 and not screenshot_each and i < len(names) - 1:
             time.sleep(delay_ms / 1000.0)
 
     body: dict = {
@@ -4282,8 +4303,20 @@ def synthetic_bulk_screenshot_actors(req_id, args: dict) -> dict:
             inner_text = content[0].get("text") if content else "{}"
             try:
                 inner = json.loads(inner_text) if isinstance(inner_text, str) else {}
-            except json.JSONDecodeError:
-                inner = {}
+            except json.JSONDecodeError as e:
+                # Malformed inner payload is a real failure — do NOT count
+                # as succeeded. Previously we swallowed JSONDecodeError +
+                # marked the actor ok:true with null png_base64, which
+                # CodeRabbit flagged as a silent false-positive in PR #168.
+                results.append({
+                    "name": name,
+                    "ok": False,
+                    "error": {
+                        "code": -32603,
+                        "message": f"bulk_screenshot_actors: malformed_screenshot_payload: screenshot_actor on '{name}' returned non-JSON content: {e}",
+                    },
+                })
+                continue
             succeeded += 1
             results.append({
                 "name": name,
