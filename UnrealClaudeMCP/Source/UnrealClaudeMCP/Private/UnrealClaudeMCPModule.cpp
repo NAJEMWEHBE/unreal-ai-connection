@@ -322,6 +322,23 @@ void FUnrealClaudeMCPModule::StartupModule()
                         FUCMCPEventBus::Get().Push(TEXT("asset_post_import"), Data);
                     });
             }
+            else
+            {
+                // Subscription dropped silently leaves callers of poll_events
+                // chasing a missing event stream. Surface the failure in the
+                // build log instead of going quiet.
+                UE_LOG(LogUnrealClaudeMCP, Warning,
+                    TEXT("UImportSubsystem unavailable at StartupModule; asset_post_import events will not fire. ")
+                    TEXT("Other delegate subscriptions (PostSaveWorldWithContext, MapChange) are unaffected."));
+            }
+        }
+        else
+        {
+            // PostSaveWorldWithContext and MapChange subscriptions below use the
+            // FEditorDelegates static namespace and remain unaffected.
+            UE_LOG(LogUnrealClaudeMCP, Warning,
+                TEXT("GEditor null at StartupModule despite PostEngineInit phase; ")
+                TEXT("asset_post_import subscription skipped."));
         }
 
         // level_post_save -- Editor.h:273/92. Fires after a UWorld is saved.
