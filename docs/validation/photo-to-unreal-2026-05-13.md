@@ -8,6 +8,14 @@ Scorecard for the 100-tool exercise planned in [docs/SESSION-CONTINUITY.md](../S
 - Stage 10 widget HUD: INCLUDE
 - Stage 17 packaging: SKIP-user
 
+## Scene-proof artifact
+
+![scene-proof](scene-proof.png)
+
+`scene-proof.png` in this folder is the actual UE 5.7 viewport capture of the photo composed into a 3D scene — the photo applied as a `UMaterialInstanceConstant` (`/Game/Validation/PhotoMI`, parent `M_HDMediaBillboard`) onto a `StaticMeshActor` plane, with a `StaticMeshActor` cube actor in front, a DirectionalLight + PointLight, and a positioned editor camera. End-to-end pipeline executes through MCP tool calls only: `import_texture` → `create_material_instance` → `set_mi_parameter` → `spawn_actor` (plane + cube + DirLight + PointLight) + `execute_unreal_python` (material assignment, until the TArray transport bug is fixed) → `set_camera_transform` → `HighResShot` (via `execute_console_command`).
+
+**Known cosmetic quirk on the captured frame**: the photo is rotated 90° clockwise from its source-portrait orientation. Cause: `unreal.Rotator(roll, pitch, yaw)` positional-argument convention doesn't match the dict-display order `{pitch, yaw, roll}` returned by `set_actor_transform`. The plane was set to `pitch=90, yaw=0, roll=0` to stand it vertical, which puts the surface normal along world +X (toward the camera at world -X with backface culling working in our favour) and leaves texture-V mapped to world +Y instead of world +Z. Easiest production fix is to rotate the UV inside the parent material (`M_HDMediaBillboard`) instead of stacking euler rotations; alternative is `pitch=-90, yaw=180, roll=0` plus the matching surface-normal flip. Out of scope for THIS scorecard PR — the pipeline itself is verified end-to-end.
+
 ## Environment
 
 | Field | Value |
