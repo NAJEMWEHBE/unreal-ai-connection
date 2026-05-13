@@ -220,7 +220,7 @@ TOOLS = [
     },
     {
         "name": "audit_blueprint_compile_status",
-        "description": "Enumerate every Blueprint under a content path and report its compile-status bucket (UpToDate/Dirty/Error/Unknown/BeingCreated). Composes find_assets + inspect_blueprint bridge-side. This is a READ-ONLY audit (no recompile triggered); pair with bulk_compile_blueprints to actually fix anything found. The inspect_blueprint handler currently does not surface blueprint_status — entries report Unknown for that bucket until the C++ side adds the field.",
+        "description": "Enumerate every Blueprint under a content path and report its compile-status bucket (UpToDate/Dirty/Error/Unknown/BeingCreated). Composes find_assets + inspect_blueprint bridge-side. This is a READ-ONLY audit (no recompile triggered); pair with bulk_compile_blueprints to actually fix anything found.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -414,7 +414,7 @@ TOOLS = [
     },
     {
         "name": "inspect_blueprint",
-        "description": "Read parent class, declared variables, and function/event graph names of a Blueprint asset.",
+        "description": "Read parent class, declared variables, function/event graph names, and compile status (UpToDate/Dirty/Error/Unknown/BeingCreated) of a Blueprint asset.",
         "inputSchema": {
             "type": "object",
             "properties": {"path": {"type": "string", "description": "e.g. /Game/Blueprints/BP_MyActor.BP_MyActor"}},
