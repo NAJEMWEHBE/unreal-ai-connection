@@ -820,9 +820,9 @@ def test_audit_blueprint_compile_status_missing_status_field_defensive_unknown()
     field, the synthetic must still produce a stable result shape and bucket
     the BP as Unknown rather than crashing or omitting it.
 
-    Pre-PR-#XXX (scorecard follow-up #4): every BP fell here because
+    Pre-PR-#179 (scorecard follow-up #4): every BP fell here because
     Handler_InspectBlueprint.cpp did not emit blueprint_status at all.
-    Post-PR-#XXX: every BP is reached with the real status string and only
+    Post-PR-#179: every BP is reached with the real status string and only
     a regression would drop it. The defensive bucket is kept; the docstring
     pivots from 'expected default' to 'defensive fallback'.
     """
