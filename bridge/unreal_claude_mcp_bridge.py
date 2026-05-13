@@ -3954,11 +3954,11 @@ def synthetic_audit_blueprint_compile_status(req_id, args: dict) -> dict:
     READ-ONLY: no compile is triggered. Pair with `bulk_compile_blueprints`
     to actually fix anything found.
 
-    NB: inspect_blueprint currently does NOT return blueprint_status
-    (verified against UE 5.7 Handler_InspectBlueprint.cpp on 2026-05-13).
-    Until the field lands, every scanned BP falls into the `Unknown`
-    bucket. The synthetic still functions; it just always reports
-    Unknown until the C++ handler adds the field.
+    NB: Handler_InspectBlueprint.cpp emits `blueprint_status` as of the
+    PR that closes scorecard follow-up #4 (mirrors the helper already used
+    by Handler_InspectWidgetBlueprint.cpp). Older plugin DLLs that predate
+    the fix will still surface every BP as `Unknown` (defensive fallback)
+    until the host editor is cold-rebuilt against the new handler.
     """
     if not isinstance(args, dict):
         return make_response(req_id, error={

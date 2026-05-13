@@ -814,18 +814,27 @@ def test_audit_blueprint_compile_status_compile_failures_only_false_lists_all():
     assert len(body["problem_assets"]) == 2
 
 
-def test_audit_blueprint_compile_status_missing_status_field_buckets_unknown():
-    """When inspect_blueprint doesn't return blueprint_status (current UE 5.7
-    state), every BP buckets as Unknown. The audit shape stays stable for
-    when the C++ side eventually adds the field."""
+def test_audit_blueprint_compile_status_missing_status_field_defensive_unknown():
+    """Defensive: if a future inspect_blueprint regression or a version
+    mismatch between bridge and plugin DLL ever drops the blueprint_status
+    field, the synthetic must still produce a stable result shape and bucket
+    the BP as Unknown rather than crashing or omitting it.
+
+    Pre-PR-#XXX (scorecard follow-up #4): every BP fell here because
+    Handler_InspectBlueprint.cpp did not emit blueprint_status at all.
+    Post-PR-#XXX: every BP is reached with the real status string and only
+    a regression would drop it. The defensive bucket is kept; the docstring
+    pivots from 'expected default' to 'defensive fallback'.
+    """
     find_resp = {
         "jsonrpc": "2.0", "id": 1, "result": {
             "ok": True, "matched": 1, "returned": 1,
             "assets": [{"name": "BP_X", "package_path": "/Game/BP_X", "class": "Blueprint"}],
         },
     }
-    # inspect_blueprint result without blueprint_status field (matches
-    # current Handler_InspectBlueprint.cpp output as of UE 5.7).
+    # inspect_blueprint result WITHOUT blueprint_status field (simulates a
+    # future regression or pre-fix plugin DLL still loaded against a newer
+    # bridge). Defensive bucket = Unknown.
     inspect_no_status = {"jsonrpc": "2.0", "id": 1, "result": {
         "parent_class": "Actor", "variables": [], "function_graphs": [], "event_graphs": []}}
     with patch.object(bridge, "call_ue", side_effect=[find_resp, inspect_no_status]):
@@ -837,6 +846,39 @@ def test_audit_blueprint_compile_status_missing_status_field_buckets_unknown():
     body = json.loads(resp["result"]["content"][0]["text"])
     assert body["by_status"]["Unknown"] == 1
     assert len(body["problem_assets"]) == 1  # Unknown counts as a "problem" under failures_only=true
+
+
+def test_audit_blueprint_compile_status_propagates_real_status_from_inspect_blueprint():
+    """Once Handler_InspectBlueprint.cpp emits blueprint_status (scorecard
+    follow-up #4, this PR), the synthetic must surface the real value
+    instead of bucketing every BP as Unknown. Same wire contract as the
+    WidgetBlueprint inspector already had."""
+    find_resp = {
+        "jsonrpc": "2.0", "id": 1, "result": {
+            "ok": True, "matched": 3, "returned": 3,
+            "assets": [
+                {"name": "BP_OK", "package_path": "/Game/BP_OK", "class": "Blueprint"},
+                {"name": "BP_DIRTY", "package_path": "/Game/BP_DIRTY", "class": "Blueprint"},
+                {"name": "BP_ERR", "package_path": "/Game/BP_ERR", "class": "Blueprint"},
+            ],
+        },
+    }
+    ok = {"jsonrpc": "2.0", "id": 1, "result": {"blueprint_status": "UpToDate", "parent_class": "Actor"}}
+    dirty = {"jsonrpc": "2.0", "id": 1, "result": {"blueprint_status": "Dirty", "parent_class": "Actor"}}
+    err = {"jsonrpc": "2.0", "id": 1, "result": {"blueprint_status": "Error", "parent_class": "Actor"}}
+    with patch.object(bridge, "call_ue", side_effect=[find_resp, ok, dirty, err]):
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 4321, "method": "tools/call",
+            "params": {"name": "audit_blueprint_compile_status",
+                       "arguments": {"compile_failures_only": False}},
+        })
+
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert body["scanned"] == 3
+    assert body["by_status"]["UpToDate"] == 1
+    assert body["by_status"]["Dirty"] == 1
+    assert body["by_status"]["Error"] == 1
+    assert body["by_status"]["Unknown"] == 0  # None fall through to defensive bucket
 
 
 def test_audit_blueprint_compile_status_find_failed_propagates():

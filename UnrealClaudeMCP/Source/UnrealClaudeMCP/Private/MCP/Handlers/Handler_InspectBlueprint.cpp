@@ -3,6 +3,10 @@
 // inspect_blueprint - return parent class, declared variables, function/event
 // graph names of a Blueprint asset.
 //
+// UE 5.7 surface used (header:line citations for reviewer traceability):
+//   Blueprint.h:412  -- UClass* ParentClass (inherited from UBlueprint)
+//   Blueprint.h:504  -- TEnumAsByte<EBlueprintStatus> Status (UBlueprint member, public)
+//
 // Error format: free-form OutError strings (legacy surface — predates the canonical
 // "<tool_name>: <error_code>: <detail>" convention used by later handlers). Migration
 // is deferred; bridge consumers treat OutError as human-readable text rather than
@@ -12,6 +16,40 @@
 
 #include "Engine/Blueprint.h"
 #include "EdGraph/EdGraph.h"
+
+namespace
+{
+    // Mirrors Handler_InspectWidgetBlueprint.cpp's BlueprintStatusToString
+    // helper (UE 5.7, Blueprint.h:504). Enumerates the full EBlueprintStatus
+    // value set explicitly — BS_MAX is a sentinel, not a state, so the default
+    // arm is reserved for genuinely unknown values (forward-compatibility with
+    // future engine enum additions).
+    //
+    // Surfaced by the PR #174 100-tool scorecard follow-up #4: the synthetic
+    // audit_blueprint_compile_status reads result["blueprint_status"] from
+    // this handler and buckets by status. Until this field landed, every
+    // scanned BP fell into the "Unknown" bucket regardless of its real
+    // compile state.
+    static FString BlueprintStatusToString(EBlueprintStatus Status)
+    {
+        switch (Status)
+        {
+        case BS_UpToDate:
+            return TEXT("UpToDate");
+        case BS_UpToDateWithWarnings:
+            return TEXT("UpToDateWithWarnings");
+        case BS_Dirty:
+            return TEXT("Dirty");
+        case BS_Error:
+            return TEXT("Error");
+        case BS_BeingCreated:
+            return TEXT("BeingCreated");
+        case BS_Unknown:
+        default:
+            return TEXT("Unknown");
+        }
+    }
+}
 
 class FHandler_InspectBlueprint : public IUCMCPHandler
 {
@@ -38,6 +76,7 @@ public:
         Out->SetStringField(TEXT("path"), Path);
         Out->SetStringField(TEXT("parent_class"), BP->ParentClass ? BP->ParentClass->GetName() : TEXT(""));
         Out->SetStringField(TEXT("blueprint_class"), BP->GetClass()->GetName());
+        Out->SetStringField(TEXT("blueprint_status"), BlueprintStatusToString(static_cast<EBlueprintStatus>(BP->Status.GetValue())));
 
         TArray<TSharedPtr<FJsonValue>> Vars;
         for (const FBPVariableDescription& V : BP->NewVariables)

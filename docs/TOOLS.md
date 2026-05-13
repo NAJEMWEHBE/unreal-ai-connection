@@ -53,13 +53,14 @@ Top-level snapshot of the open project.
 
 ## inspect_blueprint
 
-Read parent class, declared variables, and function/event graph names of a Blueprint asset.
+Read parent class, declared variables, function/event graph names, and compile status of a Blueprint asset.
 
 **Params**
 - `path` (string, required) — e.g. `/Game/Blueprints/BP_MyActor.BP_MyActor`
 
 **Result**
 - `path`, `parent_class`, `blueprint_class` (strings)
+- `blueprint_status` (string) — one of `UpToDate`, `UpToDateWithWarnings`, `Dirty`, `Error`, `BeingCreated`, `Unknown`. Mirrors `inspect_widget_blueprint`'s field of the same name. Pairs with `audit_blueprint_compile_status`, which buckets BPs by this value.
 - `variables` (array) — `{name, type_category, type_subcategory, default}`
 - `function_graphs`, `event_graphs` (arrays of strings)
 
@@ -3370,7 +3371,7 @@ Enumerate every Blueprint under a content path and bucket each by compile-status
 
 **Bridge-side synthetic tool.** Pure Python — composes [`find_assets`](#find_assets) (one round-trip enumerating `/Script/Engine.Blueprint` under `path_under`) + [`inspect_blueprint`](#inspect_blueprint) per result. Reads each asset's `blueprint_status` field.
 
-**Caveat:** the current `inspect_blueprint` C++ handler does NOT surface `blueprint_status` (verified against UE 5.7 source on 2026-05-13). Until the field lands C++-side, every scanned BP is reported as `Unknown`. The audit shape stays stable across that future enhancement — adding the field flips the buckets automatically with no schema change.
+**Status:** `inspect_blueprint` emits `blueprint_status` as of the PR that closed scorecard follow-up #4 (mirrors the helper already used by `inspect_widget_blueprint`). The audit surfaces the real bucket counts; the previous "every BP is Unknown" caveat applies only to older plugin DLLs running against a newer bridge until the host editor is cold-rebuilt.
 
 **Soft-failure semantics:** per-asset `inspect_blueprint` failures count toward the `Unknown` bucket rather than aborting; only when EVERY candidate's inspect failed does the synthetic surface `inspect_failed` (a meaningless audit would otherwise hide the underlying issue).
 
