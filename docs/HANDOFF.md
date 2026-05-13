@@ -10,7 +10,7 @@ Single source of truth for resuming work on UnrealClaudeMCP in a fresh session o
 
 **What this is:** An Unreal Engine 5.7 plugin + Python bridge that exposes editor automation to **any MCP-compliant client** (Claude Code, Codex CLI, Cursor, Gemini CLI, Continue, …) over a localhost TCP socket. The plugin adds a JSON-RPC server inside the editor; each "handler" is one MCP tool (~150 LoC of C++ in `Source/UnrealClaudeMCP/Private/MCP/Handlers/`). The bridge translates between the client's stdio MCP protocol and the plugin's TCP wire format. **Vendor-neutral by design** — the wire protocol is open MCP (created by Anthropic, but any conforming client works); the project's repo/folder names retain "Claude" for legacy reasons but the capability is universal.
 
-**Where it stands (2026-05-13, post-PR #170):** **100 tools total** (71 UE-side C++ handlers + 29 bridge-side synthetic tools). Plugin version `0.9.1`, targets UE `5.7`. pytest baseline: **396** passing. Latest commit on `main`: `ec884d7`.
+**Where it stands (2026-05-13, post-PR #170):** **100 tools total** (71 UE-side C++ handlers + 29 bridge-side synthetic tools). Plugin version `0.9.1`, targets UE `5.7`. pytest baseline: **396** passing. (For the current HEAD commit, run `git log -1 origin/main`; the latest milestone PR is #170.)
 
 Recent waves that landed in the current session lineage:
 - **Wave A (PR #161)** — 6 quick-win tools: `get_engine_version`, `list_levels`, `save_dirty_assets`, `get_selected_actors`, `inspect_input_mappings`, `bulk_inspect_assets`
@@ -30,7 +30,7 @@ Recent waves that landed in the current session lineage:
 
 **Open PRs:** none.
 
-**Latest commit on main:** `ec884d7` (PR #170 — 20th closing-note + 17th rotated to archive).
+**Latest milestone on main:** PR #170 — 20th closing-note + 17th rotated to archive. For the current HEAD commit hash, run `git log -1 origin/main` (intentionally not pinned in this doc since closing-note PRs are self-referential and any pinned hash falls one commit behind on merge).
 
 **Pending verification on host machine (PRIMARY next-action item):**
 
