@@ -20,6 +20,8 @@ public class UnrealClaudeMCP : ModuleRules
             "EditorSubsystem",
             "AssetRegistry",
             "AssetTools",
+            // Project Settings reflection (Handler_InspectProjectSetting)
+            "DeveloperSettings",
             // MCP server transport
             "Sockets",
             "Networking",

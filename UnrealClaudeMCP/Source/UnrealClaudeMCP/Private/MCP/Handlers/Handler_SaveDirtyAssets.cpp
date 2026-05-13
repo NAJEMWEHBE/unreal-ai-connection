@@ -8,11 +8,11 @@
 //
 // UE 5.7 surface used:
 //   - UEditorLoadingAndSavingUtils::SaveDirtyPackages(bSaveMapPackages,
-//     bSaveContentPackages) at EditorLoadingAndSavingUtils.h. Bool flags
-//     control whether maps + content packages are saved (default both
-//     true, matching the editor's "Save All" behaviour). Returns true on
-//     success — does not enumerate per-asset results because the underlying
-//     API is intentionally coarse-grained.
+//     bSaveContentPackages) declared in FileHelpers.h (Editor/UnrealEd
+//     module). Bool flags control whether maps + content packages are
+//     saved (default both true, matching the editor's "Save All"
+//     behaviour). Returns true on success — does not enumerate per-asset
+//     results because the underlying API is intentionally coarse-grained.
 //
 // Error format: this handler has no error paths — Handle always returns a
 // successful FJsonObject result. The OutError parameter is unused (marked
@@ -22,7 +22,7 @@
 #include "MCP/MCPHandler.h"
 
 #include "Dom/JsonObject.h"
-#include "EditorLoadingAndSavingUtils.h"
+#include "FileHelpers.h"
 
 class FHandler_SaveDirtyAssets : public IUCMCPHandler
 {
