@@ -60,5 +60,6 @@ HDMediaCamPlugin/
 
 # Harness-dropped images at repo root (Claude Code attaches user-supplied
 # images here with a hf_<datestamp>_<uuid>.png prefix). These are validation
-# inputs, not source assets — keep them out of the public repo.
-hf_*.png
+# inputs, not source assets — keep them out of the public repo. Leading slash
+# scopes the pattern to root-level files only (we never expect these nested).
+/hf_*.png

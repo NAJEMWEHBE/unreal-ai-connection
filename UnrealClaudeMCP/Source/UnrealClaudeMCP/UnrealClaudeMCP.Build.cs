@@ -20,8 +20,6 @@ public class UnrealClaudeMCP : ModuleRules
             "EditorSubsystem",
             "AssetRegistry",
             "AssetTools",
-            // Project Settings reflection (Handler_InspectProjectSetting)
-            "DeveloperSettings",
             // MCP server transport
             "Sockets",
             "Networking",
@@ -48,6 +46,9 @@ public class UnrealClaudeMCP : ModuleRules
             "Projects",
             "PropertyEditor",
             "LevelEditor",
+            // Project Settings reflection (Handler_InspectProjectSetting) — private,
+            // used only inside the implementation; no need to leak transitively.
+            "DeveloperSettings",
             // Sequencer editor library (v0.8.0)
             "LevelSequenceEditor",
             // Material instance authoring (v0.9.0)

@@ -220,7 +220,7 @@ bulk_focus_actors re-exercised with screenshot_each=false (no payload bloat). ex
 
 ## Follow-up issues to file
 
-1. **TArray transport bug.** Claude Code MCP-client schema validation stringifies array `value` arguments to set_actor_property because the handler schema declares `value` without a `type` field. Fix candidate: either declare `value` as `oneOf[primitive, array, object]` or accept stringified-JSON-array as a fallback in `PropertyCoercion.cpp:385-392`. Workaround until fix: use `execute_unreal_python` for any TArray-typed mutation, or use `bulk_set_actor_property` with a bool/int/string value.
+1. **TArray transport bug.** The MCP client's schema validation stringifies array `value` arguments to set_actor_property because the handler schema declares `value` without a `type` field. Fix candidate: either declare `value` as `oneOf[primitive, array, object]` or accept stringified-JSON-array as a fallback in `PropertyCoercion.cpp:385-392`. Workaround until fix: use `execute_unreal_python` for any TArray-typed mutation, or use `bulk_set_actor_property` with a bool/int/string value.
 2. **HANDOFF.md verification-runbook step 5 doc drift.** Currently reads "17 bridge-side synthetic tools" / "Total tools visible to MCP clients: 88". Should be **29 synthetic / 100 total**.
 3. **`audit_blueprint_compile_status` `path_under` requires trailing `/`.** `/Game` errors with `invalid_path_filter`. Accept `/Game` as alias for `/Game/`.
 4. **`inspect_blueprint` doesn't emit `blueprint_status` field.** `inspect_widget_blueprint` DOES emit it. The audit synthetic reads from inspect_blueprint and so reports every BP as Unknown. Either backfill `blueprint_status` into inspect_blueprint, or have the synthetic call a different read.

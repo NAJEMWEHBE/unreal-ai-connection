@@ -8,11 +8,15 @@
 //
 // UE 5.7 surface used:
 //   - UEditorLoadingAndSavingUtils::SaveDirtyPackages(bSaveMapPackages,
-//     bSaveContentPackages) declared in FileHelpers.h (Editor/UnrealEd
-//     module). Bool flags control whether maps + content packages are
-//     saved (default both true, matching the editor's "Save All"
-//     behaviour). Returns true on success — does not enumerate per-asset
-//     results because the underlying API is intentionally coarse-grained.
+//     bSaveContentPackages) declared at FileHelpers.h:108 (Editor/UnrealEd
+//     module; the class itself is declared at FileHelpers.h:39). Bool flags
+//     control whether maps + content packages are saved (default both true,
+//     matching the editor's "Save All" behaviour). This is the non-prompting
+//     2-arg overload — the larger 7-arg SaveDirtyPackages in the same header
+//     takes bPromptUserToSave as its first argument; we deliberately use the
+//     2-arg form to keep this handler non-interactive for automation.
+//     Returns true on success — does not enumerate per-asset results because
+//     the underlying API is intentionally coarse-grained.
 //
 // Error format: this handler has no error paths — Handle always returns a
 // successful FJsonObject result. The OutError parameter is unused (marked
