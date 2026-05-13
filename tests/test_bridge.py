@@ -890,6 +890,31 @@ def test_audit_blueprint_compile_status_normalizes_path_under_without_trailing_s
     assert captured[0]["params"]["path_under"] == "/Game/"
 
 
+def test_audit_blueprint_compile_status_normalizes_path_under_already_trailing_slash():
+    """Idempotency check: '/Game/' passed in must stay '/Game/' (not become
+    '/Game//'). Mirrors the without-trailing-slash test so the normalization
+    behaviour is pinned in both directions."""
+    captured: list[dict] = []
+
+    def fake_call_ue(method, params=None):
+        captured.append({"method": method, "params": params})
+        if method == "find_assets":
+            return {"jsonrpc": "2.0", "id": 1, "result": {
+                "ok": True, "matched": 0, "returned": 0, "assets": [],
+            }}
+        return {"jsonrpc": "2.0", "id": 1, "result": {}}
+
+    with patch.object(bridge, "call_ue", side_effect=fake_call_ue):
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 436, "method": "tools/call",
+            "params": {"name": "audit_blueprint_compile_status",
+                       "arguments": {"path_under": "/Game/"}},
+        })
+
+    assert "error" not in resp
+    assert captured[0]["params"]["path_under"] == "/Game/"
+
+
 # ---- shared _validate_asset_path helper -----------------------------------
 
 def test_validate_asset_path_helper_accepts_valid_path():
