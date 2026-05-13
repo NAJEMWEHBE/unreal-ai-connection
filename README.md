@@ -20,6 +20,25 @@
 
 </div>
 
+<!-- TODO: drop a 10-15s demo screencast at docs/images/demo-screencast.gif and embed it here:
+     ![Demo screencast](docs/images/demo-screencast.gif)
+     Frame ideas: client types a tool call → bridge round-trip animates → UE viewport reframes /
+     spawns an actor / changes color. No audio needed; loop 5-10x with a clear before/after. -->
+
+---
+
+## Jump to
+
+- [How it fits together](#how-it-fits-together) — architecture diagram + per-call sequence
+- [Why it exists](#why-it-exists) — the UE 5.7 Python dead-ends this plugin sidesteps
+- [Why MCP specifically](#why-mcp-specifically) — one protocol, every conforming client
+- [Tools](#tools) — 100 tools grouped into 14 expandable categories
+- [Quick start](#quick-start) — copy-paste path to a running editor with the plugin live
+- [What's in the box](#whats-in-the-box) — directory tree
+- [Status](#status) — release / test / build state
+- [Contributing](#contributing) — house rules + how to add a tool
+- [License](#license)
+
 ---
 
 ## How it fits together
@@ -30,6 +49,29 @@ graph LR
     B -->|TCP 127.0.0.1:18888| C[UnrealClaudeMCP plugin<br/>UE editor module]
     C -->|native C++ API| D[Unreal Editor 5.7+]
 ```
+
+<details>
+<summary><b>Per-call sequence</b> — click to see exactly what fires on a single tool call</summary>
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Client as MCP client<br/>(e.g. Claude Code)
+    participant Bridge as Python bridge
+    participant Plugin as UE plugin module
+    participant Editor as Unreal Editor 5.7
+
+    User->>Client: "Spawn a Cube at origin"
+    Client->>Bridge: stdio MCP — tools/call spawn_actor
+    Bridge->>Plugin: TCP 127.0.0.1:18888<br/>JSON-RPC framed
+    Plugin->>Editor: GEditor->SpawnActor()
+    Editor-->>Plugin: success + actor ref
+    Plugin-->>Bridge: JSON-RPC result
+    Bridge-->>Client: MCP envelope
+    Client-->>User: rendered confirmation<br/>(~50ms total)
+```
+
+</details>
 
 You ask Claude Code: *"Take a screenshot of my level and tell me what's there."* — Claude resolves the request to a tool call, the bridge forwards it as JSON-RPC to the running editor, the plugin captures the viewport, and Claude renders the image inline. Same flow works for spawning actors, inspecting Blueprints, mutating Widget Trees, executing arbitrary `unreal.*` Python, listing actors, focusing the viewport, loading levels, taking high-res screenshots.
 
@@ -45,11 +87,22 @@ The plugin sidesteps these limits by calling UE's native C++ APIs directly insid
 
 ---
 
+## Why MCP specifically
+
+MCP (Model Context Protocol) is a vendor-neutral I/O protocol designed for LLM tool-use. Because this plugin speaks MCP rather than baking in any one client, **every conforming client gets all 100 tools for free**: Claude Code, Codex CLI, Cursor, Gemini CLI, Continue, Zed, Cline, and any future entrant. Switch clients without changing the plugin or the bridge.
+
+The wire format is `stdio MCP` between client and bridge, then a tight `length-prefixed JSON-RPC over TCP 127.0.0.1:18888` between bridge and the running UE editor. Either side can be reimplemented in another language; the contract is the JSON.
+
+---
+
 ## Tools
 
 **100 tools total.** 71 are native C++ handlers registered by the plugin at editor startup; 29 are bridge-side synthetic tools (`wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`) that compose existing handlers without a dedicated UE round-trip (or, for `compile_mod_pak` and `compile_mod_pak_direct`, shell out to RunUAT or UnrealPak entirely outside the UE process) — see `bridge/unreal_claude_mcp_bridge.py`'s `SYNTHETIC_TOOLS`. Per-tool JSON schemas and examples live in [`docs/TOOLS.md`](docs/TOOLS.md). Grouped overview:
 
-### Python execution
+### Python execution (5 tools)
+
+<details>
+<summary>Click to expand the Python-execution tool table</summary>
 
 | Tool | Purpose |
 |---|---|
@@ -59,7 +112,12 @@ The plugin sidesteps these limits by calling UE's native C++ APIs directly insid
 | `exec_python_persistent` | Persistent Python session — variables defined in one call survive into the next. |
 | `reset_python_state` | Wipe the persistent session's globals. |
 
-### Project / asset registry
+</details>
+
+### Project / asset registry (8 tools)
+
+<details>
+<summary>Click to expand the asset-registry tool table</summary>
 
 | Tool | Purpose |
 |---|---|
@@ -72,7 +130,13 @@ The plugin sidesteps these limits by calling UE's native C++ APIs directly insid
 | `delete_asset` | Delete an asset; refuses if referenced by other packages unless `force=true`. |
 | `fix_up_redirectors` | Resolve all object redirectors under a folder. |
 
-### Blueprint / widget / animation introspection
+</details>
+
+### Blueprint / widget / animation introspection (14 tools)
+
+<details>
+<summary>Click to expand the BP/widget/anim tool table</summary>
+
 
 | Tool | Purpose |
 |---|---|
@@ -91,7 +155,12 @@ The plugin sidesteps these limits by calling UE's native C++ APIs directly insid
 | `inspect_data_table` | RowStruct identity, sorted row names, per-property name+type for every `FProperty` on the row struct, plus client-strip / ignore-extra/missing-fields flags. |
 | `inspect_curve` | UCurveBase channel layout (1ch UCurveFloat / 4ch UCurveLinearColor / 3ch UCurveVector), per-channel name + key count + per-channel + global time/value range. |
 
-### Materials
+</details>
+
+### Materials (4 tools)
+
+<details>
+<summary>Click to expand the materials tool table</summary>
 
 | Tool | Purpose |
 |---|---|
@@ -100,7 +169,12 @@ The plugin sidesteps these limits by calling UE's native C++ APIs directly insid
 | `inspect_material` | List parameter names declared by a `UMaterial` or `UMaterialInstance` (scalar/vector/texture/static-switch). |
 | `inspect_material_instance` | Read a material instance's parent + currently-overridden parameter values. |
 
-### Textures
+</details>
+
+### Textures (3 tools)
+
+<details>
+<summary>Click to expand the textures tool table</summary>
 
 | Tool | Purpose |
 |---|---|
@@ -108,7 +182,12 @@ The plugin sidesteps these limits by calling UE's native C++ APIs directly insid
 | `configure_texture` | Adjust SRGB / compression / LOD group / filter on an existing texture asset. |
 | `inspect_texture` | Texture class, surface dimensions, sRGB, compression, filter, LOD group, mip-gen, virtual-texture / never-stream flags, composite-texture cross-link. UTexture2D-specific size / mips / pixel format / imported source dimensions emitted conditionally. |
 
-### Level Sequences
+</details>
+
+### Level Sequences (3 tools)
+
+<details>
+<summary>Click to expand the Level Sequence tool table</summary>
 
 | Tool | Purpose |
 |---|---|
@@ -116,7 +195,13 @@ The plugin sidesteps these limits by calling UE's native C++ APIs directly insid
 | `create_sequence` | Create a new empty Level Sequence asset with a configured display rate and playback range. |
 | `bind_actor_to_sequence` | Add a level actor as a possessable binding to a Level Sequence. |
 
-### Level / actor authoring
+</details>
+
+### Level / actor authoring (16 tools)
+
+<details>
+<summary>Click to expand the level/actor authoring tool table</summary>
+
 
 | Tool | Purpose |
 |---|---|
@@ -137,14 +222,24 @@ The plugin sidesteps these limits by calling UE's native C++ APIs directly insid
 | `inspect_dependency_graph` | BFS the asset dependency graph (down by default, optional bidirectional sweep). Composes `inspect_asset` recursively. Bridge-side synthetic. |
 | `bulk_fix_redirectors` | Resolve redirectors across many content folders in one call. Composes `fix_up_redirectors` per folder. Bridge-side synthetic. |
 
-### Viewport / screenshots
+</details>
+
+### Viewport / screenshots (2 tools)
+
+<details>
+<summary>Click to expand the viewport / screenshots tool table</summary>
 
 | Tool | Purpose |
 |---|---|
 | `get_viewport_screenshot` | Active viewport as a base64 PNG, returned inline. |
 | `take_high_res_screenshot` | Trigger UE's `HighResShot` console command. |
 
-### Console / logs
+</details>
+
+### Console / logs (5 tools)
+
+<details>
+<summary>Click to expand the console / logs tool table</summary>
 
 | Tool | Purpose |
 |---|---|
@@ -154,7 +249,12 @@ The plugin sidesteps these limits by calling UE's native C++ APIs directly insid
 | `set_console_variable` | Write a value to a console variable. |
 | `find_console_variables` | Enumerate console variables matching a name pattern. |
 
-### Long-running tasks
+</details>
+
+### Long-running tasks (4 tools)
+
+<details>
+<summary>Click to expand the long-running tasks tool table</summary>
 
 | Tool | Purpose |
 |---|---|
@@ -163,7 +263,12 @@ The plugin sidesteps these limits by calling UE's native C++ APIs directly insid
 | `cancel_task` | Cancel an in-flight task by id. |
 | `list_tasks` | Enumerate all tracked tasks and their states. |
 
-### Event push / subscriptions
+</details>
+
+### Event push / subscriptions (5 tools)
+
+<details>
+<summary>Click to expand the event-push / subscriptions tool table</summary>
 
 | Tool | Purpose |
 |---|---|
@@ -173,7 +278,12 @@ The plugin sidesteps these limits by calling UE's native C++ APIs directly insid
 | `poll_subscription` | Drain queued events from a specific subscription. |
 | `unsubscribe` | Close a subscription. |
 
-### Audio (introspection trio)
+</details>
+
+### Audio (3 tools — introspection trio)
+
+<details>
+<summary>Click to expand the audio tool table</summary>
 
 | Tool | Purpose |
 |---|---|
@@ -181,7 +291,12 @@ The plugin sidesteps these limits by calling UE's native C++ APIs directly insid
 | `inspect_sound_wave` | USoundWave sample rate, channels, frame count, duration, compression type + runtime format + compressed-data size, sound group, looping/streaming flags, loading behavior, subtitle + cue-point + loop-region counts. Editor-only LUFS / sample-peak / comment fields conditional. |
 | `inspect_sound_attenuation` | USoundAttenuation 3D-playback rules: distance algorithm + shape, spatialization, air-absorption LPF/HPF, listener focus, occlusion tracing, reverb send, priority attenuation, plus assorted feature flags. Each major feature is gated by its master bitfield; sub-objects collapse to `{enabled: false}` when disabled. |
 
-### Camera (bridge-side synthetic tools)
+</details>
+
+### Camera (3 tools — bridge-side synthetic)
+
+<details>
+<summary>Click to expand the camera tool table</summary>
 
 | Tool | Purpose |
 |---|---|
@@ -189,13 +304,20 @@ The plugin sidesteps these limits by calling UE's native C++ APIs directly insid
 | `set_camera_transform` | Set the level-editor viewport camera's location and/or rotation. Single `execute_unreal_python` round-trip. |
 | `screenshot_actor` | Frame the viewport on a specific actor and capture a focused PNG. Composes `focus_actor` + `get_viewport_screenshot`. |
 
-### Self-introspection
+</details>
+
+### Self-introspection (1 tool)
+
+<details>
+<summary>Click to expand the self-introspection tool table</summary>
 
 | Tool | Purpose |
 |---|---|
 | `list_tools` | Names of every registered method (for autodiscovery). |
 
-Adding a 65th C++ handler is one `.cpp` file plus one line of registration — see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). New synthetic tools are an entry in `SYNTHETIC_TOOLS` plus a function in [`bridge/unreal_claude_mcp_bridge.py`](bridge/unreal_claude_mcp_bridge.py).
+</details>
+
+Adding a 72nd C++ handler is one `.cpp` file plus one line of registration — see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). New synthetic tools are an entry in `SYNTHETIC_TOOLS` plus a function in [`bridge/unreal_claude_mcp_bridge.py`](bridge/unreal_claude_mcp_bridge.py).
 
 ---
 
