@@ -2,7 +2,7 @@
 
 Single source of truth for resuming work on UnrealClaudeMCP in a fresh session of any MCP-compliant client. Read this first; it captures everything carried in the prior session's working memory.
 
-> Earlier closing notes (1st through 16th, sessions 2026-05-09 through 2026-05-12 evening) are archived to [`docs/HANDOFF-archive.md`](HANDOFF-archive.md). This active file keeps the latest three consecutive notes (17th-19th) for quick pickup.
+> Earlier closing notes (1st through 17th, sessions 2026-05-09 through 2026-05-12 autopilot extension) are archived to [`docs/HANDOFF-archive.md`](HANDOFF-archive.md). This active file keeps the latest three consecutive notes (18th-20th) for quick pickup.
 
 ---
 
@@ -10,15 +10,19 @@ Single source of truth for resuming work on UnrealClaudeMCP in a fresh session o
 
 **What this is:** An Unreal Engine 5.7 plugin + Python bridge that exposes editor automation to **any MCP-compliant client** (Claude Code, Codex CLI, Cursor, Gemini CLI, Continue, …) over a localhost TCP socket. The plugin adds a JSON-RPC server inside the editor; each "handler" is one MCP tool (~150 LoC of C++ in `Source/UnrealClaudeMCP/Private/MCP/Handlers/`). The bridge translates between the client's stdio MCP protocol and the plugin's TCP wire format. **Vendor-neutral by design** — the wire protocol is open MCP (created by Anthropic, but any conforming client works); the project's repo/folder names retain "Claude" for legacy reasons but the capability is universal.
 
-**Where it stands (2026-05-13, post-PR #165):** **88 tools total** (71 UE-side C++ handlers + 17 bridge-side synthetic tools). Plugin version `0.9.1`, targets UE `5.7`. pytest baseline: **302** passing. Latest commit on `main`: `d2cad7d`.
+**Where it stands (2026-05-13, post-PR #169):** **100 tools total** (71 UE-side C++ handlers + 29 bridge-side synthetic tools). Plugin version `0.9.1`, targets UE `5.7`. pytest baseline: **396** passing. Latest commit on `main`: `b2fdbf4`.
 
 Recent waves that landed in the current session lineage:
 - **Wave A (PR #161)** — 6 quick-win tools: `get_engine_version`, `list_levels`, `save_dirty_assets`, `get_selected_actors`, `inspect_input_mappings`, `bulk_inspect_assets`
 - **Wave A.5 (PR #162)** — 2 new tools: `pie_control`, `inspect_project_setting`
 - **PR #164** — Wave A + A.5 bot-findings cleanup
 - **PR #165** — codified standing rules #4 (delegation-by-default) and #5 (bot-review gate)
+- **PR #166** — HANDOFF.md split into active + archive (~36K tokens / session-start saved)
+- **Wave B (PR #167)** — 4 asset-hygiene synthetics: `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status` (88 → 92)
+- **Wave C (PR #168)** — 4 actor-batch synthetics: `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property` (92 → 96)
+- **Wave D (PR #169)** — 4 utility synthetics: `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors` (96 → 100 — **TARGET HIT**)
 
-**What's NOT in main yet:** nothing in flight at session start. All bot-findings cleared; standing rules locked.
+**What's NOT in main yet:** nothing in flight at session start. All bot-findings cleared; standing rules locked. Tool count is at the user's explicit 100-target.
 
 ---
 
@@ -26,7 +30,7 @@ Recent waves that landed in the current session lineage:
 
 **Open PRs:** none.
 
-**Latest commit on main:** `d2cad7d` (PR #165 — standing rules #4 + #5).
+**Latest commit on main:** `b2fdbf4` (PR #169 — Wave D, 100-tool target hit).
 
 **Pending verification on host machine (PRIMARY next-action item):**
 
@@ -303,91 +307,7 @@ For specific resumption:
 
 ## Closing notes from prior sessions
 
-> **Note:** Consecutive closing notes 1 through 16 (sessions 2026-05-09 through 2026-05-12 evening) are archived in [`HANDOFF-archive.md`](HANDOFF-archive.md). Only the latest three (17th-19th) are kept active here.
-
-**Session 2026-05-12 (autopilot extension — multi-agent ensemble shipped, 12 PRs of doc + test hardening):**
-
-This window picked up after the 16th closing-note and pushed a "documentation + test hardening" wave to lock in canonical-count discipline and exercise the guards / branches that newer PRs had introduced without test coverage. No new tools shipped; the scaffolding around the existing 80-tool surface got tightened by ~62 atomic commits across 12 PRs.
-
-**Mid-session pivot: multi-agent ensemble is now the standing workflow.**
-
-User explicit directive: "always from the beginning till the end, multi-agent work. You're the leader, and you review all of the codes that you receive from all of the AI models." The rule is now baked into the operating expectation, not a per-PR choice. Every substantive change in this session was reviewed by at least one external model before push.
-
-**Multi-agent roster wired this session (slot names; specific provider/model identifiers live in the maintainer's local memory file, not this public doc):**
-
-| Slot | Used for |
-|---|---|
-| Orchestrator + integrator | Opus reviews every diff, integrates, ships PRs |
-| C++ author | Codex CLI (Sequencer / MRQ on attended sessions) |
-| Python author + recon | Sonnet subagent (read-only — codebase recon + opportunity scans) |
-| C++ trap-hunter | Cloud reasoning model — pre-flight UE 5.7 API audits |
-| Python diff reviewer | Cloud 70B-class instruct model — convention / dispatch checks |
-| Reasoning ensemble | Cloud (3 different vendors / MoE topologies fan-out for high-stakes diffs) |
-| Local first-opinion | Local OSS LLM (~33B reasoning-tuned) — free + fast trap-hunt |
-| Local scaffold | Local OSS LLM (~8B) — quick design hints |
-| PR-level second opinion | GitHub Copilot CLI (`gh copilot`) — diff explanation pre-merge |
-| Post-PR safety net | Gemini auto-review (CI bot) — automatic on PR open |
-
-The MCP servers in play this session: a cloud-reasoning plugin and a local OSS LLM bridge. The older standalone cloud endpoint disconnected mid-session; the new plugin replaces it with a stronger roster.
-
-**On-disk provisioning that the next session may try and should know about:**
-- A local-OSS flagship MoE model is provisioned on the F: drive but OOM-locked on the current RAM budget (needs ~76 GiB, system has ~37 GiB). A cloud-hosted variant in the same tuning lineage substitutes.
-
-**PRs shipped in this autopilot-extension window (12 PRs, ~62 atomic commits):**
-
-| PR | Branch | Commits | Effect |
-|---|---|---:|---|
-| #141 | chore/drift-narrative-fixes | 5 | Bridge docstring + manifest description + TOOLS.md L16 + ARCHITECTURE mermaid all reconciled to 80 / 64 / 16. Cleared pre-existing "75 tools / 11 synthetics" stale prose. |
-| #142 | chore/handler-error-format-annotations | 11 | 11 legacy handlers now carry accurate "Error format:" annotations (9 free-form OutError, 2 no-error). |
-| #143 | docs/tools-md-missing-synthetic-sections | 7 | docs/TOOLS.md backfilled with 7 missing tool sections. |
-| #144 | tests/inspect-synthetic-parity | 6 | 8 new tests for inspect_sound_submix / audio_bus / material_function / metasound error-branch parity. |
-| #145 | tests/bulk-test-coverage | 5 | 5 new tests for bulk_*_assets continue_on_error=True + bulk_duplicate edge cases. |
-| #146 | chore/synthetic-isinstance-guards | 6 | All 16 synthetics now check isinstance(args, dict) early. |
-| #147 | chore/drift-sweep-extend-bridge-manifest | 3 | drift_sweep.py scans bridge.py + manifest.json + ARCHITECTURE.md. Manifest desc + README hero converted from English-word counts to digits. |
-| #148 | tests/synthetic-misc-coverage | 3 | set_camera_transform no-op-read + make_response req_id round-trip (string + null + large-int). |
-| #149 | docs/tools-md-fix-bulk-param-names | 2 | bulk_rename / bulk_duplicate param names corrected (`items` → `renames` / `duplicates`). |
-| #150 | chore/bridge-type-hints | 9 | Full type-hint sweep across 16 synthetics + 5 helpers + handle/main. req_id intentionally untyped (MCP allows int/str/null). |
-| #151 | chore/manifest-sync-tighten | 2 | Reverse-direction required-param drift check (bridge.required ⊆ manifest.params). |
-| #152 | tests/synthetic-invalid-args-guards | 1 (24 parametrize) | Locks PR6 isinstance guard across 6 synthetics × 4 bad-args shapes. |
-
-**Tool / test totals at the end of this window:**
-- 80 tools (unchanged — focus was hardening scaffolding).
-- pytest: 243 → 282 (+39). Driven by PR4 (+8), PR5 (+5), PR9 (+3), PR10 (+1), PR12 (+22 net from parametrize).
-- Drift sweep: 80 / 64 / 16 / 282 / 0.9.1 / 5.7, clean.
-
-**What to watch in next session:**
-
-- **First action: restart Claude Code.** Twelve PRs touched the bridge module + manifest + tests. Same MCP-cache-stale class of issue. Single restart unblocks all simultaneously.
-- **No remaining bridge-side hardening from this round.** Every gap surfaced by multi-agent review was either filled or explicitly deferred with a recorded reason (e.g. bulk_duplicate new_name slash/dot validation — behaviour change, not doc fix).
-- **C++-only deferred items unchanged:** Sequencer keyframe authoring + Movie Render Queue still pending. Both need attended Codex per multi-agent partitioning (Codex codes C++, Sonnet codes Python, Opus reviews + integrates).
-- **Drift_sweep extension now covers bridge module + manifest + ARCHITECTURE.** Don't bypass; the next stale-count bump auto-fails CI.
-
-**STANDING RULE (do not relax without explicit user request): multi-agent ensemble review on every substantive change.** The maintainer has provisioned cloud reasoning access, local OSS LLM tooling, Copilot CLI, and the Gemini CI bot specifically so Opus does not work solo. Use them. Pattern: dispatch 2-4 reviewers in parallel during ~30s waiting windows; integrate findings into the final diff before push. The codified version + per-provider configuration lives in the maintainer's private memory file (`feedback_multi_agent_workflow.md`), not in this public doc.
-
-**STANDING RULE (do not relax without explicit user request): UE 5.7 editor is launch-authorized in every session.** The maintainer granted standing permission on 2026-05-12 morning and reiterated it explicitly at the end of this autopilot-extension window after noticing the verification panel from `RESUME.md` was skipped because the editor wasn't running. **Do not "skip live verification" as a shortcut**; do not ask permission each session; do not wait for the next session. When live-reachable handlers matter (the canonical verification panel after a bridge-touching PR cycle, anything that exercises `127.0.0.1:18888`, the smoke-test suite, anything that proves a Rotator round-trip is lossless, anything that proves an inspect_* synthetic returns the correct logical-error envelope shape), **launch the editor immediately** using the path-quoting recipe in the top-of-doc / `CLAUDE.md`:
-
-```powershell
-Start-Process 'F:\UE_5.7\Engine\Binaries\Win64\UnrealEditor.exe' \
-    -ArgumentList '"F:\ax plug in\HDMediaVirtualStudio\HDMediaVirtualStudio.uproject"'
-```
-
-(The `-ArgumentList @('path with spaces')` form silently tokenises the path on whitespace; UE falls back to Project Browser. **Pre-quote the path inside the array element** — see PR #124's trap-table entry.) UE typically binds the bridge in ~2 minutes; if CPU stays at ~7% one core and `Saved/Logs/HDMediaVirtualStudio.log` is stale, re-check the path-quoting.
-
-Bash-side launches do not work — `Start-Process` is a PowerShell cmdlet, not a Bash command. Use the PowerShell tool (not the Bash tool) for the launch. This caught the autopilot-extension window once before the reinforcement; documenting here so the trap doesn't recur.
-
-**Companion rule (reiterated by the maintainer 2026-05-13 right after the launch-permission reinforcement): close UE when verification work is done.** UE 5.7 in Editor mode reserves ~4 GB of RAM and keeps several CPU threads pinned; leaving it open between verification windows wastes resources the maintainer wants reclaimed. The right cadence is:
-
-```powershell
-# When the verification panel finishes (or any time UE is idle):
-Get-Process UnrealEditor -ErrorAction SilentlyContinue | Stop-Process -Force
-Get-Process UnrealTraceServer -ErrorAction SilentlyContinue | Stop-Process -Force
-```
-
-Then re-launch via the recipe above when the next live verification call is needed. The 2-minute warm-up is the cost; the cost of leaving it running idle for an hour is higher.
-
-**Seventeenth consecutive closing-note.** Session 2026-05-12 now spans 8+ documented windows.
-
----
+> **Note:** Consecutive closing notes 1 through 17 (sessions 2026-05-09 through 2026-05-12 autopilot extension) are archived in [`HANDOFF-archive.md`](HANDOFF-archive.md). Only the latest three (18th-20th) are kept active here.
 
 **Session 2026-05-13 (autopilot resume — three standing rules locked, live verification panel run, scaffolding docs created):**
 
@@ -514,3 +434,61 @@ The pattern paid off again in CI: `test_no_personal_leaks.py` caught a comment-l
 - **Wave B prerequisites verified by this window's roadmap research:** existing `edit_widget_tree` is the architectural proof-of-concept for direct UObject mutation; the same `K2Node` mutation pattern extends naturally. `FBlueprintEditorUtils::AddMemberVariable` + `KismetEditorUtilities` + `UEdGraphSchema_K2::TryCreateConnection` are the canonical API surface.
 
 **Nineteenth consecutive closing-note.** Session 2026-05-12 → 13 now spans 11+ documented windows. The cadence is the project rhythm.
+
+---
+
+## Session 2026-05-13 (final — token-burn cleanup, plugin diet, 88 → 100 tools)
+
+Pickup after 19th note. Headline: token-burn investigation revealed pre-typed overhead averaging ~80-120K tokens per turn. Aggressive cuts taken to shrink that overhead, then three-wave push 88 → 100 tools landed the user's explicit milestone.
+
+**PRs landed in chronological order:**
+
+| PR | Title | Effect |
+|---|---|---|
+| #164 | Wave A + A.5 bot-findings cleanup | Applied 11 bot findings + P0 InputSettings non-existent overload |
+| #165 | Codify standing rules #4 + #5 | Delegation-by-default + bot-review gate, with mechanical-fix follow-up exception |
+| #166 | HANDOFF split | 1509 → 516 active + 941 archive; ~36K tokens saved per session-start |
+| #167 | Wave B — 4 asset-hygiene synthetics | find_unused_assets, get_reference_chain, bulk_compile_blueprints, audit_blueprint_compile_status; 88 → 92 tools |
+| #168 | Wave C — 4 actor-batch synthetics | find_actors_by_class, bulk_focus_actors, bulk_screenshot_actors, bulk_set_actor_property; 92 → 96; 4 bot follow-up fixes incl. trailing-dot guard, settle-delay race, malformed-JSON success false-positive, vendor-neutral wording |
+| #169 | Wave D — 4 utility synthetics | compare_assets, bulk_set_console_variables, inspect_dependency_graph, bulk_fix_redirectors; 96 → 100 ← TARGET HIT. Gemini caught + fixed rollback-order best-practice (reverse captured CVars when restoring) |
+
+**Token-burn investigation results.** Findings:
+
+- 13+ `claude.exe` processes running concurrently — likely CC subprocesses (MCP hosts, workers) not 13 separate conversations, but 805 MB and 419 MB ones suggested large active contexts
+- 68 plugins enabled — system-prompt manifest bloat
+- HANDOFF.md = 1509 lines (~54K tokens) auto-loaded
+- GSD hooks firing on every tool call injecting `additionalContext`
+- Output style "learning" preamble per turn (~3K tokens)
+- System reminders (skills list, MCP servers, deferred tools, modified-files notifications) per turn (~5-15K tokens)
+- No active cron / scheduled-tasks / loop-workers — burn was NOT background workers
+- Estimated total per-turn overhead: ~80-120K tokens
+
+Total cuts applied this session: ~55-65K tokens / session-start saved (HANDOFF split + plugin diet + project hook override + output-style swap user-side).
+
+**Plugin diet.** Three stages: Tier 1 conservative (68 → 53, dropped 15 web/SaaS/hardware), aggressive (53 → 13, dropped 32 ruflo-* + 8 unused official), de-dup (13 → 12, dropped skill-creator standalone in favor of superpowers:writing-skills). Final 12 plugins: caveman, claude-md-management, claude-mem, code-modernization, codex, commit-commands, feature-dev, github, mcp-server-dev, nvidia-models, security-guidance, superpowers. Backups saved at `~/.claude/settings.json.backup-*` for one-line revert.
+
+**Project-level hook override.** Wrote `F:/UnrealClaudeMCP/.claude/settings.local.json` (gitignored) overriding user-wide GSD hook set: kept gsd-context-monitor (useful context-pressure warning) + gsd-statusline (cheap status display). Dropped seven other GSD workflow guards (gsd-prompt-guard, gsd-read-guard, gsd-workflow-guard, gsd-phase-boundary, gsd-validate-commit, gsd-read-injection-scanner, gsd-check-update, gsd-session-state) for this project since it does not use the .planning workflow.
+
+**Local-model daemon empty-list bug (deferred).** The local OSS LLM runtime under the F: drive (named per maintainer's private memory file, not in this public doc) at daemon v0.23.3 returns `{"models":[]}` despite the on-disk model directory containing valid manifests + the runtime-specific `_MODELS` env var set at User scope. Hypotheses: the daemon's v0.23 may have renamed the env var, manifest format incompatibility, env var needs Machine scope (blocked by admin-shell requirement), or auto-start daemon doesn't inherit User-scope env. Parked for user. Local pre-commit ensemble review for this session relied entirely on GitHub PR bots (greptile / chatgpt-codex-connector / CodeRabbit / gemini-code-assist) per Rule #4 reformulation.
+
+**Bot-review pattern that worked across 5 PRs this session.** Each wave PR (167, 168, 169 + #164, #165, #166) followed the same flow: open PR → bots fire in 3-5 min → triage via direct `gh api` Bash readout (zero sub-agent cost) → mechanical fixes applied as follow-up commit on same branch → merge under Rule #5 mechanical-fix exception. Wave C surfaced 7 findings, 4 applied + 3 dismissed-with-rationale (the dismissed three were "vendor-neutral but lists multiple clients" — the agreed compromise from PR #164). Wave D had a single Gemini MEDIUM (rollback-order) which was a real best-practice improvement. The pattern's working.
+
+**Tool count trajectory across waves:**
+
+| PR | Wave | Tools before | Tools after | Cumulative pytest |
+|---|---|---:|---:|---:|
+| #164 | A + A.5 cleanup | 88 | 88 | 302 |
+| #165 | Rules #4 + #5 codified | 88 | 88 | 302 |
+| #166 | HANDOFF split | 88 | 88 | 302 |
+| #167 | B (asset-hygiene synthetics) | 88 | 92 | ~340 |
+| #168 | C (actor-batch synthetics) | 92 | 96 | ~370 |
+| #169 | D (utility synthetics) | 96 | 100 | 396 |
+
+**What to watch in the next session:**
+
+- HOST UE COLD-COMPILE pending for 7 Wave A + Wave A.5 C++ handlers (`get_engine_version`, `list_levels`, `save_dirty_assets`, `get_selected_actors`, `inspect_input_mappings`, `pie_control`, `inspect_project_setting`). Until rebuild, those handler names return `-32601`. Wave B/C/D synthetics ARE callable today since they're pure bridge composition.
+- Local OSS LLM runtime daemon env-var fix needed (admin shell to set Machine-scope env var or upgrade the daemon).
+- `inspect_blueprint` C++ handler doesn't yet emit `blueprint_status` field; `audit_blueprint_compile_status` buckets all BPs as `Unknown` until that gap is filled. Small follow-up C++ patch when host build cycle is open.
+- At 100 tools the user's explicit target is met. No new waves planned.
+
+**Twentieth consecutive closing-note. Session 2026-05-13 final.** Tool count: 100. Standing rules: 5 (delegation + bot-gate + mechanical-fix exception load-bearing). Token-overhead: ~55K cut per session-start.

@@ -1,6 +1,6 @@
 # HANDOFF archive
 
-> Historical session log — chronological, append-only, do not edit. This file holds **consecutive closing notes 1 through 16** (sessions 2026-05-09 through 2026-05-12 evening). The active [`HANDOFF.md`](HANDOFF.md) keeps only the latest three consecutive notes (17th-19th) for fast pickup; everything older lives here for grep-ability and audit trail. Chronological session indices in the TOC below run 1-22; entries 18-22 represent sessions whose closing-note text is also in this archive (they map to consecutive-notes 11-16).
+> Historical session log — chronological, append-only, do not edit. This file holds **consecutive closing notes 1 through 17** (sessions 2026-05-09 through 2026-05-12 autopilot extension). The active [`HANDOFF.md`](HANDOFF.md) keeps only the latest three consecutive notes (18th-20th) for fast pickup; everything older lives here for grep-ability and audit trail. Chronological session indices in the TOC below run 1-23; entries 18-23 represent sessions whose closing-note text is also in this archive (they map to consecutive-notes 11-17).
 
 ## Table of contents (chronological)
 
@@ -28,8 +28,9 @@
 | 20 | 2026-05-12 (autopilot — first new tool: bulk_move_assets) | 77 tools |
 | 21 | 2026-05-12 (autopilot — inspect_metasound + bulk_rename_assets) | 79 tools |
 | 22 | 2026-05-12 (autopilot — bulk_duplicate_assets; bulk_* family complete) | 80 tools |
+| 23 | 2026-05-12 (autopilot extension — multi-agent ensemble shipped, 12 PRs doc + test hardening) | 80 tools, 282 pytest |
 
-Note: TOC stops at chronological-session #22 because the 17th consecutive closing-note onward lives in the active [`HANDOFF.md`](HANDOFF.md). That covers the 2026-05-12 autopilot-extension session (chronological #23), the 2026-05-13 resume-window session, and the 2026-05-13 community-roadmap + Wave A/A.5 session. Cross-reference by consecutive-note number: archive holds 1-16, active holds 17-19.
+Note: TOC stops at chronological-session #23 because the 18th consecutive closing-note onward lives in the active [`HANDOFF.md`](HANDOFF.md). Cross-reference by consecutive-note number: archive holds 1-17, active holds 18-20.
 
 ---
 
@@ -938,3 +939,87 @@ Every standard asset-lifecycle operation now has a bulk variant with consistent 
 - **All deferred-handler items from the original HANDOFF roadmap are now CLOSED or in C++-only territory.** No outstanding bridge-side synthetics. C++-only items remaining: Sequencer keyframe authoring, Movie Render Queue. Both need attended cold-compile + Codex per the multi-agent partitioning.
 - **The `bulk_*_assets` family completion is a natural milestone.** Future bulk_* candidates (e.g. `bulk_inspect_*`, `bulk_set_*`) follow the same playbook but layer over composed-inspect or property-mutation handlers; cost is well-understood.
 - **Sixteenth consecutive closing-note.** Session 2026-05-12 has now spanned 7+ documented windows. The cadence is the project rhythm.
+
+---
+
+**Session 2026-05-12 (autopilot extension — multi-agent ensemble shipped, 12 PRs of doc + test hardening):**
+
+This window picked up after the 16th closing-note and pushed a "documentation + test hardening" wave to lock in canonical-count discipline and exercise the guards / branches that newer PRs had introduced without test coverage. No new tools shipped; the scaffolding around the existing 80-tool surface got tightened by ~62 atomic commits across 12 PRs.
+
+**Mid-session pivot: multi-agent ensemble is now the standing workflow.**
+
+User explicit directive: "always from the beginning till the end, multi-agent work. You're the leader, and you review all of the codes that you receive from all of the AI models." The rule is now baked into the operating expectation, not a per-PR choice. Every substantive change in this session was reviewed by at least one external model before push.
+
+**Multi-agent roster wired this session (slot names; specific provider/model identifiers live in the maintainer's local memory file, not this public doc):**
+
+| Slot | Used for |
+|---|---|
+| Orchestrator + integrator | Opus reviews every diff, integrates, ships PRs |
+| C++ author | Codex CLI (Sequencer / MRQ on attended sessions) |
+| Python author + recon | Sonnet subagent (read-only — codebase recon + opportunity scans) |
+| C++ trap-hunter | Cloud reasoning model — pre-flight UE 5.7 API audits |
+| Python diff reviewer | Cloud 70B-class instruct model — convention / dispatch checks |
+| Reasoning ensemble | Cloud (3 different vendors / MoE topologies fan-out for high-stakes diffs) |
+| Local first-opinion | Local OSS LLM (~33B reasoning-tuned) — free + fast trap-hunt |
+| Local scaffold | Local OSS LLM (~8B) — quick design hints |
+| PR-level second opinion | GitHub Copilot CLI (`gh copilot`) — diff explanation pre-merge |
+| Post-PR safety net | Gemini auto-review (CI bot) — automatic on PR open |
+
+The MCP servers in play this session: a cloud-reasoning plugin and a local OSS LLM bridge. The older standalone cloud endpoint disconnected mid-session; the new plugin replaces it with a stronger roster.
+
+**On-disk provisioning that the next session may try and should know about:**
+- A local-OSS flagship MoE model is provisioned on the F: drive but OOM-locked on the current RAM budget (needs ~76 GiB, system has ~37 GiB). A cloud-hosted variant in the same tuning lineage substitutes.
+
+**PRs shipped in this autopilot-extension window (12 PRs, ~62 atomic commits):**
+
+| PR | Branch | Commits | Effect |
+|---|---|---:|---|
+| #141 | chore/drift-narrative-fixes | 5 | Bridge docstring + manifest description + TOOLS.md L16 + ARCHITECTURE mermaid all reconciled to 80 / 64 / 16. Cleared pre-existing "75 tools / 11 synthetics" stale prose. |
+| #142 | chore/handler-error-format-annotations | 11 | 11 legacy handlers now carry accurate "Error format:" annotations (9 free-form OutError, 2 no-error). |
+| #143 | docs/tools-md-missing-synthetic-sections | 7 | docs/TOOLS.md backfilled with 7 missing tool sections. |
+| #144 | tests/inspect-synthetic-parity | 6 | 8 new tests for inspect_sound_submix / audio_bus / material_function / metasound error-branch parity. |
+| #145 | tests/bulk-test-coverage | 5 | 5 new tests for bulk_*_assets continue_on_error=True + bulk_duplicate edge cases. |
+| #146 | chore/synthetic-isinstance-guards | 6 | All 16 synthetics now check isinstance(args, dict) early. |
+| #147 | chore/drift-sweep-extend-bridge-manifest | 3 | drift_sweep.py scans bridge.py + manifest.json + ARCHITECTURE.md. Manifest desc + README hero converted from English-word counts to digits. |
+| #148 | tests/synthetic-misc-coverage | 3 | set_camera_transform no-op-read + make_response req_id round-trip (string + null + large-int). |
+| #149 | docs/tools-md-fix-bulk-param-names | 2 | bulk_rename / bulk_duplicate param names corrected (`items` → `renames` / `duplicates`). |
+| #150 | chore/bridge-type-hints | 9 | Full type-hint sweep across 16 synthetics + 5 helpers + handle/main. req_id intentionally untyped (MCP allows int/str/null). |
+| #151 | chore/manifest-sync-tighten | 2 | Reverse-direction required-param drift check (bridge.required ⊆ manifest.params). |
+| #152 | tests/synthetic-invalid-args-guards | 1 (24 parametrize) | Locks PR6 isinstance guard across 6 synthetics × 4 bad-args shapes. |
+
+**Tool / test totals at the end of this window:**
+- 80 tools (unchanged — focus was hardening scaffolding).
+- pytest: 243 → 282 (+39). Driven by PR4 (+8), PR5 (+5), PR9 (+3), PR10 (+1), PR12 (+22 net from parametrize).
+- Drift sweep: 80 / 64 / 16 / 282 / 0.9.1 / 5.7, clean.
+
+**What to watch in next session:**
+
+- **First action: restart Claude Code.** Twelve PRs touched the bridge module + manifest + tests. Same MCP-cache-stale class of issue. Single restart unblocks all simultaneously.
+- **No remaining bridge-side hardening from this round.** Every gap surfaced by multi-agent review was either filled or explicitly deferred with a recorded reason (e.g. bulk_duplicate new_name slash/dot validation — behaviour change, not doc fix).
+- **C++-only deferred items unchanged:** Sequencer keyframe authoring + Movie Render Queue still pending. Both need attended Codex per multi-agent partitioning (Codex codes C++, Sonnet codes Python, Opus reviews + integrates).
+- **Drift_sweep extension now covers bridge module + manifest + ARCHITECTURE.** Don't bypass; the next stale-count bump auto-fails CI.
+
+**STANDING RULE (do not relax without explicit user request): multi-agent ensemble review on every substantive change.** The maintainer has provisioned cloud reasoning access, local OSS LLM tooling, Copilot CLI, and the Gemini CI bot specifically so Opus does not work solo. Use them. Pattern: dispatch 2-4 reviewers in parallel during ~30s waiting windows; integrate findings into the final diff before push. The codified version + per-provider configuration lives in the maintainer's private memory file (`feedback_multi_agent_workflow.md`), not in this public doc.
+
+**STANDING RULE (do not relax without explicit user request): UE 5.7 editor is launch-authorized in every session.** The maintainer granted standing permission on 2026-05-12 morning and reiterated it explicitly at the end of this autopilot-extension window after noticing the verification panel from `RESUME.md` was skipped because the editor wasn't running. **Do not "skip live verification" as a shortcut**; do not ask permission each session; do not wait for the next session. When live-reachable handlers matter (the canonical verification panel after a bridge-touching PR cycle, anything that exercises `127.0.0.1:18888`, the smoke-test suite, anything that proves a Rotator round-trip is lossless, anything that proves an inspect_* synthetic returns the correct logical-error envelope shape), **launch the editor immediately** using the path-quoting recipe in the top-of-doc / `CLAUDE.md`:
+
+```powershell
+Start-Process 'F:\UE_5.7\Engine\Binaries\Win64\UnrealEditor.exe' \
+    -ArgumentList '"F:\ax plug in\HDMediaVirtualStudio\HDMediaVirtualStudio.uproject"'
+```
+
+(The `-ArgumentList @('path with spaces')` form silently tokenises the path on whitespace; UE falls back to Project Browser. **Pre-quote the path inside the array element** — see PR #124's trap-table entry.) UE typically binds the bridge in ~2 minutes; if CPU stays at ~7% one core and `Saved/Logs/HDMediaVirtualStudio.log` is stale, re-check the path-quoting.
+
+Bash-side launches do not work — `Start-Process` is a PowerShell cmdlet, not a Bash command. Use the PowerShell tool (not the Bash tool) for the launch. This caught the autopilot-extension window once before the reinforcement; documenting here so the trap doesn't recur.
+
+**Companion rule (reiterated by the maintainer 2026-05-13 right after the launch-permission reinforcement): close UE when verification work is done.** UE 5.7 in Editor mode reserves ~4 GB of RAM and keeps several CPU threads pinned; leaving it open between verification windows wastes resources the maintainer wants reclaimed. The right cadence is:
+
+```powershell
+# When the verification panel finishes (or any time UE is idle):
+Get-Process UnrealEditor -ErrorAction SilentlyContinue | Stop-Process -Force
+Get-Process UnrealTraceServer -ErrorAction SilentlyContinue | Stop-Process -Force
+```
+
+Then re-launch via the recipe above when the next live verification call is needed. The 2-minute warm-up is the cost; the cost of leaving it running idle for an hour is higher.
+
+**Seventeenth consecutive closing-note.** Session 2026-05-12 now spans 8+ documented windows.
