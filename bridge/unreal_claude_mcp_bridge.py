@@ -3972,6 +3972,12 @@ def synthetic_audit_blueprint_compile_status(req_id, args: dict) -> dict:
             "code": -32602,
             "message": "audit_blueprint_compile_status: invalid_field: 'path_under' must be a non-empty string when supplied",
         })
+    # Normalize: find_assets's `path_under` validator rejects bare mount points
+    # without a trailing slash (e.g. '/Game' errors with invalid_path_filter)
+    # but accepts '/Game/'. Append the slash when missing so callers can pass
+    # either form. Documented in the PR #174 scorecard follow-up #3.
+    if not path_under.endswith("/"):
+        path_under = path_under + "/"
 
     compile_failures_only = args.get("compile_failures_only", True)
     if not isinstance(compile_failures_only, bool):

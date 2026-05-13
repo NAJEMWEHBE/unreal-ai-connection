@@ -65,6 +65,8 @@ The 7 new C++ handlers from Waves A + A.5 (`get_engine_version`, `list_levels`, 
 5. Open the host `.uproject` in UE editor (use the path-quoting recipe in CLAUDE.md — pre-quote inside the `-ArgumentList` array element). Confirm **71 UE C++ handlers register** in the Output Log. Filter by `LogUCMCPHandler` and you should see exactly 71 lines `Registered handler '<name>'`. The 17 bridge-side synthetic tools never reach the UE process and so never appear in the Output Log; they're served by `SYNTHETIC_TOOLS` in `bridge/unreal_claude_mcp_bridge.py`. Total tools visible to MCP clients: 88. The TCP server then binds `127.0.0.1:18888` (~10s on warm DDC, 1–5 min cold). With the module: `$proc = Start-UCMCPEditor -ProjectPath "<full path>"; $ready = Wait-UCMCPReady; $check = Test-UCMCPHandlers -LogPath "<host-project>\Saved\Logs\<HostProjectName>.log" -ExpectedCount 71`.
 6. **Smoke** — `py -3 examples\smoke_test.py --material-instance /Game/SmokeTest_MI --sequence /Game/SmokeTest_LS`. Then run the Wave A/A.5 live verification panel above.
 
+**Pause/restart note (PR #174 scorecard follow-up #10):** Long verification runs that span an editor restart (manual or crash) lose every actor and edit that wasn't saved to the level. If you spawn validation actors or mutate the open map and intend to pause, run `save_dirty_assets {}` (or Ctrl+S in the editor) *before* the pause — unsaved actors and properties revert to the last on-disk state on relaunch. The PR #174 scorecard's `delete_actor` row hit this exact case (ValEnvPanelL/R spawned pre-pause, lost on restart, then returned `actor_not_found` on the post-resume delete — correct shape, not a tool defect, but easy to mistake for one).
+
 ---
 
 ## Operating directives the user has granted

@@ -101,6 +101,8 @@ Mutate the widget tree of a `UWidgetBlueprint` / EUW. Three ops.
 
 **Important persistence note**: every call marks the widget tree dirty + the BP structurally modified, then saves the asset to disk. The asset is recompiled automatically when next loaded by the editor, or you can explicitly compile via the `compile: true` parameter on the last edit in a batch.
 
+**UE 5.7 note for python callers creating Widget Blueprints in-process**: `WidgetBlueprintFactory.parent_class` was removed between UE 5.x and 5.7. Setting it on the factory raises `AttributeError`. Create the WBP with the factory's default parent (UserWidget) and, if you need a different parent class, set it on the resulting `UWidgetBlueprint` via `unreal.WidgetBlueprint.set_editor_property("ParentClass", ...)` after creation. Surfaced during the PR #174 100-tool validation run (Stage 10).
+
 ---
 
 ## get_viewport_screenshot
