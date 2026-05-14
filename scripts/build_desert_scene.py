@@ -574,19 +574,20 @@ for bi in range(30):
 
 dust_template_paths = [
     '/Niagara/DefaultAssets/Templates/Emitters/BlowingParticles.BlowingParticles',
-    '/Engine/Plugins/FX/Niagara/Content/DefaultAssets/Templates/Emitters/BlowingParticles.BlowingParticles',
 ]
 dust_template = None
 for p in dust_template_paths:
     try:
         dust_template = unreal.load_asset(p)
         if dust_template is not None:
-            log(f'dust template loaded from {p}')
+            log(f'dust template loaded from {p}; class={dust_template.get_class().get_name()}')
             break
     except Exception:
         continue
 
-if dust_template is not None and isinstance(dust_template, unreal.NiagaraSystem):
+# Try to spawn regardless of class — if it's a NiagaraSystem, comp.set_asset works.
+# If it's a NiagaraEmitter, log and skip (would need NiagaraSystem creation API).
+if dust_template is not None:
     dust_locations = [
         unreal.Vector(-800, 200, 100),
         unreal.Vector(-800, -200, 100),
@@ -598,16 +599,38 @@ if dust_template is not None and isinstance(dust_template, unreal.NiagaraSystem)
         try:
             actor = ell.spawn_actor_from_class(unreal.NiagaraActor, loc, unreal.Rotator(0, 0, 0))
             actor.set_actor_label(f'Desert_Dust_{di}')
-            actor.set_actor_scale3d(unreal.Vector(8, 8, 4))
-            comp = actor.get_niagara_component() if hasattr(actor, 'get_niagara_component') else None
-            if comp is None:
+            actor.set_actor_scale3d(unreal.Vector(12, 12, 6))
+            comp = None
+            try:
+                comp = actor.get_niagara_component()
+            except Exception:
                 comp = actor.get_component_by_class(unreal.NiagaraComponent)
             if comp is not None:
-                comp.set_asset(dust_template)
+                try:
+                    comp.set_asset(dust_template)
+                except Exception as e:
+                    log(f'dust set_asset {di} failed (likely emitter not system): {e}')
+                    # actor stays but inert; still hides on next wipe
         except Exception as e:
             log(f'dust spawn {di} failed: {e}')
 else:
     log('dust template not found; skipping Niagara dust')
+
+# ----------------------------------------------------------------------------
+# 13b. Sun-disk billboard — bright emissive glow behind tower for visible sun
+# ----------------------------------------------------------------------------
+
+# Use an unlit emissive MaterialInstance pointing toward camera
+mi_sun = make_mi('MI_SunGlow', basic_mat, unreal.LinearColor(8.0, 4.8, 2.0, 1.0), 1.0)
+# Place a large plane behind the tower, facing camera at -X
+spawn_static(
+    '/Engine/BasicShapes/Plane.Plane',
+    unreal.Vector(8000, -800, 1200),
+    unreal.Rotator(0, 90, 0),  # face -X
+    unreal.Vector(20, 20, 1),
+    'Desert_SunDisk',
+    material=mi_sun,
+)
 
 # ----------------------------------------------------------------------------
 # 14. Camera framing
