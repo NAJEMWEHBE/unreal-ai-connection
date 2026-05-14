@@ -143,6 +143,38 @@ LEGACY_VAL_CLEANUP = False
 removed = 0
 hidden = 0
 hidden_lights = 0
+# v6.1: also hide any StaticMeshActor whose material is WorldGridMaterial — the
+# UE default-template "Floor" actor uses this material and shows through as a
+# checker pattern under our sand plane in HighResShot captures (visible in
+# PR #1's T4-hero.png). We HIDE rather than destroy because the actor may be
+# user-owned level content; hiding is reversible by the user.
+def _uses_world_grid(actor):
+    try:
+        smc = actor.get_component_by_class(unreal.StaticMeshComponent)
+        if smc is None:
+            return False
+        for i in range(max(1, smc.get_num_materials())):
+            mat = smc.get_material(i)
+            if mat is None:
+                continue
+            # Walk parent chain — WorldGridMaterial may be referenced directly
+            # or via a MaterialInstance whose parent is WorldGridMaterial.
+            cur = mat
+            for _ in range(4):
+                if 'WorldGridMaterial' in cur.get_path_name():
+                    return True
+                parent = None
+                try:
+                    parent = cur.get_editor_property('parent')
+                except Exception:
+                    parent = None
+                if parent is None or parent == cur:
+                    break
+                cur = parent
+    except Exception:
+        pass
+    return False
+
 for a in list(ell.get_all_level_actors()):
     label = a.get_actor_label()
     cls = a.get_class().get_name()
@@ -150,6 +182,13 @@ for a in list(ell.get_all_level_actors()):
         ell.destroy_actor(a)
         removed += 1
     elif label in ('SM_SkySphere', 'SkySphereBlueprint', 'Sky_Sphere'):
+        try:
+            a.set_actor_hidden_in_game(True)
+            a.set_is_temporarily_hidden_in_editor(True)
+            hidden += 1
+        except Exception:
+            pass
+    elif cls == 'StaticMeshActor' and _uses_world_grid(a):
         try:
             a.set_actor_hidden_in_game(True)
             a.set_is_temporarily_hidden_in_editor(True)
@@ -904,4 +943,4 @@ mi_sun = make_mi('MI_SunGlow', basic_mat, unreal.LinearColor(0.8, 0.45, 0.18, 1.
 
 _apply_hero_camera()
 
-log('SCENE_BUILD_COMPLETE_V6')
+log('SCENE_BUILD_COMPLETE_V6_1')
