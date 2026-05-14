@@ -90,13 +90,20 @@ def spawn_static(mesh_path, location, rotation, scale, label, material=None):
 # 1. Wipe prior + hide competing actors
 # ----------------------------------------------------------------------------
 
+# LEGACY_VAL_CLEANUP: opt-in flag. The earlier v1/v2 builds spawned actors with
+# `Val*` labels (Stage 4-5 of the original validation run). They no longer
+# appear in v3+ runs, so wiping any `Val*` actor by default risks deleting
+# unrelated level content in shared maps. Default off; set True when re-running
+# on a level that still has the legacy validation actors lingering.
+LEGACY_VAL_CLEANUP = False
+
 removed = 0
 hidden = 0
 hidden_lights = 0
 for a in list(ell.get_all_level_actors()):
     label = a.get_actor_label()
     cls = a.get_class().get_name()
-    if label.startswith('Val') or label.startswith('Desert_'):
+    if label.startswith('Desert_') or (LEGACY_VAL_CLEANUP and label.startswith('Val')):
         ell.destroy_actor(a)
         removed += 1
     elif label in ('SM_SkySphere', 'SkySphereBlueprint', 'Sky_Sphere'):
@@ -147,7 +154,7 @@ except Exception as e:
 sun = ell.spawn_actor_from_class(
     unreal.DirectionalLight,
     unreal.Vector(0, 0, 500),
-    unreal.Rotator(0.0, -3.0, -45.0),
+    unreal.Rotator(roll=0.0, pitch=-3.0, yaw=-45.0),  # named args — unreal.Rotator positional order is (roll, pitch, yaw), counter-intuitive vs the dict-display {pitch, yaw, roll}
 )
 sun.set_actor_label('Desert_Sun')
 sun_comp = sun.light_component
@@ -637,7 +644,7 @@ spawn_static(
 # ----------------------------------------------------------------------------
 
 cam_loc = unreal.Vector(-3000, 250, 750)
-cam_rot = unreal.Rotator(0, 6, -4)
+cam_rot = unreal.Rotator(roll=0, pitch=6, yaw=-4)
 
 try:
     LES = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)

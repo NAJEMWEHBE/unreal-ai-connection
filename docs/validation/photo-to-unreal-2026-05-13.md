@@ -12,7 +12,7 @@ Scorecard for the 100-tool exercise planned in [docs/SESSION-CONTINUITY.md](../S
 
 ![scene-proof](scene-proof.png)
 
-`scene-proof.png` is the dense UE 5.7 viewport capture of the photo's COMPOSITION reconstructed from `/Engine/BasicShapes` primitives + atmosphere actors + 7 tinted `MaterialInstanceConstant`s. v3 supersedes the earlier v1 (photo-on-plane, PR #176) and v2 (sparse primitive scene). Driven by `scripts/build_desert_scene.py` through `mcp__unreal-claude-mcp__run_python_file`.
+`scene-proof.png` is the dense UE 5.7 viewport capture of the photo's COMPOSITION reconstructed from `/Engine/BasicShapes` primitives + atmosphere actors + 7 tinted `MaterialInstanceConstant`s. v3 supersedes the earlier v1 (photo-on-plane, PR #176) and v2 (sparse primitive scene). Driven by `scripts/build_desert_scene.py` via the MCP server's `run_python_file` tool.
 
 ### What's in v3
 
@@ -52,10 +52,12 @@ The match is therefore **compositionally dense + atmospherically faithful**, not
 ### Re-run
 
 ```
-mcp__unreal-claude-mcp__run_python_file path=F:\UnrealClaudeMCP\scripts\build_desert_scene.py
-mcp__unreal-claude-mcp__set_camera_transform location=(-3000,250,750) rotation=(pitch=6, yaw=-4)
-mcp__unreal-claude-mcp__get_viewport_screenshot  # decode base64 → PNG
+run_python_file path=F:\UnrealClaudeMCP\scripts\build_desert_scene.py
+set_camera_transform location=(-3000,250,750) rotation=(pitch=6, yaw=-4)
+get_viewport_screenshot  # decode base64 → PNG
 ```
+
+(Tool names above are vendor-neutral; invoke them through whichever MCP-compliant client is connected.)
 
 Idempotent — re-runs wipe prior `Desert_*`/`Val*` actors and hide competing atmosphere/sky actors first.
 
