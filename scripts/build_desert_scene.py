@@ -217,7 +217,46 @@ mi_metal = make_mi('MI_TowerMetal', basic_mat, unreal.LinearColor(0.10, 0.07, 0.
 mi_metal_rust = make_mi('MI_RustMetal', basic_mat, unreal.LinearColor(0.22, 0.10, 0.06, 1.0), 0.65)
 mi_crate = make_mi('MI_Crate', basic_mat, unreal.LinearColor(0.28, 0.18, 0.13, 1.0), 0.60)
 mi_dark = make_mi('MI_Dark', basic_mat, unreal.LinearColor(0.06, 0.05, 0.04, 1.0), 0.50)
-log(f'materials made')
+
+# v7: high-quality Polyhaven-textured MIs (imported via marketplace_import).
+# Each one falls back to the flat-color counterpart above when the textured
+# asset is missing — so the script keeps working in a fresh project where
+# the CC0 imports haven't run yet.
+def _load_or_fallback(textured_path, fallback_mi):
+    try:
+        tex_mi = unreal.load_asset(textured_path)
+        if tex_mi is not None:
+            return tex_mi
+    except Exception:
+        pass
+    return fallback_mi
+
+mi_sand_textured = _load_or_fallback('/Game/Validation/Materials/MI_T_Sand', mi_sand_dark)
+mi_rock_textured = _load_or_fallback('/Game/Validation/Materials/MI_T_Rock', mi_rock)
+mi_metal_rust_textured = _load_or_fallback('/Game/Validation/Materials/MI_T_MetalRust', mi_metal_rust)
+mi_metal_plate_textured = _load_or_fallback('/Game/Validation/Materials/MI_T_MetalPlate', mi_metal)
+_textured_sand_ok = mi_sand_textured is not mi_sand_dark
+_textured_rock_ok = mi_rock_textured is not mi_rock
+_textured_rust_ok = mi_metal_rust_textured is not mi_metal_rust
+_textured_plate_ok = mi_metal_plate_textured is not mi_metal
+log(f'materials made (textured layers — sand={_textured_sand_ok}, rock={_textured_rock_ok}, rust={_textured_rust_ok}, plate={_textured_plate_ok})')
+
+# v7: When textured MIs are present, promote them as the primary material
+# bindings used by the rest of the script. The legacy flat-color MIs above
+# stay as the fallback path so the script still produces something usable
+# in a fresh project that hasn't run the marketplace_import bootstrap.
+if _textured_sand_ok:
+    mi_sand_dark = mi_sand_textured
+    mi_sand_light = mi_sand_textured
+if _textured_rock_ok:
+    mi_rock = mi_rock_textured
+if _textured_rust_ok:
+    mi_metal_rust = mi_metal_rust_textured
+if _textured_plate_ok:
+    # Tower metal + gantry metal use the plate material so the lattice
+    # picks up real surface detail under the daylight HDRI.
+    mi_metal = mi_metal_plate_textured
+    mi_crate = mi_metal_rust_textured  # crates read better with rust grit
 
 # ----------------------------------------------------------------------------
 # 3. Atmosphere stack
@@ -943,4 +982,4 @@ mi_sun = make_mi('MI_SunGlow', basic_mat, unreal.LinearColor(0.8, 0.45, 0.18, 1.
 
 _apply_hero_camera()
 
-log('SCENE_BUILD_COMPLETE_V6_1')
+log('SCENE_BUILD_COMPLETE_V7_TEXTURED')
