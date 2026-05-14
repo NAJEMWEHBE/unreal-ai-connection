@@ -385,7 +385,7 @@ tests/                            Pytest suite for the bridge (no UE required)
 | **Tools** | **100 live** — 71 native C++ handlers (one MCP method per `Handler_*.cpp`) plus 29 bridge-side synthetic tools (Python-only composition over existing handlers; never crosses the TCP wire as a dedicated round-trip). See [`docs/TOOLS.md`](docs/TOOLS.md) for the per-tool reference. |
 | **Tested on** | UE 5.7.4 / Windows 11 / Visual Studio Build Tools 2022 / MSVC 14.44 / NETFXSDK 4.8.1 |
 | **Build status** | Plugin compiles + loads against UE 5.7.4 host on Windows 11; 71 handlers register, TCP server binds `127.0.0.1:18888`, bridge round-trip via `tools/call list_tools` returns full registry. |
-| **Bridge tests** | 398 pytest cases, ~99% coverage |
+| **Bridge tests** | 399 pytest cases, ~99% coverage |
 | **CI** | GitHub Actions on every push and PR |
 | **Development workflow** | Multi-agent ensemble — Opus orchestrates, Codex authors C++, Sonnet handles Python + recon, NVIDIA cloud + local OSS LLMs run pre-PR diff review, Copilot CLI gives a second opinion, Gemini auto-review fires on every PR open. No single model gates a merge. |
 
