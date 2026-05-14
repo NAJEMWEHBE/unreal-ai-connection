@@ -186,7 +186,7 @@ Then Rule-5 bot gate (CodeRabbit + Greptile + Gemini + Codex), apply or dismiss 
 
 ### Step 6 — Second PR for marketplace tools (originally Item 2 from the prior plan)
 
-The plan file at `C:\Users\NINOH\.claude\plans\docs-session-continuity-md-lexical-moonbeam.md` (under "Resume revision 4") describes two NEW synthetic MCP tools: `marketplace_search` + `marketplace_import` (Polyhaven + Sketchfab CC0 backends; Fab stub for v2). That's a separate PR after the scene-build one lands.
+The plan file at `%USERPROFILE%\.claude\plans\docs-session-continuity-md-lexical-moonbeam.md` (under "Resume revision 4") describes two NEW synthetic MCP tools: `marketplace_search` + `marketplace_import` (Polyhaven + Sketchfab CC0 backends; Fab stub for v2). That's a separate PR after the scene-build one lands.
 
 ---
 
@@ -217,7 +217,7 @@ The plan file at `C:\Users\NINOH\.claude\plans\docs-session-continuity-md-lexica
 | pytest baseline on main | 400 |
 | Scorecard doc | `docs/validation/photo-to-unreal-2026-05-13.md` |
 | Build script | `scripts/build_desert_scene.py` |
-| Plan file | `C:\Users\NINOH\.claude\plans\docs-session-continuity-md-lexical-moonbeam.md` — has "Resume revision 4" for the marketplace-tools plan |
+| Plan file | `%USERPROFILE%\.claude\plans\docs-session-continuity-md-lexical-moonbeam.md` — has "Resume revision 4" for the marketplace-tools plan |
 
 ---
 

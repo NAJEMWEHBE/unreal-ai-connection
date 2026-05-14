@@ -1,7 +1,7 @@
 {
   "name": "UnrealClaudeMCP",
   "version": "0.9.1",
-  "description": "Drive Unreal Engine 5.7 from any MCP-compliant client (Claude Code, Codex CLI, Cursor, Gemini CLI, Continue, ...) over a local TCP socket. 100 tools total (71 native C++ handlers plus 29 bridge-side synthetic tools) that work with any UE 5.7 project.",
+  "description": "Drive Unreal Engine 5.7 from any MCP-compliant client (Claude Code, Codex CLI, Cursor, Gemini CLI, Continue, ...) over a local TCP socket. 102 tools total (71 native C++ handlers plus 31 bridge-side synthetic tools) that work with any UE 5.7 project.",
   "transport": {
     "type": "tcp",
     "host": "127.0.0.1",
@@ -869,6 +869,32 @@
         "continue_on_error": "bool (optional, default true) - when false, halt at the first per-folder fix-up failure and emit halted_at_index"
       },
       "returns": { "ok": "bool (true only when failed is empty)", "total": "int (folders.length)", "succeeded": "int (count of per-folder successes)", "failed": "array of {folder: string, error: {code: int, message: string}}", "recursive": "bool (echo of input)", "halted_at_index": "int - present only when continue_on_error=false stopped the loop early" }
+    },
+    {
+      "name": "marketplace_search",
+      "description": "Search free CC0 asset marketplaces (Polyhaven, AmbientCG) for textures / HDRIs / models matching a keyword. SYNTHETIC bridge-side handler — fetches the source's public JSON catalog via plain HTTPS (no auth, no API key). Every asset returned is CC0 (public domain, free for any use including commercial). Pair with marketplace_import to download a chosen result.",
+      "params": {
+        "query": "string (optional, default '') - search keyword matched against name, tags, and categories on the source side; empty string lists popular assets",
+        "source": "string (optional, default 'polyhaven') - one of polyhaven|ambientcg|all; 'all' fans out across both sources",
+        "asset_type": "string (optional, default 'texture') - one of texture|hdri|model|all",
+        "limit": "int (optional, default 10, max 50) - max results to return"
+      },
+      "returns": { "ok": "bool", "query": "string (echo)", "source": "string (echo)", "asset_type": "string (echo)", "limit": "int (echo)", "count": "int (length of results)", "results": "array of {slug: string, name: string, source: string, asset_type: string, thumbnail_url: string, tags: array, categories: array, description: string, max_resolution: array or null, download_count: int}", "partial_errors": "array of string (present only when at least one source failed but another returned results)" }
+    },
+    {
+      "name": "marketplace_import",
+      "description": "Download a CC0 asset from a marketplace (Polyhaven in v1) and import it into the project as a UTexture2D via the native import_texture handler. SYNTHETIC bridge-side handler — composes a /files/{slug} catalog lookup, a urllib download to the system tempdir, and a call_ue('import_texture', ...) round-trip. v1 supports texture (diffuse map) and hdri (EXR); model import is parked for v2 (native handler has no mesh-import wrapper today). All Polyhaven content is CC0 — no attribution required.",
+      "params": {
+        "source": "string (optional, default 'polyhaven') - only 'polyhaven' is wired in v1; ambientcg ships zip archives, v2 work",
+        "slug": "string (required) - source-specific asset identifier obtained from marketplace_search",
+        "asset_type": "string (optional, default 'texture') - one of texture|hdri|model; model returns not_implemented in v1",
+        "resolution": "string (optional, default '2k') - common values 1k|2k|4k|8k; error message lists actual available set when invalid",
+        "format": "string (optional, default 'png' for texture, 'exr' for hdri) - falls back to source default if requested format unpublished",
+        "dest_path": "string (optional, default /Game/Marketplace) - UE package path; must start with /Game/",
+        "dest_name": "string (optional, default slug) - asset name override",
+        "replace_existing": "bool (optional, default false) - overwrite existing asset at dest_path/dest_name"
+      },
+      "returns": { "ok": "bool", "source": "string (echo)", "slug": "string (echo)", "asset_type": "string (echo)", "resolution": "string (echo)", "format": "string (echo)", "downloaded_from": "string (resolved download URL)", "temp_path": "string (filesystem path of downloaded file)", "ue_asset_path": "string (final asset path in the project)", "available_resolutions": "array of string (resolutions the source actually offers for this asset)", "import_result": "object (passthrough of native import_texture result)", "license": "string ('CC0')" }
     }
   ]
 }

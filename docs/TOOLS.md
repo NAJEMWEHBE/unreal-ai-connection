@@ -1,6 +1,6 @@
 # MCP Tools Reference
 
-**100 tools total.** 71 are JSON-RPC 2.0 methods served on `127.0.0.1:18888` directly by the plugin's C++ handlers. The remaining 29 — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors` — are bridge-side **synthetic tools** that are intercepted by `bridge/unreal_claude_mcp_bridge.py` and served by composing existing handlers (or running Python via `execute_unreal_python`, or — for `compile_mod_pak` — shelling out to `RunUAT.bat` entirely outside the UE process). They are visible to MCP clients exactly like the C++ tools but cannot be reached by sending raw JSON-RPC to the TCP socket — only via the MCP bridge or by replicating their composition manually. The "Implementation" header on each entry below indicates whether a tool is C++ or bridge-side.
+**102 tools total.** 71 are JSON-RPC 2.0 methods served on `127.0.0.1:18888` directly by the plugin's C++ handlers. The remaining 31 — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors` — are bridge-side **synthetic tools** that are intercepted by `bridge/unreal_claude_mcp_bridge.py` and served by composing existing handlers (or running Python via `execute_unreal_python`, or — for `compile_mod_pak` — shelling out to `RunUAT.bat` entirely outside the UE process). They are visible to MCP clients exactly like the C++ tools but cannot be reached by sending raw JSON-RPC to the TCP socket — only via the MCP bridge or by replicating their composition manually. The "Implementation" header on each entry below indicates whether a tool is C++ or bridge-side.
 
 Each tool's params and result are documented with a working example.
 
@@ -3731,6 +3731,140 @@ Resolve UObjectRedirector stubs across multiple content folders in one MCP call.
 {"jsonrpc":"2.0","id":2,"method":"bulk_fix_redirectors","params":{
   "folders": ["/Game/A", "/Game/B", "/Game/C"],
   "continue_on_error": false
+}}
+```
+
+---
+
+## marketplace_search
+
+Search free CC0 asset marketplaces (Polyhaven, AmbientCG) for textures, HDRIs, or models matching a keyword and return a normalised list of matches.
+
+**Bridge-side synthetic tool.** Fetches the source's public JSON catalog via plain HTTPS (`urllib`, no auth, no API key). Every asset returned is CC0 (public domain — free for any use including commercial, no attribution required). Pair with [`marketplace_import`](#marketplace_import) to actually download and import a chosen result.
+
+**Sources**:
+
+- **Polyhaven** — `https://api.polyhaven.com/assets`. Default. Hand-curated CC0 catalog of textures, HDRI skies, and models.
+- **AmbientCG** — `https://ambientcg.com/api/v2/full_json`. Larger PBR-texture / HDRI / model catalog, all CC0.
+
+**Params**:
+
+- `query` *(string, optional, default `""`)* — search keyword(s); matched against name + tags + categories on the source side. Empty string lists popular assets.
+- `source` *(string, optional, default `"polyhaven"`)* — one of `polyhaven` / `ambientcg` / `all`. `all` fans out across both.
+- `asset_type` *(string, optional, default `"texture"`)* — one of `texture` / `hdri` / `model` / `all`.
+- `limit` *(int, optional, default `10`, max `50`)* — max results to return.
+
+**Result**:
+
+- `ok` — bool.
+- `query`, `source`, `asset_type`, `limit` — echoes of input.
+- `count` — length of `results`.
+- `results` — array of:
+  - `slug` — source-specific asset identifier (use as `slug` for `marketplace_import`).
+  - `name` — human-readable display name.
+  - `source` — `"polyhaven"` or `"ambientcg"`.
+  - `asset_type` — `"texture"` / `"hdri"` / `"model"`.
+  - `thumbnail_url` — preview image URL.
+  - `tags`, `categories` — source-side classification arrays.
+  - `description` — short description (may be empty).
+  - `max_resolution` — `[w, h]` array or `null`.
+  - `download_count` — popularity counter (Polyhaven only).
+- `partial_errors` *(present only when at least one source failed but another returned results)* — array of source-error strings.
+
+**Errors**:
+
+- `-32602 invalid_arguments` / `invalid_field: ...` — argument validation.
+- `-32603 all_sources_failed: ...` — every requested source returned an error (network, HTTP, or JSON parsing); message concatenates per-source reasons.
+
+**Example — search for desert sand textures**
+```json
+{"jsonrpc":"2.0","id":1,"method":"marketplace_search","params":{
+  "query": "sand desert",
+  "asset_type": "texture",
+  "limit": 5
+}}
+```
+
+**Example — find a daylight HDRI sky across both sources**
+```json
+{"jsonrpc":"2.0","id":2,"method":"marketplace_search","params":{
+  "query": "noon sky",
+  "source": "all",
+  "asset_type": "hdri",
+  "limit": 10
+}}
+```
+
+---
+
+## marketplace_import
+
+Download a CC0 asset from a marketplace (Polyhaven in v1) and import it into the project as a `UTexture2D` via the native [`import_texture`](#import_texture) handler.
+
+**Bridge-side synthetic tool.** Composes:
+
+1. `GET https://api.polyhaven.com/files/{slug}` — resolves the per-resolution / per-format download URL.
+2. `urllib` streaming download to a temp file under the system tempdir (atomic via `.part` rename).
+3. `call_ue("import_texture", { source_path, dest_path, dest_name, replace_existing, automated, save })` — the native handler does the UE-side import via the canonical asset import pipeline.
+
+**Scope of v1**:
+
+- **Textures** — diffuse map only (full PBR multi-map import is v2 work). Default format `png`.
+- **HDRIs** — single-file EXR (or HDR fallback). Default format `exr`.
+- **Models** — `asset_type=model` returns `not_implemented`. Native side has no glTF/FBX import wrapper today.
+- **Source**: only `polyhaven` is wired in v1. AmbientCG ships zipped multi-map archives — v2 work.
+
+**Params**:
+
+- `source` *(string, optional, default `"polyhaven"`)* — must be `"polyhaven"` in v1.
+- `slug` *(string, **required**)* — source-specific asset identifier (e.g. `"aerial_beach_01"`). Obtain via [`marketplace_search`](#marketplace_search).
+- `asset_type` *(string, optional, default `"texture"`)* — `texture` / `hdri` / `model` (model → `not_implemented`).
+- `resolution` *(string, optional, default `"2k"`)* — common values `1k` / `2k` / `4k` / `8k`. The error message lists what the source actually offers when invalid.
+- `format` *(string, optional)* — defaults to `png` for textures and `exr` for HDRIs. Falls back to the source's default if the requested format isn't published.
+- `dest_path` *(string, optional, default `/Game/Marketplace`)* — UE package path; must start with `/Game/`.
+- `dest_name` *(string, optional)* — asset name override; defaults to the slug.
+- `replace_existing` *(bool, optional, default `false`)* — overwrite an existing asset at `dest_path/dest_name`.
+
+**Result**:
+
+- `ok` — bool.
+- `source`, `slug`, `asset_type`, `resolution`, `format` — echoes of input.
+- `downloaded_from` — resolved download URL.
+- `temp_path` — filesystem path of the downloaded file.
+- `ue_asset_path` — final asset path in the project (`<dest_path>/<dest_name>`).
+- `available_resolutions` — array of resolutions the source offers for this asset.
+- `import_result` — passthrough of native `import_texture` result.
+- `license` — `"CC0"`.
+
+**Errors**:
+
+- `-32602 invalid_arguments` / `invalid_field: ...` — argument validation.
+- `-32603 network_error: ...` — DNS / TCP / TLS failure.
+- `-32603 http_error: status=NNN` — non-2xx response from the catalog or CDN.
+- `-32603 not_implemented` — asset_type=model (parked for v2).
+- `-32603 resolution_unavailable: ...` — the requested resolution isn't published; message lists what is.
+- `-32603 format_unavailable: ...` — the requested format isn't published at that resolution.
+- `-32603 ue_import_failed: ...` — native `import_texture` returned an error (propagated verbatim).
+
+**Example — import a 2k sand diffuse map**
+```json
+{"jsonrpc":"2.0","id":1,"method":"marketplace_import","params":{
+  "slug": "aerial_beach_01",
+  "asset_type": "texture",
+  "resolution": "2k",
+  "dest_path": "/Game/Validation/Marketplace",
+  "dest_name": "T_Sand_Beach_01"
+}}
+```
+
+**Example — import an HDRI sky (4k EXR)**
+```json
+{"jsonrpc":"2.0","id":2,"method":"marketplace_import","params":{
+  "slug": "kloppenheim_06_puresky",
+  "asset_type": "hdri",
+  "resolution": "4k",
+  "format": "exr",
+  "dest_path": "/Game/Validation/HDRI"
 }}
 ```
 

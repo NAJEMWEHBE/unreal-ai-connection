@@ -123,6 +123,8 @@ def test_tool_names_are_unique_and_match_handlers():
         "bulk_set_console_variables",
         "inspect_dependency_graph",
         "bulk_fix_redirectors",
+        "marketplace_search",
+        "marketplace_import",
     }
     assert set(names) == expected
 
