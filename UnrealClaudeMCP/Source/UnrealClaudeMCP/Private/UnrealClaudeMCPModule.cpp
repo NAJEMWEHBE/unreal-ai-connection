@@ -17,8 +17,9 @@
 #include "Dom/JsonValue.h"
 
 // Tier 2 event-push delegate sources (PR #41)
-#include "Editor.h"                  // FEditorDelegates (OnAssetPostImport / PostSaveWorldWithContext / MapChange)
-#include "Factories/Factory.h"       // UFactory* param of OnAssetPostImport (Editor.h:108/295)
+#include "Editor.h"                  // FEditorDelegates (PostSaveWorldWithContext / MapChange)
+#include "Factories/Factory.h"       // UFactory* param of OnAssetPostImport (Subsystems/ImportSubsystem.h)
+#include "Subsystems/ImportSubsystem.h" // UImportSubsystem::OnAssetPostImport (UE 5.7 replacement for deprecated FEditorDelegates::OnAssetPostImport)
 #include "UObject/ObjectSaveContext.h"  // FObjectPostSaveContext value param of PostSaveWorldWithContext
 
 DEFINE_LOG_CATEGORY_STATIC(LogUnrealClaudeMCP, Log, All);
@@ -287,24 +288,58 @@ void FUnrealClaudeMCPModule::StartupModule()
         // namespace at Editor.h:184+; subscriptions don't go through any
         // module accessor). These fire on the game thread.
 
-        // asset_post_import -- Editor.h:295/108. Fires after UFactory finishes
-        // importing an asset (whether single import_texture, batch reimport,
-        // or drag-and-drop into Content Browser). Distinct from asset_added:
-        // asset_added fires for ANY new registry entry (including the initial
-        // scan flood); asset_post_import fires only on actual import.
-        AssetPostImportHandle = FEditorDelegates::OnAssetPostImport.AddLambda(
-            [](UFactory* Factory, UObject* Asset)
+        // asset_post_import -- Subsystems/ImportSubsystem.h. Fires after UFactory
+        // finishes importing an asset (whether single import_texture, batch
+        // reimport, or drag-and-drop into Content Browser). Distinct from
+        // asset_added: asset_added fires for ANY new registry entry (including
+        // the initial scan flood); asset_post_import fires only on actual import.
+        //
+        // UE 5.7 migration (PR closing scorecard follow-up #6): the older
+        // FEditorDelegates::OnAssetPostImport static multicast (Editor.h:295/108)
+        // is marked C4996 deprecated. The replacement is the editor-subsystem
+        // delegate of the same name living on UImportSubsystem. Same callback
+        // signature (UFactory*, UObject*), so the lambda body is unchanged --
+        // only the attach surface moved off the FEditorDelegates namespace.
+        //
+        // Module LoadingPhase is PostEngineInit, so GEditor is live by the
+        // time StartupModule runs. Guard anyway: a missing subsystem skips
+        // the subscription rather than crashing the editor boot.
+        if (GEditor)
+        {
+            if (UImportSubsystem* ImportSubsystem = GEditor->GetEditorSubsystem<UImportSubsystem>())
             {
-                if (!Asset) { return; }
-                TSharedPtr<FJsonObject> Data = MakeShared<FJsonObject>();
-                Data->SetStringField(TEXT("asset_path"), Asset->GetPathName());
-                Data->SetStringField(TEXT("name"), Asset->GetName());
-                Data->SetStringField(TEXT("class"),
-                    Asset->GetClass() ? Asset->GetClass()->GetName() : TEXT(""));
-                Data->SetStringField(TEXT("factory"),
-                    (Factory && Factory->GetClass()) ? Factory->GetClass()->GetName() : TEXT(""));
-                FUCMCPEventBus::Get().Push(TEXT("asset_post_import"), Data);
-            });
+                AssetPostImportHandle = ImportSubsystem->OnAssetPostImport.AddLambda(
+                    [](UFactory* Factory, UObject* Asset)
+                    {
+                        if (!Asset) { return; }
+                        TSharedPtr<FJsonObject> Data = MakeShared<FJsonObject>();
+                        Data->SetStringField(TEXT("asset_path"), Asset->GetPathName());
+                        Data->SetStringField(TEXT("name"), Asset->GetName());
+                        Data->SetStringField(TEXT("class"),
+                            Asset->GetClass() ? Asset->GetClass()->GetName() : TEXT(""));
+                        Data->SetStringField(TEXT("factory"),
+                            (Factory && Factory->GetClass()) ? Factory->GetClass()->GetName() : TEXT(""));
+                        FUCMCPEventBus::Get().Push(TEXT("asset_post_import"), Data);
+                    });
+            }
+            else
+            {
+                // Subscription dropped silently leaves callers of poll_events
+                // chasing a missing event stream. Surface the failure in the
+                // build log instead of going quiet.
+                UE_LOG(LogUnrealClaudeMCP, Warning,
+                    TEXT("UImportSubsystem unavailable at StartupModule; asset_post_import events will not fire. ")
+                    TEXT("Other delegate subscriptions (PostSaveWorldWithContext, MapChange) are unaffected."));
+            }
+        }
+        else
+        {
+            // PostSaveWorldWithContext and MapChange subscriptions below use the
+            // FEditorDelegates static namespace and remain unaffected.
+            UE_LOG(LogUnrealClaudeMCP, Warning,
+                TEXT("GEditor null at StartupModule despite PostEngineInit phase; ")
+                TEXT("asset_post_import subscription skipped."));
+        }
 
         // level_post_save -- Editor.h:273/92. Fires after a UWorld is saved.
         // FObjectPostSaveContext carries cook/save flags; we expose just the
@@ -387,9 +422,21 @@ void FUnrealClaudeMCPModule::ShutdownModule()
     // Detach editor delegates (PR #41). FEditorDelegates::* are static
     // multicasts; no module-load step required to remove. Safe to call
     // unconditionally once we've checked the handle is valid.
+    //
+    // OnAssetPostImport: lives on UImportSubsystem (UE 5.7+). Re-fetch the
+    // subsystem here so we don't have to cache a pointer that could be stale
+    // by ShutdownModule. If GEditor or the subsystem is already torn down,
+    // skip the Remove -- the delegate's lifetime is bounded by the subsystem
+    // it lives on, so a missing subsystem means the handler is already gone.
     if (AssetPostImportHandle.IsValid())
     {
-        FEditorDelegates::OnAssetPostImport.Remove(AssetPostImportHandle);
+        if (GEditor)
+        {
+            if (UImportSubsystem* ImportSubsystem = GEditor->GetEditorSubsystem<UImportSubsystem>())
+            {
+                ImportSubsystem->OnAssetPostImport.Remove(AssetPostImportHandle);
+            }
+        }
         AssetPostImportHandle.Reset();
     }
     if (PostSaveWorldHandle.IsValid())

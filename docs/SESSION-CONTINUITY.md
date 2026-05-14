@@ -245,7 +245,7 @@ User brings a real photo. The plugin turns it into an Unreal output — studio b
 
 ### Pre-requisites
 
-1. **Host UE 5.7 cold-compile** — still pending from Wave A / A.5. See `docs/HANDOFF.md` "Verification runbook" (steps 1–6). Without the rebuild, 7 C++ handlers return JSON-RPC `-32601` (method not found). Note: `HANDOFF.md`'s verification-runbook step 5 currently reads "17 bridge-side synthetic tools" / "Total tools visible to MCP clients: 88" — pre-Wave-B/C/D numbers. Mentally substitute **29 synthetic tools** / **100 total** until that doc's count is refreshed.
+1. **Host UE 5.7 cold-compile** — still pending from Wave A / A.5. See `docs/HANDOFF.md` "Verification runbook" (steps 1–6). Without the rebuild, 7 C++ handlers return JSON-RPC `-32601` (method not found).
 2. UE editor running with the plugin loaded; TCP server bound on `127.0.0.1:18888`.
 3. MCP client connected (bridge wired in client's `.mcp.json`).
 4. (Optional, for local pre-commit ensemble review during the test run) admin-shell fix for the local-daemon env-var bug.
