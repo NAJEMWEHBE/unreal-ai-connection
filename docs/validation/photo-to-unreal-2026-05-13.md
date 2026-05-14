@@ -8,13 +8,25 @@ Scorecard for the 100-tool exercise planned in [docs/SESSION-CONTINUITY.md](../S
 - Stage 10 widget HUD: INCLUDE
 - Stage 17 packaging: SKIP-user
 
-## Scene-proof artifact
+## Scene-proof artifact (v2 — actual 3D reconstruction)
 
 ![scene-proof](scene-proof.png)
 
-`scene-proof.png` in this folder is the actual UE 5.7 viewport capture of the photo composed into a 3D scene — the photo applied as a `UMaterialInstanceConstant` (`/Game/Validation/PhotoMI`, parent `M_HDMediaBillboard`) onto a `StaticMeshActor` plane, with a `StaticMeshActor` cube actor in front, a DirectionalLight + PointLight, and a positioned editor camera. End-to-end pipeline executes through MCP tool calls only: `import_texture` → `create_material_instance` → `set_mi_parameter` → `spawn_actor` (plane + cube + DirLight + PointLight) + `execute_unreal_python` (material assignment, until the TArray transport bug is fixed) → `set_camera_transform` → `HighResShot` (via `execute_console_command`).
+`scene-proof.png` in this folder is the actual UE 5.7 viewport capture of the user's photo **reconstructed as a 3D scene from primitives + atmosphere actors**, not the photo slapped on a plane (which was the v1 artifact in PR #176 — superseded). The reconstruction was driven by `scripts/build_desert_scene.py` running through `mcp__unreal-claude-mcp__run_python_file` — one round-trip rebuild that:
 
-**Known cosmetic quirk on the captured frame**: the photo is rotated 90° clockwise from its source-portrait orientation. Cause: `unreal.Rotator(roll, pitch, yaw)` positional-argument convention doesn't match the dict-display order `{pitch, yaw, roll}` returned by `set_actor_transform`. The plane was set to `pitch=90, yaw=0, roll=0` to stand it vertical, which puts the surface normal along world +X (toward the camera at world -X with backface culling working in our favour) and leaves texture-V mapped to world +Y instead of world +Z. Easiest production fix is to rotate the UV inside the parent material (`M_HDMediaBillboard`) instead of stacking euler rotations; alternative is `pitch=-90, yaw=180, roll=0` plus the matching surface-normal flip. Out of scope for THIS scorecard PR — the pipeline itself is verified end-to-end.
+ - Wipes prior `Val*` / `Desert_*` actors + hides the project's competing `SM_SkySphere` and any pre-existing atmosphere/light actors so the new stack dominates.
+ - Creates 5 `MaterialInstanceConstant` assets (`MI_Sand`, `MI_Rock`, `MI_TowerMetal`, `MI_Crate`, `MI_Dark`) under `/Game/Validation/Desert/`, each parented to `/Engine/BasicShapes/BasicShapeMaterial` with a tinted `Color` + `Roughness` override.
+ - Spawns the atmosphere stack: `SkyAtmosphere` + `DirectionalLight` (low pitch, warm 3000 K, 15-intensity, `atmosphere_sun_light=true`) + `ExponentialHeightFog` (volumetric, density 0.12, warm-orange directional inscattering) + `SkyLight` (real-time capture) + `VolumetricCloud`.
+ - Spawns the geometry: 1 ground plane (sand), 18 buried-sphere dunes (sand), 8 distant Cube mountain silhouettes (rock), 3 stepped pyramid Cubes (dark), 4 lattice tower legs (cylinders) + 36 horizontal cube braces + Cone cap, 1 vertical thick cable (cylinder), 4 foreground gantries (each = 2 cylinder legs + 3 cube braces), 20 crates (cubes) clustered toward camera.
+ - Sets the editor viewport camera at `(-3200, 300, 800)` with `pitch=5, yaw=-5` to frame the tower + crates + atmospheric depth.
+
+**What the artifact is**: a compositional match of the source photo — warm sunset haze, central lattice tower with vertical cable rising to sky, stepped pyramid base behind tower, flanking gantries, scattered crates, atmospheric depth that hides the distant mountain wedges in the haze (as in the source).
+
+**What the artifact is NOT**: a photogrammetric reconstruction of the source photo's specific tower geometry. There is no MCP tool wired for single-image-to-mesh / photogrammetry, no shipped UE plugin in this project for it, and no in-engine procedural mesh-generation API that turns a 2D image into a textured 3D building. The match is therefore impressionistic. For a true photogrammetric match, an external tool (Tripo / Meshy / Rodin / RealityCapture) would generate an FBX, then a new MCP `import_static_mesh` C++ handler would import it.
+
+**Re-run**: `mcp__unreal-claude-mcp__run_python_file path=F:\UnrealClaudeMCP\scripts\build_desert_scene.py` (idempotent — wipes the prior Desert_* actors first). Capture via `set_camera_transform` (forces viewport redraw) + `get_viewport_screenshot` (returns base64 PNG, decode to disk).
+
+The earlier v1 artifact (a flat photo-on-plane in the editor viewport) was superseded by this v2; the photo-on-plane approach was misreading the user's request and produced no recognisable 3D scene.
 
 ## Environment
 
