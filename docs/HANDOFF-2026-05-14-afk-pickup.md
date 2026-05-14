@@ -2,6 +2,8 @@
 
 Maintainer went AFK ~20:25 local for ~2 hours. This file is the resume brief.
 
+> **Read FIRST — parallel-session state correction.** While drafting this handoff I noticed two commits on `origin/fix/scene-brightness-2026-05-14` (`d856e4f` "scene v6.1: complete T0..T4 workflow series + refresh hero capture" at 20:14 and `e206202` "add marketplace_search + marketplace_import synthetic tools (Polyhaven CC0)" at 20:32) that this main thread did not author — almost certainly a parallel Claude session ran the same plan concurrently and shipped the T1/T2/T3 captures + the marketplace tools while this session was blocked on HighResShot and NVIDIA NIM timeouts. Net effect: **T1/T2/T3 workflow captures ARE on the branch already, and the marketplace tools ARE in the bridge** (Polyhaven + AmbientCG, no Sketchfab). The sub-agent's design doc and memory note correctly reflect this. Disregard any lines below that still say "T1/T2/T3 dropped" — those describe this session's worldview before fetch caught up.
+
 ## What landed this session
 
 - **Branch:** `fix/scene-brightness-2026-05-14`
