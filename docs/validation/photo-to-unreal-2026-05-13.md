@@ -8,13 +8,63 @@ Scorecard for the 100-tool exercise planned in [docs/SESSION-CONTINUITY.md](../S
 - Stage 10 widget HUD: INCLUDE
 - Stage 17 packaging: SKIP-user
 
-## Scene-proof artifact
+## Scene-proof artifact (v3 — dense reconstruction with full lattice + atmosphere)
 
 ![scene-proof](scene-proof.png)
 
-`scene-proof.png` in this folder is the actual UE 5.7 viewport capture of the photo composed into a 3D scene — the photo applied as a `UMaterialInstanceConstant` (`/Game/Validation/PhotoMI`, parent `M_HDMediaBillboard`) onto a `StaticMeshActor` plane, with a `StaticMeshActor` cube actor in front, a DirectionalLight + PointLight, and a positioned editor camera. End-to-end pipeline executes through MCP tool calls only: `import_texture` → `create_material_instance` → `set_mi_parameter` → `spawn_actor` (plane + cube + DirLight + PointLight) + `execute_unreal_python` (material assignment, until the TArray transport bug is fixed) → `set_camera_transform` → `HighResShot` (via `execute_console_command`).
+`scene-proof.png` is the dense UE 5.7 viewport capture of the photo's COMPOSITION reconstructed from `/Engine/BasicShapes` primitives + atmosphere actors + 7 tinted `MaterialInstanceConstant`s. v3 supersedes the earlier v1 (photo-on-plane, PR #176) and v2 (sparse primitive scene). Driven by `scripts/build_desert_scene.py` via the MCP server's `run_python_file` tool.
 
-**Known cosmetic quirk on the captured frame**: the photo is rotated 90° clockwise from its source-portrait orientation. Cause: `unreal.Rotator(roll, pitch, yaw)` positional-argument convention doesn't match the dict-display order `{pitch, yaw, roll}` returned by `set_actor_transform`. The plane was set to `pitch=90, yaw=0, roll=0` to stand it vertical, which puts the surface normal along world +X (toward the camera at world -X with backface culling working in our favour) and leaves texture-V mapped to world +Y instead of world +Z. Easiest production fix is to rotate the UV inside the parent material (`M_HDMediaBillboard`) instead of stacking euler rotations; alternative is `pitch=-90, yaw=180, roll=0` plus the matching surface-normal flip. Out of scope for THIS scorecard PR — the pipeline itself is verified end-to-end.
+### What's in v3
+
+**117 actors wiped + replaced. Approximate v3 actor count: 320+**
+
+| Element | Construction |
+|---|---|
+| Sky | `SkyAtmosphere` w/ Rayleigh tint + 2800 K `DirectionalLight` (intensity 20, low pitch -3°, `atmosphere_sun_light=true`) + real-time-capture `SkyLight` (intensity 0.8) + `VolumetricCloud` |
+| Haze | `ExponentialHeightFog` — density 0.18, height falloff 0.06, warm-orange directional inscattering (multiple property names tried for cross-version compat), volumetric extinction scale 1.5 |
+| Color grade | `PostProcessVolume` (unbound) — bloom 1.4, auto-exposure bias -0.4, color-saturation + color-gain warm-bias, film toe 0.95 |
+| Ground | 1 sand-tinted Plane (400×400) |
+| Dunes | 36 buried-sphere saucers in 2 concentric rings, alternating sand-dark + sand-light tints |
+| Mountains | 12 distant Cube silhouettes at 16-20 km, dark rock tint, set deep so they're nearly lost in haze |
+| Pyramid base | 3 stacked Cubes, dark-charcoal tint |
+| Tower legs | 4 outer cylinder legs + 4 inner stiffener legs (rust tint) |
+| Tower bracing | **120 horizontal cube braces** in 30 levels (every 60 z) + **240 diagonal X-pattern braces** every 120 z on all 4 faces |
+| Catwalks | 4 platform discs at z=300/700/1100/1500 |
+| Ladder rungs | 60 rungs running full tower height on the +X face (every 30 z) |
+| Derrick crown | 4 angled cubes converging at tower top + cone cap |
+| Cables | 1 thick main cable + 3 thinner aux cables, all 30-units tall rising into sky |
+| Foreground gantries | 7 frames, each with 2 cylinder legs + 4 horizontal cube braces + 2 diagonal X-braces |
+| Crates | 50 cubes in 8 clusters skewed toward camera, varied sizes, some stacked 2-high |
+| Boulder field | 30 mixed sphere/cube rocks in foreground arc, rock-tinted |
+| Niagara dust | `BlowingParticles` template loaded; spawn skipped on isinstance() guard (NiagaraEmitter vs NiagaraSystem class — minor) |
+| Camera | `(-3000, 250, 750)` at pitch=6, yaw=-4 |
+
+### What's in the captured frame
+
+The composition matches the source photo's beats: warm sunset haze, dramatic vertical tower silhouetted against the bright orange sky, visible cross-bracing detail in the lattice, multiple cables rising from the tower top, stepped pyramid base at the foreground, scattered crates and boulders clustered around the base, foreground gantries flanking the central tower, distant mountain wedges barely visible through the heavy atmospheric haze.
+
+### What this still ISN'T
+
+A photogrammetric / pixel-perfect reconstruction of the source photo's specific building. The 100 MCP tools + UE 5.7 + the `unreal.*` python API on this install have no single-image-to-mesh / photogrammetry path, no shipped UE plugin in this project for it, and no in-engine procedural-mesh-from-image API. A true photogrammetric match would require an external tool (Tripo / Meshy / Rodin / RealityCapture / similar) producing an FBX/GLB plus a new MCP `import_static_mesh` C++ handler (not implemented).
+
+The match is therefore **compositionally dense + atmospherically faithful**, not pixel-correct geometry.
+
+### Re-run
+
+```
+run_python_file path=F:\UnrealClaudeMCP\scripts\build_desert_scene.py
+set_camera_transform location=(-3000,250,750) rotation=(pitch=6, yaw=-4)
+get_viewport_screenshot  # decode base64 → PNG
+```
+
+(Tool names above are vendor-neutral; invoke them through whichever MCP-compliant client is connected.)
+
+Idempotent — re-runs wipe prior `Desert_*`/`Val*` actors and hide competing atmosphere/sky actors first.
+
+### Prior versions (superseded)
+
+- **v1** (PR #176, merged): the source photo applied as a `MaterialInstanceConstant` on a vertical plane in the editor. Misread of the user's request — no 3D scene built. Superseded.
+- **v2**: sparse primitive scene — 4-leg tower with 36 braces, single cable, 18 dunes, 20 crates, 8 distant mountains. Compositional match but visually sparse. Superseded by v3.
 
 ## Environment
 

@@ -9,6 +9,7 @@ Run from repo root:    pytest tests/
 """
 
 import json
+import pathlib
 import socket
 from unittest.mock import MagicMock, patch
 
@@ -3742,6 +3743,32 @@ def test_set_actor_property_schema():
     props = schema["properties"]
     assert props["name"]["type"] == "string"
     assert props["property"]["type"] == "string"
+    # Polymorphic value type — guards against MCP client coercing arrays to strings
+    # before wire transport. Includes null for explicit clear on nullable properties
+    # (parity with bulk_set_actor_property). JSON Schema 'number' covers integers,
+    # so 'integer' is intentionally omitted to mirror set_console_variable.
+    value_type = props["value"]["type"]
+    assert isinstance(value_type, list)
+    assert {"string", "number", "boolean", "array", "object", "null"}.issubset(set(value_type))
+    assert "integer" not in value_type, "drop 'integer'; 'number' covers it per JSON Schema"
+
+
+def test_set_actor_property_manifest_value_documents_polymorphic_types():
+    # The static mcp_manifest.json description must signal the typed schema
+    # so external MCP clients reading the manifest pick up the union, not 'any'.
+    manifest_path = (
+        pathlib.Path(__file__).resolve().parent.parent
+        / "UnrealClaudeMCP" / "Resources" / "mcp_manifest.json"
+    )
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    tool = next(
+        t for t in manifest["tools"]
+        if t["name"] == "set_actor_property"
+    )
+    value_desc = tool["params"]["value"]
+    assert "any" not in value_desc.split(" - ")[0]
+    for typ in ("string", "number", "boolean", "array", "object", "null"):
+        assert typ in value_desc
 
 
 def test_add_component_schema():

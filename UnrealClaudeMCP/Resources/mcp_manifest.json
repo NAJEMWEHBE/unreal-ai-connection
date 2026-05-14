@@ -208,7 +208,7 @@
       "params": {
         "name": "string (required) - actor label OR FName",
         "property": "string (required) - UPROPERTY name",
-        "value": "any (required) - coerced to FProperty type"
+        "value": "string | number | boolean | array | object | null (required) - polymorphic JSON; coerced to FProperty type. Use JSON arrays for TArray / TSet (e.g. OverrideMaterials), JSON objects for FVector / FRotator / FLinearColor / FInstancedStruct / TMap, and null for explicit clear on nullable properties. JSON Schema 'number' covers integers; the typed schema (instead of 'any') prevents strict MCP clients from stringifying array values before wire transport."
       },
       "returns": { "ok": "bool", "name": "string", "property": "string", "old_value": "any", "new_value": "any" }
     },

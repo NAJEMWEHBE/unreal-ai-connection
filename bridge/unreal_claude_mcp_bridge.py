@@ -807,7 +807,7 @@ TOOLS = [
             "properties": {
                 "name": {"type": "string", "description": "Actor label or FName."},
                 "property": {"type": "string", "description": "UPROPERTY name (case-sensitive)."},
-                "value": {"description": "JSON value coerced based on the FProperty type. See docs/TOOLS.md for the supported types table."},
+                "value": {"type": ["string", "number", "boolean", "array", "object", "null"], "description": "JSON value coerced based on the FProperty type. Polymorphic: primitives for scalar UPROPERTYs, JSON arrays for TArray / TSet (e.g. OverrideMaterials), JSON objects for FVector / FRotator / FLinearColor / FInstancedStruct / TMap, and null for explicit clear on nullable properties. Declaring the typed union (instead of leaving value untyped) prevents strict MCP clients from coercing array values to JSON strings before wire transport. JSON Schema `number` validates integers; `integer` omitted to mirror set_console_variable. See docs/TOOLS.md for the full supported-types table."},
             },
             "required": ["name", "property", "value"],
         },
