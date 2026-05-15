@@ -9,6 +9,9 @@ Axis convention (cm): +X = North (into the cliff), -X = South (river
 outflow / main camera). +Y = East (golden sun side), -Y = West. Z up.
 River sits at Z=0; viaduct deck ~Z1800; cathedral spire tops ~Z6000.
 """
+import math
+import random
+
 import unreal
 
 PREFIX = "ELV_"
@@ -31,8 +34,11 @@ SHAPES = {
 
 def make_mat(name, rgb, emissive=0.0, rough=0.6):
     path = f"{PKG}_{name}"
+    # Rebuild on every run so colour/rough/emissive tweaks actually take
+    # effect when iterating — a stale early-return defeats the point of
+    # an idempotent scene script.
     if el.does_asset_exist(path):
-        return unreal.load_asset(path)
+        el.delete_asset(path)
     m = tools.create_asset(f"M_{name}", "/Game/ElvenCity",
                            unreal.Material, unreal.MaterialFactoryNew())
     col = mel.create_material_expression(m, unreal.MaterialExpressionConstant3Vector, -400, 0)
@@ -51,7 +57,7 @@ def make_mat(name, rgb, emissive=0.0, rough=0.6):
 
 
 def wipe():
-    for a in els.get_all_level_actors():
+    for a in list(els.get_all_level_actors()):
         try:
             if a.get_actor_label().startswith(PREFIX):
                 els.destroy_actor(a)
@@ -118,7 +124,6 @@ for i, y in enumerate(range(-2800, 3400, 900)):
           (3, 7, 3), STONE, rot=(0, 90, 0))
 
 # --- (5) domed pavilion + (7) beacon crystal mid-span ---
-import math
 for k in range(8):
     ang = math.radians(k * 45)
     spawn("cyl", f"Pav_Col{k}",
@@ -138,7 +143,6 @@ for i, (x, y) in enumerate([(3800, -3050), (4250, -3050), (4900, -1900), (3500, 
     spawn("cube", f"Fall{i}", (x, y, 1500), (0.4, 3.5, 30), WATER)
 
 # --- (6) autumn pine forest, flanking E + W + foreground slopes ---
-import random
 random.seed(7)
 n = 0
 for (xc, yc, rad, count) in [(-700, 2600, 1700, 22), (-300, -2600, 1500, 20),
@@ -154,7 +158,6 @@ for (xc, yc, rad, count) in [(-700, 2600, 1700, 22), (-300, -2600, 1500, 20),
 # --- lighting + atmosphere (golden-hour sunburst mood) ---
 sun = ell.spawn_actor_from_class(unreal.DirectionalLight, unreal.Vector(0, 0, 9000))
 sun.set_actor_label(PREFIX + "Sun")
-sun.set_actor_rotation(unreal.Rotator(roll=0, pitch=-7, yaw=125), False)
 sun.set_actor_rotation(unreal.Rotator(roll=0, pitch=-12, yaw=130), False)
 sc = sun.get_component_by_class(unreal.DirectionalLightComponent)
 sc.set_editor_property("intensity", 5.0)
