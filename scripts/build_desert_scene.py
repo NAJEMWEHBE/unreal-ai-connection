@@ -274,7 +274,7 @@ except Exception as e:
 sun = ell.spawn_actor_from_class(
     unreal.DirectionalLight,
     unreal.Vector(0, 0, 500),
-    unreal.Rotator(roll=0.0, pitch=-35.0, yaw=-45.0),  # v6: pitch -3 (horizon-skimming) → -35 (midday overhead). Named args — Rotator positional order is (roll, pitch, yaw)
+    unreal.Rotator(roll=0.0, pitch=-35.0, yaw=-45.0),  # v6: pitch -3 (horizon-skimming) -> -35 (midday overhead). Named args; Rotator positional order is (pitch, yaw, roll) per Rotator.h:103.
 )
 sun.set_actor_label('Desert_Sun')
 sun_comp = sun.light_component

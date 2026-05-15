@@ -5130,8 +5130,6 @@ def _marketplace_http_download(url: str, dest_path: str) -> dict | None:
     except Exception as e:
         return {"code": -32603, "message": f"download_failed: url={url}: {e}"}
     try:
-        if os.path.exists(dest_path):
-            os.remove(dest_path)
         os.replace(tmp, dest_path)
     except Exception as e:
         return {"code": -32603, "message": f"rename_failed: {tmp} -> {dest_path}: {e}"}
@@ -5149,30 +5147,28 @@ def _polyhaven_type_for(asset_type: str) -> str | None:
 def _polyhaven_search(query: str, asset_type: str, limit: int) -> tuple[list[dict] | None, dict | None]:
     type_filter = _polyhaven_type_for(asset_type) if asset_type != "all" else None
     # Polyhaven's /assets endpoint returns the full catalog scoped by
-    # ?type=<hdris|textures|models|all> (omitted = all types) and
-    # ?search=keyword. The keyword is matched server-side across name +
-    # categories + tags.
+    # ?type=<hdris|textures|models|all> (omitted = all types). The
+    # ?search= query parameter is documented but the public API ignores
+    # it and returns the full catalog regardless, so the query is
+    # applied client-side below via AND-token matching across name +
+    # tags + categories + slug, then ranked by download_count desc
+    # before applying the limit.
     url = "https://api.polyhaven.com/assets"
-    qparts = []
     if type_filter is not None:
-        qparts.append(f"type={type_filter}")
-    if query:
-        import urllib.parse
-        qparts.append(f"search={urllib.parse.quote(query)}")
-    if qparts:
-        url = url + "?" + "&".join(qparts)
+        url = url + "?type=" + type_filter
     data, err = _marketplace_http_get_json(url)
     if err is not None:
         return None, err
     if not isinstance(data, dict):
         return None, {"code": -32603, "message": "polyhaven: unexpected payload (not a JSON object)"}
     inv_type = {0: "hdri", 1: "texture", 2: "model"}
-    results: list[dict] = []
+    tokens = [t.lower() for t in (query or "").split() if t]
+    candidates: list[dict] = []
     for slug, meta in data.items():
         if not isinstance(meta, dict):
             continue
         t = inv_type.get(meta.get("type"), "unknown")
-        results.append({
+        entry = {
             "slug": slug,
             "name": meta.get("name") or slug,
             "source": "polyhaven",
@@ -5183,10 +5179,19 @@ def _polyhaven_search(query: str, asset_type: str, limit: int) -> tuple[list[dic
             "description": meta.get("description") or "",
             "max_resolution": meta.get("max_resolution") or None,
             "download_count": meta.get("download_count") or 0,
-        })
-        if len(results) >= limit:
-            break
-    return results, None
+        }
+        if tokens:
+            haystack = " ".join([
+                slug,
+                str(entry["name"]),
+                " ".join(entry["tags"]),
+                " ".join(entry["categories"]),
+            ]).lower()
+            if not all(tok in haystack for tok in tokens):
+                continue
+        candidates.append(entry)
+    candidates.sort(key=lambda e: e["download_count"], reverse=True)
+    return candidates[:limit], None
 
 
 def _ambientcg_search(query: str, asset_type: str, limit: int) -> tuple[list[dict] | None, dict | None]:
@@ -5299,43 +5304,52 @@ def synthetic_marketplace_search(req_id, args: dict) -> dict:
     return _wrap_tool_result(req_id, body)
 
 
-def _polyhaven_pick_file(files: dict, asset_type: str, resolution: str, fmt: str) -> tuple[str | None, list[str], dict | None]:
+def _polyhaven_pick_file(files: dict, asset_type: str, resolution: str, fmt: str) -> tuple[str | None, str | None, list[str], dict | None]:
     """Drill into Polyhaven's /files/{slug} response to pull the URL of
     the diffuse/HDRI file at the requested resolution + format.
 
-    Returns (download_url, available_resolutions, error). On success
-    download_url is set and error is None. On failure download_url is
-    None and error is shaped for make_response.
+    Returns (download_url, chosen_format, available_resolutions, error).
+    chosen_format is the format actually picked (may differ from the
+    requested fmt when a fallback fires — e.g. caller asked 'png' but
+    only 'jpg' exists). On failure download_url is None.
     """
+    def _resolution_sort_key(r: str) -> tuple[int, str]:
+        # Polyhaven resolutions are e.g. "1k","2k","4k","8k","16k". Sort
+        # by leading integer so "10k" beats "2k". Fall back to lexical
+        # for anything non-conforming.
+        if r.endswith("k") and r[:-1].isdigit():
+            return (int(r[:-1]), r)
+        return (0, r)
+
     if asset_type == "hdri":
         # HDRI files live under "hdri": {"4k": {"exr": {...}, "hdr": {...}}}
         hdri = files.get("hdri") or {}
-        resolutions = sorted(hdri.keys())
+        resolutions = sorted(hdri.keys(), key=_resolution_sort_key)
         block = hdri.get(resolution)
         if not isinstance(block, dict):
-            return None, resolutions, {"code": -32603, "message": f"resolution_unavailable: '{resolution}' not in available {resolutions}"}
+            return None, None, resolutions, {"code": -32603, "message": f"resolution_unavailable: '{resolution}' not in available {resolutions}"}
         # Prefer EXR for HDRI; fall back to HDR.
         for f in [fmt, "exr", "hdr"]:
             entry = block.get(f)
             if isinstance(entry, dict) and "url" in entry:
-                return entry["url"], resolutions, None
-        return None, resolutions, {"code": -32603, "message": f"format_unavailable: tried {fmt}/exr/hdr in resolution {resolution}"}
+                return entry["url"], f, resolutions, None
+        return None, None, resolutions, {"code": -32603, "message": f"format_unavailable: tried {fmt}/exr/hdr in resolution {resolution}"}
     if asset_type == "texture":
         # Texture files: top-level keys are map names ("Diffuse", "Normal", etc.)
         # v1 imports diffuse only.
         diff = files.get("Diffuse") or files.get("diffuse") or files.get("Color")
         if not isinstance(diff, dict):
-            return None, [], {"code": -32603, "message": "texture_no_diffuse: Polyhaven payload lacks a Diffuse/Color map"}
-        resolutions = sorted(diff.keys())
+            return None, None, [], {"code": -32603, "message": "texture_no_diffuse: Polyhaven payload lacks a Diffuse/Color map"}
+        resolutions = sorted(diff.keys(), key=_resolution_sort_key)
         block = diff.get(resolution)
         if not isinstance(block, dict):
-            return None, resolutions, {"code": -32603, "message": f"resolution_unavailable: '{resolution}' not in available {resolutions}"}
+            return None, None, resolutions, {"code": -32603, "message": f"resolution_unavailable: '{resolution}' not in available {resolutions}"}
         for f in [fmt, "png", "jpg"]:
             entry = block.get(f)
             if isinstance(entry, dict) and "url" in entry:
-                return entry["url"], resolutions, None
-        return None, resolutions, {"code": -32603, "message": f"format_unavailable: tried {fmt}/png/jpg in resolution {resolution}"}
-    return None, [], {"code": -32603, "message": f"asset_type_unsupported: '{asset_type}' (marketplace_import v1 supports texture + hdri only)"}
+                return entry["url"], f, resolutions, None
+        return None, None, resolutions, {"code": -32603, "message": f"format_unavailable: tried {fmt}/png/jpg in resolution {resolution}"}
+    return None, None, [], {"code": -32603, "message": f"asset_type_unsupported: '{asset_type}' (marketplace_import v1 supports texture + hdri only)"}
 
 
 def synthetic_marketplace_import(req_id, args: dict) -> dict:
@@ -5415,14 +5429,17 @@ def synthetic_marketplace_import(req_id, args: dict) -> dict:
             "code": -32603,
             "message": f"marketplace_import: unexpected_payload: /files/{slug} did not return a JSON object",
         })
-    download_url, available, pick_err = _polyhaven_pick_file(files, asset_type, resolution, fmt)
+    download_url, chosen_fmt, available, pick_err = _polyhaven_pick_file(files, asset_type, resolution, fmt)
     if pick_err is not None:
         return make_response(req_id, error=pick_err)
 
-    # 2. Download to temp.
+    # 2. Download to temp. Suffix derives from the chosen format (which
+    # may differ from the requested fmt when a fallback fires), so
+    # downstream `import_texture` extension-validation picks the right
+    # importer.
     import tempfile
     import os
-    suffix = "." + (fmt or "bin")
+    suffix = "." + (chosen_fmt or fmt or "bin")
     tmp_dir = tempfile.gettempdir()
     safe_slug = "".join(c for c in slug if c.isalnum() or c in "._-")
     tmp_path = os.path.join(tmp_dir, f"marketplace_{safe_slug}_{resolution}{suffix}")
