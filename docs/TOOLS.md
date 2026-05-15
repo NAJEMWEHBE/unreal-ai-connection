@@ -1,6 +1,6 @@
 # MCP Tools Reference
 
-**103 tools total.** 71 are JSON-RPC 2.0 methods served on `127.0.0.1:18888` directly by the plugin's C++ handlers. The remaining 32 — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`, `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap` — are bridge-side **synthetic tools** that are intercepted by `bridge/unreal_claude_mcp_bridge.py` and served by composing existing handlers (or running Python via `execute_unreal_python`, or — for `compile_mod_pak` — shelling out to `RunUAT.bat` entirely outside the UE process). They are visible to MCP clients exactly like the C++ tools but cannot be reached by sending raw JSON-RPC to the TCP socket — only via the MCP bridge or by replicating their composition manually. The "Implementation" header on each entry below indicates whether a tool is C++ or bridge-side.
+**104 tools total.** 71 are JSON-RPC 2.0 methods served on `127.0.0.1:18888` directly by the plugin's C++ handlers. The remaining 33 — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`, `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap`, `sequencer_add_transform_keyframe` — are bridge-side **synthetic tools** that are intercepted by `bridge/unreal_claude_mcp_bridge.py` and served by composing existing handlers (or running Python via `execute_unreal_python`, or — for `compile_mod_pak` — shelling out to `RunUAT.bat` entirely outside the UE process). They are visible to MCP clients exactly like the C++ tools but cannot be reached by sending raw JSON-RPC to the TCP socket — only via the MCP bridge or by replicating their composition manually. The "Implementation" header on each entry below indicates whether a tool is C++ or bridge-side.
 
 Each tool's params and result are documented with a working example.
 
@@ -13,7 +13,7 @@ s.send(json.dumps({"jsonrpc":"2.0","id":1,"method":"<METHOD>","params":{...}}).e
 print(s.recv(65536).decode())
 ```
 
-Synthetic tools (all 29: `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`) must be reached through the MCP bridge.
+Synthetic tools (all 33: `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`, `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap`, `sequencer_add_transform_keyframe`) must be reached through the MCP bridge.
 
 ---
 
@@ -3960,6 +3960,65 @@ Convert a longlat-projection HDRI (`UTexture2D`) into a `UTextureCube` so it can
 ```
 
 After this returns, assign the cube to `SkyLight.cubemap` and set `SkyLight.source_type=SLS_SPECIFIED_CUBEMAP` — that completes the pipeline the SkyLight-from-longlat workaround in the 23rd HANDOFF note was avoiding.
+
+---
+
+## sequencer_add_transform_keyframe
+
+Add a single keyframe on a Level Sequence's 3D Transform Track for a previously-bound actor. Closes the keyframe-authoring half of the 21st HANDOFF note's Sequencer parked item — `create_sequence` and `bind_actor_to_sequence` already exist; this tool fills in the missing leg that writes keys on a binding's transform. Movie Render Queue remains parked.
+
+**Bridge-side synthetic tool.** Pipeline:
+
+1. Load the LevelSequence via `EditorAssetLibrary.load_asset`; aborts with `sequence_not_found` / `not_a_sequence` if the load returns `None` or the wrong class.
+2. Parse `binding_id` via `unreal.GuidLibrary.parse_string_to_guid` (returns `(Guid, success)`); aborts with `binding_not_found` if the parse fails.
+3. Resolve the binding proxy with `MovieSceneSequenceExtensions.find_binding_by_id(seq, parsed_guid)`. An unmatched GUID still returns a proxy struct, so the script re-validates against the proxy's own `get_id()` — a stale GUID surfaces as an invalid Guid here.
+4. Find or create a single `MovieScene3DTransformTrack` on the binding (`find_tracks_by_exact_type` / `add_track` are bound methods on the proxy class in UE 5.7).
+5. Find or create the section. Optionally extend the section's seconds-range to cover `time_seconds`.
+6. Walk `section.get_all_channels()` (returns nine `MovieSceneScriptingDoubleChannel`s named `Location.X / Y / Z`, `Rotation.X / Y / Z`, `Scale.X / Y / Z`) and match each requested component. Caller's `rotation = [pitch, yaw, roll]` is remapped to the channel layout (Roll → Rotation.X, Pitch → Rotation.Y, Yaw → Rotation.Z).
+7. Call `ch.add_key(frame_no, value, 0.0, MovieSceneTimeUnit.TICK_RESOLUTION, MovieSceneKeyInterpolation.<member>)` once per channel.
+8. Save the loaded sequence.
+
+**Params**:
+
+- `sequence_path` *(string, **required**)* — UE asset path of the LevelSequence. Must start with `/Game/`.
+- `binding_id` *(string, **required**)* — GUID string returned by `bind_actor_to_sequence`. Accepts the bare 32-hex form (no dashes) UE produces by default; dashed/braced forms also parse. Validator enforces the GUID character set (hex + `-` + `{` + `}`) before passing through to UE.
+- `time_seconds` *(number, **required**, ≥ 0)* — time in seconds at which to place the keyframe. Converted internally to a tick-resolution `FrameNumber` using `MovieSceneSequenceExtensions.get_tick_resolution(seq)`.
+- `location` *(list[3] of numbers, optional)* — `[x, y, z]` translation. Omit to skip the three Location channels entirely.
+- `rotation` *(list[3] of numbers, optional)* — `[pitch, yaw, roll]` in degrees (matches `unreal.Rotator`'s constructor). Internally remapped to the channel layout (Roll → `Rotation.X`, Pitch → `Rotation.Y`, Yaw → `Rotation.Z`). Omit to skip the three Rotation channels.
+- `scale` *(list[3] of numbers, optional)* — `[x, y, z]` scale. Omit to skip the three Scale channels.
+- `interpolation` *(string, optional, default `"linear"`)* — one of `linear` / `constant` / `auto` / `smart_auto` / `cubic`. Maps to the `MovieSceneKeyInterpolation` enum; `cubic` is an alias for `SMART_AUTO`.
+- `auto_extend_section` *(bool, optional, default `true`)* — if the section's seconds-range doesn't cover `time_seconds`, extend it via `section.set_range_seconds(min(start, t), max(end, t))`.
+
+At least one of `location` / `rotation` / `scale` must be present — callers passing none get a `nothing_to_key` `-32602` error rather than a no-op round trip into UE.
+
+**Result**:
+
+- `ok` — bool.
+- `sequence_path`, `binding_id`, `time_seconds`, `interpolation` — echoes of input (`interpolation` is the resolved enum member, e.g. `LINEAR`).
+- `keys_added` *(int)* — total channel-keys created (sum across the components actually written; 3 per supplied component).
+- `channels_keyed` *(list of string)* — e.g. `["Location.X", "Location.Y", "Location.Z", "Rotation.Y"]`.
+- `track_path` *(string or null)* — full path of the underlying `MovieScene3DTransformTrack` asset when the inner UE script's marker line is captured; UE's `execute_unreal_python` may discard stdout on success, in which case `track_path` is `null` but the keyframe is still written.
+
+**Errors**:
+
+- `-32602 invalid_arguments` / `invalid_field: ...` — argument validation (missing/wrong-type/out-of-range fields, malformed `binding_id` characters, empty triples).
+- `-32602 nothing_to_key: ...` — caller passed no `location` / `rotation` / `scale`.
+- `-32603 sequencer_add_transform_keyframe: ue_exec_failed: ...` — `execute_unreal_python` returned an error before the script ran (e.g. UE not reachable).
+- `-32603 sequencer_add_transform_keyframe: ue_python_error: ...` — the generated UE Python raised inside the editor; surfaces structured inner codes (`sequence_not_found`, `not_a_sequence`, `binding_not_found`, `channel_missing`).
+
+**Example — place a 1-second keyframe at world-origin with a 45° yaw**
+```json
+{"jsonrpc":"2.0","id":1,"method":"sequencer_add_transform_keyframe","params":{
+  "sequence_path": "/Game/Cinematics/MyShot",
+  "binding_id": "6B56AE0E4688B1279C68D0AE6BFB5FC7",
+  "time_seconds": 1.0,
+  "location": [0, 0, 100],
+  "rotation": [0, 45, 0],
+  "interpolation": "linear"
+}}
+```
+
+The proven end-to-end pipeline (sequence load → GUID parse → binding lookup → track/section get-or-create → channel-wise `add_key` → save) lives in `scripts/poc_sequencer_keyframe.py` for offline inspection.
 
 ---
 

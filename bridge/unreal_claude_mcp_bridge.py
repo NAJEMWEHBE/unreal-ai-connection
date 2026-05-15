@@ -13,9 +13,9 @@ plugin speaks raw JSON-RPC over a local TCP socket (default
 Behaviour:
   - "initialize"             returned synthetically (does NOT hit the UE server)
   - "notifications/*"        consumed silently
-  - "tools/list"             returns a static list of all 103 tools (71
+  - "tools/list"             returns a static list of all 104 tools (71
                              dispatched to the UE plugin's C++ handlers
-                             plus 32 bridge-side synthetic tools served by
+                             plus 33 bridge-side synthetic tools served by
                              SYNTHETIC_TOOLS without crossing the wire as
                              a single UE round-trip)
   - "tools/call"             unpacks {name, arguments} and forwards to the
@@ -1428,6 +1428,24 @@ TOOLS = [
                 "compression": {"type": "string", "description": "Texture compression preset. One of TC_HDR (default), TC_HDR_COMPRESSED, TC_HDR_F32, TC_DEFAULT."},
             },
             "required": ["hdri_path"],
+        },
+    },
+    {
+        "name": "sequencer_add_transform_keyframe",
+        "description": "Add a single keyframe on a Level Sequence's 3D Transform Track for a previously-bound actor. SYNTHETIC bridge-side handler. Closes the keyframe-authoring half of the 21st HANDOFF note's Sequencer parked item: create_sequence + bind_actor_to_sequence already exist; this tool wires up MovieSceneSequenceExtensions.find_binding_by_id + MovieSceneBindingProxy.add_track + MovieSceneScriptingDoubleChannel.add_key. Caller passes location/rotation/scale as optional 3-element triples; missing triples skip those channels. Rotation order is [pitch, yaw, roll] (unreal.Rotator convention) — mapped internally to the channel layout (Roll=X, Pitch=Y, Yaw=Z). Movie Render Queue remains parked.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "sequence_path": {"type": "string", "description": "UE asset path of the LevelSequence; must start with /Game/."},
+                "binding_id": {"type": "string", "description": "GUID string returned by bind_actor_to_sequence. Accepts the bare 32-hex form (no dashes) UE produces by default; dashed/braced forms also parse."},
+                "time_seconds": {"type": "number", "description": "Time in seconds (display rate) at which to place the keyframe. Must be >= 0; converted internally to a tick-resolution FrameNumber."},
+                "location": {"type": "array", "description": "Optional [x, y, z] translation. Omit to skip Location channels.", "items": {"type": "number"}, "minItems": 3, "maxItems": 3},
+                "rotation": {"type": "array", "description": "Optional [pitch, yaw, roll] in degrees (unreal.Rotator convention). Omit to skip Rotation channels.", "items": {"type": "number"}, "minItems": 3, "maxItems": 3},
+                "scale": {"type": "array", "description": "Optional [x, y, z] scale. Omit to skip Scale channels.", "items": {"type": "number"}, "minItems": 3, "maxItems": 3},
+                "interpolation": {"type": "string", "description": "Key interpolation. One of 'linear' (default), 'constant', 'auto', 'smart_auto', 'cubic'. 'cubic' is an alias for SMART_AUTO."},
+                "auto_extend_section": {"type": "boolean", "description": "If true (default), extends the track section's seconds-range to cover time_seconds when needed."},
+            },
+            "required": ["sequence_path", "binding_id", "time_seconds"],
         },
     },
 ]
@@ -6256,6 +6274,407 @@ def synthetic_convert_hdri_to_cubemap(req_id, args: dict) -> dict:
     return _wrap_tool_result(req_id, body)
 
 
+# ---------------------------------------------------------------------------
+# sequencer_add_transform_keyframe (synthetic)
+# ---------------------------------------------------------------------------
+
+# Map caller-facing interpolation names to the
+# unreal.MovieSceneKeyInterpolation enum member to bake into the generated
+# script. The allowlist keeps caller input from injecting arbitrary enum
+# names — same defence-in-depth posture as
+# `_HDRI_CUBE_COMPRESSION_ALLOWED`.
+#
+# Note: UE 5.7 exposes AUTO / BREAK / CONSTANT / LINEAR / SMART_AUTO / USER.
+# We surface a curated subset that maps to the caller-facing API. "cubic"
+# is exposed as an ergonomic alias for SMART_AUTO (the smart-tangent cubic
+# spline the sequencer UI labels "Cubic (Smart Auto)").
+_SEQUENCER_KEY_INTERPOLATION = {
+    "linear": "LINEAR",
+    "constant": "CONSTANT",
+    "auto": "AUTO",
+    "smart_auto": "SMART_AUTO",
+    "cubic": "SMART_AUTO",  # alias
+}
+
+
+# Caller convention: location = [x, y, z], rotation = [pitch, yaw, roll],
+# scale = [x, y, z]. The sequencer transform channels are laid out as
+# Roll=X, Pitch=Y, Yaw=Z (UE's Euler convention inside the Movie Scene
+# section). This dict drives the per-axis remap so the caller never has
+# to know the internal channel layout.
+_SEQUENCER_AXIS_MAP = {
+    "location": [("Location.X", 0), ("Location.Y", 1), ("Location.Z", 2)],
+    # rotation index 0 = pitch -> channel Rotation.Y
+    # rotation index 1 = yaw   -> channel Rotation.Z
+    # rotation index 2 = roll  -> channel Rotation.X
+    "rotation": [("Rotation.Y", 0), ("Rotation.Z", 1), ("Rotation.X", 2)],
+    "scale": [("Scale.X", 0), ("Scale.Y", 1), ("Scale.Z", 2)],
+}
+
+
+def _render_sequencer_add_transform_keyframe_script(
+    sequence_path: str,
+    binding_id: str,
+    time_seconds: float,
+    location,            # list[float] | None
+    rotation,            # list[float] | None  (caller order: [pitch, yaw, roll])
+    scale,               # list[float] | None
+    interpolation_member: str,
+    auto_extend_section: bool,
+) -> str:
+    """Return the UE Python script that adds a single 3D Transform Track
+    keyframe on the given LevelSequence's binding. Inputs MUST already be
+    validated by the caller — this helper does no escaping; numeric inputs
+    are coerced through float()/bool() and the string inputs are emitted via
+    ``!r`` so any embedded quotes round-trip safely.
+
+    The script:
+      1. Loads the LevelSequence; aborts with sequence_not_found /
+         not_a_sequence if the load returns None or the wrong class.
+      2. Parses ``binding_id`` via ``unreal.GuidLibrary.parse_string_to_guid``
+         (returns ``(Guid, success)``); aborts with binding_not_found if the
+         parse fails or the resulting binding proxy reports an invalid GUID.
+      3. Finds or creates a single ``MovieScene3DTransformTrack`` on the
+         binding (extension method on the proxy class).
+      4. Finds or creates the section. Optionally extends the section's
+         seconds-range to cover the requested time.
+      5. Walks ``section.get_all_channels()`` and matches each requested
+         component (Location.X/Y/Z, Rotation.X/Y/Z mapped from caller
+         [pitch, yaw, roll], Scale.X/Y/Z) by ``channel_name``.
+      6. Calls ``add_key`` once per channel with the resolved interpolation
+         enum, using TICK_RESOLUTION time-unit so the frame number is
+         interpreted at the sequence's actual tick resolution.
+      7. Saves the loaded sequence.
+
+    The script writes a single marker line ``SEQ_KEYFRAME_OK::<json>``
+    before returning so the bridge can extract structured results from the
+    captured stdout if it wants to in a future revision; for now the body
+    is composed from the caller-side validated inputs.
+    """
+    # Build the per-component payloads as Python literal lists. Each entry
+    # is a (channel_name, value) tuple; the inner script then iterates over
+    # the concatenated list. Skipping a component => empty list => zero
+    # keys added for that component, no enum branching at runtime.
+    def _component_pairs(comp_name, values):
+        if values is None:
+            return []
+        return [(ch, float(values[idx])) for ch, idx in _SEQUENCER_AXIS_MAP[comp_name]]
+
+    loc_pairs = _component_pairs("location", location)
+    rot_pairs = _component_pairs("rotation", rotation)
+    scl_pairs = _component_pairs("scale", scale)
+    all_pairs = loc_pairs + rot_pairs + scl_pairs
+
+    return f"""\
+import unreal
+import json as _json
+
+SEQ_PATH = {sequence_path!r}
+BINDING_ID = {binding_id!r}
+T_SECONDS = {float(time_seconds)!r}
+PAIRS = {all_pairs!r}
+INTERP = unreal.MovieSceneKeyInterpolation.{interpolation_member}
+AUTO_EXTEND = {bool(auto_extend_section)!r}
+
+el = unreal.EditorAssetLibrary
+
+try:
+    seq = el.load_asset(SEQ_PATH)
+    if seq is None:
+        raise RuntimeError(f"sequence_not_found: {{SEQ_PATH}}")
+    if not isinstance(seq, unreal.LevelSequence):
+        raise RuntimeError(f"not_a_sequence: {{SEQ_PATH}}")
+
+    parsed_guid, ok = unreal.GuidLibrary.parse_string_to_guid(BINDING_ID)
+    if not ok or not unreal.GuidLibrary.is_valid_guid(parsed_guid):
+        raise RuntimeError(f"binding_not_found: {{BINDING_ID}}")
+    binding = unreal.MovieSceneSequenceExtensions.find_binding_by_id(seq, parsed_guid)
+    # An unmatched GUID still returns a proxy struct, but its inner
+    # binding_id stays default (all-zero). Re-validate against the proxy's
+    # own get_id() — a stale/garbage GUID surfaces as an invalid Guid here.
+    if not unreal.GuidLibrary.is_valid_guid(binding.get_id()):
+        raise RuntimeError(f"binding_not_found: {{BINDING_ID}}")
+
+    # Get or create the 3D Transform Track on the binding.
+    tracks = binding.find_tracks_by_exact_type(unreal.MovieScene3DTransformTrack)
+    if tracks:
+        track = tracks[0]
+    else:
+        track = binding.add_track(unreal.MovieScene3DTransformTrack)
+
+    sections = track.get_sections()
+    if sections:
+        section = sections[0]
+    else:
+        section = track.add_section()
+
+    if AUTO_EXTEND:
+        try:
+            cur_start = section.get_start_frame_seconds()
+            cur_end = section.get_end_frame_seconds()
+            new_start = min(cur_start, T_SECONDS)
+            new_end = max(cur_end, T_SECONDS)
+            if new_start != cur_start or new_end != cur_end:
+                section.set_range_seconds(new_start, new_end)
+        except Exception:
+            # If a brand-new section has no resolvable range, just set it
+            # to a one-second window centred on the keyframe time. The
+            # outer try/except RuntimeError still catches anything fatal.
+            section.set_range_seconds(min(0.0, T_SECONDS), max(T_SECONDS + 1.0, T_SECONDS))
+
+    tick_rate = unreal.MovieSceneSequenceExtensions.get_tick_resolution(seq)
+    frame_no = unreal.FrameNumber(int(round(T_SECONDS * tick_rate.numerator / tick_rate.denominator)))
+
+    all_channels = section.get_all_channels()
+    by_name = {{}}
+    for ch in all_channels:
+        by_name[str(ch.channel_name)] = ch
+
+    keys_added = 0
+    channels_keyed = []
+    for ch_name, value in PAIRS:
+        ch = by_name.get(ch_name)
+        if ch is None:
+            raise RuntimeError(f"channel_missing: {{ch_name}} (section returned no channel by that name)")
+        ch.add_key(frame_no, value, 0.0, unreal.MovieSceneTimeUnit.TICK_RESOLUTION, INTERP)
+        keys_added += 1
+        channels_keyed.append(ch_name)
+
+    el.save_loaded_asset(seq)
+    print("SEQ_KEYFRAME_OK::" + _json.dumps({{
+        "keys_added": keys_added,
+        "channels_keyed": channels_keyed,
+        "track_path": track.get_path_name(),
+    }}))
+except Exception as _e:
+    raise RuntimeError(str(_e))
+"""
+
+
+def synthetic_sequencer_add_transform_keyframe(req_id, args: dict) -> dict:
+    """Add a single keyframe on a Level Sequence's 3D Transform Track.
+
+    Closes the keyframe-authoring half of the 21st HANDOFF note's
+    Sequencer parked item: the bridge already exposes
+    `create_sequence` + `bind_actor_to_sequence`, but had no way to set
+    keys on a binding's transform track from the Python side. UE 5.7's
+    Movie Scene scripting surface attaches `find_tracks_by_exact_type` /
+    `add_track` directly on `MovieSceneBindingProxy`; the
+    `MovieSceneSequenceExtensions.find_binding_by_id(seq, guid)` helper
+    resolves a binding by string GUID, and
+    `MovieSceneScriptingDoubleChannel.add_key(frame, value, sub, unit,
+    interp)` lets us write each component channel directly.
+
+    Args (object):
+      - sequence_path (str, required): UE asset path of the LevelSequence;
+        must start with /Game/.
+      - binding_id (str, required): GUID string returned by
+        `bind_actor_to_sequence`. Accepts the bare 32-hex form (no
+        dashes) UE produces by default; the dashed form parses too —
+        the inner script delegates to GuidLibrary.parse_string_to_guid
+        which is tolerant of both.
+      - time_seconds (number, required, >= 0): time in seconds (display
+        rate) at which to place the keyframe. Internally converted to a
+        tick-resolution FrameNumber using the sequence's own
+        tick-resolution.
+      - location (list[3] of numbers, optional): [x, y, z]. Omit to skip
+        Location.X / Y / Z.
+      - rotation (list[3] of numbers, optional): [pitch, yaw, roll] in
+        degrees — matches `unreal.Rotator`'s constructor convention.
+        Internally remapped to channel layout
+        (Roll -> Rotation.X, Pitch -> Rotation.Y, Yaw -> Rotation.Z).
+        Omit to skip Rotation.X / Y / Z.
+      - scale (list[3] of numbers, optional): [x, y, z]. Omit to skip
+        Scale.X / Y / Z.
+      - interpolation (string, optional, default 'linear'): one of
+        'linear' / 'constant' / 'auto' / 'smart_auto' / 'cubic'. Maps to
+        MovieSceneKeyInterpolation enum; 'cubic' is an alias for
+        SMART_AUTO.
+      - auto_extend_section (bool, optional, default true): if the
+        section's seconds-range doesn't already cover time_seconds, the
+        script extends it. Disable for callers that pre-size their
+        sections and want a hard error on out-of-range keys.
+
+    At least one of `location` / `rotation` / `scale` must be present —
+    callers passing none get a `nothing_to_key` invalid_arguments error
+    rather than a no-op round trip into UE.
+    """
+    if not isinstance(args, dict):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "sequencer_add_transform_keyframe: invalid_arguments: arguments must be an object",
+        })
+
+    sequence_path = args.get("sequence_path")
+    if not isinstance(sequence_path, str) or not sequence_path:
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "sequencer_add_transform_keyframe: invalid_field: 'sequence_path' must be a non-empty string starting with /Game/",
+        })
+    if sequence_path != "/Game" and not sequence_path.startswith("/Game/"):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "sequencer_add_transform_keyframe: invalid_field: 'sequence_path' must be '/Game' or start with '/Game/'",
+        })
+    if "\\" in sequence_path:
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "sequencer_add_transform_keyframe: invalid_field: 'sequence_path' must not contain '\\\\'",
+        })
+    for seg in sequence_path.split("/"):
+        if seg in (".", ".."):
+            return make_response(req_id, error={
+                "code": -32602,
+                "message": f"sequencer_add_transform_keyframe: invalid_field: 'sequence_path' must not contain '{seg}' segments",
+            })
+
+    binding_id = args.get("binding_id")
+    if not isinstance(binding_id, str) or not binding_id.strip():
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "sequencer_add_transform_keyframe: invalid_field: 'binding_id' must be a non-empty string",
+        })
+    # The GUID string is passed straight into the generated UE Python as a
+    # repr()d literal, but defence-in-depth: only allow hex + dashes +
+    # braces (UE's FGuid::ToString() variants all stay inside that set).
+    # Anything else means we're not looking at a GUID anyway and the
+    # caller benefits from a fast-fail.
+    binding_id_stripped = binding_id.strip()
+    if not all(c in "0123456789abcdefABCDEF-{}" for c in binding_id_stripped):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "sequencer_add_transform_keyframe: invalid_field: 'binding_id' must be a hex GUID (with optional dashes/braces)",
+        })
+
+    t_raw = args.get("time_seconds")
+    if not isinstance(t_raw, (int, float)) or isinstance(t_raw, bool):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "sequencer_add_transform_keyframe: invalid_field: 'time_seconds' must be a number",
+        })
+    time_seconds = float(t_raw)
+    if time_seconds < 0.0:
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "sequencer_add_transform_keyframe: invalid_field: 'time_seconds' must be >= 0",
+        })
+
+    def _validate_triple(name, value):
+        if value is None:
+            return None, None
+        if not isinstance(value, (list, tuple)) or len(value) != 3:
+            return None, f"sequencer_add_transform_keyframe: invalid_field: '{name}' must be a 3-element list of numbers"
+        coerced = []
+        for v in value:
+            if isinstance(v, bool) or not isinstance(v, (int, float)):
+                return None, f"sequencer_add_transform_keyframe: invalid_field: '{name}' entries must be numbers"
+            coerced.append(float(v))
+        return coerced, None
+
+    location, err = _validate_triple("location", args.get("location"))
+    if err:
+        return make_response(req_id, error={"code": -32602, "message": err})
+    rotation, err = _validate_triple("rotation", args.get("rotation"))
+    if err:
+        return make_response(req_id, error={"code": -32602, "message": err})
+    scale, err = _validate_triple("scale", args.get("scale"))
+    if err:
+        return make_response(req_id, error={"code": -32602, "message": err})
+
+    if location is None and rotation is None and scale is None:
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "sequencer_add_transform_keyframe: nothing_to_key: at least one of 'location' / 'rotation' / 'scale' must be supplied",
+        })
+
+    interpolation_raw = args.get("interpolation", "linear")
+    if not isinstance(interpolation_raw, str):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "sequencer_add_transform_keyframe: invalid_field: 'interpolation' must be a string",
+        })
+    interpolation_key = interpolation_raw.strip().lower()
+    if interpolation_key not in _SEQUENCER_KEY_INTERPOLATION:
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": f"sequencer_add_transform_keyframe: invalid_field: 'interpolation' must be one of {sorted(_SEQUENCER_KEY_INTERPOLATION.keys())}",
+        })
+    interpolation_member = _SEQUENCER_KEY_INTERPOLATION[interpolation_key]
+
+    auto_extend_section = args.get("auto_extend_section", True)
+    if not isinstance(auto_extend_section, bool):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "sequencer_add_transform_keyframe: invalid_field: 'auto_extend_section' must be a bool",
+        })
+
+    code = _render_sequencer_add_transform_keyframe_script(
+        sequence_path,
+        binding_id_stripped,
+        time_seconds,
+        location,
+        rotation,
+        scale,
+        interpolation_member,
+        auto_extend_section,
+    )
+
+    resp = call_ue("execute_unreal_python", {"code": code, "capture_output": True})
+    if "error" in resp:
+        upstream = resp.get("error") or {}
+        return make_response(req_id, error={
+            "code": upstream.get("code", -32603) or -32603,
+            "message": f"sequencer_add_transform_keyframe: ue_exec_failed: {upstream.get('message') or 'execute_unreal_python returned an error'}",
+        })
+    result = resp.get("result") or {}
+    if not result.get("ok"):
+        inner = result.get("output") or result
+        inner_text = str(inner)
+        # Surface the structured inner-script raises (sequence_not_found,
+        # not_a_sequence, binding_not_found, channel_missing) as
+        # ue_python_error so MCP clients can pattern-match on the inner
+        # code. The inner script raises RuntimeError(str(e)); the captured
+        # traceback string contains "RuntimeError: <code>: ...".
+        return make_response(req_id, error={
+            "code": -32603,
+            "message": f"sequencer_add_transform_keyframe: ue_python_error: {inner_text}",
+        })
+
+    # Compose the result body from caller-validated inputs + the per-axis
+    # remap so the caller doesn't have to know the internal channel layout.
+    channels_keyed = []
+    if location is not None:
+        channels_keyed.extend(ch for ch, _ in _SEQUENCER_AXIS_MAP["location"])
+    if rotation is not None:
+        channels_keyed.extend(ch for ch, _ in _SEQUENCER_AXIS_MAP["rotation"])
+    if scale is not None:
+        channels_keyed.extend(ch for ch, _ in _SEQUENCER_AXIS_MAP["scale"])
+
+    # Best-effort track_path from the script's marker line.
+    track_path = None
+    output = result.get("output") or ""
+    for line in output.splitlines():
+        if line.startswith("SEQ_KEYFRAME_OK::"):
+            try:
+                marker = json.loads(line[len("SEQ_KEYFRAME_OK::"):])
+                track_path = marker.get("track_path")
+            except Exception:
+                pass
+            break
+
+    body = {
+        "ok": True,
+        "sequence_path": sequence_path,
+        "binding_id": binding_id_stripped,
+        "time_seconds": time_seconds,
+        "keys_added": len(channels_keyed),
+        "channels_keyed": channels_keyed,
+        "interpolation": interpolation_member,
+        "track_path": track_path,
+    }
+    return _wrap_tool_result(req_id, body)
+
+
 SYNTHETIC_TOOLS = {
     "wait_for_events": synthetic_wait_for_events,
     "get_camera_transform": synthetic_get_camera_transform,
@@ -6289,6 +6708,7 @@ SYNTHETIC_TOOLS = {
     "marketplace_search": synthetic_marketplace_search,
     "marketplace_import": synthetic_marketplace_import,
     "convert_hdri_to_cubemap": synthetic_convert_hdri_to_cubemap,
+    "sequencer_add_transform_keyframe": synthetic_sequencer_add_transform_keyframe,
 }
 
 

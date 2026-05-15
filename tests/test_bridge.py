@@ -126,6 +126,7 @@ def test_tool_names_are_unique_and_match_handlers():
         "marketplace_search",
         "marketplace_import",
         "convert_hdri_to_cubemap",
+        "sequencer_add_transform_keyframe",
     }
     assert set(names) == expected
 
@@ -6119,6 +6120,331 @@ def test_convert_hdri_to_cubemap_propagates_call_ue_error():
             "jsonrpc": "2.0", "id": 907, "method": "tools/call",
             "params": {"name": "convert_hdri_to_cubemap", "arguments": {
                 "hdri_path": "/Game/HDRI/test",
+            }},
+        })
+    assert "error" in resp
+    assert "ue_exec_failed" in resp["error"]["message"]
+
+
+# ---------------------------------------------------------------------------
+# sequencer_add_transform_keyframe (synthetic)
+#
+# The synthetic adds a single keyframe on a LevelSequence's 3D Transform
+# Track for a previously-bound actor. Tests cover argument-validation
+# rejections (missing fields, bad types, /Game guard, GUID character set,
+# nothing_to_key), the caller-to-channel axis remap for rotation, and the
+# happy-path end-to-end with call_ue mocked so the suite stays UE-less.
+# ---------------------------------------------------------------------------
+
+_VALID_GUID = "6B56AE0E4688B1279C68D0AE6BFB5FC7"
+
+
+def test_sequencer_add_transform_keyframe_rejects_missing_sequence_path():
+    """sequence_path is required."""
+    with patch.object(bridge, "call_ue") as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 920, "method": "tools/call",
+            "params": {"name": "sequencer_add_transform_keyframe", "arguments": {
+                "binding_id": _VALID_GUID,
+                "time_seconds": 1.0,
+                "location": [0, 0, 0],
+            }},
+        })
+    assert m.call_count == 0
+    assert resp["error"]["code"] == -32602
+    assert "sequence_path" in resp["error"]["message"]
+
+
+def test_sequencer_add_transform_keyframe_rejects_missing_binding_id():
+    """binding_id is required."""
+    with patch.object(bridge, "call_ue") as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 921, "method": "tools/call",
+            "params": {"name": "sequencer_add_transform_keyframe", "arguments": {
+                "sequence_path": "/Game/Cinematics/Shot",
+                "time_seconds": 1.0,
+                "location": [0, 0, 0],
+            }},
+        })
+    assert m.call_count == 0
+    assert resp["error"]["code"] == -32602
+    assert "binding_id" in resp["error"]["message"]
+
+
+def test_sequencer_add_transform_keyframe_rejects_missing_time_seconds():
+    """time_seconds is required."""
+    with patch.object(bridge, "call_ue") as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 922, "method": "tools/call",
+            "params": {"name": "sequencer_add_transform_keyframe", "arguments": {
+                "sequence_path": "/Game/Cinematics/Shot",
+                "binding_id": _VALID_GUID,
+                "location": [0, 0, 0],
+            }},
+        })
+    assert m.call_count == 0
+    assert resp["error"]["code"] == -32602
+    assert "time_seconds" in resp["error"]["message"]
+
+
+def test_sequencer_add_transform_keyframe_rejects_non_game_path():
+    """sequence_path must start with /Game/ (no /Engine, /Plugin, etc.)."""
+    with patch.object(bridge, "call_ue") as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 923, "method": "tools/call",
+            "params": {"name": "sequencer_add_transform_keyframe", "arguments": {
+                "sequence_path": "/Engine/Cinematics/Shot",
+                "binding_id": _VALID_GUID,
+                "time_seconds": 0.5,
+                "location": [0, 0, 0],
+            }},
+        })
+    assert m.call_count == 0
+    assert resp["error"]["code"] == -32602
+    assert "sequence_path" in resp["error"]["message"]
+
+
+def test_sequencer_add_transform_keyframe_rejects_negative_time():
+    """time_seconds must be >= 0."""
+    with patch.object(bridge, "call_ue") as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 924, "method": "tools/call",
+            "params": {"name": "sequencer_add_transform_keyframe", "arguments": {
+                "sequence_path": "/Game/Cinematics/Shot",
+                "binding_id": _VALID_GUID,
+                "time_seconds": -0.001,
+                "location": [0, 0, 0],
+            }},
+        })
+    assert m.call_count == 0
+    assert resp["error"]["code"] == -32602
+    assert "time_seconds" in resp["error"]["message"]
+
+
+def test_sequencer_add_transform_keyframe_rejects_empty_binding_id():
+    """Empty/whitespace binding_id rejected before reaching UE."""
+    for bad in ("", "   "):
+        with patch.object(bridge, "call_ue") as m:
+            resp = bridge.handle({
+                "jsonrpc": "2.0", "id": 925, "method": "tools/call",
+                "params": {"name": "sequencer_add_transform_keyframe", "arguments": {
+                    "sequence_path": "/Game/Cinematics/Shot",
+                    "binding_id": bad,
+                    "time_seconds": 1.0,
+                    "location": [0, 0, 0],
+                }},
+            })
+        assert m.call_count == 0, f"call_ue dispatched for empty binding_id={bad!r}"
+        assert resp["error"]["code"] == -32602
+        assert "binding_id" in resp["error"]["message"]
+
+
+def test_sequencer_add_transform_keyframe_rejects_non_hex_binding_id():
+    """GUID character set is enforced: hex + dashes + braces only."""
+    for bad in ("not-a-guid-because-of-letters", "G" * 32, "abc/def123", "abc;rm -rf"):
+        with patch.object(bridge, "call_ue") as m:
+            resp = bridge.handle({
+                "jsonrpc": "2.0", "id": 926, "method": "tools/call",
+                "params": {"name": "sequencer_add_transform_keyframe", "arguments": {
+                    "sequence_path": "/Game/Cinematics/Shot",
+                    "binding_id": bad,
+                    "time_seconds": 1.0,
+                    "location": [0, 0, 0],
+                }},
+            })
+        assert m.call_count == 0, f"call_ue dispatched for non-hex binding_id={bad!r}"
+        assert resp["error"]["code"] == -32602
+        assert "binding_id" in resp["error"]["message"]
+
+
+def test_sequencer_add_transform_keyframe_rejects_nothing_to_key():
+    """At least one of location / rotation / scale must be present."""
+    with patch.object(bridge, "call_ue") as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 927, "method": "tools/call",
+            "params": {"name": "sequencer_add_transform_keyframe", "arguments": {
+                "sequence_path": "/Game/Cinematics/Shot",
+                "binding_id": _VALID_GUID,
+                "time_seconds": 1.0,
+            }},
+        })
+    assert m.call_count == 0
+    assert resp["error"]["code"] == -32602
+    assert "nothing_to_key" in resp["error"]["message"]
+
+
+def test_sequencer_add_transform_keyframe_rejects_bad_interpolation():
+    """interpolation must come from the curated allowlist."""
+    with patch.object(bridge, "call_ue") as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 928, "method": "tools/call",
+            "params": {"name": "sequencer_add_transform_keyframe", "arguments": {
+                "sequence_path": "/Game/Cinematics/Shot",
+                "binding_id": _VALID_GUID,
+                "time_seconds": 1.0,
+                "location": [0, 0, 0],
+                "interpolation": "break",  # not in caller-facing allowlist
+            }},
+        })
+    assert m.call_count == 0
+    assert resp["error"]["code"] == -32602
+    assert "interpolation" in resp["error"]["message"]
+
+
+def test_sequencer_add_transform_keyframe_rejects_malformed_location():
+    """Wrong-length or non-numeric triples are rejected."""
+    bad_cases = [
+        ("wrong_length", [0, 0]),
+        ("wrong_length_4", [0, 0, 0, 0]),
+        ("non_numeric", [0, "bad", 0]),
+        ("not_a_list", "0,0,0"),
+        ("bool_is_not_a_number", [True, 0, 0]),
+    ]
+    for label, value in bad_cases:
+        with patch.object(bridge, "call_ue") as m:
+            resp = bridge.handle({
+                "jsonrpc": "2.0", "id": 929, "method": "tools/call",
+                "params": {"name": "sequencer_add_transform_keyframe", "arguments": {
+                    "sequence_path": "/Game/Cinematics/Shot",
+                    "binding_id": _VALID_GUID,
+                    "time_seconds": 1.0,
+                    "location": value,
+                }},
+            })
+        assert m.call_count == 0, f"call_ue dispatched for {label}={value!r}"
+        assert resp["error"]["code"] == -32602
+        assert "location" in resp["error"]["message"]
+
+
+def test_sequencer_add_transform_keyframe_generated_script_constant_interp():
+    """interpolation='constant' bakes MovieSceneKeyInterpolation.CONSTANT into the script."""
+    fake_result = {"result": {"ok": True, "output": "SEQ_KEYFRAME_OK::{\"keys_added\": 3, \"channels_keyed\": [\"Location.X\",\"Location.Y\",\"Location.Z\"], \"track_path\": \"/Game/Cinematics/Shot.Shot:Transform\"}"}}
+    with patch.object(bridge, "call_ue", return_value=fake_result) as m_ue:
+        bridge.handle({
+            "jsonrpc": "2.0", "id": 930, "method": "tools/call",
+            "params": {"name": "sequencer_add_transform_keyframe", "arguments": {
+                "sequence_path": "/Game/Cinematics/Shot",
+                "binding_id": _VALID_GUID,
+                "time_seconds": 0.5,
+                "location": [0, 0, 0],
+                "interpolation": "constant",
+            }},
+        })
+    code = m_ue.call_args[0][1]["code"]
+    assert "MovieSceneKeyInterpolation.CONSTANT" in code
+    assert "MovieSceneKeyInterpolation.LINEAR" not in code
+
+
+def test_sequencer_add_transform_keyframe_rotation_axis_remap():
+    """rotation = [pitch, yaw, roll] must remap to channels
+    (Pitch->Rotation.Y, Yaw->Rotation.Z, Roll->Rotation.X). The
+    generated PAIRS literal encodes channel + value side-by-side."""
+    fake_result = {"result": {"ok": True, "output": ""}}
+    with patch.object(bridge, "call_ue", return_value=fake_result) as m_ue:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 931, "method": "tools/call",
+            "params": {"name": "sequencer_add_transform_keyframe", "arguments": {
+                "sequence_path": "/Game/Cinematics/Shot",
+                "binding_id": _VALID_GUID,
+                "time_seconds": 1.0,
+                # Distinct values per axis so the test can detect mis-mapping.
+                "rotation": [11.0, 22.0, 33.0],  # [pitch, yaw, roll]
+            }},
+        })
+    code = m_ue.call_args[0][1]["code"]
+    # The generated PAIRS list literal contains tuples of (channel_name,
+    # float_value). pitch=11.0 must map to Rotation.Y, yaw=22.0 to
+    # Rotation.Z, roll=33.0 to Rotation.X.
+    assert "('Rotation.Y', 11.0)" in code, code
+    assert "('Rotation.Z', 22.0)" in code, code
+    assert "('Rotation.X', 33.0)" in code, code
+    # Echoed channels in the result body follow the canonical order.
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert body["channels_keyed"] == ["Rotation.Y", "Rotation.Z", "Rotation.X"]
+    assert body["keys_added"] == 3
+
+
+def test_sequencer_add_transform_keyframe_end_to_end_happy_path():
+    """Mocked call_ue: validates that the bridge dispatches exactly one
+    execute_unreal_python call containing the expected find_binding_by_id /
+    add_key invocations, and that the response body echoes the inputs."""
+    fake_result = {"result": {"ok": True, "output": "SEQ_KEYFRAME_OK::{\"keys_added\": 9, \"channels_keyed\": [\"Location.X\",\"Location.Y\",\"Location.Z\",\"Rotation.Y\",\"Rotation.Z\",\"Rotation.X\",\"Scale.X\",\"Scale.Y\",\"Scale.Z\"], \"track_path\": \"/Game/Cinematics/Shot.Shot:Transform\"}"}}
+    with patch.object(bridge, "call_ue", return_value=fake_result) as m_ue:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 932, "method": "tools/call",
+            "params": {"name": "sequencer_add_transform_keyframe", "arguments": {
+                "sequence_path": "/Game/Cinematics/Shot",
+                "binding_id": _VALID_GUID,
+                "time_seconds": 2.5,
+                "location": [500.0, 0.0, 100.0],
+                "rotation": [0.0, 45.0, 0.0],
+                "scale": [1.0, 1.0, 1.0],
+                "interpolation": "linear",
+            }},
+        })
+    # Exactly one dispatch
+    assert m_ue.call_count == 1
+    call_args = m_ue.call_args[0]
+    assert call_args[0] == "execute_unreal_python"
+    code = call_args[1]["code"]
+    # Generated script must wire the UE 5.7 keyframe pipeline.
+    assert "find_binding_by_id" in code
+    assert "parse_string_to_guid" in code
+    assert "add_key" in code
+    assert "TICK_RESOLUTION" in code
+    assert "MovieScene3DTransformTrack" in code
+    # Validated inputs baked in.
+    assert "/Game/Cinematics/Shot" in code
+    assert _VALID_GUID in code
+    # Response body shape.
+    assert "error" not in resp, resp
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert body["ok"] is True
+    assert body["sequence_path"] == "/Game/Cinematics/Shot"
+    assert body["binding_id"] == _VALID_GUID
+    assert body["time_seconds"] == 2.5
+    assert body["interpolation"] == "LINEAR"
+    # 3 components supplied => 9 channels.
+    assert body["keys_added"] == 9
+    assert set(body["channels_keyed"]) == {
+        "Location.X", "Location.Y", "Location.Z",
+        "Rotation.X", "Rotation.Y", "Rotation.Z",
+        "Scale.X", "Scale.Y", "Scale.Z",
+    }
+    # track_path harvested from the script's marker line.
+    assert body["track_path"] == "/Game/Cinematics/Shot.Shot:Transform"
+
+
+def test_sequencer_add_transform_keyframe_propagates_ue_python_error():
+    """Inner script raises (e.g. binding_not_found) -> ue_python_error."""
+    fake_result = {"result": {"ok": False, "output": "Traceback...\nRuntimeError: binding_not_found: deadbeef\n"}}
+    with patch.object(bridge, "call_ue", return_value=fake_result):
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 933, "method": "tools/call",
+            "params": {"name": "sequencer_add_transform_keyframe", "arguments": {
+                "sequence_path": "/Game/Cinematics/Shot",
+                "binding_id": _VALID_GUID,
+                "time_seconds": 1.0,
+                "location": [0, 0, 0],
+            }},
+        })
+    assert "error" in resp
+    assert resp["error"]["code"] == -32603
+    assert "ue_python_error" in resp["error"]["message"]
+    assert "binding_not_found" in resp["error"]["message"]
+
+
+def test_sequencer_add_transform_keyframe_propagates_call_ue_error():
+    """Upstream call_ue error (UE not reachable) surfaces as ue_exec_failed."""
+    fake_err = {"error": {"code": -32099, "message": "UE server not reachable"}}
+    with patch.object(bridge, "call_ue", return_value=fake_err):
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 934, "method": "tools/call",
+            "params": {"name": "sequencer_add_transform_keyframe", "arguments": {
+                "sequence_path": "/Game/Cinematics/Shot",
+                "binding_id": _VALID_GUID,
+                "time_seconds": 1.0,
+                "location": [0, 0, 0],
             }},
         })
     assert "error" in resp

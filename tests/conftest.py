@@ -16,5 +16,5 @@ sys.path.insert(0, os.path.join(ROOT, "bridge"))
 # bridge/unreal_claude_mcp_bridge.py::SYNTHETIC_TOOLS. The split below is
 # informational; tests assert against the total via EXPECTED_TOOL_COUNT.
 EXPECTED_CPP_HANDLER_COUNT = 71
-EXPECTED_SYNTHETIC_TOOL_COUNT = 32  # bumped from 31 — added convert_hdri_to_cubemap
+EXPECTED_SYNTHETIC_TOOL_COUNT = 33  # bumped from 32 — added sequencer_add_transform_keyframe
 EXPECTED_TOOL_COUNT = EXPECTED_CPP_HANDLER_COUNT + EXPECTED_SYNTHETIC_TOOL_COUNT
