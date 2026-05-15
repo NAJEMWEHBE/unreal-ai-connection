@@ -333,7 +333,7 @@ Adding a 72nd C++ handler is one `.cpp` file plus one line of registration — s
      ... (64 lines)
    [LogUCMCP] Listening on 127.0.0.1:18888
    ```
-5. **Wire Claude Code.** Copy `examples/.mcp.json.example` to your project root as `.mcp.json`, edit the path to point at `bridge/unreal_claude_mcp_bridge.py`, restart Claude Code, and approve the new MCP server.
+5. **Wire your MCP client.** Copy `examples/.mcp.json.example` to your project root as `.mcp.json`, edit the path to point at `bridge/unreal_claude_mcp_bridge.py`, restart your client, and approve the new MCP server. Same bridge works with Claude Code, Claude Desktop, Cursor, Codex CLI, Windsurf, Continue, Cline, Zed, Gemini CLI, and VS Code Copilot — see [`docs/setup/`](docs/setup/) for per-client copy-paste recipes.
 
 ### Non-engineers / GUI-only users
 

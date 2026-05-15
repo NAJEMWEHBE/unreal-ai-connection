@@ -1,0 +1,49 @@
+# Cursor
+
+AI-first code editor. MCP servers configured via `.cursor/mcp.json` (project-scope) or `~/.cursor/mcp.json` (global).
+
+## 5-step setup
+
+1. **Pick a scope.**
+   - **Project-scope** (recommended for UE projects): `.cursor/mcp.json` at the project root.
+   - **Global**: `~/.cursor/mcp.json` (Windows: `%USERPROFILE%\.cursor\mcp.json`).
+2. **Create the file** with the snippet below.
+3. **Replace the path** with your full path to `bridge/unreal_claude_mcp_bridge.py`.
+4. **Reload Cursor.** `Cmd/Ctrl+Shift+P` → *Reload Window*.
+5. **First-call test.** Open Cursor Chat (`Cmd/Ctrl+L`) and ask: *"Use the unreal-claude-mcp tool to call get_engine_version."*
+
+## Config snippet
+
+**Windows:**
+```json
+{
+  "mcpServers": {
+    "unreal-claude-mcp": {
+      "command": "py",
+      "args": ["C:\\full\\path\\to\\UnrealClaudeMCP\\bridge\\unreal_claude_mcp_bridge.py"]
+    }
+  }
+}
+```
+
+**macOS / Linux:**
+```json
+{
+  "mcpServers": {
+    "unreal-claude-mcp": {
+      "command": "python3",
+      "args": ["/full/path/to/UnrealClaudeMCP/bridge/unreal_claude_mcp_bridge.py"]
+    }
+  }
+}
+```
+
+## Verification
+
+`Cmd/Ctrl+Shift+J` → **Cursor Settings** → **Features** → **MCP**. You should see `unreal-claude-mcp` with a green dot and the tool count.
+
+## Notes
+
+- Cursor lists each tool individually — you can toggle per-tool access if you want to restrict the scope.
+- The agent calling pattern is via Composer (`Cmd/Ctrl+I`) or Chat (`Cmd/Ctrl+L`) — Composer is faster for multi-tool sequences.
+- Cursor refreshes the tool list on file save of `mcp.json`, no explicit reload needed in v0.43+.
