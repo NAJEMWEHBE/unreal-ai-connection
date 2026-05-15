@@ -30,7 +30,7 @@ Recent waves that landed in the current session lineage:
 
 **Open PRs:** none.
 
-**Latest milestone on main:** PR #196 — Florence plaza fly-through (first production use of sequencer_add_transform_keyframe). For the current HEAD commit hash, run `git log -1 origin/main`.
+**Latest milestone on main:** PR #208 — one-paste marketplace distribution (`.claude-plugin/` + `server.json` + per-client recipes); repo renamed to `unreal-ai-connection`, rename Stage 1 (server/bridge) shipped in PR #206, picture-to-Unreal live test in PR #209. For the current HEAD commit hash, run `git log -1 origin/main`.
 
 **Pending verification on host machine (PRIMARY next-action item):**
 
