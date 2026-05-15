@@ -10,7 +10,7 @@ Single source of truth for resuming work on UnrealClaudeMCP in a fresh session o
 
 **What this is:** An Unreal Engine 5.7 plugin + Python bridge that exposes editor automation to **any MCP-compliant client** (Claude Code, Codex CLI, Cursor, Gemini CLI, Continue, …) over a localhost TCP socket. The plugin adds a JSON-RPC server inside the editor; each "handler" is one MCP tool (~150 LoC of C++ in `Source/UnrealClaudeMCP/Private/MCP/Handlers/`). The bridge translates between the client's stdio MCP protocol and the plugin's TCP wire format. **Vendor-neutral by design** — the wire protocol is open MCP (created by Anthropic, but any conforming client works); the project's repo/folder names retain "Claude" for legacy reasons but the capability is universal.
 
-**Where it stands (post-PR #184 — scene v7 + marketplace tools hardened):** **102 tools total** (71 UE-side C++ handlers + 31 bridge-side synthetic tools — `marketplace_search` + `marketplace_import` are now fully reviewed/merged with SSRF guard, client-side filter, format-fallback parity, path-traversal sanitization, and license-distinction in their descriptions). Plugin version `0.9.1`, targets UE `5.7`. pytest baseline: **400** passing. (For the current HEAD commit, run `git log -1 origin/main`; the latest milestone PR is #184.)
+**Where it stands (post-PR #196 — Florence plaza fly-through, first production use of the keyframe synthetic):** **104 tools total** (71 UE-side C++ handlers + 33 bridge-side synthetic tools — recent additions: `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap`, `sequencer_add_transform_keyframe`). Plugin version `0.9.1`, targets UE `5.7`. pytest baseline: **458** passing. (For the current HEAD commit, run `git log -1 origin/main`; the latest milestone PR is #196.)
 
 Recent waves that landed in the current session lineage:
 - **Wave A (PR #161)** — 6 quick-win tools: `get_engine_version`, `list_levels`, `save_dirty_assets`, `get_selected_actors`, `inspect_input_mappings`, `bulk_inspect_assets`
@@ -277,7 +277,7 @@ docs/
   ARCHITECTURE.md                              How pieces fit; UE 5.7 API gotchas
   INSTALLATION.md                              Step-by-step install
   HANDOFF.md                                   This file (latest 3 closing notes only)
-  HANDOFF-archive.md                           Closing notes 1-21 (chronological, append-only)
+  HANDOFF-archive.md                           Closing notes 1-23 (chronological, append-only)
   RESTART-RECOVERY.md                          Post-format recovery procedure
   session-memory-archive/                      Snapshot of session memory files
   LANGUAGE-CHOICE-RETROSPECTIVE.md             Per-tool language verdict + decision flow
@@ -298,7 +298,7 @@ CONTRIBUTING.md                                Project conventions, 10-step new-
 2. Send: *"Read `docs/HANDOFF.md` and continue from there. The user is in autonomy mode — pick the next reasonable thing to do."*
 3. **Verify Codex tooling** (per directive #8): `ToolSearch query="codex"` and/or `Bash codex --help`. If reachable, the multi-agent collaboration model is live.
 4. **Verify the multi-agent fleet** (per directive #9 and standing rule #1): the explorer / reviewer subagents are usable in any session via the Agent tool. The `general-purpose` subagent works for research but **NOT for file writes** (sandbox isolation).
-5. The fresh session reads this doc, absorbs the directives, sees **102 tools shipped (71 C++ + 31 synthetic)**, and proceeds.
+5. The fresh session reads this doc, absorbs the directives, sees **104 tools shipped (71 C++ + 33 synthetic)**, and proceeds.
 
 For specific resumption:
 - *"Live-verify Waves A + A.5"* → host rebuild via the runbook above, then run the Wave A/A.5 verification panel
@@ -339,7 +339,7 @@ Single-window verification pass. No new code shipped — all four feature PRs fr
 - `Material.expressions` (Python attribute) is protected. To enumerate nodes, use `MaterialEditingLibrary.get_material_expressions(mat)`.
 
 **Tool/test totals (unchanged this window):**
-- 102 tools, 102 live.
+- 104 tools, 104 live.
 - pytest: 430 (no test changes this window).
 - Bridge coverage unchanged.
 
@@ -432,7 +432,7 @@ User instruction: "resume your work... add Da Vinci-style continuation... stay o
 - Standing rules unchanged: 6 active (delegation-by-default, bot-review gate, mechanical-fix exception, vendor-neutral, UE launch permission, UE close on window end via `execute_console_command quit` NOT `Stop-Process`).
 
 **Next-session pivot — DIFFERENT PROJECT:**
-- User clarified the "old project" they wanted continued is at `F:\BTSschool\BSK_FOA_2026\`, NOT the current `HDMediaVirtualStudio` host. Picture-to-Unreal-Project work, name was "Untitled" or "Untitled_1" in their voice message.
+- User clarified the "old project" they wanted to continue is at `F:\BTSschool\BSK_FOA_2026\`, NOT the current `HDMediaVirtualStudio` host. Picture-to-Unreal-Project work, name was "Untitled" or "Untitled_1" in their voice message.
 - Layout: `BSK_FOA_2026\BSK_FOA_2026.uproject` (main) + `BSK_FOA_2026 BY CLAUDE\BSK_FOA_2026.uproject` (prior Claude fork) + `Untitled.blend` (Blender source) + `Virtual Stage Design.pdf` (design brief) + `assets\` (the picture) + `HANDOFF.md` + `PROJECT_PLAN.md` + `EVALUATION.md` + `KICKOFF_PROMPT.txt`. Also a virtual-studio LED-volume variant under `new\virtual studio\06_unreal\CoastalLEDVolume\` (Aximmetry pipeline).
 - Resumption recipe for next session: **read `F:\BTSschool\BSK_FOA_2026\HANDOFF.md` + `PROJECT_PLAN.md` + `EVALUATION.md` + the picture under `assets\` BEFORE touching any code.** Then decide whether to continue on the main `BSK_FOA_2026.uproject` or on the `BY CLAUDE` variant (per the same-project rule from this window, picking one + sticking with it is the discipline).
 
