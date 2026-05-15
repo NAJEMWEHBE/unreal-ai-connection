@@ -1,6 +1,6 @@
 # HANDOFF archive
 
-> Historical session log — chronological, append-only, do not edit. This file holds **consecutive closing notes 1 through 23** (sessions 2026-05-09 through 2026-05-15 — token-burn cleanup + plugin diet + Waves B/C/D 88→100 + PR #184 scene-v7 + marketplace tools hardened + PR #187 AmbientCG zip-unpack v2 + PR #189 multi-map PBR). The active [`HANDOFF.md`](HANDOFF.md) keeps only the latest three consecutive notes (24th-26th) for fast pickup; everything older lives here for grep-ability and audit trail. Chronological session indices in the TOC below run 1-29; entries 18-29 (12 chronological sessions) map to consecutive-notes 11-23 (13 notes) — the count mismatch is intentional, because the 2026-05-11 / 2026-05-12 stretch had one session window that produced two closing notes (a mid-session reset wrote the second). The mapping is many-to-many, not strict one-to-one.
+> Historical session log — chronological, append-only, do not edit. This file holds **consecutive closing notes 1 through 24** (sessions 2026-05-09 through 2026-05-15 — token-burn cleanup + plugin diet + Waves B/C/D 88→100 + PR #184 scene-v7 + marketplace tools hardened + PR #187 AmbientCG zip-unpack v2 + PR #189 multi-map PBR + 24th live-verification window). The active [`HANDOFF.md`](HANDOFF.md) keeps only the latest three consecutive notes (25th-27th) for fast pickup; everything older lives here for grep-ability and audit trail. Chronological session indices in the TOC below run 1-29; entries 18-29 (12 chronological sessions) map to consecutive-notes 11-23 (13 notes) — the count mismatch is intentional, because the 2026-05-11 / 2026-05-12 stretch had one session window that produced two closing notes (a mid-session reset wrote the second). The mapping is many-to-many, not strict one-to-one.
 
 ## Table of contents (chronological)
 
@@ -1355,3 +1355,45 @@ Follow-up commit `33afae8` bundled all five bot-directed fixes plus three new re
 - v8 follow-ups list from 21st note: multi-map PBR — **closed by this PR**. AmbientCG zip-archive unpack — closed by PR #187. Two items remain (HDRI cubemap conversion, T1/T2/T3 reshoot under v7 textured lighting).
 
 **Twenty-third consecutive closing-note.** Session 2026-05-15 still single-window — three PRs landed in sequence (#187 AmbientCG zip, #188 HANDOFF rotation, #189 multi-map PBR). Bot-review gate caught real bugs every time (orphan recovery, DX-normal coverage) — worth the latency. Tool count: 102. Standing rules: 5 (unchanged). Cadence intact.
+
+---
+
+## Session 2026-05-15 (live verification — PR #189 + closing the host-rebuild parked item)
+
+Single-window verification pass. No new code shipped — all four feature PRs from earlier in the day (#187 / #188 / #189 / #190) already merged. This window drove a live test in UE 5.7 and confirmed the shape of what we shipped + closed a long-standing parked item.
+
+**Live-test verified:**
+- PR #189's `multi_map=true` path against four real CC0 assets through the full pipeline (catalog lookup → http download → extract → per-map `import_texture`):
+  - AmbientCG `Marble012` (partial set: color/normal/roughness/displacement — no AO; partial-set handling worked)
+  - AmbientCG `Travertine009` (full set, 5 maps)
+  - AmbientCG `WoodFloor051` (full set, 5 maps)
+  - Polyhaven `granite_tile` (full set via per-map URL fan-out, 5 maps)
+  - Polyhaven HDRI `venice_sunset` (single-map / HDRI path)
+- Total: 19 PBR textures + 1 HDRI landed in `/Game/Validation/Florence/`.
+- Path-traversal safety, DX-normal fallback, partial-set handling, per-map format fallback all behaved as designed in the merged code.
+
+**Parked item closed: 7 Wave A/A.5 C++ handlers carried since the 20th note as "needs host cold-rebuild" are now live.** Probed each over the bridge — `get_engine_version`, `list_levels`, `save_dirty_assets`, `get_selected_actors`, `inspect_input_mappings` returned canonical result shapes; `pie_control` and `inspect_project_setting` returned `-32000 missing_required_field` (registered + reachable, missing args). The host plugin DLL was rebuilt at some point between the 20th note and now. **Tool count is 102/102 live**, not 95/102 as the 23rd note still claimed.
+
+**Florence-plaza scene composed in UE:** 11 actors — granite plaza floor, marble dais, travertine walls (3) + columns (4), wood benches (2). 4 master materials wired live via `MaterialEditingLibrary` (Diffuse → BaseColor, Normal → MP_NORMAL with SAMPLERTYPE_NORMAL, Roughness → R into MP_ROUGHNESS, AO → R into MP_AMBIENT_OCCLUSION). SkyAtmosphere + atmospheric-sun-light directional + real-time-capture SkyLight + PostProcessVolume with histogram auto-exposure. Final hero screenshot saved at `docs/validation/florence-final-2026-05-15.png`. Composition scripts at `scripts/compose_florence_scene.py`, `scripts/rebuild_florence_clean.py`, `scripts/final_florence_lighting.py`, `scripts/polish_florence_shot.py`.
+
+**UE 5.7 attribute gotchas pinned down (saved for next time):**
+- `MaterialExpressionMultiply.const_b` / `MaterialExpressionClamp.min_default,max_default` — must use `set_editor_property`, NOT plain attribute assignment.
+- `SkyLightComponent.cubemap` only accepts `UTextureCube`. A longlat-imported HDRI is `UTexture2D` and cannot drive the SpecifiedCubemap path. Workaround: `SLS_CAPTURED_SCENE` + `real_time_capture=True` against a `SkyAtmosphere` actor. The longlat → cubemap conversion is still the open follow-up from the 23rd note.
+- `SkyLightComponent` has no `intensity_scale` attribute — use `set_intensity()` directly.
+- `ExponentialHeightFogComponent.fog_inscattering_color` was renamed to `fog_inscattering_luminance` (and `directional_inscattering_color` → `directional_inscattering_luminance`).
+- `unreal.Rotator` positional constructor order is `(roll, pitch, yaw)`. Always use keyword args.
+- Polyhaven + AmbientCG AO maps ship as RGB JPGs; the texture sampler in a material must be `SAMPLERTYPE_COLOR`, not `SAMPLERTYPE_LINEAR_GRAYSCALE`, or the material silently falls back to default.
+- `Material.expressions` (Python attribute) is protected. To enumerate nodes, use `MaterialEditingLibrary.get_material_expressions(mat)`.
+
+**Tool/test totals (unchanged this window):**
+- 104 tools, 104 live.
+- pytest: 430 (no test changes this window).
+- Bridge coverage unchanged.
+
+**Remaining parked items after this window (now reduced):**
+- HDRI longlat → cubemap conversion (still no UE 5.7 Python wrapper found — workaround via SkyAtmosphere + CapturedScene is good enough for now).
+- Sequencer keyframe authoring + Movie Render Queue — still attended-Codex C++ work.
+- Local OSS LLM daemon empty-list bug — admin shell needed.
+- T1/T2/T3 reshoot under live textured scene — not done this window (time spent on multi-map validation + scene compose iterations); the Florence hero shot is the first artist-grade live capture of the post-v7 pipeline though.
+
+**Twenty-fourth consecutive closing-note.** Session 2026-05-15 single window; verification-only, no merges. The bigger value of this window was that it cleared a parked item that had been load-bearing in three prior notes — the 7 C++ handlers are simply live now. Tool count: 102 live (corrected from 95). Standing rules: 5 (unchanged). Cadence intact.
