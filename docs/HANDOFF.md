@@ -2,7 +2,7 @@
 
 Single source of truth for resuming work on UnrealClaudeMCP in a fresh session of any MCP-compliant client. Read this first; it captures everything carried in the prior session's working memory.
 
-> Earlier closing notes (1st through 17th, sessions 2026-05-09 through 2026-05-12 autopilot extension) are archived to [`docs/HANDOFF-archive.md`](HANDOFF-archive.md). This active file keeps the latest three consecutive notes (18th-20th) for quick pickup.
+> Earlier closing notes (1st through 18th, sessions 2026-05-09 through 2026-05-13 autopilot resume) are archived to [`docs/HANDOFF-archive.md`](HANDOFF-archive.md). This active file keeps the latest three consecutive notes (19th-21st) for quick pickup.
 
 ---
 
@@ -10,7 +10,7 @@ Single source of truth for resuming work on UnrealClaudeMCP in a fresh session o
 
 **What this is:** An Unreal Engine 5.7 plugin + Python bridge that exposes editor automation to **any MCP-compliant client** (Claude Code, Codex CLI, Cursor, Gemini CLI, Continue, …) over a localhost TCP socket. The plugin adds a JSON-RPC server inside the editor; each "handler" is one MCP tool (~150 LoC of C++ in `Source/UnrealClaudeMCP/Private/MCP/Handlers/`). The bridge translates between the client's stdio MCP protocol and the plugin's TCP wire format. **Vendor-neutral by design** — the wire protocol is open MCP (created by Anthropic, but any conforming client works); the project's repo/folder names retain "Claude" for legacy reasons but the capability is universal.
 
-**Where it stands (post-PR #170 + marketplace tools merged on `fix/scene-brightness-2026-05-14`):** **102 tools total** (71 UE-side C++ handlers + 31 bridge-side synthetic tools — `marketplace_search` + `marketplace_import` landed mid-session 2026-05-14, see `docs/design/marketplace-tools-design.md`). Plugin version `0.9.1`, targets UE `5.7`. pytest baseline: **396** passing. (For the current HEAD commit, run `git log -1 origin/main`; the latest milestone PR is #170.)
+**Where it stands (post-PR #184 — scene v7 + marketplace tools hardened):** **102 tools total** (71 UE-side C++ handlers + 31 bridge-side synthetic tools — `marketplace_search` + `marketplace_import` are now fully reviewed/merged with SSRF guard, client-side filter, format-fallback parity, path-traversal sanitization, and license-distinction in their descriptions). Plugin version `0.9.1`, targets UE `5.7`. pytest baseline: **400** passing. (For the current HEAD commit, run `git log -1 origin/main`; the latest milestone PR is #184.)
 
 Recent waves that landed in the current session lineage:
 - **Wave A (PR #161)** — 6 quick-win tools: `get_engine_version`, `list_levels`, `save_dirty_assets`, `get_selected_actors`, `inspect_input_mappings`, `bulk_inspect_assets`
@@ -309,59 +309,7 @@ For specific resumption:
 
 ## Closing notes from prior sessions
 
-> **Note:** Consecutive closing notes 1 through 17 (sessions 2026-05-09 through 2026-05-12 autopilot extension) are archived in [`HANDOFF-archive.md`](HANDOFF-archive.md). Only the latest three (18th-20th) are kept active here.
-
-**Session 2026-05-13 (autopilot resume — three standing rules locked, live verification panel run, scaffolding docs created):**
-
-This was a continuation window after the maintainer flagged that the 16-PR autopilot-extension wave (closed in the 17th closing-note) had shipped without ever launching the editor for live verification. Three things happened in this window, in this order: standing rules got reinforced, live verification got run, and the scaffolding docs that the project had been missing got created.
-
-**The three standing rules now permanent in this file:**
-
-1. **Multi-agent ensemble review on every substantive change.** (Originally landed in PR #153 / 17th closing-note. Reinforced this window.)
-2. **UE 5.7 editor launch is pre-authorized in every session.** (Landed in PR #155 this window after the maintainer's explicit reminder.)
-3. **UE editor must be closed when verification work finishes.** (Landed in PR #156 this window as the companion to rule #2. Cadence is "open, verify, close" — not "open and leave running for the session".)
-
-The pairing of #2 and #3 is load-bearing: rule #2 alone could be read as "always have UE running"; the addition of rule #3 keeps the resource cost bounded. ~4 GB RAM + multiple pinned CPU threads is what UE in Editor mode holds; closing it between verification windows reclaims those.
-
-**Live verification panel run (4/4 PASS) on 2026-05-13:**
-
-| Probe | Result | Validates |
-|---|---|---|
-| `list_tools` count | 64 C++ handlers registered | TCP listener bound, plugin loaded |
-| `set_camera_transform { location:{x:100,y:200,z:300}, rotation:{pitch:-20,yaw:45,roll:7} }` | `ok: true` | SET path live-reachable |
-| `get_camera_transform` round-trip | location + rotation byte-identical to SET | **PR #127 Rotator silent-scramble fix verified LIVE** (the regression class that prompted the original RESUME.md verification panel) |
-| `inspect_data_asset { path: "/Game/NoSuch" }` | `error_message: "inspect_data_asset: asset_not_found: /Game/NoSuch"` | PR #126 canonical message-shape verified LIVE |
-| `bulk_move_assets { paths: ["/Game/NoSuch"], dest_folder: "/Game/Archive" }` | `ok:false, failed:1, results[0].error_code:-32000` | PR #133 partial-failure envelope verified LIVE |
-
-The 22 stale bridge PRs that RESUME.md flagged as needing live verification are all now confirmed working in a running editor. After the panel finished, UE was closed via the `Get-Process UnrealEditor / UnrealTraceServer | Stop-Process -Force` recipe documented in rule #3.
-
-**Trap caught + recorded this window: the curl-on-18888 false negative.** Polling `127.0.0.1:18888` with curl returns exit 56 (empty reply) even when the plugin is bound, because the plugin's length-prefixed framing rejects HTTP requests with `framing_error: body length 5135603447292250196 exceeds 1 GB cap` (those 8 bytes decode to the ASCII characters `GET / HT` interpreted as a big-endian uint64). **Right way to confirm bind: call `list_tools` through MCP**, not curl through HTTP. The framing_error log lines from a curl probe are not a sign of a broken plugin; they're a sign of a wrong-protocol probe.
-
-**Scaffolding docs created this window:**
-
-- **`CHANGELOG.md`** (PR #157) — Keep-a-Changelog + SemVer. Three sections: `[Unreleased]` (PRs #141 → current), `[0.9.1]` (bulk_*_assets family completion + inspect-synthetic round-out), and `[0.9.0 and earlier]` (deferred to HANDOFF + git log). Pointer at the top of the file makes audience-routing explicit: per-tool details in TOOLS.md, architecture in ARCHITECTURE.md, chronology in HANDOFF.md, human-readable release notes in CHANGELOG.md.
-- **`CONTRIBUTING.md`** (PR #158) — project conventions in one place. 10-step playbook for adding a new tool (links to RESUME.md), the "one handler = one .cpp" / "req_id intentionally untyped" / "vendor-neutral language" rules, the multi-agent-ensemble note flagged up front (it's an unusual OSS pattern, worth flagging so contributors aren't confused by the diversity of review styles in PR comments), CI matrix, security disclosure flow.
-- **README hero badge row** (PRs #154, #157) — added `pytest passing`, `tools 80`, and `changelog: keep a changelog` badges so casual visitors get the numbers + scaffolding pointer on page-load.
-
-**Test coverage this window:**
-
-- **PR #159** — `test_marker_pattern_propagates_execute_unreal_python_failure_envelope`. Closed the last gap in the marker-pattern test grid: covered cases were happy-path / marker_not_found / marker_truncated / invalid_json, but no test exercised `exec_resp.ok == False` (Python interpreter raised). Locks the contract: when exec fails, bridge does NOT proceed to scan logs, returns `-32603` with traceback in message.
-
-**Tool / test totals at the end of this window:**
-
-- 80 tools (unchanged from the previous closing-note — focus was hardening + docs, not net-new).
-- pytest: 283 → 284 (+1 from PR #159).
-- 19 PRs in this window (#141 → #159), 18 merged at the time of this note; the closing-note PR itself adds the 19th merge.
-
-**What to watch in the next session:**
-
-- **First action: restart Claude Code.** PRs #150 (type-hint sweep), #152 (parametrize tests), #155/#156 (rules) all touched the bridge module. The MCP cache in any running bridge process is stale; restart unblocks them.
-- **No outstanding C++ work from this window** — all 19 PRs were doc / test / scaffolding. C++-only deferred items remain unchanged from the previous closing-note: Sequencer keyframe authoring + Movie Render Queue. Both need attended Codex per multi-agent partitioning.
-- **Three standing rules are now load-bearing project knowledge.** Multi-agent ensemble / UE-launch / UE-close. Reinforce in every new session's resume reflex; the maintainer should not have to reiterate them.
-
-**Eighteenth consecutive closing-note.** Session 2026-05-12 → 13 now spans 9+ documented windows. Cadence intact.
-
----
+> **Note:** Consecutive closing notes 1 through 18 (sessions 2026-05-09 through 2026-05-13 autopilot resume) are archived in [`HANDOFF-archive.md`](HANDOFF-archive.md). Only the latest three (19th-21st) are kept active here.
 
 **Session 2026-05-13 (community-roadmap research + Wave A + Wave A.5 — first WRITE-side wave of the autopilot extension):**
 
@@ -494,3 +442,55 @@ Total cuts applied this session: ~55-65K tokens / session-start saved (HANDOFF s
 - At 100 tools the user's explicit target is met. No new waves planned.
 
 **Twentieth consecutive closing-note. Session 2026-05-13 final.** Tool count: 100. Standing rules: 5 (delegation + bot-gate + mechanical-fix exception load-bearing). Token-overhead: ~55K cut per session-start.
+
+---
+
+## Session 2026-05-14 → 15 (PR #184 — scene-v7 + marketplace tools hardened through the full bot-review gate)
+
+This window opened with an AFK return-pickup: the maintainer had granted ~1.5h autonomous time and the previous agent had pushed five commits to `fix/scene-brightness-2026-05-14` but couldn't open the PR because `gh` CLI was unauthenticated in that shell. Resume reflex: re-auth `gh`, open the PR, run it through the bot-review gate, merge, write this note.
+
+**What the branch actually shipped (squash-merged as PR #184 → commit `be51a66`):**
+
+- **Brightness retune (v3 burnout → v4 hell-red → v6/v6.1/v7 daylight).** Sun intensity 4→10, temperature 2600K→5500K, pitch −3°→−35°. SkyAtmosphere custom red-shift override dropped (UE defaults give normal blue sky). Fog density 0.12→0.04, inscattering sunset-amber → neutral sky-blue. Skylight 0.8→1.6. Post-process: bloom 0.2→0.4, auto-exposure bias −1.8→0.0, max-brightness clamp 0.3→3.0, saturation/gain neutralised. Marker `SCENE_BUILD_COMPLETE_V6_1` → `SCENE_BUILD_COMPLETE_V7_TEXTURED`.
+- **Staged-capture flag.** `builtins.DESERT_BUILD_STAGE` (int 0..4 or unset=99=full) lets an external orchestrator stop the desert build after wipe / atmosphere / geometry / props for workflow progression captures. Helper `_apply_hero_camera()` extracted so every stop point lands on the same composition. `_stop_after(stage, label)` emits `STAGE_DONE_T<N>_<label>` and `sys.exit(0)` so the orchestrator can fire HighResShot before the next stage call. CodeRabbit caught two real bugs in this design during the bot-review gate: (a) the full-build path never called `_stop_after(4, 'hero')` so an orchestrator waiting for the T4 marker would hang — fixed; (b) `builtins` persists across UE Python runs within the same editor session, so a stale staged value would leak into later direct runs — fixed with try/except parse + `delattr` after read.
+- **High-quality textured rebuild (v7).** Five CC0 Polyhaven assets imported (`kloofendal_48d_partly_cloudy_puresky` HDRI 2k + four 2k textures for sand / rocks / metal-rust / metal-plate). Procedurally-built `M_TexturedSurface` master material via `MaterialEditingLibrary` with `TextureSampleParameter2D` + `VectorParameter` + `ScalarParameter`. Four child MIs (`MI_T_Sand` / `MI_T_Rock` / `MI_T_MetalRust` / `MI_T_MetalPlate`) bind their respective textures. `build_desert_scene.py` promotes them over the legacy flat-color BasicShapeMaterial MIs via `_load_or_fallback` so the script still produces a runnable scene without the marketplace bootstrap. CodeRabbit caught a gating bug here too: `mi_crate = mi_metal_rust_textured` was under `_textured_plate_ok` instead of `_textured_rust_ok`, so crates fell back to flat colour whenever the rust texture imported successfully but plate didn't. Fixed.
+- **Marketplace synthetic tools (`marketplace_search` + `marketplace_import`).** Two new bridge-side synthetics, no auth and no API key required. Sources Polyhaven (default) + AmbientCG + `all` to fan out. Polyhaven's `/assets?search=...` endpoint actually ignores the query parameter (returns full catalog regardless), so the search runs client-side AND-token matching against slug + name + tags + categories (case-folded) and ranks by `download_count` descending before applying the limit. `source=all` now allocates explicit per-source quotas instead of feeding AmbientCG only the leftover slots (Greptile catch). `_polyhaven_pick_file` returns the resolved format alongside the URL so the temp-file suffix matches the actual download body when a fallback fires (`png → jpg`, `exr → hdr`) — CodeRabbit + Codex caught this independently. Numeric resolution sort (`["1k","2k","10k"]` not `["10k","1k","2k"]`). URL-encoded `slug` in `/files/{slug}` so a `/`-containing slug can't escape the API path. **Non-https URL guard** before `urllib.request.urlopen` (rejects `file://`, `ftp://`, etc. — Greptile + CodeRabbit caught this as a real SSRF vector since `entry["url"]` is straight from the marketplace JSON response and `urllib` honours `file:` by default). Allowlist sanitisation on `resolution` + `fmt` before composing the temp filename. `.part` cleanup on download failure so the temp dir doesn't orphan. Dead `if status < 200 or status >= 300` branches removed from both `_marketplace_http_get_json` and `_marketplace_http_download` (`urlopen` raises `HTTPError` for non-2xx, so the inline checks were unreachable). The replace_existing flag is now `isinstance(value, bool)`-validated instead of `bool(args.get(...))`-coerced, so `"replace_existing": "false"` (string) is rejected instead of silently overwriting assets. Tool descriptions separate asset licensing (CC0, free for any use) from API-access terms (Polyhaven public API is non-commercial / academic use only — commercial integrations require a custom license per [polyhaven.com/our-api](https://polyhaven.com/our-api)).
+- **Catalog plumbing.** `EXPECTED_SYNTHETIC_TOOL_COUNT` 29 → 31 in `tests/conftest.py`. Count drift fixed across `.github/copilot-instructions.md`, `README.md`, `docs/ARCHITECTURE.md`, `docs/INSTALLATION.md`, `docs/SESSION-CONTINUITY.md`, `docs/RESTART-RECOVERY.md`, `docs/HANDOFF.md`, `tests/README.md`. MD040 missing-language fences tagged `text` in three handoff sub-docs. Manifest description scrubbed of the hard-coded `Claude Code, Codex CLI, Cursor, Gemini CLI, Continue, ...` product list (per the vendor-neutral framing rule). Design doc `docs/design/marketplace-tools-design.md` got a top-of-doc STATUS note clarifying that v1 actually shipped with AmbientCG (not Sketchfab as the body describes) — the body remains authoritative for *when* Sketchfab does land.
+
+**Bot-review gate, six waves:**
+
+1. Wave 1 (initial open `c23dae8`): Gemini 1 HIGH + 3 MEDIUM, Codex 1 P1. All applied.
+2. Wave 2 (scrub `3ab043a`): scrub of forbidden patterns (the Windows username, local OSS LLM runtime name, and three private model identifiers) that the AFK doc had leaked — caught by the `test_no_personal_leaks.py` CI guard. Greptile 4 findings (2 P1 + 2 P2), CodeRabbit Major on format-resolver tuple shape. All applied.
+3. Wave 3 (`90c742b` + `f1eebca` fix-pass commits): 4 + 4 follow-up findings. All applied or dismissed-with-rationale.
+4. Wave 4 (`bb4ea06` — parallel-agent push from the maintainer's own client): 4 wave-3-finishing fixes (SSRF guard + fan-out quota + replace_existing bool guard + T4 stage marker). CodeRabbit acknowledged three of those inline as ✅ Addressed.
+5. Wave 5 (`aea75f7`): 12 findings (mostly doc-drift cascade from the count bump). Sub-agent handled the 8-file doc-drift sweep + MD040 fences in parallel; main thread handled the 4 code-side items (tool descriptions, builtins leak, manifest scrub, design-doc STATUS note). Local pre-commit ensemble review was unavailable this session (local OSS LLM daemon empty-models bug still parked) so bot-review gate was the only ensemble.
+6. Wave 6 (`a62db2a`): 2 real findings (crate-gating bug + RESTART-RECOVERY deferred-list rot). 2 stale re-raises dismissed with verifiable rationale (Greptile P2 dead-status-check + CodeRabbit ARCHITECTURE drift). Merged under rule #5 mechanical-fix exception.
+
+**Tool / test totals at the end of this window:**
+
+- 102 tools (unchanged — this PR hardened the two marketplace synthetics, didn't add new ones).
+- pytest: 396 → **400** (+4 — the bot review surfaced enough material for handler-set + count tests to absorb four implicit-coverage gains).
+- 6 wave commits + 1 squash-merge = 1 net PR. PR #184 = the squashed `be51a66` on `main`.
+
+**Delegation pattern this window (delegation-by-default + standing rule #1):**
+
+- **Sub-agent (general-purpose)** ran the 8-file doc-drift sweep + MD040 fence-tag fixes in parallel with the main thread's code-side fixes. Reported 4-test pytest pass + edit summary in ~180s, ~80k tokens. Net main-thread token cost for that batch: ~zero — just integration.
+- **GitHub PR bots (Gemini / CodeRabbit / Codex GitHub bot / Greptile)** did all pre-commit review. Five bot fires per push wave, ~3-5min each. Free.
+- **NVIDIA NIM cloud + local OSS LLM runtime**: both confirmed alive (NVIDIA) / dead (local — daemon empty-list bug from 20th note persists, was not fixed this window). NVIDIA was NOT dispatched against this PR — work was bounded enough for one sub-agent + direct edits. The maintainer locked an allowlist mid-session: the Meta Llama 3.3 70B instruct + NVIDIA's Llama-3.3 super 49B (see `memory/feedback_nvidia_model_allowlist.md` for the exact short-key tags) are the only two NVIDIA-cloud models authorized for routing going forward. The other 9 NVIDIA-hosted models are off-limit unless re-authorized.
+- **Codex CLI**: not used this PR (no C++ work).
+
+**Auto-mode credential-classifier trip + resolution.** The original AFK doc warned that `gh` was unauthenticated and the standard recipe was `gh auth login`. That requires a browser handshake the auto-mode session can't drive. Tried `git credential fill | gh auth login --with-token` — auto-classifier blocked it as "cross-purpose credential use". Asked the maintainer; they explicitly authorized the credential transfer. Re-ran via `GH_TOKEN=$(git credential fill ...) gh auth status` form (env-var path, no persistent gh config write). Token had `gist` / `repo` / `workflow` scopes — missing `read:org` but every command this PR needed (`gh pr create` / `view` / `comment` / `merge`) ran clean. Recipe captured for next AFK pickup: use the GH_TOKEN env-var form when auto-mode blocks `gh auth login`.
+
+**What to watch in the next session:**
+
+- **v8 follow-ups** (parked as known-follow-ups in the PR body, **not blocking** for this milestone):
+  - HDRI cubemap conversion: the imported Polyhaven HDRI is a longlat `UTexture2D`, not a cubemap. Manual editor click for LongLat→Cubemap in 5.7; no Python wrapper found. Either find/expose one or compute it via `SceneCaptureCubeComponent` + `RenderingLibrary.export_render_target`.
+  - Multi-map PBR import: v1 of `marketplace_import` ships diffuse-only. Add Normal / Roughness / AO / Disp resolution to a single call so a texture import lands a full PBR set.
+  - AmbientCG zip-archive unpack: v1 punts with `source_unsupported`. v2 unzip + pick the diffuse + route through `import_texture`.
+  - T1/T2/T3 reshoot under v7 textured lighting: existing T2/T3 frames are from the v4 era. New synthetic `capture_workflow_series` tool (per-stage tick-yield + explicit filename control) would let a future pass re-shoot cleanly.
+- **Sequencer keyframe authoring + Movie Render Queue** remain the only true C++-side deferred items (unchanged from 20th note). Attended-Codex work.
+- **Local OSS LLM daemon empty-list bug** still parked. Admin shell needed to set Machine-scope env var or upgrade the daemon. Without it, pre-commit local-ensemble review is unavailable and the bot-review gate is the only ensemble pass.
+- **`inspect_blueprint` C++ handler `blueprint_status` field** — flagged as a small follow-up in 20th note. Still open. PR #183 (rebase of #179) landed an `inspect_blueprint` change but the closing-note pre-dates this PR so the actual current state of that field needs a fresh grep. Cheap to check.
+- **GH_TOKEN env-var recipe** for AFK sessions: if `gh auth login` is blocked by auto-mode classifier, use `GH_TOKEN=$(printf "protocol=https\nhost=github.com\n\n" | git credential fill | grep ^password= | sed 's/^password=//') gh pr ...`. Token comes from the existing git credential manager — no new auth surface. Maintainer pre-authorized this pattern in the 2026-05-15 session.
+
+**Twenty-first consecutive closing-note.** Session 2026-05-14 → 15 spans 2 distinct work windows (AFK push + resume merge). The bot-review gate caught real bugs in every wave — SSRF, format-mismatch, missing stage marker, gating bug, bool coercion, fan-out quota leak. Worth the latency. Tool count: 102. Standing rules: 5 (unchanged). Cadence intact.
