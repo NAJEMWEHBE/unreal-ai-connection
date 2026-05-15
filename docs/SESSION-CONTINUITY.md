@@ -488,8 +488,8 @@ Get-Process UnrealEditor,UnrealTraceServer -ErrorAction SilentlyContinue | Stop-
 ```bash
 # Bot-review readout (zero sub-agent token cost)
 gh pr view <N> --json statusCheckRollup,reviews,comments,mergeStateStatus
-gh api repos/NAJEMWEHBE/UnrealClaudeMCP/pulls/<N>/comments
-gh api repos/NAJEMWEHBE/UnrealClaudeMCP/pulls/<N>/reviews
+gh api repos/NAJEMWEHBE/unreal-ai-connection/pulls/<N>/comments
+gh api repos/NAJEMWEHBE/unreal-ai-connection/pulls/<N>/reviews
 
 # Local pytest + drift check
 py -3 -m pytest tests/ -q

@@ -6,7 +6,7 @@
 
 104 tools total. Zero pixel-clicking. ~50ms round-trip.
 
-[![CI](https://github.com/NAJEMWEHBE/UnrealClaudeMCP/actions/workflows/tests.yml/badge.svg)](https://github.com/NAJEMWEHBE/UnrealClaudeMCP/actions/workflows/tests.yml)
+[![CI](https://github.com/NAJEMWEHBE/unreal-ai-connection/actions/workflows/tests.yml/badge.svg)](https://github.com/NAJEMWEHBE/unreal-ai-connection/actions/workflows/tests.yml)
 [![License](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
 [![Unreal Engine](https://img.shields.io/badge/Unreal_Engine-5.7-313131?logo=unrealengine)](https://www.unrealengine.com/)
 [![Python](https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)

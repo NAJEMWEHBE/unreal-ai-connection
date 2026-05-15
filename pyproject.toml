@@ -35,9 +35,9 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/NAJEMWEHBE/UnrealClaudeMCP"
-Repository = "https://github.com/NAJEMWEHBE/UnrealClaudeMCP"
-Issues = "https://github.com/NAJEMWEHBE/UnrealClaudeMCP/issues"
+Homepage = "https://github.com/NAJEMWEHBE/unreal-ai-connection"
+Repository = "https://github.com/NAJEMWEHBE/unreal-ai-connection"
+Issues = "https://github.com/NAJEMWEHBE/unreal-ai-connection/issues"
 
 # The bridge has no runtime dependencies beyond the Python stdlib.
 # Dev dependencies (pytest, ruff) are below under [project.optional-dependencies].

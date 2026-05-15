@@ -8,7 +8,7 @@ Maintainer went AFK ~20:25 local for ~2 hours. This file is the resume brief.
 
 - **Branch:** `fix/scene-brightness-2026-05-14`
 - **Commit pushed:** `f3b3f52` — `scene-build v6: daylight retune + staged-capture flag + T0/T4 workflow captures`
-- **PR URL (manual open):** https://github.com/NAJEMWEHBE/UnrealClaudeMCP/pull/new/fix/scene-brightness-2026-05-14
+- **PR URL (manual open):** https://github.com/NAJEMWEHBE/unreal-ai-connection/pull/new/fix/scene-brightness-2026-05-14
 
 Files changed in the commit:
 

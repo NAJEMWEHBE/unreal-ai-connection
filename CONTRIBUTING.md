@@ -9,8 +9,8 @@ Please skim this file before opening a PR. Three of the rules are slightly unusu
 ## Quickstart
 
 ```bash
-git clone https://github.com/NAJEMWEHBE/UnrealClaudeMCP
-cd UnrealClaudeMCP
+git clone https://github.com/NAJEMWEHBE/unreal-ai-connection
+cd unreal-ai-connection
 pip install pytest pytest-cov
 pytest tests/                                       # bridge tests, no UE required
 python scripts/drift_sweep.py                       # canonical-count guard

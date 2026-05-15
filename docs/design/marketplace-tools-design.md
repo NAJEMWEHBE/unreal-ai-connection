@@ -277,7 +277,7 @@ v1 only surfaces `asset_type=texture` / `asset_type=hdri` for Sketchfab — and 
 Both handlers live in `bridge/unreal_claude_mcp_bridge.py` immediately above the `SYNTHETIC_TOOLS = { ... }` dict (where the existing Polyhaven/AmbientCG code already sits). Pseudocode:
 
 ```python
-_MARKETPLACE_USER_AGENT = "UnrealClaudeMCP/0.9 (+https://github.com/NAJEMWEHBE/UnrealClaudeMCP)"
+_MARKETPLACE_USER_AGENT = "UnrealClaudeMCP/0.9 (+https://github.com/NAJEMWEHBE/unreal-ai-connection)"
 _MARKETPLACE_TIMEOUT = 30
 
 def _http_get_json(url: str, headers: dict | None = None) -> tuple[dict | list | None, dict | None]:

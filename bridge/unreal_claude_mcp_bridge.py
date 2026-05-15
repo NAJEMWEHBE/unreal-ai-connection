@@ -5106,7 +5106,7 @@ def synthetic_bulk_fix_redirectors(req_id, args: dict) -> dict:
 # ---------------------------------------------------------------------------
 
 
-_MARKETPLACE_USER_AGENT = "UnrealClaudeMCP/0.9.1 (+https://github.com/NAJEMWEHBE/UnrealClaudeMCP)"
+_MARKETPLACE_USER_AGENT = "UnrealClaudeMCP/0.9.1 (+https://github.com/NAJEMWEHBE/unreal-ai-connection)"
 _MARKETPLACE_TIMEOUT_SECS = 30
 
 
