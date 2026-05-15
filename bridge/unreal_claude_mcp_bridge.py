@@ -5366,17 +5366,13 @@ def _ambientcg_extract_primary_map(zip_path: str, asset_type: str, dest_dir: str
         return None, {"code": -32603, "message": f"ambientcg: extract_failed: {zip_path}: {e}"}
 
 
-# Canonical PBR map names used across both marketplace backends. Color is
-# always required; the rest are best-effort and just absent from the result
-# dict when the source doesn't ship them.
-_PBR_CANONICAL_MAPS = ("color", "normal", "roughness", "ao", "displacement", "metalness")
-
 # AmbientCG zip filename markers per canonical map. Order inside each tuple
-# is preference order — `_NormalGL` is preferred over `_Normal` because UE's
-# tangent-space convention is OpenGL, not DirectX.
+# is preference order — `_NormalGL` is preferred over `_NormalDX` (UE's
+# tangent-space convention is OpenGL), but DX variants are kept as a fallback
+# so assets that only publish DX-tangent normals still resolve.
 _AMBIENTCG_MAP_MARKERS: dict[str, tuple[str, ...]] = {
     "color":        ("_Color.", "_color.", "_Diffuse.", "_diffuse."),
-    "normal":       ("_NormalGL.", "_normalgl.", "_Normal.", "_normal."),
+    "normal":       ("_NormalGL.", "_normalgl.", "_NormalDX.", "_normaldx.", "_Normal.", "_normal."),
     "roughness":    ("_Roughness.", "_roughness.", "_Rough.", "_rough."),
     "ao":           ("_AmbientOcclusion.", "_ambientocclusion.", "_AO.", "_ao."),
     "displacement": ("_Displacement.", "_displacement.", "_Disp.", "_disp."),
@@ -5568,7 +5564,7 @@ def _polyhaven_pick_file(files: dict, asset_type: str, resolution: str, fmt: str
 # `Normal` because UE's tangent-space convention is OpenGL.
 _POLYHAVEN_MAP_KEYS: dict[str, tuple[str, ...]] = {
     "color":        ("Diffuse", "diffuse", "Color", "color"),
-    "normal":       ("nor_gl", "Normal", "normal"),
+    "normal":       ("nor_gl", "nor_dx", "NormalDX", "Normal", "normal"),
     "roughness":    ("Rough", "Roughness", "roughness"),
     "ao":           ("AO", "ao"),
     "displacement": ("Displacement", "displacement", "Disp"),
@@ -5727,12 +5723,12 @@ def _marketplace_import_multimap(
 
     # 2. Fan out import_texture calls. Color first so a failure surfaces
     # the most-critical map's error rather than a secondary one.
+    # map_order is derived from extracted_paths so every element exists
+    # in the dict by construction — no membership check needed in the loop.
     map_order = ["color"] + [m for m in extracted_paths.keys() if m != "color"]
     imported: dict[str, str] = {}
     import_results: dict[str, dict] = {}
     for canonical in map_order:
-        if canonical not in extracted_paths:
-            continue
         per_map_dest_name = dest_name if canonical == "color" else f"{dest_name}_{canonical}"
         import_params = {
             "source_path": extracted_paths[canonical],
@@ -5745,9 +5741,20 @@ def _marketplace_import_multimap(
         import_resp = call_ue("import_texture", import_params)
         if "error" in import_resp:
             upstream = import_resp.get("error") or {}
+            # Partial-import recovery: surface every map that did land in
+            # UE so the caller can decide whether to `delete_asset` them
+            # or retry the failed map with `replace_existing=true`. Without
+            # this, an `replace_existing=false` retry would hit the stale
+            # color asset and double-fail.
             return make_response(req_id, error={
                 "code": upstream.get("code", -32603) or -32603,
                 "message": f"marketplace_import: ue_import_failed: map={canonical}: {upstream.get('message') or 'import_texture returned an error'}",
+                "data": {
+                    "failed_map": canonical,
+                    "imported_so_far": imported,
+                    "remaining_maps": [m for m in map_order if m not in imported and m != canonical],
+                    "hint": "retry with replace_existing=true, or delete the assets in imported_so_far before retrying with replace_existing=false",
+                },
             })
         result = import_resp.get("result") or {}
         imported[canonical] = result.get("asset_path") or f"{dest_path}/{per_map_dest_name}"

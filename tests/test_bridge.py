@@ -5804,3 +5804,87 @@ def test_marketplace_import_multimap_polyhaven_end_to_end(tmp_path):
     assert body["maps"]["normal"] == "/Game/Marketplace/beach_normal.beach_normal"
     assert body["downloaded_from"].endswith("/files/aerial_beach_01")
     assert m_ue.call_count == 3
+
+
+def test_marketplace_import_multimap_partial_failure_surfaces_imported_so_far(tmp_path):
+    """When color imports but a later map fails, the error body lists every
+    asset that did land in UE so the caller can clean up or retry with
+    replace_existing=true."""
+    extracted = {
+        "color":  str(tmp_path / "Rocks023_2K_Color.jpg"),
+        "normal": str(tmp_path / "Rocks023_2K_NormalGL.jpg"),
+        "roughness": str(tmp_path / "Rocks023_2K_Roughness.jpg"),
+    }
+    for p in extracted.values():
+        with open(p, "wb") as f:
+            f.write(b"jpg")
+    zip_url = "https://ambientcg.com/get?file=Rocks023_2K-JPG.zip"
+
+    call_count = {"n": 0}
+
+    def fake_call_ue(method, params):
+        call_count["n"] += 1
+        # First call (color) succeeds; second call (normal) fails.
+        if call_count["n"] == 1:
+            return {"result": {"asset_path": f"{params['dest_path']}/{params['dest_name']}.{params['dest_name']}"}}
+        return {"error": {"code": -32603, "message": "import_texture: factory_failed: simulated failure"}}
+
+    with patch.object(bridge, "_ambientcg_resolve_zip_url",
+                      return_value=(zip_url, "2K-JPG", ["2K-JPG"], None)), \
+         patch.object(bridge, "_marketplace_http_download", return_value=None), \
+         patch.object(bridge, "_ambientcg_extract_pbr_maps",
+                      return_value=(extracted, None)), \
+         patch.object(bridge, "call_ue", side_effect=fake_call_ue):
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 804, "method": "tools/call",
+            "params": {"name": "marketplace_import", "arguments": {
+                "source": "ambientcg",
+                "slug": "Rocks023",
+                "asset_type": "texture",
+                "resolution": "2k",
+                "format": "jpg",
+                "multi_map": True,
+                "dest_path": "/Game/Marketplace",
+                "dest_name": "Rocks023",
+            }},
+        })
+
+    assert "error" in resp
+    err = resp["error"]
+    assert err["code"] == -32603
+    assert "map=normal" in err["message"]
+    # The structured `data` block lets callers recover without parsing the
+    # message — failed map name, list of imported assets, remaining maps.
+    data = err.get("data") or {}
+    assert data["failed_map"] == "normal"
+    assert "color" in data["imported_so_far"]
+    assert data["imported_so_far"]["color"] == "/Game/Marketplace/Rocks023.Rocks023"
+    assert data["remaining_maps"] == ["roughness"]
+
+
+def test_ambientcg_extract_pbr_maps_dx_normal_fallback(tmp_path):
+    """When only NormalDX is published (no GL variant), the DX map is used
+    rather than the asset getting no normal at all."""
+    import zipfile
+    zip_path = tmp_path / "DXOnly.zip"
+    with zipfile.ZipFile(str(zip_path), "w") as zf:
+        zf.writestr("Slug_2K_Color.jpg", b"color")
+        zf.writestr("Slug_2K_NormalDX.jpg", b"normal-dx-only")
+    extract_dir = tmp_path / "extract"
+    extract_dir.mkdir()
+    maps, err = bridge._ambientcg_extract_pbr_maps(str(zip_path), str(extract_dir))
+    assert err is None
+    assert "normal" in maps
+    with open(maps["normal"], "rb") as f:
+        assert f.read() == b"normal-dx-only"
+
+
+def test_polyhaven_pick_pbr_files_dx_normal_fallback():
+    """No nor_gl present but nor_dx exists — DX still resolves."""
+    files = {
+        "Diffuse": {"2k": {"png": {"url": "https://x/diffuse_2k.png"}}},
+        "nor_dx":  {"2k": {"png": {"url": "https://x/nor_dx_2k.png"}}},
+    }
+    urls, _available, err = bridge._polyhaven_pick_pbr_files(files, "2k", "png")
+    assert err is None
+    assert urls["normal"] == "https://x/nor_dx_2k.png"

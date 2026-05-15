@@ -3834,7 +3834,7 @@ Download a CC0 asset from a marketplace (Polyhaven or AmbientCG) and import it i
 - `dest_path` *(string, optional, default `/Game/Marketplace`)* — UE package path; must start with `/Game/`.
 - `dest_name` *(string, optional)* — asset name override; defaults to the slug.
 - `replace_existing` *(bool, optional, default `false`)* — overwrite an existing asset at `dest_path/dest_name`. Must be an actual boolean — `"false"` (string) is rejected.
-- `multi_map` *(bool, optional, default `false`)* — texture only; when `true`, fan out per-map download + import so Normal/Roughness/AO/Displacement/Metalness land alongside Color. Rejected for HDRIs.
+- `multi_map` *(bool, optional, default `false`)* — texture only; valid solely when `asset_type='texture'`. When `true`, fan out per-map download + import so Normal/Roughness/AO/Displacement/Metalness land alongside Color. Rejected for HDRIs and models.
 
 **Result**:
 
