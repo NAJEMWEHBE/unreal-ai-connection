@@ -47,6 +47,9 @@ FORBIDDEN_PATTERNS = [
 # here. New entries should be rare; prefer scrubbing over allowlisting.
 ALLOWED_FILES = {
     "tests/test_no_personal_leaks.py",
+    # Installer-script tests assert these patterns are ABSENT from the
+    # installers, which requires the literal strings in the test source.
+    "tests/test_installer_scripts.py",
 }
 
 
