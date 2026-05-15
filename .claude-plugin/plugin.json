@@ -1,0 +1,7 @@
+{
+  "name": "unreal-ai-connection",
+  "description": "Drive Unreal Engine 5.7 from any MCP client — 104 editor-automation tools (actors, sequencer, materials, assets, live viewport) via a local TCP bridge to the Unreal AI Connection UE plugin.",
+  "version": "0.9.1",
+  "author": { "name": "NAJEMWEHBE" },
+  "mcpServers": "./.claude-plugin/mcp-config.json"
+}
