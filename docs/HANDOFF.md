@@ -2,7 +2,7 @@
 
 Single source of truth for resuming work on UnrealClaudeMCP in a fresh session of any MCP-compliant client. Read this first; it captures everything carried in the prior session's working memory.
 
-> Earlier closing notes (1st through 20th, sessions 2026-05-09 through 2026-05-13 final) are archived to [`docs/HANDOFF-archive.md`](HANDOFF-archive.md). This active file keeps the latest three consecutive notes (21st-23rd) for quick pickup.
+> Earlier closing notes (1st through 21st, sessions 2026-05-09 through 2026-05-15) are archived to [`docs/HANDOFF-archive.md`](HANDOFF-archive.md). This active file keeps the latest three consecutive notes (22nd-24th) for quick pickup.
 
 ---
 
@@ -30,7 +30,7 @@ Recent waves that landed in the current session lineage:
 
 **Open PRs:** none.
 
-**Latest milestone on main:** PR #189 — multi-map PBR mode for marketplace_import; merge commit on main is the next 23rd-closing-note PR. For the current HEAD commit hash, run `git log -1 origin/main`.
+**Latest milestone on main:** PR #190 — 23rd closing-note + 20th rotated to archive. For the current HEAD commit hash, run `git log -1 origin/main`.
 
 **Pending verification on host machine (PRIMARY next-action item):**
 
@@ -309,59 +309,7 @@ For specific resumption:
 
 ## Closing notes from prior sessions
 
-> **Note:** Consecutive closing notes 1 through 20 (sessions 2026-05-09 through 2026-05-13 final) are archived in [`HANDOFF-archive.md`](HANDOFF-archive.md). Only the latest three (21st-23rd) are kept active here.
-
-## Session 2026-05-14 → 15 (PR #184 — scene-v7 + marketplace tools hardened through the full bot-review gate)
-
-This window opened with an AFK return-pickup: the maintainer had granted ~1.5h autonomous time and the previous agent had pushed five commits to `fix/scene-brightness-2026-05-14` but couldn't open the PR because `gh` CLI was unauthenticated in that shell. Resume reflex: re-auth `gh`, open the PR, run it through the bot-review gate, merge, write this note.
-
-**What the branch actually shipped (squash-merged as PR #184 → commit `be51a66`):**
-
-- **Brightness retune (v3 burnout → v4 hell-red → v6/v6.1/v7 daylight).** Sun intensity 4→10, temperature 2600K→5500K, pitch −3°→−35°. SkyAtmosphere custom red-shift override dropped (UE defaults give normal blue sky). Fog density 0.12→0.04, inscattering sunset-amber → neutral sky-blue. Skylight 0.8→1.6. Post-process: bloom 0.2→0.4, auto-exposure bias −1.8→0.0, max-brightness clamp 0.3→3.0, saturation/gain neutralised. Marker `SCENE_BUILD_COMPLETE_V6_1` → `SCENE_BUILD_COMPLETE_V7_TEXTURED`.
-- **Staged-capture flag.** `builtins.DESERT_BUILD_STAGE` (int 0..4 or unset=99=full) lets an external orchestrator stop the desert build after wipe / atmosphere / geometry / props for workflow progression captures. Helper `_apply_hero_camera()` extracted so every stop point lands on the same composition. `_stop_after(stage, label)` emits `STAGE_DONE_T<N>_<label>` and `sys.exit(0)` so the orchestrator can fire HighResShot before the next stage call. CodeRabbit caught two real bugs in this design during the bot-review gate: (a) the full-build path never called `_stop_after(4, 'hero')` so an orchestrator waiting for the T4 marker would hang — fixed; (b) `builtins` persists across UE Python runs within the same editor session, so a stale staged value would leak into later direct runs — fixed with try/except parse + `delattr` after read.
-- **High-quality textured rebuild (v7).** Five CC0 Polyhaven assets imported (`kloofendal_48d_partly_cloudy_puresky` HDRI 2k + four 2k textures for sand / rocks / metal-rust / metal-plate). Procedurally-built `M_TexturedSurface` master material via `MaterialEditingLibrary` with `TextureSampleParameter2D` + `VectorParameter` + `ScalarParameter`. Four child MIs (`MI_T_Sand` / `MI_T_Rock` / `MI_T_MetalRust` / `MI_T_MetalPlate`) bind their respective textures. `build_desert_scene.py` promotes them over the legacy flat-color BasicShapeMaterial MIs via `_load_or_fallback` so the script still produces a runnable scene without the marketplace bootstrap. CodeRabbit caught a gating bug here too: `mi_crate = mi_metal_rust_textured` was under `_textured_plate_ok` instead of `_textured_rust_ok`, so crates fell back to flat colour whenever the rust texture imported successfully but plate didn't. Fixed.
-- **Marketplace synthetic tools (`marketplace_search` + `marketplace_import`).** Two new bridge-side synthetics, no auth and no API key required. Sources Polyhaven (default) + AmbientCG + `all` to fan out. Polyhaven's `/assets?search=...` endpoint actually ignores the query parameter (returns full catalog regardless), so the search runs client-side AND-token matching against slug + name + tags + categories (case-folded) and ranks by `download_count` descending before applying the limit. `source=all` now allocates explicit per-source quotas instead of feeding AmbientCG only the leftover slots (Greptile catch). `_polyhaven_pick_file` returns the resolved format alongside the URL so the temp-file suffix matches the actual download body when a fallback fires (`png → jpg`, `exr → hdr`) — CodeRabbit + Codex caught this independently. Numeric resolution sort (`["1k","2k","10k"]` not `["10k","1k","2k"]`). URL-encoded `slug` in `/files/{slug}` so a `/`-containing slug can't escape the API path. **Non-https URL guard** before `urllib.request.urlopen` (rejects `file://`, `ftp://`, etc. — Greptile + CodeRabbit caught this as a real SSRF vector since `entry["url"]` is straight from the marketplace JSON response and `urllib` honours `file:` by default). Allowlist sanitisation on `resolution` + `fmt` before composing the temp filename. `.part` cleanup on download failure so the temp dir doesn't orphan. Dead `if status < 200 or status >= 300` branches removed from both `_marketplace_http_get_json` and `_marketplace_http_download` (`urlopen` raises `HTTPError` for non-2xx, so the inline checks were unreachable). The replace_existing flag is now `isinstance(value, bool)`-validated instead of `bool(args.get(...))`-coerced, so `"replace_existing": "false"` (string) is rejected instead of silently overwriting assets. Tool descriptions separate asset licensing (CC0, free for any use) from API-access terms (Polyhaven public API is non-commercial / academic use only — commercial integrations require a custom license per [polyhaven.com/our-api](https://polyhaven.com/our-api)).
-- **Catalog plumbing.** `EXPECTED_SYNTHETIC_TOOL_COUNT` 29 → 31 in `tests/conftest.py`. Count drift fixed across `.github/copilot-instructions.md`, `README.md`, `docs/ARCHITECTURE.md`, `docs/INSTALLATION.md`, `docs/SESSION-CONTINUITY.md`, `docs/RESTART-RECOVERY.md`, `docs/HANDOFF.md`, `tests/README.md`. MD040 missing-language fences tagged `text` in three handoff sub-docs. Manifest description scrubbed of the hard-coded `Claude Code, Codex CLI, Cursor, Gemini CLI, Continue, ...` product list (per the vendor-neutral framing rule). Design doc `docs/design/marketplace-tools-design.md` got a top-of-doc STATUS note clarifying that v1 actually shipped with AmbientCG (not Sketchfab as the body describes) — the body remains authoritative for *when* Sketchfab does land.
-
-**Bot-review gate, six waves:**
-
-1. Wave 1 (initial open `c23dae8`): Gemini 1 HIGH + 3 MEDIUM, Codex 1 P1. All applied.
-2. Wave 2 (scrub `3ab043a`): scrub of forbidden patterns (the Windows username, local OSS LLM runtime name, and three private model identifiers) that the AFK doc had leaked — caught by the `test_no_personal_leaks.py` CI guard. Greptile 4 findings (2 P1 + 2 P2), CodeRabbit Major on format-resolver tuple shape. All applied.
-3. Wave 3 (`90c742b` + `f1eebca` fix-pass commits): 4 + 4 follow-up findings. All applied or dismissed-with-rationale.
-4. Wave 4 (`bb4ea06` — parallel-agent push from the maintainer's own client): 4 wave-3-finishing fixes (SSRF guard + fan-out quota + replace_existing bool guard + T4 stage marker). CodeRabbit acknowledged three of those inline as ✅ Addressed.
-5. Wave 5 (`aea75f7`): 12 findings (mostly doc-drift cascade from the count bump). Sub-agent handled the 8-file doc-drift sweep + MD040 fences in parallel; main thread handled the 4 code-side items (tool descriptions, builtins leak, manifest scrub, design-doc STATUS note). Local pre-commit ensemble review was unavailable this session (local OSS LLM daemon empty-models bug still parked) so bot-review gate was the only ensemble.
-6. Wave 6 (`a62db2a`): 2 real findings (crate-gating bug + RESTART-RECOVERY deferred-list rot). 2 stale re-raises dismissed with verifiable rationale (Greptile P2 dead-status-check + CodeRabbit ARCHITECTURE drift). Merged under rule #5 mechanical-fix exception.
-
-**Tool / test totals at the end of this window:**
-
-- 102 tools (unchanged — this PR hardened the two marketplace synthetics, didn't add new ones).
-- pytest: 396 → **400** (+4 — the bot review surfaced enough material for handler-set + count tests to absorb four implicit-coverage gains).
-- 6 wave commits + 1 squash-merge = 1 net PR. PR #184 = the squashed `be51a66` on `main`.
-
-**Delegation pattern this window (delegation-by-default + standing rule #1):**
-
-- **Sub-agent (general-purpose)** ran the 8-file doc-drift sweep + MD040 fence-tag fixes in parallel with the main thread's code-side fixes. Reported 4-test pytest pass + edit summary in ~180s, ~80k tokens. Net main-thread token cost for that batch: ~zero — just integration.
-- **GitHub PR bots (Gemini / CodeRabbit / Codex GitHub bot / Greptile)** did all pre-commit review. Five bot fires per push wave, ~3-5min each. Free.
-- **NVIDIA NIM cloud + local OSS LLM runtime**: both confirmed alive (NVIDIA) / dead (local — daemon empty-list bug from 20th note persists, was not fixed this window). NVIDIA was NOT dispatched against this PR — work was bounded enough for one sub-agent + direct edits. The maintainer locked an allowlist mid-session: the Meta Llama 3.3 70B instruct + NVIDIA's Llama-3.3 super 49B (see `memory/feedback_nvidia_model_allowlist.md` for the exact short-key tags) are the only two NVIDIA-cloud models authorized for routing going forward. The other 9 NVIDIA-hosted models are off-limit unless re-authorized.
-- **Codex CLI**: not used this PR (no C++ work).
-
-**Auto-mode credential-classifier trip + resolution.** The original AFK doc warned that `gh` was unauthenticated and the standard recipe was `gh auth login`. That requires a browser handshake the auto-mode session can't drive. A first attempt to wire `gh` from the system credential store was blocked by the auto-mode classifier as "cross-purpose credential use" — the right call, since cross-tool credential extraction is exactly what a hostile agent would attempt. The maintainer explicitly authorized the one-time transfer in the live session. The exact extraction recipe is intentionally **not documented in this public file**; for the next AFK pickup the canonical path is `gh auth login --with-token` from a PAT the maintainer pastes in (see the "What to watch" item below for the public pointer).
-
-**What to watch in the next session:**
-
-- **v8 follow-ups** (parked as known-follow-ups in the PR body, **not blocking** for this milestone):
-  - HDRI cubemap conversion: the imported Polyhaven HDRI is a longlat `UTexture2D`, not a cubemap. Manual editor click for LongLat→Cubemap in 5.7; no Python wrapper found. Either find/expose one or compute it via `SceneCaptureCubeComponent` + `RenderingLibrary.export_render_target`.
-  - Multi-map PBR import: v1 of `marketplace_import` ships diffuse-only. Add Normal / Roughness / AO / Disp resolution to a single call so a texture import lands a full PBR set.
-  - AmbientCG zip-archive unpack: v1 punts with `source_unsupported`. v2 unzip + pick the diffuse + route through `import_texture`.
-  - T1/T2/T3 reshoot under v7 textured lighting: existing T2/T3 frames are from the v4 era. New synthetic `capture_workflow_series` tool (per-stage tick-yield + explicit filename control) would let a future pass re-shoot cleanly.
-- **Sequencer keyframe authoring + Movie Render Queue** remain the only true C++-side deferred items (unchanged from 20th note). Attended-Codex work.
-- **Local OSS LLM daemon empty-list bug** still parked. Admin shell needed to set Machine-scope env var or upgrade the daemon. Without it, pre-commit local-ensemble review is unavailable and the bot-review gate is the only ensemble pass.
-- **`inspect_blueprint` C++ handler `blueprint_status` field** — flagged as a small follow-up in 20th note. Still open. PR #183 (rebase of #179) landed an `inspect_blueprint` change but the closing-note pre-dates this PR so the actual current state of that field needs a fresh grep. Cheap to check.
-- **`gh` auth for AFK sessions**: if the next AFK pickup again finds `gh` unauthenticated and the auto-mode classifier blocks the standard `gh auth login` browser handshake, the maintainer-authorized fallback is to load a personal-access-token (PAT) into the `GH_TOKEN` env var via `gh auth login --with-token < path/to/token` — see [`gh auth login` docs](https://cli.github.com/manual/gh_auth_login). Do **not** publish the actual extraction one-liner here; the live recipe is in the maintainer's private notes. Pattern: short-lived token, env-var only (no persistent `gh` config write), narrow scopes (`repo` is sufficient for the PR-lifecycle commands the gate needs).
-
-**Twenty-first consecutive closing-note.** Session 2026-05-14 → 15 spans 2 distinct work windows (AFK push + resume merge). The bot-review gate caught real bugs in every wave — SSRF, format-mismatch, missing stage marker, gating bug, bool coercion, fan-out quota leak. Worth the latency. Tool count: 102. Standing rules: 5 (unchanged). Cadence intact.
-
----
+> **Note:** Consecutive closing notes 1 through 21 (sessions 2026-05-09 through 2026-05-15) are archived in [`HANDOFF-archive.md`](HANDOFF-archive.md). Only the latest three (22nd-24th) are kept active here.
 
 ## Session 2026-05-15 (PR #187 — marketplace_import v2 AmbientCG zip-unpack)
 
@@ -448,3 +396,45 @@ Follow-up commit `33afae8` bundled all five bot-directed fixes plus three new re
 - v8 follow-ups list from 21st note: multi-map PBR — **closed by this PR**. AmbientCG zip-archive unpack — closed by PR #187. Two items remain (HDRI cubemap conversion, T1/T2/T3 reshoot under v7 textured lighting).
 
 **Twenty-third consecutive closing-note.** Session 2026-05-15 still single-window — three PRs landed in sequence (#187 AmbientCG zip, #188 HANDOFF rotation, #189 multi-map PBR). Bot-review gate caught real bugs every time (orphan recovery, DX-normal coverage) — worth the latency. Tool count: 102. Standing rules: 5 (unchanged). Cadence intact.
+
+---
+
+## Session 2026-05-15 (live verification — PR #189 + closing the host-rebuild parked item)
+
+Single-window verification pass. No new code shipped — all four feature PRs from earlier in the day (#187 / #188 / #189 / #190) already merged. This window drove a live test in UE 5.7 and confirmed the shape of what we shipped + closed a long-standing parked item.
+
+**Live-test verified:**
+- PR #189's `multi_map=true` path against four real CC0 assets through the full pipeline (catalog lookup → http download → extract → per-map `import_texture`):
+  - AmbientCG `Marble012` (partial set: color/normal/roughness/displacement — no AO; partial-set handling worked)
+  - AmbientCG `Travertine009` (full set, 5 maps)
+  - AmbientCG `WoodFloor051` (full set, 5 maps)
+  - Polyhaven `granite_tile` (full set via per-map URL fan-out, 5 maps)
+  - Polyhaven HDRI `venice_sunset` (single-map / HDRI path)
+- Total: 19 PBR textures + 1 HDRI landed in `/Game/Validation/Florence/`.
+- Path-traversal safety, DX-normal fallback, partial-set handling, per-map format fallback all behaved as designed in the merged code.
+
+**Parked item closed: 7 Wave A/A.5 C++ handlers carried since the 20th note as "needs host cold-rebuild" are now live.** Probed each over the bridge — `get_engine_version`, `list_levels`, `save_dirty_assets`, `get_selected_actors`, `inspect_input_mappings` returned canonical result shapes; `pie_control` and `inspect_project_setting` returned `-32000 missing_required_field` (registered + reachable, missing args). The host plugin DLL was rebuilt at some point between the 20th note and now. **Tool count is 102/102 live**, not 95/102 as the 23rd note still claimed.
+
+**Florence-plaza scene composed in UE:** 11 actors — granite plaza floor, marble dais, travertine walls (3) + columns (4), wood benches (2). 4 master materials wired live via `MaterialEditingLibrary` (Diffuse → BaseColor, Normal → MP_NORMAL with SAMPLERTYPE_NORMAL, Roughness → R into MP_ROUGHNESS, AO → R into MP_AMBIENT_OCCLUSION). SkyAtmosphere + atmospheric-sun-light directional + real-time-capture SkyLight + PostProcessVolume with histogram auto-exposure. Final hero screenshot saved at `docs/validation/florence-final-2026-05-15.png`. Composition scripts at `scripts/compose_florence_scene.py`, `scripts/rebuild_florence_clean.py`, `scripts/final_florence_lighting.py`, `scripts/polish_florence_shot.py`.
+
+**UE 5.7 attribute gotchas pinned down (saved for next time):**
+- `MaterialExpressionMultiply.const_b` / `MaterialExpressionClamp.min_default,max_default` — must use `set_editor_property`, NOT plain attribute assignment.
+- `SkyLightComponent.cubemap` only accepts `UTextureCube`. A longlat-imported HDRI is `UTexture2D` and cannot drive the SpecifiedCubemap path. Workaround: `SLS_CAPTURED_SCENE` + `real_time_capture=True` against a `SkyAtmosphere` actor. The longlat → cubemap conversion is still the open follow-up from the 23rd note.
+- `SkyLightComponent` has no `intensity_scale` attribute — use `set_intensity()` directly.
+- `ExponentialHeightFogComponent.fog_inscattering_color` was renamed to `fog_inscattering_luminance` (and `directional_inscattering_color` → `directional_inscattering_luminance`).
+- `unreal.Rotator` positional constructor order is `(roll, pitch, yaw)`. Always use keyword args.
+- Polyhaven + AmbientCG AO maps ship as RGB JPGs; the texture sampler in a material must be `SAMPLERTYPE_COLOR`, not `SAMPLERTYPE_LINEAR_GRAYSCALE`, or the material silently falls back to default.
+- `Material.expressions` (Python attribute) is protected. To enumerate nodes, use `MaterialEditingLibrary.get_material_expressions(mat)`.
+
+**Tool/test totals (unchanged this window):**
+- 102 tools, 102 live.
+- pytest: 430 (no test changes this window).
+- Bridge coverage unchanged.
+
+**Remaining parked items after this window (now reduced):**
+- HDRI longlat → cubemap conversion (still no UE 5.7 Python wrapper found — workaround via SkyAtmosphere + CapturedScene is good enough for now).
+- Sequencer keyframe authoring + Movie Render Queue — still attended-Codex C++ work.
+- Local OSS LLM daemon empty-list bug — admin shell needed.
+- T1/T2/T3 reshoot under live textured scene — not done this window (time spent on multi-map validation + scene compose iterations); the Florence hero shot is the first artist-grade live capture of the post-v7 pipeline though.
+
+**Twenty-fourth consecutive closing-note.** Session 2026-05-15 single window; verification-only, no merges. The bigger value of this window was that it cleared a parked item that had been load-bearing in three prior notes — the 7 C++ handlers are simply live now. Tool count: 102 live (corrected from 95). Standing rules: 5 (unchanged). Cadence intact.
