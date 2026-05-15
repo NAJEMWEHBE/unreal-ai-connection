@@ -8,7 +8,7 @@ originSessionId: 0b6e09bb-52da-45b6-a0ac-4502facb704d
 
 **Branch:** `feat/language-shim-experiment` (on origin only — local was on this branch when paused)
 **Latest commit:** `30d435d` (fix commit on top of `042e4e2` initial PR)
-**PR:** [#46](https://github.com/NAJEMWEHBE/UnrealClaudeMCP/pull/46) — state OPEN, never merged
+**PR:** [#46](https://github.com/NAJEMWEHBE/unreal-ai-connection/pull/46) — state OPEN, never merged
 **Tests:** 143 pass locally on the branch
 
 **Why:** The language-shim experiment from the PR #37 retrospective. Four handlers shipped (47 UE + 3 synthetic = 52 total tools after merge): 2 C++ canonical (`find_console_variables`, `inspect_static_mesh`) and 2 bridge-side Python shims (`get_camera_transform`, `set_camera_transform`).
@@ -31,7 +31,7 @@ If the next session sees similar local-reset behavior with PR #46 still open on 
 
 ## What's pending
 
-1. **Wait for codex + gemini re-review on `30d435d`** — typically 3-5 min after push. The `gh api repos/NAJEMWEHBE/UnrealClaudeMCP/pulls/46/reviews` command shows current state.
+1. **Wait for codex + gemini re-review on `30d435d`** — typically 3-5 min after push. The `gh api repos/NAJEMWEHBE/unreal-ai-connection/pulls/46/reviews` command shows current state.
 2. **Self-merge if clean** — `gh pr merge 46 --merge` once mergeStateStatus is CLEAN AND the bots have re-reviewed (or stayed silent, indicating they have nothing new to flag — this is the established pattern from PRs #39-#45).
 3. **Sync local main + delete branch** afterward.
 

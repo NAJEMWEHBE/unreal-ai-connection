@@ -1,7 +1,7 @@
 # Competitive analysis — Unreal + MCP ecosystem
 
 **As of:** 2026-05-15 (snapshot — metrics drift over time)
-**Scope:** This repo (`NAJEMWEHBE/UnrealClaudeMCP`) vs. 12 other Unreal + MCP projects + 3 marketplace listings.
+**Scope:** This repo (`NAJEMWEHBE/unreal-ai-connection`) vs. 12 other Unreal + MCP projects + 3 marketplace listings.
 **Method:** WebFetch on each README + `gh api repos/<owner>/<repo>` + tree listings via the GitHub REST API. Tool counts are claimed-or-observed from READMEs / manifests / tree listings; CI/test claims verified via `.github/workflows/` listings; license + activity from API metadata. Source code itself was not exhaustively audited. Three Explore sub-agents fanned out (~4 repos each) to keep token cost honest.
 
 This is an **honest** scorecard, not marketing. Where we lead is documented; where we lag is documented.
@@ -32,7 +32,7 @@ This is an **honest** scorecard, not marketing. Where we lead is documented; whe
 
 ## Repo scorecard
 
-### 1. NAJEMWEHBE/UnrealClaudeMCP (this repo)
+### 1. NAJEMWEHBE/unreal-ai-connection (this repo)
 
 | Metric | Value |
 |---|---|

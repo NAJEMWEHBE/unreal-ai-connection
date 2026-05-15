@@ -8,7 +8,7 @@ The repo (this folder you're reading) is the **only thing that survives a format
 
 ## What survived (zero action needed)
 
-- **The repo source** — every PR through #85 is on `origin/main` at `github.com/NAJEMWEHBE/UnrealClaudeMCP`
+- **The repo source** — every PR through #85 is on `origin/main` at `github.com/NAJEMWEHBE/unreal-ai-connection`
 - **Session memory files** — preserved in [`docs/session-memory-archive/`](session-memory-archive/) (this is the safety net for the format)
 - **HANDOFF.md** — reflects the current state (104 tools, 71 C++ handlers + 33 bridge synthetic, all directives, all traps)
 - **CLAUDE.md** at repo root — auto-loaded by Claude Code on session start; tells the agent to read HANDOFF.md
@@ -70,8 +70,8 @@ gh auth login
 
 ```powershell
 cd $env:USERPROFILE\Desktop
-gh repo clone NAJEMWEHBE/UnrealClaudeMCP
-cd UnrealClaudeMCP
+gh repo clone NAJEMWEHBE/unreal-ai-connection
+cd unreal-ai-connection
 git status   # should be clean, on main
 ```
 

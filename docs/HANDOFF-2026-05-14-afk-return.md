@@ -19,7 +19,7 @@ You handed me a ~1.5h AFK window with full permission to debug, brainstorm, sear
 2. **Open the PR** for `fix/scene-brightness-2026-05-14`. The branch is fully pushed to `origin`. Either click the link the remote printed earlier:
 
    ```text
-   https://github.com/NAJEMWEHBE/UnrealClaudeMCP/pull/new/fix/scene-brightness-2026-05-14
+   https://github.com/NAJEMWEHBE/unreal-ai-connection/pull/new/fix/scene-brightness-2026-05-14
    ```
 
    …or run from the repo root:
