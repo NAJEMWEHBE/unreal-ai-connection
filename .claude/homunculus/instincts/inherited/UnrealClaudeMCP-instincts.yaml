@@ -1,0 +1,281 @@
+# Instincts generated from https://github.com/NAJEMWEHBE/UnrealClaudeMCP
+# Generated: 2026-05-15T21:05:17.288Z
+# Version: 2.0
+# NOTE: This file supplements (does not replace) any existing curated instincts.
+# High-confidence manually curated instincts should be preserved alongside these.
+
+---
+id: UnrealClaudeMCP-commit-conventional
+trigger: "when writing a commit message"
+confidence: 0.85
+domain: git
+source: repo-analysis
+source_repo: https://github.com/NAJEMWEHBE/UnrealClaudeMCP
+---
+
+# UnrealClaudeMCP Commit Conventional
+
+## Action
+
+Use conventional commit format with prefixes: docs
+
+## Evidence
+
+- 1 commits analyzed
+- Detected conventional commit pattern
+- Examples: docs: rewrite GitHub URLs for repo rename to unreal-ai-connection
+
+---
+id: UnrealClaudeMCP-commit-length
+trigger: "when writing a commit message"
+confidence: 0.6
+domain: git
+source: repo-analysis
+source_repo: https://github.com/NAJEMWEHBE/UnrealClaudeMCP
+---
+
+# UnrealClaudeMCP Commit Length
+
+## Action
+
+Write moderate-length commit messages (~65 characters)
+
+## Evidence
+
+- Average commit message length: 65 chars
+- Based on 1 commits
+
+---
+id: UnrealClaudeMCP-naming-files
+trigger: "when creating a new file"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/NAJEMWEHBE/UnrealClaudeMCP
+---
+
+# UnrealClaudeMCP Naming Files
+
+## Action
+
+Use kebab-case naming convention
+
+## Evidence
+
+- Analyzed file naming patterns in repository
+- Dominant pattern: kebab-case
+
+---
+id: UnrealClaudeMCP-import-relative
+trigger: "when importing modules"
+confidence: 0.75
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/NAJEMWEHBE/UnrealClaudeMCP
+---
+
+# UnrealClaudeMCP Import Relative
+
+## Action
+
+Use relative imports for project files
+
+## Evidence
+
+- Import analysis shows relative import pattern
+- Example: import { x } from '../lib/x'
+
+---
+id: UnrealClaudeMCP-export-style
+trigger: "when exporting from a module"
+confidence: 0.7
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/NAJEMWEHBE/UnrealClaudeMCP
+---
+
+# UnrealClaudeMCP Export Style
+
+## Action
+
+Prefer named exports
+
+## Evidence
+
+- Export pattern analysis
+- Dominant style: named
+
+---
+id: UnrealClaudeMCP-test-separate
+trigger: "when writing tests"
+confidence: 0.8
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/NAJEMWEHBE/UnrealClaudeMCP
+---
+
+# UnrealClaudeMCP Test Separate
+
+## Action
+
+Place tests in the tests/ or __tests__/ directory, mirroring src structure
+
+## Evidence
+
+- Separate test directory pattern detected
+- Tests live in dedicated test folders
+
+---
+id: unrealclaudemcp-instinct-file-naming
+trigger: "When creating a new Python file"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: NAJEMWEHBE/UnrealClaudeMCP
+---
+
+# Unrealclaudemcp Instinct File Naming
+
+## Action
+
+Name the file using kebab-case (e.g., my-file.py)
+
+## Evidence
+
+- Pattern in namingConventions.files: kebab-case
+
+---
+id: unrealclaudemcp-instinct-function-naming
+trigger: "When defining a new function in Python"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: NAJEMWEHBE/UnrealClaudeMCP
+---
+
+# Unrealclaudemcp Instinct Function Naming
+
+## Action
+
+Name the function using camelCase (e.g., myFunction)
+
+## Evidence
+
+- Pattern in namingConventions.functions: camelCase
+
+---
+id: unrealclaudemcp-instinct-class-naming
+trigger: "When defining a new class in Python"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: NAJEMWEHBE/UnrealClaudeMCP
+---
+
+# Unrealclaudemcp Instinct Class Naming
+
+## Action
+
+Name the class using PascalCase (e.g., MyClass)
+
+## Evidence
+
+- Pattern in namingConventions.classes: PascalCase
+
+---
+id: unrealclaudemcp-instinct-constant-naming
+trigger: "When defining a constant in Python"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: NAJEMWEHBE/UnrealClaudeMCP
+---
+
+# Unrealclaudemcp Instinct Constant Naming
+
+## Action
+
+Name the constant using SCREAMING_SNAKE_CASE (e.g., MY_CONSTANT)
+
+## Evidence
+
+- Pattern in namingConventions.constants: SCREAMING_SNAKE_CASE
+
+---
+id: unrealclaudemcp-instinct-import-style
+trigger: "When importing modules in Python code"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: NAJEMWEHBE/UnrealClaudeMCP
+---
+
+# Unrealclaudemcp Instinct Import Style
+
+## Action
+
+Use relative imports
+
+## Evidence
+
+- Pattern in importStyle: relative
+
+---
+id: unrealclaudemcp-instinct-export-style
+trigger: "When exporting functions or classes from a module"
+confidence: 0.7
+domain: code-style
+source: repo-analysis
+source_repo: NAJEMWEHBE/UnrealClaudeMCP
+---
+
+# Unrealclaudemcp Instinct Export Style
+
+## Action
+
+Use named exports
+
+## Evidence
+
+- Pattern in exportStyle: named
+
+---
+id: unrealclaudemcp-instinct-test-location
+trigger: "When adding or updating tests"
+confidence: 0.8
+domain: testing
+source: repo-analysis
+source_repo: NAJEMWEHBE/UnrealClaudeMCP
+---
+
+# Unrealclaudemcp Instinct Test Location
+
+## Action
+
+Place test files in a separate folder from source code
+
+## Evidence
+
+- Pattern in architecture.folderStructure.testLocation: separate
+
+---
+id: unrealclaudemcp-instinct-git-commit-format
+trigger: "When writing a commit message"
+confidence: 0.9
+domain: git
+source: repo-analysis
+source_repo: NAJEMWEHBE/UnrealClaudeMCP
+---
+
+# Unrealclaudemcp Instinct Git Commit Format
+
+## Action
+
+Use the conventional commit format with a prefix (e.g., docs: update README)
+
+## Evidence
+
+- Pattern in commits.type: conventional
+- Pattern in commits.prefixes: ["docs"]
+- Seen in commit: docs: rewrite GitHub URLs for repo rename to unreal-ai-connection
+
