@@ -53,7 +53,7 @@ Entries listed reverse-chronologically by PR number (newest first).
 
 - Tool count: 80 → **102** (+22 across two waves windows + the AFK-resume hardening). Split: 64 C++ + 16 synthetic → **71 C++ + 31 synthetic**. New synthetics: 6 Wave A + 2 Wave A.5 + 4 Wave B + 4 Wave C + 4 Wave D + 2 marketplace.
 - `pytest` cases: 243 → **400** (+157) across the full Unreleased span.
-- **42 PRs (#141 → #185)** merged across three windows: 2026-05-12 → 13 hardening (#141 → #156, 16 PRs), 2026-05-13 → 14 autopilot extension (#161 → #169, 8 PRs), 2026-05-14 → 15 AFK-resume + scene-v7 + marketplace hardening (#181 → #185, 5 PRs; intermediate PRs #170 → #180 are misc cleanups not enumerated above).
+- **41 PRs (#141 → #185)** merged across three windows: 2026-05-12 → 13 hardening (#141 → #156, 16 PRs), 2026-05-13 → 14 autopilot extension (#161 → #169, 9 PRs), 2026-05-14 → 15 AFK-resume + scene-v7 + marketplace hardening (#181 → #185, 5 PRs); intermediate PRs #170 → #180 are 11 misc cleanups not enumerated above. (Gap #157 → #160 belongs to the prior milestone window.)
 
 ## [0.9.1] — 2026-05-08
 
