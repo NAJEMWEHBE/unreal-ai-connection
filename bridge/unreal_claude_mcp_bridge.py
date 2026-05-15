@@ -4009,9 +4009,8 @@ def synthetic_audit_blueprint_compile_status(req_id, args: dict) -> dict:
          path_under, limit: 500}) -- one round-trip to enumerate
          Blueprint assets in the scan range.
       2. For each, call_ue("inspect_blueprint", {path}) -- per-asset
-         round-trip that reads (or will read once the C++ side adds it)
-         a `blueprint_status` field. Buckets: UpToDate, Dirty, Error,
-         Unknown, BeingCreated.
+         round-trip that reads a `blueprint_status` field. Buckets:
+         UpToDate, Dirty, Error, Unknown, BeingCreated.
       3. Aggregate into `by_status` counts plus a `problem_assets`
          filtered list (Error+Unknown when compile_failures_only=true,
          otherwise every scanned BP).
