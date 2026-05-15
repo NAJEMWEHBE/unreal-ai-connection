@@ -1,0 +1,359 @@
+# Instincts generated from https://github.com/NAJEMWEHBE/unreal-ai-connection
+# Generated: 2026-05-15T21:50:12.376Z
+# Version: 2.0
+# NOTE: This file supplements (does not replace) any existing curated instincts.
+# High-confidence manually curated instincts should be preserved alongside these.
+
+---
+id: unreal-ai-connection-commit-conventional
+trigger: "when writing a commit message"
+confidence: 0.85
+domain: git
+source: repo-analysis
+source_repo: https://github.com/NAJEMWEHBE/unreal-ai-connection
+---
+
+# Unreal Ai Connection Commit Conventional
+
+## Action
+
+Use conventional commit format with prefixes: refactor
+
+## Evidence
+
+- 1 commits analyzed
+- Detected conventional commit pattern
+- Examples: refactor(rename): Stage 1 — "Unreal AI Connection" (server name + bridge + docs)
+
+---
+id: unreal-ai-connection-commit-length
+trigger: "when writing a commit message"
+confidence: 0.6
+domain: git
+source: repo-analysis
+source_repo: https://github.com/NAJEMWEHBE/unreal-ai-connection
+---
+
+# Unreal Ai Connection Commit Length
+
+## Action
+
+Write moderate-length commit messages (~80 characters)
+
+## Evidence
+
+- Average commit message length: 80 chars
+- Based on 1 commits
+
+---
+id: unreal-ai-connection-naming-files
+trigger: "when creating a new file"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/NAJEMWEHBE/unreal-ai-connection
+---
+
+# Unreal Ai Connection Naming Files
+
+## Action
+
+Use camelCase naming convention
+
+## Evidence
+
+- Analyzed file naming patterns in repository
+- Dominant pattern: camelCase
+
+---
+id: unreal-ai-connection-import-relative
+trigger: "when importing modules"
+confidence: 0.75
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/NAJEMWEHBE/unreal-ai-connection
+---
+
+# Unreal Ai Connection Import Relative
+
+## Action
+
+Use relative imports for project files
+
+## Evidence
+
+- Import analysis shows relative import pattern
+- Example: import { x } from '../lib/x'
+
+---
+id: unreal-ai-connection-export-style
+trigger: "when exporting from a module"
+confidence: 0.7
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/NAJEMWEHBE/unreal-ai-connection
+---
+
+# Unreal Ai Connection Export Style
+
+## Action
+
+Prefer named exports
+
+## Evidence
+
+- Export pattern analysis
+- Dominant style: named
+
+---
+id: unreal-ai-connection-test-separate
+trigger: "when writing tests"
+confidence: 0.8
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/NAJEMWEHBE/unreal-ai-connection
+---
+
+# Unreal Ai Connection Test Separate
+
+## Action
+
+Place tests in the tests/ or __tests__/ directory, mirroring src structure
+
+## Evidence
+
+- Separate test directory pattern detected
+- Tests live in dedicated test folders
+
+---
+id: unreal-ai-connection-test-naming
+trigger: "when creating a test file"
+confidence: 0.85
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/NAJEMWEHBE/unreal-ai-connection
+---
+
+# Unreal Ai Connection Test Naming
+
+## Action
+
+Name test files using the pattern: *.test.ts
+
+## Evidence
+
+- File pattern: *.test.ts
+- Consistent across test files
+
+---
+id: unreal-ai-connection-instinct-file-naming
+trigger: "When creating or renaming a source file"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: NAJEMWEHBE/unreal-ai-connection
+---
+
+# Unreal Ai Connection Instinct File Naming
+
+## Action
+
+Use camelCase for file names
+
+## Evidence
+
+- Pattern in namingConventions.files: camelCase
+
+---
+id: unreal-ai-connection-instinct-function-naming
+trigger: "When defining a function"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: NAJEMWEHBE/unreal-ai-connection
+---
+
+# Unreal Ai Connection Instinct Function Naming
+
+## Action
+
+Use camelCase for function names
+
+## Evidence
+
+- Pattern in namingConventions.functions: camelCase
+
+---
+id: unreal-ai-connection-instinct-class-naming
+trigger: "When defining a class"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: NAJEMWEHBE/unreal-ai-connection
+---
+
+# Unreal Ai Connection Instinct Class Naming
+
+## Action
+
+Use PascalCase for class names
+
+## Evidence
+
+- Pattern in namingConventions.classes: PascalCase
+
+---
+id: unreal-ai-connection-instinct-constant-naming
+trigger: "When defining a constant"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: NAJEMWEHBE/unreal-ai-connection
+---
+
+# Unreal Ai Connection Instinct Constant Naming
+
+## Action
+
+Use SCREAMING_SNAKE_CASE for constant names
+
+## Evidence
+
+- Pattern in namingConventions.constants: SCREAMING_SNAKE_CASE
+
+---
+id: unreal-ai-connection-instinct-import-style
+trigger: "When importing modules in Python files"
+confidence: 0.7
+domain: code-style
+source: repo-analysis
+source_repo: NAJEMWEHBE/unreal-ai-connection
+---
+
+# Unreal Ai Connection Instinct Import Style
+
+## Action
+
+Use relative imports
+
+## Evidence
+
+- Pattern in importStyle: relative
+
+---
+id: unreal-ai-connection-instinct-export-style
+trigger: "When exporting symbols from a module"
+confidence: 0.7
+domain: code-style
+source: repo-analysis
+source_repo: NAJEMWEHBE/unreal-ai-connection
+---
+
+# Unreal Ai Connection Instinct Export Style
+
+## Action
+
+Use named exports
+
+## Evidence
+
+- Pattern in exportStyle: named
+
+---
+id: unreal-ai-connection-instinct-test-file-pattern
+trigger: "When creating a test file"
+confidence: 0.8
+domain: testing
+source: repo-analysis
+source_repo: NAJEMWEHBE/unreal-ai-connection
+---
+
+# Unreal Ai Connection Instinct Test File Pattern
+
+## Action
+
+Name the file with the pattern *.test.ts
+
+## Evidence
+
+- Pattern in testing.filePattern: *.test.ts
+
+---
+id: unreal-ai-connection-instinct-test-type
+trigger: "When writing tests"
+confidence: 0.7
+domain: testing
+source: repo-analysis
+source_repo: NAJEMWEHBE/unreal-ai-connection
+---
+
+# Unreal Ai Connection Instinct Test Type
+
+## Action
+
+Focus on unit tests
+
+## Evidence
+
+- Pattern in testing.testTypes: unit
+
+---
+id: unreal-ai-connection-instinct-test-location
+trigger: "When adding or organizing tests"
+confidence: 0.8
+domain: testing
+source: repo-analysis
+source_repo: NAJEMWEHBE/unreal-ai-connection
+---
+
+# Unreal Ai Connection Instinct Test Location
+
+## Action
+
+Place test files in the separate 'tests' folder
+
+## Evidence
+
+- Pattern in architecture.folderStructure.testLocation: separate
+- Common folder: tests
+
+---
+id: unreal-ai-connection-instinct-git-commit-prefix
+trigger: "When making a commit for refactoring"
+confidence: 0.9
+domain: git
+source: repo-analysis
+source_repo: NAJEMWEHBE/unreal-ai-connection
+---
+
+# Unreal Ai Connection Instinct Git Commit Prefix
+
+## Action
+
+Prefix the commit message with 'refactor'
+
+## Evidence
+
+- Seen in commit: refactor(rename): Stage 1 — "Unreal AI Connection" (server name + bridge + docs)
+- Pattern in commits.prefixes: refactor
+
+---
+id: unreal-ai-connection-instinct-git-commit-format
+trigger: "When writing a commit message"
+confidence: 0.9
+domain: git
+source: repo-analysis
+source_repo: NAJEMWEHBE/unreal-ai-connection
+---
+
+# Unreal Ai Connection Instinct Git Commit Format
+
+## Action
+
+Use conventional commit format: <type>(<optional scope>): <description>
+
+## Evidence
+
+- Seen in commit: refactor(rename): Stage 1 — "Unreal AI Connection" (server name + bridge + docs)
+- Pattern in commits.type: conventional
+
