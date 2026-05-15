@@ -1,0 +1,44 @@
+# PR-Agent (Qodo) — self-hosted reviewer bot.
+#
+# Pinned to a tagged release (v0.35.0) on purpose: never run a third-party
+# review action from @main / @latest. An unpinned action is the same
+# supply-chain footgun that got PR #204 closed.
+#
+# REQUIRES a repo secret to function:
+#   - OPENAI_KEY  (or another model key; see qodo-ai/pr-agent docs for
+#     ANTHROPIC / Azure / Bedrock / local-model alternatives)
+# Without that secret the job is a no-op (it will fail fast, not silently
+# review with no model). GITHUB_TOKEN is provided automatically.
+#
+# Least-privilege: this workflow can read code and write PR/issue comments.
+# It deliberately has NO contents:write, NO actions, NO packages scope.
+name: pr-agent
+
+on:
+  pull_request:
+    types: [opened, reopened, ready_for_review]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  pr_agent:
+    # Skip on bot-authored PRs and on comment events that aren't PR comments.
+    if: ${{ github.event.sender.type != 'Bot' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: PR-Agent review
+        uses: qodo-ai/pr-agent@v0.35.0
+        env:
+          OPENAI_KEY: ${{ secrets.OPENAI_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Conservative defaults: auto-review on PR open, no auto-describe /
+          # auto-improve (those mutate the PR body / push suggestions —
+          # opt in explicitly later if wanted).
+          github_action_config.auto_review: "true"
+          github_action_config.auto_describe: "false"
+          github_action_config.auto_improve: "false"
