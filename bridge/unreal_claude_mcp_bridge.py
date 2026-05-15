@@ -1398,7 +1398,7 @@ TOOLS = [
     },
     {
         "name": "marketplace_import",
-        "description": "Download a CC0 asset from a marketplace (Polyhaven or AmbientCG) and import it into the project as a UTexture2D via the native import_texture handler. SYNTHETIC bridge-side handler. Polyhaven path: /files/{slug} catalog lookup -> direct download. AmbientCG path: /api/v2/full_json?id={slug}&include=downloadData -> downloads the per-resolution zip -> extracts the Color map (textures) or sole EXR/HDR (hdris) -> hands the file to import_texture. Supports texture (Color/Diffuse map) and hdri (EXR/HDR); model import is parked for a later PR (native handler has no mesh-import wrapper today). Asset files: both sources are CC0 (public domain, no attribution required). API access: the Polyhaven public API is licensed for non-commercial and academic use only — commercial integrations require a custom license from Poly Haven (https://polyhaven.com/our-api). AmbientCG's public API and asset files are both CC0.",
+        "description": "Download a CC0 asset from a marketplace (Polyhaven or AmbientCG) and import it into the project as a UTexture2D via the native import_texture handler. SYNTHETIC bridge-side handler. Polyhaven path: /files/{slug} catalog lookup -> direct download. AmbientCG path: /api/v2/full_json?id={slug}&include=downloadData -> downloads the per-resolution zip -> extracts the Color map (textures) or sole EXR/HDR (hdris) -> hands the file to import_texture. Supports texture (Color/Diffuse map) and hdri (EXR/HDR); model import is parked for a later PR (native handler has no mesh-import wrapper today). When multi_map=true is passed (texture only), the handler additionally pulls Normal/Roughness/AO/Displacement/Metalness when the source ships them — each map lands as a separate UTexture2D named `<dest_name>_<map>` (Color stays at `<dest_name>` for back-compat). Asset files: both sources are CC0 (public domain, no attribution required). API access: the Polyhaven public API is licensed for non-commercial and academic use only — commercial integrations require a custom license from Poly Haven (https://polyhaven.com/our-api). AmbientCG's public API and asset files are both CC0.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -1410,6 +1410,7 @@ TOOLS = [
                 "dest_path": {"type": "string", "description": "UE package path. Must start with /Game/. Default /Game/Marketplace."},
                 "dest_name": {"type": "string", "description": "Asset name override. Defaults to the slug."},
                 "replace_existing": {"type": "boolean", "description": "Overwrite an existing asset at dest_path/dest_name (default false)."},
+                "multi_map": {"type": "boolean", "description": "When true and asset_type='texture', pull every canonical PBR map (color, normal, roughness, ao, displacement, metalness) the source ships and import each as a separate UTexture2D. Color is required; other maps are best-effort. Naming: Color -> <dest_name>; others -> <dest_name>_<map>. Default false (diffuse only, back-compat)."},
             },
             "required": ["slug"],
         },
@@ -5365,6 +5366,71 @@ def _ambientcg_extract_primary_map(zip_path: str, asset_type: str, dest_dir: str
         return None, {"code": -32603, "message": f"ambientcg: extract_failed: {zip_path}: {e}"}
 
 
+# Canonical PBR map names used across both marketplace backends. Color is
+# always required; the rest are best-effort and just absent from the result
+# dict when the source doesn't ship them.
+_PBR_CANONICAL_MAPS = ("color", "normal", "roughness", "ao", "displacement", "metalness")
+
+# AmbientCG zip filename markers per canonical map. Order inside each tuple
+# is preference order — `_NormalGL` is preferred over `_Normal` because UE's
+# tangent-space convention is OpenGL, not DirectX.
+_AMBIENTCG_MAP_MARKERS: dict[str, tuple[str, ...]] = {
+    "color":        ("_Color.", "_color.", "_Diffuse.", "_diffuse."),
+    "normal":       ("_NormalGL.", "_normalgl.", "_Normal.", "_normal."),
+    "roughness":    ("_Roughness.", "_roughness.", "_Rough.", "_rough."),
+    "ao":           ("_AmbientOcclusion.", "_ambientocclusion.", "_AO.", "_ao."),
+    "displacement": ("_Displacement.", "_displacement.", "_Disp.", "_disp."),
+    "metalness":    ("_Metalness.", "_metalness.", "_Metal.", "_metal."),
+}
+
+
+def _ambientcg_extract_pbr_maps(zip_path: str, dest_dir: str) -> tuple[dict[str, str] | None, dict | None]:
+    """Multi-map sibling of `_ambientcg_extract_primary_map`. Extracts every
+    canonical PBR map present in the AmbientCG zip and returns a dict of
+    `canonical_name -> extracted_file_path`.
+
+    Color is required — its absence is the only condition that produces an
+    error. Other maps are best-effort: if the zip doesn't ship Normal, the
+    returned dict simply omits the `normal` key.
+
+    Path-traversal safety: every extracted name is flattened via
+    `os.path.basename`, mirroring `_ambientcg_extract_primary_map`.
+    """
+    import zipfile
+    import os
+    try:
+        with zipfile.ZipFile(zip_path, "r") as zf:
+            names = zf.namelist()
+            file_names = [n for n in names if not n.endswith("/") and not os.path.basename(n).startswith(".")]
+            if not file_names:
+                return None, {"code": -32603, "message": f"ambientcg: bad_zip: {zip_path}: archive contains no files"}
+            picks: dict[str, str] = {}
+            for canonical, markers in _AMBIENTCG_MAP_MARKERS.items():
+                for marker in markers:
+                    matches = [n for n in file_names if marker in os.path.basename(n)]
+                    if matches:
+                        picks[canonical] = sorted(matches)[0]
+                        break
+            if "color" not in picks:
+                return None, {"code": -32603, "message": f"ambientcg: zip_has_no_color_map: files={[os.path.basename(n) for n in file_names]}"}
+            extracted: dict[str, str] = {}
+            for canonical, pick in picks.items():
+                safe_name = os.path.basename(pick)
+                dest_path = os.path.join(dest_dir, safe_name)
+                with zf.open(pick) as src, open(dest_path, "wb") as out:
+                    while True:
+                        chunk = src.read(64 * 1024)
+                        if not chunk:
+                            break
+                        out.write(chunk)
+                extracted[canonical] = dest_path
+            return extracted, None
+    except zipfile.BadZipFile as e:
+        return None, {"code": -32603, "message": f"ambientcg: bad_zip: {zip_path}: {e}"}
+    except Exception as e:
+        return None, {"code": -32603, "message": f"ambientcg: extract_failed: {zip_path}: {e}"}
+
+
 def synthetic_marketplace_search(req_id, args: dict) -> dict:
     """Search free CC0 asset marketplaces (Polyhaven, AmbientCG) for
     textures / HDRIs / models matching a keyword. Returns a normalised
@@ -5497,6 +5563,213 @@ def _polyhaven_pick_file(files: dict, asset_type: str, resolution: str, fmt: str
     return None, None, [], {"code": -32603, "message": f"asset_type_unsupported: '{asset_type}' (marketplace_import v1 supports texture + hdri only)"}
 
 
+# Polyhaven /files/{slug} top-level key -> canonical PBR map name. Preference
+# inside each tuple matters: `nor_gl` (OpenGL tangent-space normal) wins over
+# `Normal` because UE's tangent-space convention is OpenGL.
+_POLYHAVEN_MAP_KEYS: dict[str, tuple[str, ...]] = {
+    "color":        ("Diffuse", "diffuse", "Color", "color"),
+    "normal":       ("nor_gl", "Normal", "normal"),
+    "roughness":    ("Rough", "Roughness", "roughness"),
+    "ao":           ("AO", "ao"),
+    "displacement": ("Displacement", "displacement", "Disp"),
+    "metalness":    ("Metal", "metal", "Metalness", "metalness"),
+}
+
+
+def _polyhaven_pick_pbr_files(files: dict, resolution: str, fmt: str) -> tuple[dict[str, str] | None, list[str], dict | None]:
+    """Multi-map sibling of `_polyhaven_pick_file`. Walks the Polyhaven
+    /files/{slug} payload and returns a dict of `canonical_name -> URL`
+    for every PBR map present at the requested resolution. Format-fallback
+    (`png <-> jpg`) is applied per-map so a mixed asset (some maps PNG,
+    others only JPG) still resolves cleanly.
+
+    Color is required. Other maps are best-effort: missing maps are simply
+    absent from the returned dict.
+
+    Returns (urls_by_map, available_resolutions, error). Available is
+    derived from the diffuse map's resolution set (same source of truth
+    used by the single-map picker).
+    """
+    def _resolution_sort_key(r: str) -> tuple[int, str]:
+        if r.endswith("k") and r[:-1].isdigit():
+            return (int(r[:-1]), r)
+        return (0, r)
+
+    # Anchor resolution-availability on the diffuse map so multi-map mode
+    # surfaces the same error message as the single-map picker when the
+    # caller asks for a resolution Polyhaven doesn't publish for this asset.
+    diff_block = None
+    for key in _POLYHAVEN_MAP_KEYS["color"]:
+        candidate = files.get(key)
+        if isinstance(candidate, dict):
+            diff_block = candidate
+            break
+    if diff_block is None:
+        return None, [], {"code": -32603, "message": "texture_no_diffuse: Polyhaven payload lacks a Diffuse/Color map"}
+    resolutions = sorted(diff_block.keys(), key=_resolution_sort_key)
+    if not isinstance(diff_block.get(resolution), dict):
+        return None, resolutions, {"code": -32603, "message": f"resolution_unavailable: '{resolution}' not in available {resolutions}"}
+
+    urls: dict[str, str] = {}
+    for canonical, keys in _POLYHAVEN_MAP_KEYS.items():
+        map_block = None
+        for key in keys:
+            candidate = files.get(key)
+            if isinstance(candidate, dict):
+                map_block = candidate
+                break
+        if map_block is None:
+            continue
+        res_block = map_block.get(resolution)
+        if not isinstance(res_block, dict):
+            continue
+        for f in [fmt, "png", "jpg"]:
+            entry = res_block.get(f)
+            if isinstance(entry, dict) and "url" in entry:
+                urls[canonical] = entry["url"]
+                break
+
+    if "color" not in urls:
+        return None, resolutions, {"code": -32603, "message": f"format_unavailable: diffuse map present but no {fmt}/png/jpg variant at resolution {resolution}"}
+    return urls, resolutions, None
+
+
+def _marketplace_import_multimap(
+    req_id,
+    source: str,
+    slug: str,
+    resolution: str,
+    fmt: str,
+    dest_path: str,
+    dest_name: str,
+    replace_existing: bool,
+    safe_slug: str,
+    safe_resolution: str,
+    tmp_dir: str,
+) -> dict:
+    """Multi-map sibling of `synthetic_marketplace_import`'s diffuse-only
+    body. Resolves every canonical PBR map present on the source, downloads
+    each (one HTTP per map for Polyhaven; single zip for AmbientCG), and
+    calls `import_texture` once per extracted map. Color is required; all
+    other canonical maps are best-effort.
+
+    Naming convention in UE:
+      - Color  -> {dest_name}              (back-compat with single-map mode)
+      - Others -> {dest_name}_{canonical}  e.g. Rocks023_normal, _roughness, …
+
+    Returns the standard tool envelope. Response body adds a `maps` dict
+    (canonical_name -> UE asset path), keeps `ue_asset_path` pinned to the
+    color map so existing callers don't break.
+    """
+    import os
+    import urllib.parse as _urlparse
+
+    # 1. Resolve a per-map URL/file table.
+    urls: dict[str, str] = {}
+    available: list = []
+    downloaded_from: str
+    chosen_fmt: str | None = None
+    extracted_paths: dict[str, str] = {}
+
+    if source == "polyhaven":
+        files_url = f"https://api.polyhaven.com/files/{_urlparse.quote(slug, safe='')}"
+        files, err = _marketplace_http_get_json(files_url)
+        if err is not None:
+            return make_response(req_id, error=err)
+        if not isinstance(files, dict):
+            return make_response(req_id, error={
+                "code": -32603,
+                "message": f"marketplace_import: unexpected_payload: /files/{slug} did not return a JSON object",
+            })
+        urls, available, pick_err = _polyhaven_pick_pbr_files(files, resolution, fmt)
+        if pick_err is not None:
+            return make_response(req_id, error=pick_err)
+        downloaded_from = files_url
+        for canonical, url in (urls or {}).items():
+            safe_canonical = "".join(c for c in canonical if c.isalnum()) or "map"
+            # Suffix derives from the URL's extension. Polyhaven URLs always
+            # end with the actual file extension after the last dot.
+            url_ext = url.rsplit(".", 1)[-1].lower()
+            safe_ext = "".join(c for c in url_ext if c.isalnum()) or "bin"
+            tmp_path = os.path.join(tmp_dir, f"marketplace_{safe_slug}_{safe_resolution}_{safe_canonical}.{safe_ext}")
+            dl_err = _marketplace_http_download(url, tmp_path)
+            if dl_err is not None:
+                return make_response(req_id, error=dl_err)
+            extracted_paths[canonical] = tmp_path
+            if canonical == "color":
+                chosen_fmt = safe_ext
+    else:  # source == "ambientcg"
+        zip_url, chosen_attr, available, pick_err = _ambientcg_resolve_zip_url(slug, "texture", resolution, fmt)
+        if pick_err is not None:
+            return make_response(req_id, error=pick_err)
+        downloaded_from = zip_url or ""
+        chosen_fmt = (chosen_attr or "").split("-")[-1].lower() if chosen_attr else None
+        zip_tmp = os.path.join(tmp_dir, f"marketplace_{safe_slug}_{safe_resolution}.zip")
+        dl_err = _marketplace_http_download(zip_url, zip_tmp)
+        if dl_err is not None:
+            return make_response(req_id, error=dl_err)
+        extract_dir = os.path.join(tmp_dir, f"marketplace_{safe_slug}_{safe_resolution}_extract")
+        try:
+            os.makedirs(extract_dir, exist_ok=True)
+        except OSError as e:
+            return make_response(req_id, error={
+                "code": -32603,
+                "message": f"marketplace_import: ambientcg_mkdir_failed: {extract_dir}: {e}",
+            })
+        ex_maps, ex_err = _ambientcg_extract_pbr_maps(zip_tmp, extract_dir)
+        if ex_err is not None:
+            return make_response(req_id, error=ex_err)
+        extracted_paths = ex_maps or {}
+        try:
+            os.remove(zip_tmp)
+        except OSError:
+            pass
+
+    # 2. Fan out import_texture calls. Color first so a failure surfaces
+    # the most-critical map's error rather than a secondary one.
+    map_order = ["color"] + [m for m in extracted_paths.keys() if m != "color"]
+    imported: dict[str, str] = {}
+    import_results: dict[str, dict] = {}
+    for canonical in map_order:
+        if canonical not in extracted_paths:
+            continue
+        per_map_dest_name = dest_name if canonical == "color" else f"{dest_name}_{canonical}"
+        import_params = {
+            "source_path": extracted_paths[canonical],
+            "dest_path": dest_path,
+            "dest_name": per_map_dest_name,
+            "replace_existing": replace_existing,
+            "automated": True,
+            "save": True,
+        }
+        import_resp = call_ue("import_texture", import_params)
+        if "error" in import_resp:
+            upstream = import_resp.get("error") or {}
+            return make_response(req_id, error={
+                "code": upstream.get("code", -32603) or -32603,
+                "message": f"marketplace_import: ue_import_failed: map={canonical}: {upstream.get('message') or 'import_texture returned an error'}",
+            })
+        result = import_resp.get("result") or {}
+        imported[canonical] = result.get("asset_path") or f"{dest_path}/{per_map_dest_name}"
+        import_results[canonical] = result
+
+    body: dict = {
+        "ok": True,
+        "source": source,
+        "slug": slug,
+        "asset_type": "texture",
+        "resolution": resolution,
+        "format": chosen_fmt or fmt,
+        "downloaded_from": downloaded_from,
+        "maps": imported,
+        "ue_asset_path": imported.get("color", f"{dest_path}/{dest_name}"),
+        "available_resolutions": available,
+        "import_results": import_results,
+        "license": "CC0",
+    }
+    return _wrap_tool_result(req_id, body)
+
+
 def synthetic_marketplace_import(req_id, args: dict) -> dict:
     """Download an asset from a CC0 marketplace (Polyhaven for now) and
     import it into the project as a UTexture2D via the native
@@ -5562,6 +5835,23 @@ def synthetic_marketplace_import(req_id, args: dict) -> dict:
             "message": "marketplace_import: invalid_field: 'dest_path' must start with /Game",
         })
     dest_name = args.get("dest_name") or slug
+    multi_map = args.get("multi_map", False)
+    if not isinstance(multi_map, bool):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": f"marketplace_import: invalid_field: 'multi_map' must be a boolean, got {type(multi_map).__name__}",
+        })
+    if multi_map and asset_type != "texture":
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": f"marketplace_import: invalid_field: 'multi_map=true' applies to asset_type='texture' only (got '{asset_type}'); HDRIs ship as a single file",
+        })
+    replace_existing = args.get("replace_existing", False)
+    if not isinstance(replace_existing, bool):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": f"marketplace_import: invalid_field: 'replace_existing' must be a boolean, got {type(replace_existing).__name__}",
+        })
 
     import tempfile
     import os
@@ -5571,6 +5861,17 @@ def synthetic_marketplace_import(req_id, args: dict) -> dict:
     safe_slug = _safe_path_token(slug, "slug")
     safe_resolution = _safe_path_token(resolution, "res")
     tmp_dir = tempfile.gettempdir()
+
+    # Multi-map PBR path: fan-out per canonical map name. Color is required;
+    # other maps are best-effort. Each map lands as a separate UTexture2D
+    # named `<dest_name>_<map>` (Color suffix omitted so the existing
+    # diffuse-only dest_name stays the color asset path for back-compat).
+    if multi_map:
+        return _marketplace_import_multimap(
+            req_id, source, slug, resolution, fmt,
+            dest_path, dest_name, replace_existing,
+            safe_slug, safe_resolution, tmp_dir,
+        )
 
     # 1. Resolve download URL + 2. Download to temp. Branches per source.
     download_url: str
@@ -5639,12 +5940,6 @@ def synthetic_marketplace_import(req_id, args: dict) -> dict:
             pass
 
     # 3. Hand off to native import_texture.
-    replace_existing = args.get("replace_existing", False)
-    if not isinstance(replace_existing, bool):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": f"marketplace_import: invalid_field: 'replace_existing' must be a boolean, got {type(replace_existing).__name__}",
-        })
     import_params = {
         "source_path": tmp_path,
         "dest_path": dest_path,

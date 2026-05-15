@@ -883,7 +883,7 @@
     },
     {
       "name": "marketplace_import",
-      "description": "Download a CC0 asset from a marketplace (Polyhaven or AmbientCG) and import it into the project as a UTexture2D via the native import_texture handler. SYNTHETIC bridge-side handler. Polyhaven path: /files/{slug} catalog lookup -> direct download. AmbientCG path: /api/v2/full_json?id={slug}&include=downloadData -> downloads the per-resolution zip -> extracts the Color map (textures) or sole EXR/HDR (hdris) -> hands the file to import_texture. Supports texture (Color/Diffuse map) and hdri (EXR/HDR); model import is parked for a later PR. Asset files: both sources are CC0. API access: Polyhaven public API is licensed for non-commercial / academic use only (commercial integrations require a custom license from Poly Haven); AmbientCG API and assets are both CC0.",
+      "description": "Download a CC0 asset from a marketplace (Polyhaven or AmbientCG) and import it into the project as a UTexture2D via the native import_texture handler. SYNTHETIC bridge-side handler. Polyhaven path: /files/{slug} catalog lookup -> direct download. AmbientCG path: /api/v2/full_json?id={slug}&include=downloadData -> downloads the per-resolution zip -> extracts the Color map (textures) or sole EXR/HDR (hdris) -> hands the file to import_texture. With multi_map=true (texture only), additionally pulls Normal/Roughness/AO/Displacement/Metalness when the source ships them; Color stays at dest_name and each other map lands as <dest_name>_<map>. Supports texture and hdri; model import is parked for a later PR. Asset files: both sources are CC0. API access: Polyhaven public API is licensed for non-commercial / academic use only (commercial integrations require a custom license from Poly Haven); AmbientCG API and assets are both CC0.",
       "params": {
         "source": "string (optional, default 'polyhaven') - one of polyhaven|ambientcg",
         "slug": "string (required) - source-specific asset identifier obtained from marketplace_search",
@@ -892,9 +892,10 @@
         "format": "string (optional, default 'png' for texture, 'exr' for hdri) - falls back to source default if requested format unpublished",
         "dest_path": "string (optional, default /Game/Marketplace) - UE package path; must start with /Game/",
         "dest_name": "string (optional, default slug) - asset name override",
-        "replace_existing": "bool (optional, default false) - overwrite existing asset at dest_path/dest_name"
+        "replace_existing": "bool (optional, default false) - overwrite existing asset at dest_path/dest_name",
+        "multi_map": "bool (optional, default false) - texture only; when true pulls every canonical PBR map (color/normal/roughness/ao/displacement/metalness) the source ships; color is mandatory, others best-effort; Color -> <dest_name>, others -> <dest_name>_<map>"
       },
-      "returns": { "ok": "bool", "source": "string (echo)", "slug": "string (echo)", "asset_type": "string (echo)", "resolution": "string (echo)", "format": "string (echo)", "downloaded_from": "string (resolved download URL)", "temp_path": "string (filesystem path of downloaded file)", "ue_asset_path": "string (final asset path in the project)", "available_resolutions": "array of string (resolutions the source actually offers for this asset)", "import_result": "object (passthrough of native import_texture result)", "license": "string ('CC0')" }
+      "returns": { "ok": "bool", "source": "string (echo)", "slug": "string (echo)", "asset_type": "string (echo)", "resolution": "string (echo)", "format": "string (echo)", "downloaded_from": "string (resolved download URL)", "temp_path": "string (single-map mode only; filesystem path of downloaded file)", "ue_asset_path": "string (final asset path in project; in multi_map mode this is the color map path)", "available_resolutions": "array of string (resolutions the source actually offers for this asset)", "import_result": "object (single-map mode only; passthrough of native import_texture result)", "maps": "object (multi_map mode only; canonical_name -> UE asset path)", "import_results": "object (multi_map mode only; canonical_name -> native import_texture result)", "license": "string ('CC0')" }
     }
   ]
 }

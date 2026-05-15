@@ -5537,3 +5537,270 @@ def test_marketplace_import_ambientcg_end_to_end(tmp_path):
     m_extract.assert_called_once()
     m_ue.assert_called_once()
     assert m_ue.call_args[0][0] == "import_texture"
+
+
+# ---------------------------------------------------------------------------
+# Multi-map PBR mode (marketplace_import multi_map=true)
+# ---------------------------------------------------------------------------
+
+def _make_ambientcg_pbr_zip(zip_path, slug="Rocks023", res="2K", maps=("Color", "NormalGL", "Roughness", "AmbientOcclusion", "Displacement")):
+    """Build a fake AmbientCG PBR zip with one entry per requested map."""
+    import zipfile
+    with zipfile.ZipFile(zip_path, "w") as zf:
+        for m in maps:
+            zf.writestr(f"{slug}_{res}_{m}.jpg", f"jpg-bytes-{m}".encode("utf-8"))
+
+
+def test_ambientcg_extract_pbr_maps_full_set(tmp_path):
+    """A full AmbientCG zip yields every canonical map present."""
+    zip_path = tmp_path / "Rocks023_2K-JPG.zip"
+    _make_ambientcg_pbr_zip(str(zip_path))
+    extract_dir = tmp_path / "extract"
+    extract_dir.mkdir()
+    import os as _os
+    maps, err = bridge._ambientcg_extract_pbr_maps(str(zip_path), str(extract_dir))
+    assert err is None
+    assert maps is not None
+    assert set(maps.keys()) == {"color", "normal", "roughness", "ao", "displacement"}
+    for _canonical, path in maps.items():
+        assert _os.path.dirname(path) == str(extract_dir)
+        assert _os.path.exists(path)
+
+
+def test_ambientcg_extract_pbr_maps_partial_set(tmp_path):
+    """A zip with only Color+Normal returns just those two; others absent."""
+    zip_path = tmp_path / "Partial_2K-JPG.zip"
+    _make_ambientcg_pbr_zip(str(zip_path), slug="Partial", maps=("Color", "NormalGL"))
+    extract_dir = tmp_path / "extract"
+    extract_dir.mkdir()
+    maps, err = bridge._ambientcg_extract_pbr_maps(str(zip_path), str(extract_dir))
+    assert err is None
+    assert set(maps.keys()) == {"color", "normal"}
+
+
+def test_ambientcg_extract_pbr_maps_no_color_errors(tmp_path):
+    """Missing Color map is the only fatal condition."""
+    zip_path = tmp_path / "Broken_2K-JPG.zip"
+    _make_ambientcg_pbr_zip(str(zip_path), slug="Broken", maps=("NormalGL", "Roughness"))
+    extract_dir = tmp_path / "extract"
+    extract_dir.mkdir()
+    maps, err = bridge._ambientcg_extract_pbr_maps(str(zip_path), str(extract_dir))
+    assert maps is None
+    assert err is not None
+    assert "zip_has_no_color_map" in err["message"]
+
+
+def test_ambientcg_extract_pbr_maps_prefers_normalgl(tmp_path):
+    """When both _NormalGL and _NormalDX are present, _NormalGL wins."""
+    import zipfile
+    zip_path = tmp_path / "NormalVariants.zip"
+    with zipfile.ZipFile(str(zip_path), "w") as zf:
+        zf.writestr("Slug_2K_Color.jpg", b"color")
+        zf.writestr("Slug_2K_NormalDX.jpg", b"normal-dx")
+        zf.writestr("Slug_2K_NormalGL.jpg", b"normal-gl")
+    extract_dir = tmp_path / "extract"
+    extract_dir.mkdir()
+    maps, err = bridge._ambientcg_extract_pbr_maps(str(zip_path), str(extract_dir))
+    assert err is None
+    with open(maps["normal"], "rb") as f:
+        assert f.read() == b"normal-gl"
+
+
+def test_ambientcg_extract_pbr_maps_bad_zip(tmp_path):
+    """A corrupt zip surfaces a structured bad_zip error."""
+    zip_path = tmp_path / "Garbage.zip"
+    zip_path.write_bytes(b"not a real zip file")
+    extract_dir = tmp_path / "extract"
+    extract_dir.mkdir()
+    maps, err = bridge._ambientcg_extract_pbr_maps(str(zip_path), str(extract_dir))
+    assert maps is None
+    assert err is not None
+    assert "bad_zip" in err["message"]
+
+
+def test_polyhaven_pick_pbr_files_full_set():
+    """A Polyhaven payload with every canonical key yields every URL."""
+    files = {
+        "Diffuse":      {"2k": {"png": {"url": "https://x/diffuse_2k.png"}}},
+        "nor_gl":       {"2k": {"png": {"url": "https://x/nor_gl_2k.png"}}},
+        "Rough":        {"2k": {"png": {"url": "https://x/rough_2k.png"}}},
+        "AO":           {"2k": {"png": {"url": "https://x/ao_2k.png"}}},
+        "Displacement": {"2k": {"png": {"url": "https://x/disp_2k.png"}}},
+    }
+    urls, available, err = bridge._polyhaven_pick_pbr_files(files, "2k", "png")
+    assert err is None
+    assert urls is not None
+    assert set(urls.keys()) == {"color", "normal", "roughness", "ao", "displacement"}
+    assert urls["color"] == "https://x/diffuse_2k.png"
+    assert urls["normal"] == "https://x/nor_gl_2k.png"
+    assert available == ["2k"]
+
+
+def test_polyhaven_pick_pbr_files_partial_set():
+    """Missing non-color maps are simply absent — no error."""
+    files = {
+        "Diffuse": {"2k": {"png": {"url": "https://x/diffuse_2k.png"}}},
+        "nor_gl":  {"2k": {"png": {"url": "https://x/nor_gl_2k.png"}}},
+    }
+    urls, _available, err = bridge._polyhaven_pick_pbr_files(files, "2k", "png")
+    assert err is None
+    assert set(urls.keys()) == {"color", "normal"}
+
+
+def test_polyhaven_pick_pbr_files_per_map_format_fallback():
+    """If color is PNG but normal is only JPG, both still resolve."""
+    files = {
+        "Diffuse": {"2k": {"png": {"url": "https://x/diffuse_2k.png"}}},
+        "nor_gl":  {"2k": {"jpg": {"url": "https://x/nor_gl_2k.jpg"}}},
+    }
+    urls, _available, err = bridge._polyhaven_pick_pbr_files(files, "2k", "png")
+    assert err is None
+    assert urls["color"].endswith(".png")
+    assert urls["normal"].endswith(".jpg")
+
+
+def test_polyhaven_pick_pbr_files_no_diffuse_errors():
+    """No diffuse map -> texture_no_diffuse, even if other maps exist."""
+    files = {
+        "nor_gl": {"2k": {"png": {"url": "https://x/nor_gl_2k.png"}}},
+    }
+    urls, _available, err = bridge._polyhaven_pick_pbr_files(files, "2k", "png")
+    assert urls is None
+    assert err is not None
+    assert "texture_no_diffuse" in err["message"]
+
+
+def test_polyhaven_pick_pbr_files_resolution_unavailable():
+    """Caller asks 16k but only 2k is published -> resolution_unavailable."""
+    files = {
+        "Diffuse": {"2k": {"png": {"url": "https://x/diffuse_2k.png"}}},
+    }
+    urls, available, err = bridge._polyhaven_pick_pbr_files(files, "16k", "png")
+    assert urls is None
+    assert err is not None
+    assert "resolution_unavailable" in err["message"]
+    assert "2k" in available
+
+
+def test_marketplace_import_multimap_rejects_hdri():
+    """multi_map=true is texture-only; HDRIs are rejected up-front."""
+    with patch.object(bridge, "call_ue") as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 800, "method": "tools/call",
+            "params": {"name": "marketplace_import", "arguments": {
+                "slug": "kloppenheim_06_puresky",
+                "asset_type": "hdri",
+                "multi_map": True,
+            }},
+        })
+    assert m.call_count == 0
+    assert resp["error"]["code"] == -32602
+    assert "multi_map" in resp["error"]["message"]
+
+
+def test_marketplace_import_multimap_rejects_non_bool():
+    """multi_map must be a real boolean — strings are not coerced."""
+    with patch.object(bridge, "call_ue") as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 801, "method": "tools/call",
+            "params": {"name": "marketplace_import", "arguments": {
+                "slug": "Rocks023",
+                "multi_map": "yes",
+            }},
+        })
+    assert m.call_count == 0
+    assert resp["error"]["code"] == -32602
+    assert "multi_map" in resp["error"]["message"]
+
+
+def test_marketplace_import_multimap_ambientcg_end_to_end(tmp_path):
+    """Full multi-map AmbientCG flow: resolve zip -> extract N maps ->
+    fan out import_texture N times -> aggregate body."""
+    extracted = {
+        "color":        str(tmp_path / "Rocks023_2K_Color.jpg"),
+        "normal":       str(tmp_path / "Rocks023_2K_NormalGL.jpg"),
+        "roughness":    str(tmp_path / "Rocks023_2K_Roughness.jpg"),
+        "ao":           str(tmp_path / "Rocks023_2K_AmbientOcclusion.jpg"),
+        "displacement": str(tmp_path / "Rocks023_2K_Displacement.jpg"),
+    }
+    for p in extracted.values():
+        with open(p, "wb") as f:
+            f.write(b"jpg-bytes")
+    zip_url = "https://ambientcg.com/get?file=Rocks023_2K-JPG.zip"
+
+    def fake_call_ue(method, params):
+        return {"result": {"asset_path": f"{params['dest_path']}/{params['dest_name']}.{params['dest_name']}"}}
+
+    with patch.object(bridge, "_ambientcg_resolve_zip_url",
+                      return_value=(zip_url, "2K-JPG", ["1K-JPG", "2K-JPG"], None)), \
+         patch.object(bridge, "_marketplace_http_download", return_value=None), \
+         patch.object(bridge, "_ambientcg_extract_pbr_maps",
+                      return_value=(extracted, None)), \
+         patch.object(bridge, "call_ue", side_effect=fake_call_ue) as m_ue:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 802, "method": "tools/call",
+            "params": {"name": "marketplace_import", "arguments": {
+                "source": "ambientcg",
+                "slug": "Rocks023",
+                "asset_type": "texture",
+                "resolution": "2k",
+                "format": "jpg",
+                "multi_map": True,
+                "dest_path": "/Game/Marketplace",
+                "dest_name": "Rocks023",
+            }},
+        })
+
+    assert "error" not in resp, resp
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert body["ok"] is True
+    assert set(body["maps"].keys()) == {"color", "normal", "roughness", "ao", "displacement"}
+    assert body["ue_asset_path"] == body["maps"]["color"]
+    assert body["maps"]["color"] == "/Game/Marketplace/Rocks023.Rocks023"
+    assert body["maps"]["normal"] == "/Game/Marketplace/Rocks023_normal.Rocks023_normal"
+    assert body["maps"]["roughness"] == "/Game/Marketplace/Rocks023_roughness.Rocks023_roughness"
+    assert body["downloaded_from"] == zip_url
+    assert m_ue.call_count == 5
+    # Color must be imported first (so its failure is surfaced rather than
+    # a secondary map's).
+    first_call_args = m_ue.call_args_list[0][0][1]
+    assert first_call_args["dest_name"] == "Rocks023"
+
+
+def test_marketplace_import_multimap_polyhaven_end_to_end(tmp_path):
+    """Multi-map Polyhaven flow: catalog lookup -> per-map URL resolve ->
+    per-map download -> per-map import_texture."""
+    files_payload = {
+        "Diffuse":      {"2k": {"png": {"url": "https://x/d_2k.png"}}},
+        "nor_gl":       {"2k": {"png": {"url": "https://x/n_2k.png"}}},
+        "Rough":        {"2k": {"png": {"url": "https://x/r_2k.png"}}},
+    }
+
+    def fake_call_ue(method, params):
+        return {"result": {"asset_path": f"{params['dest_path']}/{params['dest_name']}.{params['dest_name']}"}}
+
+    with patch.object(bridge, "_marketplace_http_get_json",
+                      return_value=(files_payload, None)), \
+         patch.object(bridge, "_marketplace_http_download", return_value=None), \
+         patch.object(bridge, "call_ue", side_effect=fake_call_ue) as m_ue:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 803, "method": "tools/call",
+            "params": {"name": "marketplace_import", "arguments": {
+                "source": "polyhaven",
+                "slug": "aerial_beach_01",
+                "asset_type": "texture",
+                "resolution": "2k",
+                "format": "png",
+                "multi_map": True,
+                "dest_path": "/Game/Marketplace",
+                "dest_name": "beach",
+            }},
+        })
+
+    assert "error" not in resp, resp
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert set(body["maps"].keys()) == {"color", "normal", "roughness"}
+    assert body["maps"]["color"] == "/Game/Marketplace/beach.beach"
+    assert body["maps"]["normal"] == "/Game/Marketplace/beach_normal.beach_normal"
+    assert body["downloaded_from"].endswith("/files/aerial_beach_01")
+    assert m_ue.call_count == 3

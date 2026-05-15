@@ -3818,8 +3818,9 @@ Download a CC0 asset from a marketplace (Polyhaven or AmbientCG) and import it i
 
 **Scope**:
 
-- **Textures** — Color/Diffuse map only (full multi-map PBR import is parked for a later PR). Default format `png` for both sources; AmbientCG falls back to `jpg` at the same resolution when `png` isn't published.
-- **HDRIs** — single-file EXR (or HDR fallback). Default format `exr`.
+- **Textures (single-map, default)** — Color/Diffuse map only. Default format `png` for both sources; AmbientCG falls back to `jpg` at the same resolution when `png` isn't published.
+- **Textures (multi-map, opt-in via `multi_map=true`)** — pulls every canonical PBR map the source ships: `color`, `normal`, `roughness`, `ao`, `displacement`, `metalness`. Color is required; other maps are best-effort (just absent from the result dict when the source doesn't ship them). One `import_texture` call per map. Naming: Color stays at `<dest_name>` for back-compat; other maps land at `<dest_name>_<map>` (e.g. `<dest_name>_normal`, `<dest_name>_roughness`).
+- **HDRIs** — single-file EXR (or HDR fallback). Default format `exr`. `multi_map` is rejected for HDRIs.
 - **Models** — `asset_type=model` returns `not_implemented`. Native side has no glTF/FBX import wrapper today.
 - **Source**: `polyhaven` (default) or `ambientcg`.
 
@@ -3833,16 +3834,19 @@ Download a CC0 asset from a marketplace (Polyhaven or AmbientCG) and import it i
 - `dest_path` *(string, optional, default `/Game/Marketplace`)* — UE package path; must start with `/Game/`.
 - `dest_name` *(string, optional)* — asset name override; defaults to the slug.
 - `replace_existing` *(bool, optional, default `false`)* — overwrite an existing asset at `dest_path/dest_name`. Must be an actual boolean — `"false"` (string) is rejected.
+- `multi_map` *(bool, optional, default `false`)* — texture only; when `true`, fan out per-map download + import so Normal/Roughness/AO/Displacement/Metalness land alongside Color. Rejected for HDRIs.
 
 **Result**:
 
 - `ok` — bool.
 - `source`, `slug`, `asset_type`, `resolution`, `format` — echoes of input.
 - `downloaded_from` — resolved download URL (the per-asset Polyhaven file URL, or the AmbientCG zip URL).
-- `temp_path` — filesystem path of the file handed to `import_texture` (the raw image for Polyhaven, the extracted Color/HDRI file for AmbientCG).
-- `ue_asset_path` — final asset path in the project (`<dest_path>/<dest_name>`).
+- `temp_path` *(single-map mode only)* — filesystem path of the file handed to `import_texture` (the raw image for Polyhaven, the extracted Color/HDRI file for AmbientCG).
+- `ue_asset_path` — final asset path in the project (`<dest_path>/<dest_name>`); in multi-map mode this is the **color** map's asset path.
 - `available_resolutions` — array of resolutions/attributes the source offers for this asset (`["1k","2k","4k","8k"]` for Polyhaven; `["1K-JPG","2K-JPG",...]` for AmbientCG).
-- `import_result` — passthrough of native `import_texture` result.
+- `import_result` *(single-map mode only)* — passthrough of native `import_texture` result.
+- `maps` *(multi-map mode only)* — dict of `canonical_name -> UE asset path` for every map imported. Keys are drawn from `{color, normal, roughness, ao, displacement, metalness}`; only maps the source actually shipped appear.
+- `import_results` *(multi-map mode only)* — dict of `canonical_name -> native import_texture result` (passthrough, one entry per map imported).
 - `license` — `"CC0"`.
 
 **Errors**:
@@ -3857,7 +3861,8 @@ Download a CC0 asset from a marketplace (Polyhaven or AmbientCG) and import it i
 - `-32603 ambientcg: bad_zip: ...` — downloaded zip is corrupt.
 - `-32603 ambientcg: zip_has_no_color_map: ...` — texture zip is missing `_Color`/`_Diffuse` map files (rare; the error lists the actual file set).
 - `-32603 ambientcg: zip_has_no_hdri: ...` — HDRI zip is missing both `.exr` and `.hdr` files.
-- `-32603 ue_import_failed: ...` — native `import_texture` returned an error (propagated verbatim).
+- `-32603 ue_import_failed: ...` — native `import_texture` returned an error (propagated verbatim). In multi-map mode the message includes `map=<canonical>` so the failing map is identifiable.
+- `-32602 invalid_field: 'multi_map=true' applies to asset_type='texture' only` — caller set `multi_map=true` with an HDRI or model asset_type.
 
 **Example — import a 2k sand diffuse map**
 ```json
@@ -3893,6 +3898,21 @@ Download a CC0 asset from a marketplace (Polyhaven or AmbientCG) and import it i
   "dest_name": "T_Wood_050"
 }}
 ```
+
+**Example — import a full PBR set (multi-map) from AmbientCG**
+```json
+{"jsonrpc":"2.0","id":4,"method":"marketplace_import","params":{
+  "source": "ambientcg",
+  "slug": "Rocks023",
+  "asset_type": "texture",
+  "resolution": "2k",
+  "format": "jpg",
+  "multi_map": true,
+  "dest_path": "/Game/Validation/Marketplace",
+  "dest_name": "T_Rocks_023"
+}}
+```
+Result `maps` dict lists every imported map: `{"color": "/Game/Validation/Marketplace/T_Rocks_023.T_Rocks_023", "normal": "/Game/Validation/Marketplace/T_Rocks_023_normal.T_Rocks_023_normal", "roughness": ..., "ao": ..., "displacement": ...}`. Maps the source doesn't ship are simply absent.
 
 ---
 
