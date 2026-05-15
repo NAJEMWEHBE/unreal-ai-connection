@@ -87,9 +87,30 @@ def make_material(slug, spec):
         el.delete_asset(full)
     mat = tools.create_asset(name, PKG, unreal.Material, unreal.MaterialFactoryNew())
 
-    color_tex = el.load_asset(f"{PKG}/T_{slug}")
-    normal_tex = el.load_asset(f"{PKG}/T_{slug}_normal")
-    rough_tex = el.load_asset(f"{PKG}/T_{slug}_roughness")
+    # Fail fast with a useful message when textures aren't imported yet —
+    # otherwise the material wiring crashes later with a non-obvious
+    # NoneType error. Required: color + normal + roughness. AO optional.
+    required = {
+        "color":     f"{PKG}/T_{slug}",
+        "normal":    f"{PKG}/T_{slug}_normal",
+        "roughness": f"{PKG}/T_{slug}_roughness",
+    }
+    loaded = {}
+    missing = []
+    for k, path in required.items():
+        a = el.load_asset(path)
+        if a is None:
+            missing.append(path)
+        else:
+            loaded[k] = a
+    if missing:
+        raise RuntimeError(
+            f"Missing texture assets for {slug}: {', '.join(missing)}. "
+            "Run marketplace_import (multi_map=true) for the source slug first."
+        )
+    color_tex = loaded["color"]
+    normal_tex = loaded["normal"]
+    rough_tex = loaded["roughness"]
     ao_tex = el.load_asset(f"{PKG}/T_{slug}_ao") if spec["has_ao"] else None
 
     # Tile via TexCoord scale; cheaper + simpler than a Multiply node.
@@ -130,8 +151,9 @@ def make_material(slug, spec):
 
 
 def wipe_owned_actors():
-    """Destroy actors we previously spawned + any duplicate lighting
-    fixtures so a re-run starts from a clean slate."""
+    """Destroy actors we previously spawned + any UNLABELED duplicate
+    lighting fixtures so a re-run starts from a clean slate. Labeled
+    lighting actors placed intentionally by a designer are left alone."""
     destroyed = 0
     for a in list(els.get_all_level_actors()):
         label = a.get_actor_label()
@@ -139,7 +161,10 @@ def wipe_owned_actors():
             els.destroy_actor(a)
             destroyed += 1
             continue
-        if isinstance(a, KILL_DUPLICATE_CLASSES):
+        # Class-based delete only fires for actors with NO label — i.e.
+        # leftovers from template spawns (`DirectionalLight_0` etc).
+        # Anything a designer labeled survives.
+        if isinstance(a, KILL_DUPLICATE_CLASSES) and not label:
             els.destroy_actor(a)
             destroyed += 1
     print(f"wiped {destroyed} actors before rebuild")
