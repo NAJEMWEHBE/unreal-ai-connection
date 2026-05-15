@@ -70,15 +70,15 @@ all up. Affected:
 ## Canonical post-restart live-verification panel
 
 ```python
-mcp__unreal-claude-mcp__list_tools          # expect count=80
-mcp__unreal-claude-mcp__set_camera_transform(
+mcp__unreal-ai-connection__list_tools          # expect count=80
+mcp__unreal-ai-connection__set_camera_transform(
     {location: {x: 1, y: 2, z: 3},
      rotation: {pitch: -20, yaw: 45, roll: 7}}
 )
-mcp__unreal-claude-mcp__get_camera_transform   # expect lossless round-trip
-mcp__unreal-claude-mcp__inspect_data_asset({path: "/Game/NoSuch"})
+mcp__unreal-ai-connection__get_camera_transform   # expect lossless round-trip
+mcp__unreal-ai-connection__inspect_data_asset({path: "/Game/NoSuch"})
 # expect: error_message starts with "inspect_data_asset: asset_not_found:"
-mcp__unreal-claude-mcp__bulk_move_assets(
+mcp__unreal-ai-connection__bulk_move_assets(
     {paths: ["/Game/NoSuch"], dest_folder: "/Game/Archive"}
 )   # expect: ok: false with per-path error_code
 ```
@@ -115,7 +115,7 @@ mcp__unreal-claude-mcp__bulk_move_assets(
 
 For any future bridge-side synthetic:
 
-1. Add `synthetic_<name>(req_id, args)` in `bridge/unreal_claude_mcp_bridge.py`
+1. Add `synthetic_<name>(req_id, args)` in `bridge/unreal_ai_connection_bridge.py`
    (mirror the closest existing synthetic for the shape).
 2. Add TOOLS schema entry (input + required fields).
 3. Add to the `SYNTHETIC_TOOLS = {...}` dispatch dict.

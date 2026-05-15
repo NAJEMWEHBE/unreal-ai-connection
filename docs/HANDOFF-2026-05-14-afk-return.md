@@ -207,7 +207,7 @@ If you want to use `gh pr create --body-file ...`, here's a body you can drop in
 
 | Path | Why |
 |---|---|
-| `bridge/unreal_claude_mcp_bridge.py` | marketplace_search + marketplace_import handlers, TOOLS entries, SYNTHETIC_TOOLS dict, Polyhaven client-side search filter |
+| `bridge/unreal_ai_connection_bridge.py` | marketplace_search + marketplace_import handlers, TOOLS entries, SYNTHETIC_TOOLS dict, Polyhaven client-side search filter |
 | `scripts/build_desert_scene.py` | v6/v6.1/v7 brightness retunes + staged-capture flag + textured-MI promotion with flat-color fallback |
 | `UnrealClaudeMCP/Resources/mcp_manifest.json` | marketplace tool entries + tool-count bump |
 | `docs/TOOLS.md` | per-tool reference sections for marketplace_search + marketplace_import + count bump |

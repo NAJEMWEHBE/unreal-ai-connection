@@ -6,9 +6,9 @@ Google's MCP-capable CLI. Servers configured in `~/.gemini/settings.json`.
 
 1. **Locate the config.** `~/.gemini/settings.json` (Windows: `%USERPROFILE%\.gemini\settings.json`).
 2. **Create or open it** and add an `mcpServers` block as in the snippet below.
-3. **Replace the path** with your full path to `bridge/unreal_claude_mcp_bridge.py`.
+3. **Replace the path** with your full path to `bridge/unreal_ai_connection_bridge.py`.
 4. **Restart any active Gemini CLI session.**
-5. **First-call test.** `gemini` → in prompt: *"Use unreal-claude-mcp to call get_engine_version."*
+5. **First-call test.** `gemini` → in prompt: *"Use unreal-ai-connection to call get_engine_version."*
 
 ## Config snippet
 
@@ -16,9 +16,9 @@ Google's MCP-capable CLI. Servers configured in `~/.gemini/settings.json`.
 ```json
 {
   "mcpServers": {
-    "unreal-claude-mcp": {
+    "unreal-ai-connection": {
       "command": "py",
-      "args": ["C:\\full\\path\\to\\UnrealClaudeMCP\\bridge\\unreal_claude_mcp_bridge.py"]
+      "args": ["C:\\full\\path\\to\\UnrealClaudeMCP\\bridge\\unreal_ai_connection_bridge.py"]
     }
   }
 }
@@ -28,9 +28,9 @@ Google's MCP-capable CLI. Servers configured in `~/.gemini/settings.json`.
 ```json
 {
   "mcpServers": {
-    "unreal-claude-mcp": {
+    "unreal-ai-connection": {
       "command": "python3",
-      "args": ["/full/path/to/UnrealClaudeMCP/bridge/unreal_claude_mcp_bridge.py"]
+      "args": ["/full/path/to/UnrealClaudeMCP/bridge/unreal_ai_connection_bridge.py"]
     }
   }
 }
@@ -42,7 +42,7 @@ Google's MCP-capable CLI. Servers configured in `~/.gemini/settings.json`.
 gemini mcp list
 ```
 
-Should show `unreal-claude-mcp` → ready + tool count.
+Should show `unreal-ai-connection` → ready + tool count.
 
 ## Notes
 

@@ -7,30 +7,30 @@ OpenAI's coding CLI. Configured via TOML at `~/.codex/config.toml`, NOT JSON.
 1. **Install Codex CLI** if you haven't: `npm install -g @openai/codex` or via Brew.
 2. **Use the built-in `mcp add` command** (preferred) — it edits TOML for you:
    ```bash
-   codex mcp add unreal-claude-mcp py "C:\\full\\path\\to\\UnrealClaudeMCP\\bridge\\unreal_claude_mcp_bridge.py"
+   codex mcp add unreal-ai-connection -- py "C:\\full\\path\\to\\UnrealClaudeMCP\\bridge\\unreal_ai_connection_bridge.py"
    ```
    On macOS/Linux:
    ```bash
-   codex mcp add unreal-claude-mcp python3 /full/path/to/UnrealClaudeMCP/bridge/unreal_claude_mcp_bridge.py
+   codex mcp add unreal-ai-connection -- python3 /full/path/to/UnrealClaudeMCP/bridge/unreal_ai_connection_bridge.py
    ```
 3. **Or edit TOML manually** — open `~/.codex/config.toml` (Windows: `%USERPROFILE%\.codex\config.toml`) and append the snippet below.
 4. **Restart any active Codex session.**
-5. **First-call test.** `codex` → in the prompt: *"Call get_engine_version via the unreal-claude-mcp MCP server."*
+5. **First-call test.** `codex` → in the prompt: *"Call get_engine_version via the unreal-ai-connection MCP server."*
 
 ## TOML snippet
 
 **Windows:**
 ```toml
-[mcp_servers.unreal-claude-mcp]
+[mcp_servers.unreal-ai-connection]
 command = "py"
-args = ["C:\\full\\path\\to\\UnrealClaudeMCP\\bridge\\unreal_claude_mcp_bridge.py"]
+args = ["C:\\full\\path\\to\\UnrealClaudeMCP\\bridge\\unreal_ai_connection_bridge.py"]
 ```
 
 **macOS / Linux:**
 ```toml
-[mcp_servers.unreal-claude-mcp]
+[mcp_servers.unreal-ai-connection]
 command = "python3"
-args = ["/full/path/to/UnrealClaudeMCP/bridge/unreal_claude_mcp_bridge.py"]
+args = ["/full/path/to/UnrealClaudeMCP/bridge/unreal_ai_connection_bridge.py"]
 ```
 
 ## Verification
@@ -39,7 +39,7 @@ args = ["/full/path/to/UnrealClaudeMCP/bridge/unreal_claude_mcp_bridge.py"]
 codex mcp list
 ```
 
-Should show `unreal-claude-mcp` → connected with the tool count.
+Should show `unreal-ai-connection` → connected with the tool count.
 
 ## Notes
 

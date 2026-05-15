@@ -11,7 +11,7 @@ The user asked this question on 2026-05-09 after the v0.10.0 ergonomics bundle m
 | Layer | Language | Verdict |
 |---|---|---|
 | **Plugin handlers (36 total)** | C++ | Mostly forced. ~14 cannot be done another way; ~18 strongly prefer C++ for ergonomics + perf; ~4 could be thin C++→Python shims. |
-| **Bridge** (`bridge/unreal_claude_mcp_bridge.py`) | Python | Right choice. Pure JSON-RPC framing — Python's stdlib `socket` + `json` is the most concise expression. |
+| **Bridge** (`bridge/unreal_ai_connection_bridge.py`) | Python | Right choice. Pure JSON-RPC framing — Python's stdlib `socket` + `json` is the most concise expression. |
 | **Smoke test + seeder** (`examples/smoke_test.py`, `scripts/seed_test_project.py`) | Python | Right choice. Sequential JSON-RPC client; Python wins for scripts that wrap an HTTP-shaped protocol. |
 | **Editor lifecycle module** (`scripts/UnrealClaudeMCP-Editor.psm1`) | PowerShell | Right choice for Windows. Native process control (`Start-Process -PassThru`, `Stop-Process`, `Get-Process`) is first-class. Cross-platform via PS 7+ preserved by avoiding `Test-NetConnection`. |
 | **Tests** (`tests/test_*.py`) | Python | Right choice. Pytest is the de facto Python test framework; bridge tests need to import `bridge` as a module. |
@@ -115,7 +115,7 @@ These do almost nothing in C++ — they're glue around UE's Python interpreter o
 
 ### Bridge — Python ✅
 
-`bridge/unreal_claude_mcp_bridge.py` translates Claude Code's stdio MCP protocol to the plugin's TCP wire format. ~450 lines.
+`bridge/unreal_ai_connection_bridge.py` translates Claude Code's stdio MCP protocol to the plugin's TCP wire format. ~450 lines.
 
 **Was Python right?** Yes:
 - Pure protocol work — `socket`, `json`, `sys.stdin/stdout`. Python's stdlib makes this concise.

@@ -6,9 +6,9 @@ High-performance code editor. MCP support via the `context_servers` block in `~/
 
 1. **Open Zed settings.** `Cmd/Ctrl+,` opens `~/.config/zed/settings.json` (Windows: `%APPDATA%\Zed\settings.json`).
 2. **Add a `context_servers` block** at the top level. Snippet below.
-3. **Replace the path** with your full path to `bridge/unreal_claude_mcp_bridge.py`.
+3. **Replace the path** with your full path to `bridge/unreal_ai_connection_bridge.py`.
 4. **Save the file.** Zed picks up changes immediately — no restart required.
-5. **First-call test.** Open the assistant panel (`Cmd/Ctrl+R Cmd/Ctrl+A` or `agent: new conversation`) and ask: *"Call get_engine_version using unreal-claude-mcp."*
+5. **First-call test.** Open the assistant panel (`Cmd/Ctrl+R Cmd/Ctrl+A` or `agent: new conversation`) and ask: *"Call get_engine_version using unreal-ai-connection."*
 
 ## Settings snippet
 
@@ -16,10 +16,10 @@ High-performance code editor. MCP support via the `context_servers` block in `~/
 ```json
 {
   "context_servers": {
-    "unreal-claude-mcp": {
+    "unreal-ai-connection": {
       "command": {
         "path": "py",
-        "args": ["C:\\full\\path\\to\\UnrealClaudeMCP\\bridge\\unreal_claude_mcp_bridge.py"],
+        "args": ["C:\\full\\path\\to\\UnrealClaudeMCP\\bridge\\unreal_ai_connection_bridge.py"],
         "env": {}
       }
     }
@@ -31,10 +31,10 @@ High-performance code editor. MCP support via the `context_servers` block in `~/
 ```json
 {
   "context_servers": {
-    "unreal-claude-mcp": {
+    "unreal-ai-connection": {
       "command": {
         "path": "python3",
-        "args": ["/full/path/to/UnrealClaudeMCP/bridge/unreal_claude_mcp_bridge.py"],
+        "args": ["/full/path/to/UnrealClaudeMCP/bridge/unreal_ai_connection_bridge.py"],
         "env": {}
       }
     }
@@ -44,7 +44,7 @@ High-performance code editor. MCP support via the `context_servers` block in `~/
 
 ## Verification
 
-Open the Agent panel → click the model name in the top-right → **Tools**. `unreal-claude-mcp` should appear with all 104 tools.
+Open the Agent panel → click the model name in the top-right → **Tools**. `unreal-ai-connection` should appear with all 104 tools.
 
 ## Notes
 

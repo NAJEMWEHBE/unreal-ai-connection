@@ -1,4 +1,4 @@
-# AGENTS.md — universal agent context for UnrealClaudeMCP
+# AGENTS.md — universal agent context for Unreal AI Connection
 
 This file is read by Codex CLI, Copilot CLI, Gemini CLI, Cursor, and any other coding agent that respects the `AGENTS.md` convention. Claude Code reads [`CLAUDE.md`](CLAUDE.md) instead (same content semantically; CLAUDE.md is the canonical version).
 
@@ -11,8 +11,8 @@ UE 5.7 plugin + Python bridge exposing editor automation to MCP-compliant client
 ## Where to look first
 
 - **C++ handlers** (71) — `UnrealClaudeMCP/Source/UnrealClaudeMCP/Private/MCP/Handlers/Handler_*.cpp`. Registered in `UnrealClaudeMCPModule.cpp`.
-- **Bridge-side synthetic tools** (29) — `bridge/unreal_claude_mcp_bridge.py`'s `SYNTHETIC_TOOLS` dict: `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`.
-- **Tool catalog (manual 3-place sync)** — `UnrealClaudeMCP/Resources/mcp_manifest.json`, `bridge/unreal_claude_mcp_bridge.py`'s `TOOLS` list, `docs/TOOLS.md`. `tests/test_manifest_sync.py` catches drift between the first two.
+- **Bridge-side synthetic tools** (33) — `bridge/unreal_ai_connection_bridge.py`'s `SYNTHETIC_TOOLS` dict: `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`, `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap`, `sequencer_add_transform_keyframe`.
+- **Tool catalog (manual 3-place sync)** — `UnrealClaudeMCP/Resources/mcp_manifest.json`, `bridge/unreal_ai_connection_bridge.py`'s `TOOLS` list, `docs/TOOLS.md`. `tests/test_manifest_sync.py` catches drift between the first two.
 - **Architecture + UE 5.7 API gotchas** — `docs/ARCHITECTURE.md`.
 - **Host-build runbook** — top of `docs/HANDOFF.md`.
 - **Per-tool JSON schemas + examples** — `docs/TOOLS.md`.
@@ -31,9 +31,9 @@ UE 5.7 plugin + Python bridge exposing editor automation to MCP-compliant client
 
 ## MCP server setup per agent
 
-The bridge is registered as `unreal-claude-mcp` in this project's `.mcp.json` (read by Claude Code, Copilot CLI, Cursor). Codex CLI uses `~/.codex/config.toml` — register with:
-```
-codex mcp add unreal-claude-mcp -- py F:\UnrealClaudeMCP\bridge\unreal_claude_mcp_bridge.py
+The bridge is registered as `unreal-ai-connection` in this project's `.mcp.json` (read by Claude Code, Copilot CLI, Cursor). Codex CLI uses `~/.codex/config.toml` — register with:
+```bash
+codex mcp add unreal-ai-connection -- py F:\UnrealClaudeMCP\bridge\unreal_ai_connection_bridge.py
 ```
 After registration, all 104 tools become available through the standard MCP `tools/list` + `tools/call` flow. Open the host UE project with the plugin enabled before any tool call (the bridge surfaces a clear error otherwise).
 

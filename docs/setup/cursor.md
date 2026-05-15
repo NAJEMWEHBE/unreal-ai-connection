@@ -8,9 +8,9 @@ AI-first code editor. MCP servers configured via `.cursor/mcp.json` (project-sco
    - **Project-scope** (recommended for UE projects): `.cursor/mcp.json` at the project root.
    - **Global**: `~/.cursor/mcp.json` (Windows: `%USERPROFILE%\.cursor\mcp.json`).
 2. **Create the file** with the snippet below.
-3. **Replace the path** with your full path to `bridge/unreal_claude_mcp_bridge.py`.
+3. **Replace the path** with your full path to `bridge/unreal_ai_connection_bridge.py`.
 4. **Refresh the tool list.** On Cursor v0.43+ the change is picked up automatically on file save (see Notes). On older versions, `Cmd/Ctrl+Shift+P` → *Reload Window*.
-5. **First-call test.** Open Cursor Chat (`Cmd/Ctrl+L`) and ask: *"Use the unreal-claude-mcp tool to call get_engine_version."*
+5. **First-call test.** Open Cursor Chat (`Cmd/Ctrl+L`) and ask: *"Use the unreal-ai-connection tool to call get_engine_version."*
 
 ## Config snippet
 
@@ -18,9 +18,9 @@ AI-first code editor. MCP servers configured via `.cursor/mcp.json` (project-sco
 ```json
 {
   "mcpServers": {
-    "unreal-claude-mcp": {
+    "unreal-ai-connection": {
       "command": "py",
-      "args": ["C:\\full\\path\\to\\UnrealClaudeMCP\\bridge\\unreal_claude_mcp_bridge.py"]
+      "args": ["C:\\full\\path\\to\\UnrealClaudeMCP\\bridge\\unreal_ai_connection_bridge.py"]
     }
   }
 }
@@ -30,9 +30,9 @@ AI-first code editor. MCP servers configured via `.cursor/mcp.json` (project-sco
 ```json
 {
   "mcpServers": {
-    "unreal-claude-mcp": {
+    "unreal-ai-connection": {
       "command": "python3",
-      "args": ["/full/path/to/UnrealClaudeMCP/bridge/unreal_claude_mcp_bridge.py"]
+      "args": ["/full/path/to/UnrealClaudeMCP/bridge/unreal_ai_connection_bridge.py"]
     }
   }
 }
@@ -40,7 +40,7 @@ AI-first code editor. MCP servers configured via `.cursor/mcp.json` (project-sco
 
 ## Verification
 
-`Cmd/Ctrl+Shift+J` → **Cursor Settings** → **Features** → **MCP**. You should see `unreal-claude-mcp` with a green dot and the tool count.
+`Cmd/Ctrl+Shift+J` → **Cursor Settings** → **Features** → **MCP**. You should see `unreal-ai-connection` with a green dot and the tool count.
 
 ## Notes
 

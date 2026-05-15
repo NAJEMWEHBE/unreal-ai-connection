@@ -6,9 +6,9 @@ GitHub Copilot's agent mode in VS Code reads MCP servers from `.vscode/mcp.json`
 
 1. **Enable Agent mode** if you haven't — Copilot Chat → mode picker (top-left of chat) → **Agent**. Requires Copilot subscription.
 2. **Create the workspace config.** In your project root: `.vscode/mcp.json`.
-3. **Paste the snippet below** and replace the path with your full path to `bridge/unreal_claude_mcp_bridge.py`.
+3. **Paste the snippet below** and replace the path with your full path to `bridge/unreal_ai_connection_bridge.py`.
 4. **Reload VS Code.** Command palette → *Developer: Reload Window*.
-5. **First-call test.** Copilot Chat (Agent mode) → *"Use the unreal-claude-mcp server and call get_engine_version."*
+5. **First-call test.** Copilot Chat (Agent mode) → *"Use the unreal-ai-connection server and call get_engine_version."*
 
 ## Config snippet
 
@@ -16,10 +16,10 @@ GitHub Copilot's agent mode in VS Code reads MCP servers from `.vscode/mcp.json`
 ```json
 {
   "servers": {
-    "unreal-claude-mcp": {
+    "unreal-ai-connection": {
       "type": "stdio",
       "command": "py",
-      "args": ["C:\\full\\path\\to\\UnrealClaudeMCP\\bridge\\unreal_claude_mcp_bridge.py"]
+      "args": ["C:\\full\\path\\to\\UnrealClaudeMCP\\bridge\\unreal_ai_connection_bridge.py"]
     }
   }
 }
@@ -29,10 +29,10 @@ GitHub Copilot's agent mode in VS Code reads MCP servers from `.vscode/mcp.json`
 ```json
 {
   "servers": {
-    "unreal-claude-mcp": {
+    "unreal-ai-connection": {
       "type": "stdio",
       "command": "python3",
-      "args": ["/full/path/to/UnrealClaudeMCP/bridge/unreal_claude_mcp_bridge.py"]
+      "args": ["/full/path/to/UnrealClaudeMCP/bridge/unreal_ai_connection_bridge.py"]
     }
   }
 }
@@ -40,7 +40,7 @@ GitHub Copilot's agent mode in VS Code reads MCP servers from `.vscode/mcp.json`
 
 ## Verification
 
-Copilot Chat (Agent mode) → 🛠️ tools button (input bar) → expand **MCP: unreal-claude-mcp**. The published tool list should appear with checkboxes. Quickest sanity check: enable `get_engine_version` and call it.
+Copilot Chat (Agent mode) → 🛠️ tools button (input bar) → expand **MCP: unreal-ai-connection**. The published tool list should appear with checkboxes. Quickest sanity check: enable `get_engine_version` and call it.
 
 ## Notes
 

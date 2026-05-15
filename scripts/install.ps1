@@ -47,7 +47,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 $PluginSource = Join-Path $RepoRoot 'UnrealClaudeMCP'
-$BridgePath = Join-Path $RepoRoot 'bridge\unreal_claude_mcp_bridge.py'
+$BridgePath = Join-Path $RepoRoot 'bridge\unreal_ai_connection_bridge.py'
 
 function Write-Step($msg) { Write-Host "==> $msg" -ForegroundColor Cyan }
 function Write-Ok($msg) { Write-Host "    OK: $msg" -ForegroundColor Green }
@@ -119,10 +119,10 @@ function New-StdioConfig {
             command = 'py'
             args    = @($BridgePath)
         }
-        $cfg = [ordered]@{ servers = [ordered]@{ 'unreal-claude-mcp' = $serverEntry } }
+        $cfg = [ordered]@{ servers = [ordered]@{ 'unreal-ai-connection' = $serverEntry } }
     }
     else {
-        $cfg = [ordered]@{ mcpServers = [ordered]@{ 'unreal-claude-mcp' = $serverEntry } }
+        $cfg = [ordered]@{ mcpServers = [ordered]@{ 'unreal-ai-connection' = $serverEntry } }
     }
     return ($cfg | ConvertTo-Json -Depth 6)
 }
@@ -172,7 +172,7 @@ Write-Host "============================================================" -Foreg
 Write-Host " 1. Right-click '$($uproject.FullName)' -> Generate Visual Studio project files"
 Write-Host " 2. Open the .sln in Visual Studio, build 'Development Editor | Win64'"
 Write-Host " 3. Launch UE; the server binds 127.0.0.1:18888 within ~2 min."
-Write-Host " 4. Verify in your client's MCP panel that 'unreal-claude-mcp' is connected."
+Write-Host " 4. Verify in your client's MCP panel that 'unreal-ai-connection' is connected."
 Write-Host " 5. First test: ask your AI to call get_engine_version"
 if (-not $Client) {
     Write-Host ""

@@ -1,5 +1,5 @@
 """
-Unit tests for `bridge/unreal_claude_mcp_bridge.py`.
+Unit tests for `bridge/unreal_ai_connection_bridge.py`.
 
 These run with NO Unreal Engine instance — `socket.socket` is mocked. They
 cover the MCP protocol surface (initialize / tools/list / tools/call /
@@ -15,7 +15,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-import unreal_claude_mcp_bridge as bridge
+import unreal_ai_connection_bridge as bridge
 from conftest import EXPECTED_TOOL_COUNT
 
 

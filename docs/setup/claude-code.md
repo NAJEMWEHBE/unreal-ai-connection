@@ -10,9 +10,9 @@ Anthropic's official coding agent. Reads `.mcp.json` from your project root.
    cp examples/.mcp.json.example <your-project>/.mcp.json
    ```
    Or create `.mcp.json` from scratch with the snippet below.
-3. **Edit the path.** Open `.mcp.json` and replace the placeholder with your full path to `bridge/unreal_claude_mcp_bridge.py`.
+3. **Edit the path.** Open `.mcp.json` and replace the placeholder with your full path to `bridge/unreal_ai_connection_bridge.py`.
 4. **Restart Claude Code.** In the CLI, exit and re-launch. In VS Code, reload the window (Ctrl/Cmd+Shift+P → *Reload Window*).
-5. **First-call test.** Ask Claude: *"Use the unreal-claude-mcp server and call get_engine_version."* Expected reply: `5.7.x`.
+5. **First-call test.** Ask Claude: *"Use the unreal-ai-connection server and call get_engine_version."* Expected reply: `5.7.x`.
 
 ## `.mcp.json` snippet
 
@@ -21,9 +21,9 @@ Anthropic's official coding agent. Reads `.mcp.json` from your project root.
 {
   "$schema": "https://json.schemastore.org/mcp.json",
   "mcpServers": {
-    "unreal-claude-mcp": {
+    "unreal-ai-connection": {
       "command": "py",
-      "args": ["C:\\full\\path\\to\\UnrealClaudeMCP\\bridge\\unreal_claude_mcp_bridge.py"]
+      "args": ["C:\\full\\path\\to\\UnrealClaudeMCP\\bridge\\unreal_ai_connection_bridge.py"]
     }
   }
 }
@@ -34,9 +34,9 @@ Anthropic's official coding agent. Reads `.mcp.json` from your project root.
 {
   "$schema": "https://json.schemastore.org/mcp.json",
   "mcpServers": {
-    "unreal-claude-mcp": {
+    "unreal-ai-connection": {
       "command": "python3",
-      "args": ["/full/path/to/UnrealClaudeMCP/bridge/unreal_claude_mcp_bridge.py"]
+      "args": ["/full/path/to/UnrealClaudeMCP/bridge/unreal_ai_connection_bridge.py"]
     }
   }
 }
@@ -44,7 +44,7 @@ Anthropic's official coding agent. Reads `.mcp.json` from your project root.
 
 ## Approval flow
 
-First time Claude Code launches with this server in `.mcp.json`, it prompts you to approve the new MCP server. Click **Approve** (or use `/mcp` and select `unreal-claude-mcp` → *Approve*). The approval is sticky per-project.
+First time Claude Code launches with this server in `.mcp.json`, it prompts you to approve the new MCP server. Click **Approve** (or use `/mcp` and select `unreal-ai-connection` → *Approve*). The approval is sticky per-project.
 
 ## Verification
 
@@ -52,7 +52,7 @@ First time Claude Code launches with this server in `.mcp.json`, it prompts you 
 > /mcp
 ```
 
-Should show `unreal-claude-mcp` connected with the full tool list (currently 104; expect this number to grow over time). Run `get_engine_version` as the canonical first call.
+Should show `unreal-ai-connection` connected with the full tool list (currently 104; expect this number to grow over time). Run `get_engine_version` as the canonical first call.
 
 ## Notes
 

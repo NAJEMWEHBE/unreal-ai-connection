@@ -55,7 +55,7 @@ esac
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 PLUGIN_SOURCE="$REPO_ROOT/UnrealClaudeMCP"
-BRIDGE_PATH="$REPO_ROOT/bridge/unreal_claude_mcp_bridge.py"
+BRIDGE_PATH="$REPO_ROOT/bridge/unreal_ai_connection_bridge.py"
 
 step()  { printf '\033[1;36m==> %s\033[0m\n' "$1"; }
 ok()    { printf '    \033[1;32mOK:   %s\033[0m\n' "$1"; }
@@ -122,7 +122,7 @@ if [ -n "$CLIENT" ]; then
     JSON_SNIPPET=$(cat <<EOF
 {
   "mcpServers": {
-    "unreal-claude-mcp": {
+    "unreal-ai-connection": {
       "command": "python3",
       "args": ["$BRIDGE_PATH"]
     }
@@ -148,7 +148,7 @@ EOF
             VSCODE_SNIPPET=$(cat <<EOF
 {
   "servers": {
-    "unreal-claude-mcp": {
+    "unreal-ai-connection": {
       "type": "stdio",
       "command": "python3",
       "args": ["$BRIDGE_PATH"]
@@ -174,7 +174,7 @@ echo "============================================================"
 echo " 1. Open '$UPROJECT' and regenerate project files (right-click > Services menu)."
 echo " 2. Build the Development Editor target (Xcode on macOS; make on Linux)."
 echo " 3. Launch UE; the server binds 127.0.0.1:18888 within ~2 min."
-echo " 4. Verify in your client's MCP panel that 'unreal-claude-mcp' is connected."
+echo " 4. Verify in your client's MCP panel that 'unreal-ai-connection' is connected."
 echo " 5. First test: ask your AI to call get_engine_version"
 if [ -z "$CLIENT" ]; then
     echo ""

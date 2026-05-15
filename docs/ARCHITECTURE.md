@@ -192,7 +192,7 @@ If a handler references a UE class whose owning module isn't in this list, the l
    ```
 5. If the handler needs a new UE module, add it to `Build.cs`.
 6. Update `Resources/mcp_manifest.json` with the new tool's schema.
-7. If the bridge is used, add the same tool to the `TOOLS` list in `bridge/unreal_claude_mcp_bridge.py`.
+7. If the bridge is used, add the same tool to the `TOOLS` list in `bridge/unreal_ai_connection_bridge.py`.
 8. Rebuild (`Build.bat UnrealEditor ...` or VS Build Solution).
 9. Restart UE — the new tool registers automatically on module load.
 

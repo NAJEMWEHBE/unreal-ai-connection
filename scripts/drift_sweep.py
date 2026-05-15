@@ -51,7 +51,7 @@ SCAN_FILES = [
     "docs/TOOLS.md",
     "docs/ARCHITECTURE.md",
     ".github/copilot-instructions.md",
-    "bridge/unreal_claude_mcp_bridge.py",
+    "bridge/unreal_ai_connection_bridge.py",
     "UnrealClaudeMCP/Resources/mcp_manifest.json",
 ]
 
