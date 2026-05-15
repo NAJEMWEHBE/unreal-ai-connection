@@ -110,7 +110,7 @@ Two new bridge-side synthetic tools, no auth and no API key required:
 - Total tool count: **100 → 102** (71 native C++ + 31 synthetic).
 - Bumped `EXPECTED_SYNTHETIC_TOOL_COUNT` 29 → 31 in `tests/conftest.py` (the single source of truth referenced by both manifest-sync drift tests and the bridge handler-set test).
 - Bulk-updated the "100 tools" / "29 synthetic" counts across the nine docs that the `test_drift_sweep` helper scans (README, CLAUDE, AGENTS, copilot-instructions, TOOLS, ARCHITECTURE, INSTALLATION, RESTART-RECOVERY, tests/README).
-- Sanitised `docs/HANDOFF-resume-2026-05-14.md` to remove a hard-coded Windows username (`C:\Users\NINOH\...` → `%USERPROFILE%\...`) so the no-personal-leaks test stays green.
+- Sanitised `docs/HANDOFF-resume-2026-05-14.md` to remove a hard-coded Windows username (`C:\Users\<USERNAME>\...` → `%USERPROFILE%\...`) so the no-personal-leaks test stays green.
 
 ### 4. High-quality textured rebuild (v7)
 
@@ -154,17 +154,17 @@ Script marker bumped to `SCENE_BUILD_COMPLETE_V7_TEXTURED`.
 
 - **`gh` CLI was unauthenticated**, blocking PR creation. No `GH_TOKEN` / `GITHUB_TOKEN` env var, no `gh auth` config at `$APPDATA/GitHub CLI` or `~/.config/gh`. Auto-mode classifier (correctly) blocked an attempt to dump credentials via `git credential fill` for cross-purpose use. The standing recipe is `gh auth login` (browser-based, one-time-code paste). See "What to do when you sit down" at the top.
 
-- **`docs/HANDOFF-resume-2026-05-14.md` had a hard-coded username** (`C:\Users\NINOH\...`) that tripped `tests/test_no_personal_leaks.py`. Sanitised to `%USERPROFILE%\...`. Watch for the same pattern in any new doc you write — the test scans all tracked files.
+- **`docs/HANDOFF-resume-2026-05-14.md` had a hard-coded username** (`C:\Users\<USERNAME>\...`) that tripped `tests/test_no_personal_leaks.py`. Sanitised to `%USERPROFILE%\...`. Watch for the same pattern in any new doc you write — the test scans all tracked files.
 
-- **Local Ollama daemon defaults to the wrong models dir.** The default `OLLAMA_MODELS` points at the standard user-profile location. Models live at `F:/ollama/models` (per memory + the workflow config doc at `F:/ollama/workflow-local-config.md`). The recipe that works:
+- **Local OSS LLM runtime defaults to the wrong models dir.** The default models-path env var points at the standard user-profile location. Models live on the secondary drive (per maintainer's private memory file — exact path not pinned in this public doc). The recipe that works:
 
   ```powershell
-  $env:OLLAMA_MODELS = 'F:/ollama/models'
-  $env:OLLAMA_HOST = '127.0.0.1:11434'
-  & 'C:/Users/<USERNAME>/AppData/Local/Programs/Ollama/ollama.exe' serve
+  $env:<RUNTIME>_MODELS = '<secondary-drive>/<runtime>/models'
+  $env:<RUNTIME>_HOST = '127.0.0.1:11434'
+  & '<runtime-binary>' serve
   ```
 
-  Without it, `ollama list` shows zero models even though qwen3.6:27b / gemma4:e4b / nemotron3:33b / nemotron-3-super:latest are all present on disk.
+  Without it, the runtime's `list` command shows zero models even though the locally-installed code-focused, fast-instruction, and reasoning models are all present on disk.
 
 ---
 
