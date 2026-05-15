@@ -981,5 +981,6 @@ mi_sun = make_mi('MI_SunGlow', basic_mat, unreal.LinearColor(0.8, 0.45, 0.18, 1.
 # ----------------------------------------------------------------------------
 
 _apply_hero_camera()
+_stop_after(4, 'hero')
 
 log('SCENE_BUILD_COMPLETE_V7_TEXTURED')

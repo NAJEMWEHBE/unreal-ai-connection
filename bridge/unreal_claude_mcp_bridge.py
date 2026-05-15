@@ -5109,6 +5109,10 @@ def _marketplace_http_download(url: str, dest_path: str) -> dict | None:
     import urllib.request
     import urllib.error
     import os
+    import urllib.parse
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme != "https" or not parsed.netloc:
+        return {"code": -32603, "message": f"invalid_download_url: scheme must be https, got '{parsed.scheme or ''}': {url}"}
     tmp = dest_path + ".part"
     req = urllib.request.Request(url, headers={"User-Agent": _MARKETPLACE_USER_AGENT})
     err_result: dict | None = None
@@ -5274,20 +5278,31 @@ def synthetic_marketplace_search(req_id, args: dict) -> dict:
 
     results: list[dict] = []
     errors: list[str] = []
-    if source in ("polyhaven", "all"):
-        ph_results, ph_err = _polyhaven_search(query, asset_type, limit)
+    if source == "all":
+        polyhaven_limit = max(1, limit - limit // 2)
+        ambientcg_limit = max(0, limit // 2)
+    elif source == "polyhaven":
+        polyhaven_limit = limit
+        ambientcg_limit = 0
+    elif source == "ambientcg":
+        polyhaven_limit = 0
+        ambientcg_limit = limit
+    else:
+        polyhaven_limit = 0
+        ambientcg_limit = 0
+
+    if polyhaven_limit > 0:
+        ph_results, ph_err = _polyhaven_search(query, asset_type, polyhaven_limit)
         if ph_err is not None:
             errors.append(f"polyhaven: {ph_err.get('message') or 'unknown'}")
         elif ph_results:
             results.extend(ph_results)
-    if source in ("ambientcg", "all"):
-        remaining = max(0, limit - len(results))
-        if remaining > 0:
-            ag_results, ag_err = _ambientcg_search(query, asset_type, remaining)
-            if ag_err is not None:
-                errors.append(f"ambientcg: {ag_err.get('message') or 'unknown'}")
-            elif ag_results:
-                results.extend(ag_results)
+    if ambientcg_limit > 0:
+        ag_results, ag_err = _ambientcg_search(query, asset_type, ambientcg_limit)
+        if ag_err is not None:
+            errors.append(f"ambientcg: {ag_err.get('message') or 'unknown'}")
+        elif ag_results:
+            results.extend(ag_results)
 
     # If both sources failed AND we have no results, surface the errors.
     if not results and errors:
@@ -5463,11 +5478,17 @@ def synthetic_marketplace_import(req_id, args: dict) -> dict:
         return make_response(req_id, error=dl_err)
 
     # 3. Hand off to native import_texture.
+    replace_existing = args.get("replace_existing", False)
+    if not isinstance(replace_existing, bool):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": f"marketplace_import: invalid_field: 'replace_existing' must be a boolean, got {type(replace_existing).__name__}",
+        })
     import_params = {
         "source_path": tmp_path,
         "dest_path": dest_path,
         "dest_name": dest_name,
-        "replace_existing": bool(args.get("replace_existing", False)),
+        "replace_existing": replace_existing,
         "automated": True,
         "save": True,
     }
