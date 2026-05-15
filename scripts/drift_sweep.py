@@ -83,6 +83,11 @@ PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"remaining\s+(\d+)\s+[–—\-]+\s", re.IGNORECASE), "synthetic_tools"),
     (re.compile(r"\b(\d+)\s+pytest\s+cases?\b", re.IGNORECASE), "pytest_cases"),
     (re.compile(r"#\s*(\d+)\s+tests,", re.IGNORECASE), "pytest_cases"),
+    # README shields.io badge slug ("pytest-458_passing"). The canonical
+    # pytest_cases count is still sourced from `pytest --collect-only`; this
+    # regex just makes sure the badge URL doesn't strand when the count
+    # bumps. Matches the slug regardless of badge color suffix.
+    (re.compile(r"pytest-(\d+)_passing", re.IGNORECASE), "pytest_cases"),
     # UE engine minor (e.g., "5.7"). The negative lookahead `(?!\.\d)`
     # prevents matching "5.7" inside "5.7.4" -- the patch-level "Tested on"
     # version in README is intentionally allowed to drift independently of

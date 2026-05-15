@@ -4,8 +4,11 @@ import unreal
 
 import time as _time
 DEST_PKG = "/Game/Validation/Sequencer"
-SEQ_NAME = f"SEQ_POC_Keyframe_{int(_time.time())}"
-CUBE_LABEL = f"POC_Cube_Keyframe_{int(_time.time())}"
+# time_ns() gives nanosecond resolution so rapid reruns within the same
+# wall-clock second can't collide on asset name (int(time.time()) would).
+RUN_ID = _time.time_ns()
+SEQ_NAME = f"SEQ_POC_Keyframe_{RUN_ID}"
+CUBE_LABEL = f"POC_Cube_Keyframe_{RUN_ID}"
 
 el = unreal.EditorAssetLibrary
 ll = unreal.EditorLevelLibrary

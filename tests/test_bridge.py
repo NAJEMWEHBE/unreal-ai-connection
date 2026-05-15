@@ -6316,10 +6316,40 @@ def test_sequencer_add_transform_keyframe_rejects_malformed_location():
         assert "location" in resp["error"]["message"]
 
 
+def _make_sequencer_call_ue_side_effect(exec_output: str = ""):
+    """Dispatcher mock: returns the inner-script `exec_output` for the
+    execute_unreal_python call and an empty LogPython window for the
+    subsequent get_log_lines lookup. The bridge falls back to scraping
+    `exec_output` for the marker, so tests can still hand the marker in
+    via stdout while a real UE would deliver it via LogPython.
+    """
+
+    def _side_effect(method, args):
+        if method == "get_log_lines":
+            return {"result": {"ok": True, "returned": 0, "lines": []}}
+        return {"result": {"ok": True, "output": exec_output}}
+
+    return _side_effect
+
+
+def _last_exec_python_code(mock_call_ue):
+    """Find the most recent execute_unreal_python invocation on the mock
+    and return its `code` argument. Skips intervening get_log_lines calls
+    introduced by the marker-scrape fallback chain.
+    """
+    for call in reversed(mock_call_ue.call_args_list):
+        method, args = call[0][0], call[0][1]
+        if method == "execute_unreal_python":
+            return args["code"]
+    raise AssertionError("no execute_unreal_python dispatch recorded on mock")
+
+
 def test_sequencer_add_transform_keyframe_generated_script_constant_interp():
     """interpolation='constant' bakes MovieSceneKeyInterpolation.CONSTANT into the script."""
-    fake_result = {"result": {"ok": True, "output": "SEQ_KEYFRAME_OK::{\"keys_added\": 3, \"channels_keyed\": [\"Location.X\",\"Location.Y\",\"Location.Z\"], \"track_path\": \"/Game/Cinematics/Shot.Shot:Transform\"}"}}
-    with patch.object(bridge, "call_ue", return_value=fake_result) as m_ue:
+    side_effect = _make_sequencer_call_ue_side_effect(
+        "SEQ_KEYFRAME_OK::{\"keys_added\": 3, \"channels_keyed\": [\"Location.X\",\"Location.Y\",\"Location.Z\"], \"track_path\": \"/Game/Cinematics/Shot.Shot:Transform\"}__END__"
+    )
+    with patch.object(bridge, "call_ue", side_effect=side_effect) as m_ue:
         bridge.handle({
             "jsonrpc": "2.0", "id": 930, "method": "tools/call",
             "params": {"name": "sequencer_add_transform_keyframe", "arguments": {
@@ -6330,7 +6360,7 @@ def test_sequencer_add_transform_keyframe_generated_script_constant_interp():
                 "interpolation": "constant",
             }},
         })
-    code = m_ue.call_args[0][1]["code"]
+    code = _last_exec_python_code(m_ue)
     assert "MovieSceneKeyInterpolation.CONSTANT" in code
     assert "MovieSceneKeyInterpolation.LINEAR" not in code
 
@@ -6339,8 +6369,8 @@ def test_sequencer_add_transform_keyframe_rotation_axis_remap():
     """rotation = [pitch, yaw, roll] must remap to channels
     (Pitch->Rotation.Y, Yaw->Rotation.Z, Roll->Rotation.X). The
     generated PAIRS literal encodes channel + value side-by-side."""
-    fake_result = {"result": {"ok": True, "output": ""}}
-    with patch.object(bridge, "call_ue", return_value=fake_result) as m_ue:
+    side_effect = _make_sequencer_call_ue_side_effect("")
+    with patch.object(bridge, "call_ue", side_effect=side_effect) as m_ue:
         resp = bridge.handle({
             "jsonrpc": "2.0", "id": 931, "method": "tools/call",
             "params": {"name": "sequencer_add_transform_keyframe", "arguments": {
@@ -6351,7 +6381,7 @@ def test_sequencer_add_transform_keyframe_rotation_axis_remap():
                 "rotation": [11.0, 22.0, 33.0],  # [pitch, yaw, roll]
             }},
         })
-    code = m_ue.call_args[0][1]["code"]
+    code = _last_exec_python_code(m_ue)
     # The generated PAIRS list literal contains tuples of (channel_name,
     # float_value). pitch=11.0 must map to Rotation.Y, yaw=22.0 to
     # Rotation.Z, roll=33.0 to Rotation.X.
@@ -6368,8 +6398,10 @@ def test_sequencer_add_transform_keyframe_end_to_end_happy_path():
     """Mocked call_ue: validates that the bridge dispatches exactly one
     execute_unreal_python call containing the expected find_binding_by_id /
     add_key invocations, and that the response body echoes the inputs."""
-    fake_result = {"result": {"ok": True, "output": "SEQ_KEYFRAME_OK::{\"keys_added\": 9, \"channels_keyed\": [\"Location.X\",\"Location.Y\",\"Location.Z\",\"Rotation.Y\",\"Rotation.Z\",\"Rotation.X\",\"Scale.X\",\"Scale.Y\",\"Scale.Z\"], \"track_path\": \"/Game/Cinematics/Shot.Shot:Transform\"}"}}
-    with patch.object(bridge, "call_ue", return_value=fake_result) as m_ue:
+    side_effect = _make_sequencer_call_ue_side_effect(
+        "SEQ_KEYFRAME_OK::{\"keys_added\": 9, \"channels_keyed\": [\"Location.X\",\"Location.Y\",\"Location.Z\",\"Rotation.Y\",\"Rotation.Z\",\"Rotation.X\",\"Scale.X\",\"Scale.Y\",\"Scale.Z\"], \"track_path\": \"/Game/Cinematics/Shot.Shot:Transform\"}__END__"
+    )
+    with patch.object(bridge, "call_ue", side_effect=side_effect) as m_ue:
         resp = bridge.handle({
             "jsonrpc": "2.0", "id": 932, "method": "tools/call",
             "params": {"name": "sequencer_add_transform_keyframe", "arguments": {
@@ -6382,9 +6414,11 @@ def test_sequencer_add_transform_keyframe_end_to_end_happy_path():
                 "interpolation": "linear",
             }},
         })
-    # Exactly one dispatch
-    assert m_ue.call_count == 1
-    call_args = m_ue.call_args[0]
+    # Exactly one execute_unreal_python dispatch (plus a get_log_lines
+    # marker-scrape, which is a bridge-internal helper, not a script run).
+    exec_calls = [c for c in m_ue.call_args_list if c[0][0] == "execute_unreal_python"]
+    assert len(exec_calls) == 1
+    call_args = exec_calls[0][0]
     assert call_args[0] == "execute_unreal_python"
     code = call_args[1]["code"]
     # Generated script must wire the UE 5.7 keyframe pipeline.

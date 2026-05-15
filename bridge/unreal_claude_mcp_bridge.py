@@ -6441,11 +6441,16 @@ try:
         channels_keyed.append(ch_name)
 
     el.save_loaded_asset(seq)
-    print("SEQ_KEYFRAME_OK::" + _json.dumps({{
+    # Emit success marker via unreal.log so it lands in the LogPython
+    # ring buffer (which get_log_lines reads), not the python-evaluator's
+    # CommandResult stdout — UE 5.7's evaluator doesn't reliably flush
+    # captured stdout into CommandResult on every execute path.
+    # The __END__ sentinel disambiguates the marker line during scrape.
+    unreal.log("SEQ_KEYFRAME_OK::" + _json.dumps({{
         "keys_added": keys_added,
         "channels_keyed": channels_keyed,
         "track_path": track.get_path_name(),
-    }}))
+    }}) + "__END__")
 except Exception as _e:
     raise RuntimeError(str(_e))
 """
@@ -6511,10 +6516,14 @@ def synthetic_sequencer_add_transform_keyframe(req_id, args: dict) -> dict:
             "code": -32602,
             "message": "sequencer_add_transform_keyframe: invalid_field: 'sequence_path' must be a non-empty string starting with /Game/",
         })
-    if sequence_path != "/Game" and not sequence_path.startswith("/Game/"):
+    # Bare `/Game` is the root content folder, not an asset path. This tool
+    # requires an actual LevelSequence asset path, so reject the folder up
+    # front and keep the error in -32602 validation territory rather than
+    # falling through to a UE-side `sequence_not_found`.
+    if not sequence_path.startswith("/Game/"):
         return make_response(req_id, error={
             "code": -32602,
-            "message": "sequencer_add_transform_keyframe: invalid_field: 'sequence_path' must be '/Game' or start with '/Game/'",
+            "message": "sequencer_add_transform_keyframe: invalid_field: 'sequence_path' must start with '/Game/' and name a LevelSequence asset",
         })
     if "\\" in sequence_path:
         return make_response(req_id, error={
@@ -6650,17 +6659,45 @@ def synthetic_sequencer_add_transform_keyframe(req_id, args: dict) -> dict:
     if scale is not None:
         channels_keyed.extend(ch for ch, _ in _SEQUENCER_AXIS_MAP["scale"])
 
-    # Best-effort track_path from the script's marker line.
+    # Pull the success marker from the LogPython ring buffer. UE 5.7's
+    # Python evaluator does not reliably flush captured stdout into
+    # Cmd.CommandResult (`result["output"]`) on every execute path, so
+    # the rendered script writes the marker via unreal.log instead. The
+    # __END__ sentinel disambiguates the marker line during scrape.
     track_path = None
-    output = result.get("output") or ""
-    for line in output.splitlines():
-        if line.startswith("SEQ_KEYFRAME_OK::"):
+    log_resp = call_ue("get_log_lines", {
+        "count": 64,
+        "category_filter": "LogPython",
+        "min_verbosity": "Log",
+    })
+    log_result = log_resp.get("result") if isinstance(log_resp, dict) else None
+    log_lines = (log_result or {}).get("lines") or []
+    # Walk newest-last -> scan in reverse so the most recent marker wins.
+    for entry in reversed(log_lines):
+        msg = entry.get("message", "") if isinstance(entry, dict) else ""
+        idx = msg.find("SEQ_KEYFRAME_OK::")
+        end = msg.find("__END__", idx) if idx >= 0 else -1
+        if idx >= 0 and end > idx:
             try:
-                marker = json.loads(line[len("SEQ_KEYFRAME_OK::"):])
-                track_path = marker.get("track_path")
+                payload = json.loads(msg[idx + len("SEQ_KEYFRAME_OK::"):end])
+                track_path = payload.get("track_path")
             except Exception:
                 pass
             break
+    # Fallback: legacy stdout scrape so tests that mock only call_ue
+    # for execute_unreal_python keep passing.
+    if track_path is None:
+        output = (result.get("output") or "") if isinstance(result, dict) else ""
+        for line in output.splitlines():
+            idx = line.find("SEQ_KEYFRAME_OK::")
+            end = line.find("__END__", idx) if idx >= 0 else -1
+            if idx >= 0 and end > idx:
+                try:
+                    payload = json.loads(line[idx + len("SEQ_KEYFRAME_OK::"):end])
+                    track_path = payload.get("track_path")
+                except Exception:
+                    pass
+                break
 
     body = {
         "ok": True,

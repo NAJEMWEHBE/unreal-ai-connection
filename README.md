@@ -11,7 +11,7 @@
 [![Unreal Engine](https://img.shields.io/badge/Unreal_Engine-5.7-313131?logo=unrealengine)](https://www.unrealengine.com/)
 [![Python](https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![MCP](https://img.shields.io/badge/MCP-compatible-7c3aed)](https://modelcontextprotocol.io/)
-[![Tests](https://img.shields.io/badge/pytest-443_passing-success?logo=pytest&logoColor=white)](tests/)
+[![Tests](https://img.shields.io/badge/pytest-458_passing-success?logo=pytest&logoColor=white)](tests/)
 [![Tools](https://img.shields.io/badge/tools-104-blue)](docs/TOOLS.md)
 [![Changelog](https://img.shields.io/badge/changelog-keep_a_changelog-orange)](CHANGELOG.md)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](#contributing)
