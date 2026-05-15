@@ -5349,7 +5349,7 @@ def test_ambientcg_resolve_zip_url_format_fallback_jpg_to_png():
     """Caller asks 2k/jpg, only PNG variants exist -> falls back to PNG."""
     payload = _make_ambientcg_payload("Rocks01", ["1K-PNG", "2K-PNG", "4K-PNG"])
     with patch.object(bridge, "_marketplace_http_get_json", return_value=(payload, None)):
-        url, attr, available, err = bridge._ambientcg_resolve_zip_url("Rocks01", "texture", "2k", "jpg")
+        url, attr, _available, err = bridge._ambientcg_resolve_zip_url("Rocks01", "texture", "2k", "jpg")
     assert err is None
     assert attr == "2K-PNG"
     assert "2K-PNG" in url
@@ -5359,7 +5359,7 @@ def test_ambientcg_resolve_zip_url_resolution_unavailable():
     """Caller asks 16k but only 1K/2K/4K exist -> resolution_or_format_unavailable."""
     payload = _make_ambientcg_payload("Wood050", ["1K-JPG", "2K-JPG", "4K-JPG"])
     with patch.object(bridge, "_marketplace_http_get_json", return_value=(payload, None)):
-        url, attr, available, err = bridge._ambientcg_resolve_zip_url("Wood050", "texture", "16k", "jpg")
+        url, _attr, _available, err = bridge._ambientcg_resolve_zip_url("Wood050", "texture", "16k", "jpg")
     assert url is None
     assert err is not None
     assert err["code"] == -32603
@@ -5370,7 +5370,7 @@ def test_ambientcg_resolve_zip_url_resolution_unavailable():
 def test_ambientcg_resolve_zip_url_asset_not_found():
     """Empty foundAssets -> asset_not_found error."""
     with patch.object(bridge, "_marketplace_http_get_json", return_value=({"foundAssets": []}, None)):
-        url, attr, available, err = bridge._ambientcg_resolve_zip_url("NoSuchSlug", "texture", "2k", "jpg")
+        url, _attr, _available, err = bridge._ambientcg_resolve_zip_url("NoSuchSlug", "texture", "2k", "jpg")
     assert url is None
     assert err is not None
     assert "asset_not_found" in err["message"]
@@ -5380,7 +5380,7 @@ def test_ambientcg_resolve_zip_url_propagates_http_error():
     """Upstream JSON-fetch failure passes through unchanged."""
     err_in = {"code": -32603, "message": "http_error: status=503 url=..."}
     with patch.object(bridge, "_marketplace_http_get_json", return_value=(None, err_in)):
-        url, attr, available, err = bridge._ambientcg_resolve_zip_url("Wood050", "texture", "2k", "jpg")
+        _url, _attr, _available, err = bridge._ambientcg_resolve_zip_url("Wood050", "texture", "2k", "jpg")
     assert err is err_in
 
 
@@ -5486,3 +5486,54 @@ def test_marketplace_import_rejects_invalid_source():
     assert resp["error"]["code"] == -32602
     assert "invalid_field" in resp["error"]["message"]
     assert "source" in resp["error"]["message"]
+
+
+def test_marketplace_import_ambientcg_end_to_end(tmp_path):
+    """End-to-end wiring through synthetic_marketplace_import for AmbientCG.
+
+    Mocks the three I/O seams (zip-url resolve, http download, zip extract)
+    plus call_ue. Verifies the response body carries the chosen format
+    derived from the AmbientCG attribute, the available-resolutions list,
+    and the UE asset path returned by import_texture — i.e. the orchestration
+    glue itself, not the helpers in isolation.
+    """
+    extracted = tmp_path / "Rocks023_2K_Color.jpg"
+    extracted.write_bytes(b"jpeg-bytes")
+    zip_url = "https://ambientcg.com/get?file=Rocks023_2K-JPG.zip"
+
+    with patch.object(bridge, "_ambientcg_resolve_zip_url",
+                      return_value=(zip_url, "2K-JPG", ["1K-JPG", "2K-JPG", "4K-JPG"], None)) as m_resolve, \
+         patch.object(bridge, "_marketplace_http_download", return_value=None) as m_dl, \
+         patch.object(bridge, "_ambientcg_extract_primary_map",
+                      return_value=(str(extracted), None)) as m_extract, \
+         patch.object(bridge, "call_ue",
+                      return_value={"result": {"asset_path": "/Game/Marketplace/Rocks023.Rocks023"}}) as m_ue:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 701, "method": "tools/call",
+            "params": {"name": "marketplace_import", "arguments": {
+                "source": "ambientcg",
+                "slug": "Rocks023",
+                "asset_type": "texture",
+                "resolution": "2k",
+                "format": "jpg",
+                "dest_path": "/Game/Marketplace",
+                "dest_name": "Rocks023",
+            }},
+        })
+
+    assert "error" not in resp, resp
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert body["ok"] is True
+    assert body["source"] == "ambientcg"
+    assert body["slug"] == "Rocks023"
+    assert body["downloaded_from"] == zip_url
+    assert body["temp_path"] == str(extracted)
+    assert body["ue_asset_path"] == "/Game/Marketplace/Rocks023.Rocks023"
+    assert body["available_resolutions"] == ["1K-JPG", "2K-JPG", "4K-JPG"]
+    assert body["license"] == "CC0"
+
+    m_resolve.assert_called_once_with("Rocks023", "texture", "2k", "jpg")
+    m_dl.assert_called_once()
+    m_extract.assert_called_once()
+    m_ue.assert_called_once()
+    assert m_ue.call_args[0][0] == "import_texture"

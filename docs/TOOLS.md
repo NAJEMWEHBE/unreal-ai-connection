@@ -3818,7 +3818,7 @@ Download a CC0 asset from a marketplace (Polyhaven or AmbientCG) and import it i
 
 **Scope**:
 
-- **Textures** — Color/Diffuse map only (full multi-map PBR import is parked for a later PR). Default format `png` for Polyhaven, `JPG` for AmbientCG.
+- **Textures** — Color/Diffuse map only (full multi-map PBR import is parked for a later PR). Default format `png` for both sources; AmbientCG falls back to `jpg` at the same resolution when `png` isn't published.
 - **HDRIs** — single-file EXR (or HDR fallback). Default format `exr`.
 - **Models** — `asset_type=model` returns `not_implemented`. Native side has no glTF/FBX import wrapper today.
 - **Source**: `polyhaven` (default) or `ambientcg`.

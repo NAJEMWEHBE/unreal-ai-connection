@@ -5321,7 +5321,7 @@ def _ambientcg_extract_primary_map(zip_path: str, asset_type: str, dest_dir: str
             # Skip directories and hidden entries.
             file_names = [n for n in names if not n.endswith("/") and not os.path.basename(n).startswith(".")]
             if not file_names:
-                return None, {"code": -32603, "message": f"ambientcg: empty_zip: {zip_path}"}
+                return None, {"code": -32603, "message": f"ambientcg: bad_zip: {zip_path}: archive contains no files"}
             pick: str | None = None
             if asset_type == "texture":
                 # Prefer the Color map; AmbientCG's canonical convention is
@@ -5631,6 +5631,12 @@ def synthetic_marketplace_import(req_id, args: dict) -> dict:
         if ex_err is not None:
             return make_response(req_id, error=ex_err)
         tmp_path = extracted_path  # type: ignore[assignment]
+        # Best-effort cleanup of the archive (extracted file lives separately).
+        # OSError swallowed: stale zip is a leak, not a correctness bug.
+        try:
+            os.remove(zip_tmp)
+        except OSError:
+            pass
 
     # 3. Hand off to native import_texture.
     replace_existing = args.get("replace_existing", False)
@@ -5662,7 +5668,7 @@ def synthetic_marketplace_import(req_id, args: dict) -> dict:
         "slug": slug,
         "asset_type": asset_type,
         "resolution": resolution,
-        "format": fmt,
+        "format": chosen_fmt or fmt,
         "downloaded_from": download_url,
         "temp_path": tmp_path,
         "ue_asset_path": import_result.get("asset_path") or f"{dest_path}/{dest_name}",
