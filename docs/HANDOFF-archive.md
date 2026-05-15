@@ -1,6 +1,6 @@
 # HANDOFF archive
 
-> Historical session log — chronological, append-only, do not edit. This file holds **consecutive closing notes 1 through 18** (sessions 2026-05-09 through 2026-05-13 autopilot-resume). The active [`HANDOFF.md`](HANDOFF.md) keeps only the latest three consecutive notes (19th-21st) for fast pickup; everything older lives here for grep-ability and audit trail. Chronological session indices in the TOC below run 1-24; entries 18-24 represent sessions whose closing-note text is also in this archive (they map to consecutive-notes 11-18).
+> Historical session log — chronological, append-only, do not edit. This file holds **consecutive closing notes 1 through 18** (sessions 2026-05-09 through 2026-05-13 autopilot-resume). The active [`HANDOFF.md`](HANDOFF.md) keeps only the latest three consecutive notes (19th-21st) for fast pickup; everything older lives here for grep-ability and audit trail. Chronological session indices in the TOC below run 1-24; entries 18-24 (7 chronological sessions) map to consecutive-notes 11-18 (8 notes) — the count mismatch is intentional, because the 2026-05-11 / 2026-05-12 stretch had one session window that produced two closing notes (a mid-session reset wrote the second). The mapping is many-to-many, not strict one-to-one.
 
 ## Table of contents (chronological)
 
