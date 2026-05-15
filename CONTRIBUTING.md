@@ -27,7 +27,7 @@ If you're only touching the bridge / tests / docs: no UE needed. The bridge test
 - `UnrealClaudeMCP/Source/UnrealClaudeMCP/Private/MCP/Handlers/Handler_*.cpp` — one MCP method per file. **One handler = one .cpp file** (this is the project's load-bearing convention; do not consolidate).
 - `UnrealClaudeMCP/Source/UnrealClaudeMCP/Private/UnrealClaudeMCPModule.cpp` — handler registration. Every handler needs a forward `extern` and a `Reg.Register(...)` line here.
 - `UnrealClaudeMCP/Resources/mcp_manifest.json` — declarative MCP tool manifest. Mirrors `bridge/unreal_ai_connection_bridge.py`'s `TOOLS` list. Drift here is caught by `tests/test_manifest_sync.py`.
-- `bridge/unreal_ai_connection_bridge.py` — the Python stdio↔TCP bridge. Holds the static tool catalog (`TOOLS`), the synthetic-tool dispatch dict (`SYNTHETIC_TOOLS`), and the 16 `synthetic_*` functions that compose existing handlers bridge-side.
+- `bridge/unreal_ai_connection_bridge.py` — the Python stdio↔TCP bridge. Holds the static tool catalog (`TOOLS`), the synthetic-tool dispatch dict (`SYNTHETIC_TOOLS`), and the 33 `synthetic_*` functions that compose existing handlers bridge-side.
 - `tests/` — pytest suite for the bridge. **No UE required.** 280+ test cases.
 - `scripts/drift_sweep.py` — mechanical doc-drift guard. Scans 11 high-traffic files and rejects stale counts.
 - `docs/TOOLS.md` — per-tool reference (params, returns, error codes, examples).

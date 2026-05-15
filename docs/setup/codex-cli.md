@@ -7,11 +7,11 @@ OpenAI's coding CLI. Configured via TOML at `~/.codex/config.toml`, NOT JSON.
 1. **Install Codex CLI** if you haven't: `npm install -g @openai/codex` or via Brew.
 2. **Use the built-in `mcp add` command** (preferred) — it edits TOML for you:
    ```bash
-   codex mcp add unreal-ai-connection py "C:\\full\\path\\to\\UnrealClaudeMCP\\bridge\\unreal_ai_connection_bridge.py"
+   codex mcp add unreal-ai-connection -- py "C:\\full\\path\\to\\UnrealClaudeMCP\\bridge\\unreal_ai_connection_bridge.py"
    ```
    On macOS/Linux:
    ```bash
-   codex mcp add unreal-ai-connection python3 /full/path/to/UnrealClaudeMCP/bridge/unreal_ai_connection_bridge.py
+   codex mcp add unreal-ai-connection -- python3 /full/path/to/UnrealClaudeMCP/bridge/unreal_ai_connection_bridge.py
    ```
 3. **Or edit TOML manually** — open `~/.codex/config.toml` (Windows: `%USERPROFILE%\.codex\config.toml`) and append the snippet below.
 4. **Restart any active Codex session.**

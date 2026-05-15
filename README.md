@@ -360,7 +360,7 @@ UnrealClaudeMCP/                The Unreal Engine plugin (drop into <Project>/Pl
   UnrealClaudeMCP.uplugin         Plugin manifest
 
 bridge/
-  unreal_ai_connection_bridge.py     Python stdio ↔ TCP bridge for Claude Code MCP
+  unreal_ai_connection_bridge.py     Python stdio ↔ TCP bridge for any MCP client
 
 examples/
   smoke_test.py                   Connects to the live server, fires the safe tools
