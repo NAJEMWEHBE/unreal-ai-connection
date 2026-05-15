@@ -161,7 +161,7 @@ After recovery, the project state is:
 - **102 tools shipped** (71 UE C++ handlers + 31 bridge-side synthetic)
 - **Latest commit on main:** check via `git log -1 --oneline` — this file is necessarily behind on the SHA after every merge.
 - **Live verification on host machine:** **PASSING** as of the 2026-05-10 sprint (cold compile + editor + bridge round-trip proven on `HDMediaVirtualStudio` host project). New C++ handlers follow the cold-compile-before-merge cadence (HANDOFF.md "Session 2026-05-10").
-- **Next deferred handlers:** `inspect_data_asset`, `inspect_sound_class`, `inspect_metasound`, bulk delete/move, Sequencer keyframe authoring, Movie Render Queue — see HANDOFF.md "What to watch in the next session".
+- **Next deferred handlers:** Sequencer keyframe authoring + Movie Render Queue (both C++; need attended Codex per multi-agent partitioning). The synthetic-tool inspectors (`inspect_data_asset`, `inspect_sound_class`, `inspect_metasound`, bulk_*_assets family, etc.) listed as deferred in earlier revisions of this file have all shipped — see HANDOFF.md "What to watch in the next session" for the current deferred list.
 - **Copilot reviewer: deferred (no subscription).** `gh api user/copilot` returns 404 on the owner account. `.github/copilot-instructions.md` stays in tree as a no-op until/unless a Copilot Pro subscription is added independently. Bot review fleet is Codex + Gemini only. See HANDOFF.md "Session 2026-05-11 (third micro-session)".
 
 The session memory files (now restored to `~/.claude/projects/.../memory/`) document:

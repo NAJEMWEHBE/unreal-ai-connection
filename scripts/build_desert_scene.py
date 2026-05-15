@@ -267,11 +267,11 @@ if _textured_rock_ok:
     mi_rock = mi_rock_textured
 if _textured_rust_ok:
     mi_metal_rust = mi_metal_rust_textured
+    mi_crate = mi_metal_rust_textured  # crates read better with rust grit; gated on rust, not plate
 if _textured_plate_ok:
     # Tower metal + gantry metal use the plate material so the lattice
     # picks up real surface detail under the daylight HDRI.
     mi_metal = mi_metal_plate_textured
-    mi_crate = mi_metal_rust_textured  # crates read better with rust grit
 
 # ----------------------------------------------------------------------------
 # 3. Atmosphere stack
