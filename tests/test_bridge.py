@@ -6020,6 +6020,96 @@ def test_convert_hdri_to_cubemap_propagates_ue_python_error():
     assert "hdri_not_found" in resp["error"]["message"]
 
 
+def test_convert_hdri_to_cubemap_rejects_gameplus_prefix():
+    """dest_path must be '/Game' or start with '/Game/' — '/GameFoo' is rejected."""
+    for bad in ("/GameFoo", "/Gameplay/x", "/Engine/Bar"):
+        with patch.object(bridge, "call_ue") as m:
+            resp = bridge.handle({
+                "jsonrpc": "2.0", "id": 908, "method": "tools/call",
+                "params": {"name": "convert_hdri_to_cubemap", "arguments": {
+                    "hdri_path": "/Game/HDRI/test",
+                    "dest_path": bad,
+                }},
+            })
+        assert m.call_count == 0, f"call_ue dispatched for bad dest_path={bad!r}"
+        assert resp["error"]["code"] == -32602
+        assert "dest_path" in resp["error"]["message"]
+
+
+def test_convert_hdri_to_cubemap_rejects_traversal_segments():
+    """dest_path must not contain '.' or '..' segments."""
+    for bad in ("/Game/../Foo", "/Game/./Foo", "/Game/Foo/..", "/Game/Foo/.."):
+        with patch.object(bridge, "call_ue") as m:
+            resp = bridge.handle({
+                "jsonrpc": "2.0", "id": 909, "method": "tools/call",
+                "params": {"name": "convert_hdri_to_cubemap", "arguments": {
+                    "hdri_path": "/Game/HDRI/test",
+                    "dest_path": bad,
+                }},
+            })
+        assert m.call_count == 0, f"call_ue dispatched for bad dest_path={bad!r}"
+        assert resp["error"]["code"] == -32602
+
+
+def test_convert_hdri_to_cubemap_generated_script_uses_hdr_capture_source():
+    """Capture source must be SCS_SCENE_COLOR_HDR_NO_ALPHA so HDR is preserved."""
+    fake_result = {"result": {"ok": True, "output": "CUBE_PATH=/Game/HDRI/test_Cube.test_Cube"}}
+    with patch.object(bridge, "call_ue", return_value=fake_result) as m_ue:
+        bridge.handle({
+            "jsonrpc": "2.0", "id": 910, "method": "tools/call",
+            "params": {"name": "convert_hdri_to_cubemap", "arguments": {
+                "hdri_path": "/Game/HDRI/test",
+            }},
+        })
+    code = m_ue.call_args[0][1]["code"]
+    assert "SCS_SCENE_COLOR_HDR_NO_ALPHA" in code
+    assert "SCS_FINAL_COLOR_LDR" not in code
+
+
+def test_convert_hdri_to_cubemap_generated_script_uses_unique_tag():
+    """Two consecutive calls must use different temp asset names (per-call
+    tag). Prevents concurrent invocations from racing over fixed names."""
+    fake_result = {"result": {"ok": True, "output": "CUBE_PATH=/Game/HDRI/test_Cube.test_Cube"}}
+    seen_tags = set()
+    with patch.object(bridge, "call_ue", return_value=fake_result) as m_ue:
+        for i in range(3):
+            bridge.handle({
+                "jsonrpc": "2.0", "id": 911 + i, "method": "tools/call",
+                "params": {"name": "convert_hdri_to_cubemap", "arguments": {
+                    "hdri_path": "/Game/HDRI/test",
+                }},
+            })
+    for call in m_ue.call_args_list:
+        code = call[0][1]["code"]
+        # Extract the tag literal — it's on the TAG = ... line.
+        for line in code.splitlines():
+            if line.startswith("TAG = "):
+                seen_tags.add(line.strip())
+                break
+    assert len(seen_tags) == 3, f"expected 3 distinct tags, got {seen_tags}"
+
+
+def test_convert_hdri_to_cubemap_generated_script_has_try_finally_cleanup():
+    """Cleanup must run via try/finally so a mid-script failure doesn't
+    strand temp actors + assets."""
+    fake_result = {"result": {"ok": True, "output": "CUBE_PATH=/Game/HDRI/test_Cube.test_Cube"}}
+    with patch.object(bridge, "call_ue", return_value=fake_result) as m_ue:
+        bridge.handle({
+            "jsonrpc": "2.0", "id": 914, "method": "tools/call",
+            "params": {"name": "convert_hdri_to_cubemap", "arguments": {
+                "hdri_path": "/Game/HDRI/test",
+            }},
+        })
+    code = m_ue.call_args[0][1]["code"]
+    assert "try:" in code and "finally:" in code
+    # Cleanup happens inside finally, so destroy_actor / delete_asset
+    # appear after the finally line.
+    finally_idx = code.index("finally:")
+    tail = code[finally_idx:]
+    assert "destroy_actor" in tail
+    assert "delete_asset" in tail
+
+
 def test_convert_hdri_to_cubemap_propagates_call_ue_error():
     """Upstream call_ue error (e.g. UE not reachable) passes through
     as ue_exec_failed."""

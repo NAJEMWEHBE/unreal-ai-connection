@@ -11,7 +11,7 @@
 [![Unreal Engine](https://img.shields.io/badge/Unreal_Engine-5.7-313131?logo=unrealengine)](https://www.unrealengine.com/)
 [![Python](https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![MCP](https://img.shields.io/badge/MCP-compatible-7c3aed)](https://modelcontextprotocol.io/)
-[![Tests](https://img.shields.io/badge/pytest-438_passing-success?logo=pytest&logoColor=white)](tests/)
+[![Tests](https://img.shields.io/badge/pytest-443_passing-success?logo=pytest&logoColor=white)](tests/)
 [![Tools](https://img.shields.io/badge/tools-103-blue)](docs/TOOLS.md)
 [![Changelog](https://img.shields.io/badge/changelog-keep_a_changelog-orange)](CHANGELOG.md)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](#contributing)
@@ -385,7 +385,7 @@ tests/                            Pytest suite for the bridge (no UE required)
 | **Tools** | **103 live** — 71 native C++ handlers (one MCP method per `Handler_*.cpp`) plus 32 bridge-side synthetic tools (Python-only composition over existing handlers; never crosses the TCP wire as a dedicated round-trip). See [`docs/TOOLS.md`](docs/TOOLS.md) for the per-tool reference. |
 | **Tested on** | UE 5.7.4 / Windows 11 / Visual Studio Build Tools 2022 / MSVC 14.44 / NETFXSDK 4.8.1 |
 | **Build status** | Plugin compiles + loads against UE 5.7.4 host on Windows 11; 71 handlers register, TCP server binds `127.0.0.1:18888`, bridge round-trip via `tools/call list_tools` returns full registry. |
-| **Bridge tests** | 438 pytest cases, ~99% coverage |
+| **Bridge tests** | 443 pytest cases, ~99% coverage |
 | **CI** | GitHub Actions on every push and PR |
 | **Development workflow** | Multi-agent ensemble — Opus orchestrates, Codex authors C++, Sonnet handles Python + recon, NVIDIA cloud + local OSS LLMs run pre-PR diff review, Copilot CLI gives a second opinion, Gemini auto-review fires on every PR open. No single model gates a merge. |
 

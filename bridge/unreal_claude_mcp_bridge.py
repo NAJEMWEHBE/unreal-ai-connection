@@ -6013,11 +6013,14 @@ _HDRI_CUBE_COMPRESSION_ALLOWED = {
 
 
 def _render_hdri_to_cubemap_script(hdri_path: str, dest_pkg: str, cube_name: str,
-                                   cube_size: int, compression: str) -> str:
+                                   cube_size: int, compression: str,
+                                   tag: str) -> str:
     """Return the UE Python script that executes the longlat -> cubemap
     pipeline (SceneCaptureCube against an inside-out unit sphere with the
     HDRI as an unlit emissive material). Inputs MUST already be validated
-    by the caller — this helper does no escaping."""
+    by the caller — this helper does no escaping. `tag` is a per-call
+    unique suffix used so concurrent invocations don't race over temp
+    asset names and never delete unrelated user content."""
     return f"""\
 import unreal
 HDRI_PATH = {hdri_path!r}
@@ -6025,76 +6028,94 @@ DEST_PKG = {dest_pkg!r}
 CUBE_NAME = {cube_name!r}
 RT_SIZE = {int(cube_size)}
 COMPRESSION = unreal.TextureCompressionSettings.{compression}
+TAG = {tag!r}
 
 el = unreal.EditorAssetLibrary
 ll = unreal.EditorLevelLibrary
 asset_tools = unreal.AssetToolsHelpers.get_asset_tools()
 mel = unreal.MaterialEditingLibrary
+els = unreal.EditorActorSubsystem()
 
 if not el.does_asset_exist(HDRI_PATH):
     raise RuntimeError(f"hdri_not_found: {{HDRI_PATH}}")
 
-rt_path = f"{{DEST_PKG}}/RT_HDRI_ToCube_Temp"
-if el.does_asset_exist(rt_path):
-    el.delete_asset(rt_path)
-rt = asset_tools.create_asset(
-    "RT_HDRI_ToCube_Temp", DEST_PKG, unreal.TextureRenderTargetCube,
-    unreal.TextureRenderTargetCubeFactoryNew(),
-)
-rt.set_editor_property("size_x", RT_SIZE)
+rt_name = f"RT_HDRI_ToCube_Temp_{{TAG}}"
+mat_name = f"M_HDRI_Sphere_ToCube_Temp_{{TAG}}"
+rt_path = f"{{DEST_PKG}}/{{rt_name}}"
+mat_path = f"{{DEST_PKG}}/{{mat_name}}"
 
-mat_path = f"{{DEST_PKG}}/M_HDRI_Sphere_ToCube_Temp"
-if el.does_asset_exist(mat_path):
-    el.delete_asset(mat_path)
-mat = asset_tools.create_asset(
-    "M_HDRI_Sphere_ToCube_Temp", DEST_PKG, unreal.Material,
-    unreal.MaterialFactoryNew(),
-)
-mat.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
-hdri_tex = el.load_asset(HDRI_PATH)
-ts = mel.create_material_expression(mat, unreal.MaterialExpressionTextureSample, -400, 0)
-ts.texture = hdri_tex
-ts.sampler_type = unreal.MaterialSamplerType.SAMPLERTYPE_LINEAR_COLOR
-mel.connect_material_property(ts, "RGB", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
-mel.recompile_material(mat)
-el.save_loaded_asset(mat)
+rt = None
+mat = None
+sphere = None
+scc = None
+cube = None
+try:
+    rt = asset_tools.create_asset(
+        rt_name, DEST_PKG, unreal.TextureRenderTargetCube,
+        unreal.TextureRenderTargetCubeFactoryNew(),
+    )
+    rt.set_editor_property("size_x", RT_SIZE)
 
-sphere = ll.spawn_actor_from_object(
-    el.load_asset("/Engine/BasicShapes/Sphere"),
-    unreal.Vector(0, 0, 0), unreal.Rotator(0, 0, 0))
-sphere.set_actor_label("HDRI_ToCube_Sphere_Temp")
-sphere.set_actor_scale3d(unreal.Vector(-50, 50, 50))
-sphere.static_mesh_component.set_material(0, mat)
+    mat = asset_tools.create_asset(
+        mat_name, DEST_PKG, unreal.Material, unreal.MaterialFactoryNew(),
+    )
+    mat.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
+    hdri_tex = el.load_asset(HDRI_PATH)
+    ts = mel.create_material_expression(mat, unreal.MaterialExpressionTextureSample, -400, 0)
+    ts.texture = hdri_tex
+    ts.sampler_type = unreal.MaterialSamplerType.SAMPLERTYPE_LINEAR_COLOR
+    mel.connect_material_property(ts, "RGB", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    mel.recompile_material(mat)
+    el.save_loaded_asset(mat)
 
-scc = ll.spawn_actor_from_class(unreal.SceneCaptureCube, unreal.Vector(0, 0, 0), unreal.Rotator(0, 0, 0))
-scc.set_actor_label("HDRI_ToCube_SCC_Temp")
-scc_comp = scc.get_component_by_class(unreal.SceneCaptureComponentCube)
-scc_comp.set_editor_property("texture_target", rt)
-scc_comp.set_editor_property("capture_source", unreal.SceneCaptureSource.SCS_FINAL_COLOR_LDR)
-for p, v in (("capture_every_frame", False), ("capture_on_movement", False)):
-    try:
-        scc_comp.set_editor_property(p, v)
-    except Exception:
-        pass
-scc_comp.capture_scene()
+    sphere = ll.spawn_actor_from_object(
+        el.load_asset("/Engine/BasicShapes/Sphere"),
+        unreal.Vector(0, 0, 0), unreal.Rotator(0, 0, 0))
+    sphere.set_actor_label(f"HDRI_ToCube_Sphere_Temp_{{TAG}}")
+    sphere.set_actor_scale3d(unreal.Vector(-50, 50, 50))
+    sphere.static_mesh_component.set_material(0, mat)
 
-cube_full = f"{{DEST_PKG}}/{{CUBE_NAME}}"
-if el.does_asset_exist(cube_full):
-    el.delete_asset(cube_full)
-cube = unreal.RenderingLibrary.render_target_create_static_texture_cube_editor_only(
-    rt, CUBE_NAME, COMPRESSION,
-)
-if cube is None:
-    raise RuntimeError("cube_create_failed: convert returned None")
-el.save_loaded_asset(cube)
+    scc = ll.spawn_actor_from_class(unreal.SceneCaptureCube, unreal.Vector(0, 0, 0), unreal.Rotator(0, 0, 0))
+    scc.set_actor_label(f"HDRI_ToCube_SCC_Temp_{{TAG}}")
+    scc_comp = scc.get_component_by_class(unreal.SceneCaptureComponentCube)
+    scc_comp.set_editor_property("texture_target", rt)
+    # SCS_SCENE_COLOR_HDR_NO_ALPHA preserves the linear HDR range of the
+    # source longlat. The LDR variants would tone-map + clamp to 8-bit
+    # SDR, defeating the whole point of capturing HDR for a SkyLight
+    # ambient cubemap.
+    scc_comp.set_editor_property("capture_source", unreal.SceneCaptureSource.SCS_SCENE_COLOR_HDR_NO_ALPHA)
+    for p, v in (("capture_every_frame", False), ("capture_on_movement", False)):
+        try:
+            scc_comp.set_editor_property(p, v)
+        except Exception:
+            pass
+    scc_comp.capture_scene()
 
-els = unreal.EditorActorSubsystem()
-for a in (sphere, scc):
-    els.destroy_actor(a)
-el.delete_asset(mat_path)
-el.delete_asset(rt_path)
-
-print(f"CUBE_PATH={{cube.get_path_name()}}")
+    cube_full = f"{{DEST_PKG}}/{{CUBE_NAME}}"
+    if el.does_asset_exist(cube_full):
+        el.delete_asset(cube_full)
+    cube = unreal.RenderingLibrary.render_target_create_static_texture_cube_editor_only(
+        rt, CUBE_NAME, COMPRESSION,
+    )
+    if cube is None:
+        raise RuntimeError("cube_create_failed: convert returned None")
+    el.save_loaded_asset(cube)
+    print(f"CUBE_PATH={{cube.get_path_name()}}")
+finally:
+    # Best-effort cleanup. Each step is independently guarded so one
+    # failure doesn't strand the rest of the temp state.
+    if sphere is not None:
+        try: els.destroy_actor(sphere)
+        except Exception: pass
+    if scc is not None:
+        try: els.destroy_actor(scc)
+        except Exception: pass
+    if mat is not None and el.does_asset_exist(mat_path):
+        try: el.delete_asset(mat_path)
+        except Exception: pass
+    if rt is not None and el.does_asset_exist(rt_path):
+        try: el.delete_asset(rt_path)
+        except Exception: pass
 """
 
 
@@ -6142,11 +6163,39 @@ def synthetic_convert_hdri_to_cubemap(req_id, args: dict) -> dict:
     default_basename = default_basename.split(".")[0]
 
     dest_path = args.get("dest_path") or default_dest
-    if not isinstance(dest_path, str) or not dest_path.startswith("/Game"):
+    if not isinstance(dest_path, str):
         return make_response(req_id, error={
             "code": -32602,
-            "message": "convert_hdri_to_cubemap: invalid_field: 'dest_path' must start with /Game",
+            "message": "convert_hdri_to_cubemap: invalid_field: 'dest_path' must be a string",
         })
+    # Tight /Game/ guard — must be exactly "/Game" or start with "/Game/".
+    # `/GameFoo`, `/Gameplay/x`, `/Engine/...` etc all fail. Also reject
+    # backslashes and traversal segments so a malformed path can't push
+    # weird state into UE.
+    if dest_path != "/Game" and not dest_path.startswith("/Game/"):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "convert_hdri_to_cubemap: invalid_field: 'dest_path' must be '/Game' or start with '/Game/'",
+        })
+    if "\\" in dest_path:
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "convert_hdri_to_cubemap: invalid_field: 'dest_path' must not contain '\\\\'",
+        })
+    for seg in dest_path.split("/"):
+        if seg in ("", ".", "..") and dest_path != "/Game":
+            # leading slash makes the first segment "", which is fine.
+            # Only reject empty/.//.. inside the path proper.
+            if not (seg == "" and dest_path.startswith("/")):
+                return make_response(req_id, error={
+                    "code": -32602,
+                    "message": f"convert_hdri_to_cubemap: invalid_field: 'dest_path' must not contain '{seg}' segments",
+                })
+        if seg in (".", ".."):
+            return make_response(req_id, error={
+                "code": -32602,
+                "message": f"convert_hdri_to_cubemap: invalid_field: 'dest_path' must not contain '{seg}' segments",
+            })
     dest_name = args.get("dest_name") or f"{default_basename}_Cube"
     if not isinstance(dest_name, str) or not dest_name:
         return make_response(req_id, error={
@@ -6176,7 +6225,11 @@ def synthetic_convert_hdri_to_cubemap(req_id, args: dict) -> dict:
             "message": f"convert_hdri_to_cubemap: invalid_field: 'compression' must be one of {sorted(_HDRI_CUBE_COMPRESSION_ALLOWED)}",
         })
 
-    code = _render_hdri_to_cubemap_script(hdri_path, dest_path, dest_name, cube_size, compression)
+    # Unique per-call suffix for temp asset names so concurrent invocations
+    # don't race + the cleanup never targets pre-existing user content.
+    import uuid as _uuid
+    tag = _uuid.uuid4().hex[:12]
+    code = _render_hdri_to_cubemap_script(hdri_path, dest_path, dest_name, cube_size, compression, tag)
     resp = call_ue("execute_unreal_python", {"code": code, "capture_output": True})
     if "error" in resp:
         upstream = resp.get("error") or {}
