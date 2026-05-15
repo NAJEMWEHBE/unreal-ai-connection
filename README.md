@@ -33,18 +33,18 @@
 
 **Claude Code** — paste the owner/repo, no clone needed:
 
-```
+```text
 /plugin marketplace add NAJEMWEHBE/unreal-ai-connection
 /plugin install unreal-ai-connection@unreal-ai-connection
 ```
 
 **Cursor** — one-click deeplink. Base64-encode your machine's bridge path into this template:
 
-```
+```text
 cursor://anysphere.cursor-deeplink/mcp/install?name=unreal-ai-connection&config=<BASE64>
 ```
 
-where `<BASE64>` is base64 of `{"command":"python3","args":["/ABSOLUTE/PATH/TO/bridge/unreal_ai_connection_bridge.py"]}`. Manual fallback — `.cursor/mcp.json`:
+where `<BASE64>` is base64 of `{"command":"python3","args":["/ABSOLUTE/PATH/TO/bridge/unreal_ai_connection_bridge.py"]}` (on Windows use `"command":"py"` if `python3` is not on PATH). Manual fallback — `.cursor/mcp.json`:
 
 ```json
 { "mcpServers": { "unreal-ai-connection": { "command": "python3", "args": ["/ABSOLUTE/PATH/TO/bridge/unreal_ai_connection_bridge.py"] } } }
@@ -52,9 +52,11 @@ where `<BASE64>` is base64 of `{"command":"python3","args":["/ABSOLUTE/PATH/TO/b
 
 **VS Code** — install deeplink (URL-encode the JSON for your path):
 
-```
+```text
 vscode:mcp/install?<URL-ENCODED {"name":"unreal-ai-connection","command":"python3","args":["/ABSOLUTE/PATH/.../bridge/unreal_ai_connection_bridge.py"]}>
 ```
+
+> **Windows:** all snippets use `python3`; if that's not on PATH use the `py` launcher instead (`"command": "py"`). The `.claude-plugin/mcp-config.json` marketplace path uses `python3` for cross-platform consistency — Windows users without `python3` should use the manual per-client recipe in `docs/setup/` with `py`.
 
 **Every other client** — copy-paste recipe per client:
 
