@@ -67,7 +67,7 @@ The MI_SunGlow color was also dropped from `(8.0, 4.8, 2.0)` → `(0.8, 0.45, 0.
 
 ### Section 6b — Metal foundation slab (NEW, before pyramid base)
 
-```
+```text
 foundation_x = 0, foundation_y = 0, foundation_z = -45
 - 1× Cube 15.0 x 15.0 x 0.4    label Desert_Foundation_Slab    mi_metal_rust
 - 1× Cylinder 8.0 x 8.0 x 0.2  label Desert_Foundation_Plate   mi_dark           (raised inset disc at z+25)
@@ -125,7 +125,7 @@ Wait ~2 min for bind on `127.0.0.1:18888`. Dismiss any "Restore Packages" modal 
 
 Then via MCP:
 
-```
+```text
 mcp__unreal-claude-mcp__run_python_file path=F:\UnrealClaudeMCP\scripts\build_desert_scene.py
 ```
 

@@ -2,7 +2,7 @@
 
 > **Audience:** any agent (or person) picking up work on this repo cold, after the previous session ended or the environment was reset.
 >
-> **Purpose:** capture (1) how the multi-agent collaboration on this project actually runs, and (2) the next concrete validation milestone — a real photo turned into an Unreal output, used to exercise all 100 MCP tools. Both pieces in one durable file so nothing has to be re-derived from chat history.
+> **Purpose:** capture (1) how the multi-agent collaboration on this project actually runs, and (2) the next concrete validation milestone — a real photo turned into an Unreal output, used to exercise all 102 MCP tools. Both pieces in one durable file so nothing has to be re-derived from chat history.
 
 ---
 
@@ -235,7 +235,7 @@ Repo / folder names retain "Claude" for legacy reasons but tool descriptions and
 
 ### Concept
 
-User brings a real photo. The plugin turns it into an Unreal output — studio backdrop, 3D object, environment, or world — using **only the 100 MCP tools** (plus optional external AI for photo→mesh generation if needed). The validation IS the readiness check: if every tool that should fire does fire and returns the expected shape, the plugin is ready.
+User brings a real photo. The plugin turns it into an Unreal output — studio backdrop, 3D object, environment, or world — using **only the 102 MCP tools** (plus optional external AI for photo→mesh generation if needed). The validation IS the readiness check: if every tool that should fire does fire and returns the expected shape, the plugin is ready.
 
 ### Asset inputs (user-supplied)
 
@@ -254,7 +254,7 @@ User brings a real photo. The plugin turns it into an Unreal output — studio b
 
 #### Stage 1 — Prep (host rebuild + launch)
 
-Run the 6-step verification runbook on the host machine. End state: `list_tools` returns 100.
+Run the 6-step verification runbook on the host machine. End state: `list_tools` returns 102.
 
 #### Stage 2 — Baseline snapshot
 
@@ -263,7 +263,7 @@ Run the 6-step verification runbook on the host machine. End state: `list_tools`
 | `get_project_summary` | Project name + engine version + plugin list + asset count |
 | `get_engine_version` | Structured `{major, minor, patch, changelist, branch, minor_dotted}` |
 | `list_levels` | UWorld asset registry entries under `/Game` |
-| `list_tools` | All 100 names |
+| `list_tools` | All 102 names |
 | `list_tasks` | Empty or pre-existing |
 
 #### Stage 3 — Photo intake
@@ -450,8 +450,8 @@ Fill in during the test run. SKIP-N/A is valid for category-specific tools (e.g.
 
 ### Expected results
 
-- **Without host rebuild:** 93/100 tools work today. The 7 blocked: `get_engine_version`, `list_levels`, `save_dirty_assets`, `get_selected_actors`, `inspect_input_mappings`, `pie_control`, `inspect_project_setting` — all return JSON-RPC `-32601` until cold-compile.
-- **After host rebuild:** 100/100 callable. Test plan exercises all of them in this scenario.
+- **Without host rebuild:** 95/102 tools work today. The 7 blocked: `get_engine_version`, `list_levels`, `save_dirty_assets`, `get_selected_actors`, `inspect_input_mappings`, `pie_control`, `inspect_project_setting` — all return JSON-RPC `-32601` until cold-compile.
+- **After host rebuild:** 102/102 callable. Test plan exercises all of them in this scenario.
 
 ### Known limitations
 
@@ -467,10 +467,10 @@ When picking up cold:
 
 1. **Read this file first**, then `docs/HANDOFF.md` "at a glance" (top of the file).
 2. Run `git log -1 origin/main` to see the current HEAD.
-3. If the user asks "is the tool ready to use?" — answer per Part 8: 93/100 today, 100/100 after host cold-compile. Point them at the verification runbook in `docs/HANDOFF.md`.
+3. If the user asks "is the tool ready to use?" — answer per Part 8: 95/102 today, 102/102 after host cold-compile. Point them at the verification runbook in `docs/HANDOFF.md`.
 4. If the user wants to run the photo→Unreal test — execute Stage 1 first (host rebuild), then walk through stages 2–18 filling in the scorecard.
 5. If the user wants new work — follow the standing rules (delegate via Rule #4; gate via Rule #5; never blind-merge; preserve privacy + vendor-neutrality).
-6. If the user wants more tools — note that the explicit "stop at 100" directive is in force. New tools require a fresh greenlight.
+6. If the user wants more tools — note that the explicit "stop at 102" directive is in force. New tools require a fresh greenlight.
 
 ### Useful commands cheat-sheet
 

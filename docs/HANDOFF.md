@@ -62,7 +62,7 @@ The 7 new C++ handlers from Waves A + A.5 (`get_engine_version`, `list_levels`, 
    ```
    Robocopy exit codes 0–7 mean success. The `/XD Binaries Intermediate` exclusion preserves the host's UBT cache so step 4 stays incremental.
 4. `& "F:\UE_5.7\Engine\Build\BatchFiles\Build.bat" <HostProjectName>Editor Win64 Development -project="<full path to host .uproject>"` — must end with `Result: Succeeded`. The target is `<HostProjectName>Editor`, NOT `<PluginName>Editor`. For the canonical host project, that's `HDMediaVirtualStudioEditor`.
-5. Open the host `.uproject` in UE editor (use the path-quoting recipe in CLAUDE.md — pre-quote inside the `-ArgumentList` array element). Confirm **71 UE C++ handlers register** in the Output Log. Filter by `LogUCMCPHandler` and you should see exactly 71 lines `Registered handler '<name>'`. The 29 bridge-side synthetic tools never reach the UE process and so never appear in the Output Log; they're served by `SYNTHETIC_TOOLS` in `bridge/unreal_claude_mcp_bridge.py`. Total tools visible to MCP clients: 100. The TCP server then binds `127.0.0.1:18888` (~10s on warm DDC, 1–5 min cold). With the module: `$proc = Start-UCMCPEditor -ProjectPath "<full path>"; $ready = Wait-UCMCPReady; $check = Test-UCMCPHandlers -LogPath "<host-project>\Saved\Logs\<HostProjectName>.log" -ExpectedCount 71`.
+5. Open the host `.uproject` in UE editor (use the path-quoting recipe in CLAUDE.md — pre-quote inside the `-ArgumentList` array element). Confirm **71 UE C++ handlers register** in the Output Log. Filter by `LogUCMCPHandler` and you should see exactly 71 lines `Registered handler '<name>'`. The 31 bridge-side synthetic tools never reach the UE process and so never appear in the Output Log; they're served by `SYNTHETIC_TOOLS` in `bridge/unreal_claude_mcp_bridge.py`. Total tools visible to MCP clients: 102. The TCP server then binds `127.0.0.1:18888` (~10s on warm DDC, 1–5 min cold). With the module: `$proc = Start-UCMCPEditor -ProjectPath "<full path>"; $ready = Wait-UCMCPReady; $check = Test-UCMCPHandlers -LogPath "<host-project>\Saved\Logs\<HostProjectName>.log" -ExpectedCount 71`.
 6. **Smoke** — `py -3 examples\smoke_test.py --material-instance /Game/SmokeTest_MI --sequence /Game/SmokeTest_LS`. Then run the Wave A/A.5 live verification panel above.
 
 **Pause/restart note (PR #174 scorecard follow-up #10):** Long verification runs that span an editor restart (manual or crash) lose every actor and edit that wasn't saved to the level. If you spawn validation actors or mutate the open map and intend to pause, run `save_dirty_assets {}` (or Ctrl+S in the editor) *before* the pause — unsaved actors and properties revert to the last on-disk state on relaunch. The PR #174 scorecard's `delete_actor` row hit this exact case (ValEnvPanelL/R spawned pre-pause, lost on restart, then returned `actor_not_found` on the post-resume delete — correct shape, not a tool defect, but easy to mistake for one).
@@ -227,14 +227,14 @@ UnrealClaudeMCP/                               UE plugin (drops into <Project>/P
                                                inspect_sound_class / inspect_sound_submix /
                                                inspect_audio_bus / inspect_material_function /
                                                inspect_metasound are SYNTHETIC (bridge-side) -- they
-                                               do NOT have a Handler_*.cpp file. 29 synthetics total.
+                                               do NOT have a Handler_*.cpp file. 31 synthetics total.
     UnrealClaudeMCP.Build.cs                   Module deps.
-  Resources/mcp_manifest.json                  Tool catalog (mirrors bridge TOOLS, 100 entries)
+  Resources/mcp_manifest.json                  Tool catalog (mirrors bridge TOOLS, 102 entries)
   UnrealClaudeMCP.uplugin                      Plugin manifest (v0.9.1 / UE 5.7)
 
 bridge/
   unreal_claude_mcp_bridge.py                  stdio↔TCP bridge.
-                                               - SYNTHETIC_TOOLS dict (29 entries).
+                                               - SYNTHETIC_TOOLS dict (31 entries).
                                                - synthetic_* functions (one per synthetic tool).
                                                - Marker pattern for round-tripping results from
                                                  execute_unreal_python (UUID per call + log search,
@@ -298,7 +298,7 @@ CONTRIBUTING.md                                Project conventions, 10-step new-
 2. Send: *"Read `docs/HANDOFF.md` and continue from there. The user is in autonomy mode — pick the next reasonable thing to do."*
 3. **Verify Codex tooling** (per directive #8): `ToolSearch query="codex"` and/or `Bash codex --help`. If reachable, the multi-agent collaboration model is live.
 4. **Verify the multi-agent fleet** (per directive #9 and standing rule #1): the explorer / reviewer subagents are usable in any session via the Agent tool. The `general-purpose` subagent works for research but **NOT for file writes** (sandbox isolation).
-5. The fresh session reads this doc, absorbs the directives, sees **100 tools shipped (71 C++ + 29 synthetic)**, and proceeds.
+5. The fresh session reads this doc, absorbs the directives, sees **102 tools shipped (71 C++ + 31 synthetic)**, and proceeds.
 
 For specific resumption:
 - *"Live-verify Waves A + A.5"* → host rebuild via the runbook above, then run the Wave A/A.5 verification panel

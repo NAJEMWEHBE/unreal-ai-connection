@@ -40,7 +40,22 @@ def log(msg):
 # and exits cleanly. Default (no flag) = 99 = full build, identical to v3
 # behavior. Stage map: 0=wipe, 1=atmosphere, 2=geometry skeleton, 3=props
 # (containers+pipes), 4=full hero (effects + camera).
-_BUILD_STAGE = int(getattr(builtins, 'DESERT_BUILD_STAGE', 99))
+_raw_stage = getattr(builtins, 'DESERT_BUILD_STAGE', None)
+try:
+    _BUILD_STAGE = int(_raw_stage) if _raw_stage is not None else 99
+except (TypeError, ValueError):
+    _BUILD_STAGE = 99
+    log(f'invalid DESERT_BUILD_STAGE={_raw_stage!r}; defaulting to full build')
+# One-shot: `builtins` persists across UE Python runs within the same editor
+# session, so leaving the attribute set would silently re-apply the staged
+# value on later direct invocations of this script. Delete it after read so
+# subsequent runs default back to full build unless the orchestrator
+# re-injects the flag.
+if hasattr(builtins, 'DESERT_BUILD_STAGE'):
+    try:
+        delattr(builtins, 'DESERT_BUILD_STAGE')
+    except Exception:
+        pass
 
 
 def _apply_hero_camera():

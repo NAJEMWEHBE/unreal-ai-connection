@@ -1385,7 +1385,7 @@ TOOLS = [
     },
     {
         "name": "marketplace_search",
-        "description": "Search free CC0 asset marketplaces (Polyhaven, AmbientCG) for textures / HDRIs / models matching a keyword and return a normalised list of matches. SYNTHETIC bridge-side handler — fetches the source's public JSON catalog via plain HTTPS (no auth, no API key). Every asset returned is CC0 (public domain, free for any use including commercial). Pair with marketplace_import to actually download and import a chosen result.",
+        "description": "Search free CC0 asset marketplaces (Polyhaven, AmbientCG) for textures / HDRIs / models matching a keyword and return a normalised list of matches. SYNTHETIC bridge-side handler — fetches the source's public JSON catalog via plain HTTPS (no auth, no API key). Asset files are CC0 (public domain, free for any use including commercial). API-access terms differ from asset terms: the Polyhaven public API at api.polyhaven.com is licensed for non-commercial and academic use only — commercial integrations require a custom license from Poly Haven (https://polyhaven.com/our-api). AmbientCG asset terms are similarly CC0 with their own API ToS. Pair with marketplace_import to actually download and import a chosen result.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -1398,7 +1398,7 @@ TOOLS = [
     },
     {
         "name": "marketplace_import",
-        "description": "Download a CC0 asset from a marketplace (Polyhaven in v1) and import it into the project as a UTexture2D via the native import_texture handler. SYNTHETIC bridge-side handler — composes a /files/{slug} catalog lookup, a urllib download to the system tempdir, and a call_ue('import_texture', ...) round-trip. v1 supports texture (diffuse map) and hdri (EXR); model import is parked for v2 (native handler has no mesh-import wrapper today). All Polyhaven content is CC0 — no attribution required.",
+        "description": "Download a CC0 asset from a marketplace (Polyhaven in v1) and import it into the project as a UTexture2D via the native import_texture handler. SYNTHETIC bridge-side handler — composes a /files/{slug} catalog lookup, a urllib download to the system tempdir, and a call_ue('import_texture', ...) round-trip. v1 supports texture (diffuse map) and hdri (EXR); model import is parked for v2 (native handler has no mesh-import wrapper today). Asset files: Polyhaven content is CC0 (public domain, no attribution required). API access: the Polyhaven public API is licensed for non-commercial and academic use only — commercial integrations require a custom license from Poly Haven (https://polyhaven.com/our-api).",
         "inputSchema": {
             "type": "object",
             "properties": {

@@ -58,7 +58,7 @@ Both `deepseek-v4-pro` and `kimi-k2.6` timed out on the `marketplace-tools-desig
    - Or spawn a slightly-tilted ground at z=+1 so it definitively covers the grid plane.
 
 2. **Niagara dust failures.** All five `Desert_Dust_*` actors fail to bind `BlowingParticles`:
-   ```
+   ```text
    TypeError: Cannot nativize 'NiagaraEmitter' as 'Object' (allowed Class type: 'NiagaraSystem')
    ```
    `BlowingParticles.BlowingParticles` at `/Niagara/DefaultAssets/Templates/Emitters/` is an emitter, not a system. Fix path: either swap to a `NiagaraSystem` template (search engine content for `*System` under `/Engine/Niagara/`) or wrap the emitter in a `NiagaraSystem` asset before assigning. Non-blocking — actors stay inert; existed in v3.
