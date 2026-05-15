@@ -1398,11 +1398,11 @@ TOOLS = [
     },
     {
         "name": "marketplace_import",
-        "description": "Download a CC0 asset from a marketplace (Polyhaven in v1) and import it into the project as a UTexture2D via the native import_texture handler. SYNTHETIC bridge-side handler — composes a /files/{slug} catalog lookup, a urllib download to the system tempdir, and a call_ue('import_texture', ...) round-trip. v1 supports texture (diffuse map) and hdri (EXR); model import is parked for v2 (native handler has no mesh-import wrapper today). Asset files: Polyhaven content is CC0 (public domain, no attribution required). API access: the Polyhaven public API is licensed for non-commercial and academic use only — commercial integrations require a custom license from Poly Haven (https://polyhaven.com/our-api).",
+        "description": "Download a CC0 asset from a marketplace (Polyhaven or AmbientCG) and import it into the project as a UTexture2D via the native import_texture handler. SYNTHETIC bridge-side handler. Polyhaven path: /files/{slug} catalog lookup -> direct download. AmbientCG path: /api/v2/full_json?id={slug}&include=downloadData -> downloads the per-resolution zip -> extracts the Color map (textures) or sole EXR/HDR (hdris) -> hands the file to import_texture. Supports texture (Color/Diffuse map) and hdri (EXR/HDR); model import is parked for a later PR (native handler has no mesh-import wrapper today). Asset files: both sources are CC0 (public domain, no attribution required). API access: the Polyhaven public API is licensed for non-commercial and academic use only — commercial integrations require a custom license from Poly Haven (https://polyhaven.com/our-api). AmbientCG's public API and asset files are both CC0.",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "source": {"type": "string", "description": "Marketplace to import from. Only 'polyhaven' is wired in v1 (ambientcg ships zip archives — v2 work).", "enum": ["polyhaven"]},
+                "source": {"type": "string", "description": "Marketplace to import from. 'polyhaven' (default) or 'ambientcg'.", "enum": ["polyhaven", "ambientcg"]},
                 "slug": {"type": "string", "description": "Source-specific asset identifier (e.g. 'aerial_beach_01'). Obtain via marketplace_search."},
                 "asset_type": {"type": "string", "description": "'texture' (diffuse map only in v1), 'hdri' (EXR/HDR sky), or 'model' (not yet implemented).", "enum": ["texture", "hdri", "model"]},
                 "resolution": {"type": "string", "description": "Asset resolution. Common values: '1k', '2k' (default), '4k', '8k'. Available set depends on the asset; the error message lists what the source actually offers when the request is invalid."},
@@ -5241,6 +5241,130 @@ def _ambientcg_search(query: str, asset_type: str, limit: int) -> tuple[list[dic
     return results, None
 
 
+def _ambientcg_resolve_zip_url(slug: str, asset_type: str, resolution: str, fmt: str) -> tuple[str | None, str | None, list[str], dict | None]:
+    """Hit AmbientCG's `/api/v2/full_json?id=<slug>&include=downloadData`
+    and pick the per-resolution / per-format zip URL.
+
+    Returns (zip_url, chosen_attribute, available_attributes, error).
+    `attribute` is AmbientCG's `<Res>K-<FMT>` token (e.g. `2K-JPG`).
+    The caller asks via the same (resolution, fmt) shape used by the
+    Polyhaven path; this function maps `2k` -> `2K` and `jpg` -> `JPG`
+    and matches against the response's `attribute` strings.
+    """
+    import urllib.parse as _urlparse
+    url = f"https://ambientcg.com/api/v2/full_json?id={_urlparse.quote(slug, safe='')}&include=downloadData"
+    data, err = _marketplace_http_get_json(url)
+    if err is not None:
+        return None, None, [], err
+    if not isinstance(data, dict):
+        return None, None, [], {"code": -32603, "message": "ambientcg: unexpected payload (not a JSON object)"}
+    found = data.get("foundAssets") or []
+    if not found or not isinstance(found, list) or not isinstance(found[0], dict):
+        return None, None, [], {"code": -32603, "message": f"ambientcg: asset_not_found: id={slug}"}
+    asset = found[0]
+    folders = asset.get("downloadFolders") or {}
+    default = folders.get("default") if isinstance(folders, dict) else None
+    if not isinstance(default, dict):
+        return None, None, [], {"code": -32603, "message": f"ambientcg: no_download_folder: id={slug}"}
+    cats = default.get("downloadFiletypeCategories") or {}
+    zip_block = cats.get("zip") if isinstance(cats, dict) else None
+    if not isinstance(zip_block, dict):
+        return None, None, [], {"code": -32603, "message": f"ambientcg: no_zip_category: id={slug}"}
+    downloads = zip_block.get("downloads") or []
+    if not isinstance(downloads, list) or not downloads:
+        return None, None, [], {"code": -32603, "message": f"ambientcg: no_downloads: id={slug}"}
+    # Normalise caller request to AmbientCG attribute syntax.
+    req_res = (resolution or "").upper()  # "2k" -> "2K"
+    req_fmt = (fmt or "").upper()           # "jpg" -> "JPG"; HDR fmt names match
+    want = f"{req_res}-{req_fmt}"
+    attrs = [d.get("attribute") for d in downloads if isinstance(d, dict) and d.get("attribute")]
+    # Exact match first.
+    for d in downloads:
+        if not isinstance(d, dict):
+            continue
+        if d.get("attribute") == want:
+            link = d.get("fullDownloadPath") or d.get("downloadLink")
+            if isinstance(link, str) and link:
+                return link, want, attrs, None
+    # Fallback: same resolution, alternate format (JPG <-> PNG for textures,
+    # EXR <-> HDR for HDRIs). Preserve the resolution prefix; swap the format.
+    swap = {"JPG": "PNG", "PNG": "JPG", "EXR": "HDR", "HDR": "EXR"}.get(req_fmt)
+    if swap:
+        alt = f"{req_res}-{swap}"
+        for d in downloads:
+            if not isinstance(d, dict):
+                continue
+            if d.get("attribute") == alt:
+                link = d.get("fullDownloadPath") or d.get("downloadLink")
+                if isinstance(link, str) and link:
+                    return link, alt, attrs, None
+    return None, None, attrs, {"code": -32603, "message": f"ambientcg: resolution_or_format_unavailable: wanted '{want}' not in available {attrs}"}
+
+
+def _ambientcg_extract_primary_map(zip_path: str, asset_type: str, dest_dir: str) -> tuple[str | None, dict | None]:
+    """Extract the AmbientCG zip and return the path of the file the
+    marketplace_import handler should hand to `import_texture`.
+
+    For `texture` assets the AmbientCG zip contains a multi-map PBR set
+    (`<slug>_<Res>_Color.<ext>`, `_Roughness`, `_NormalGL` etc.); this
+    helper imports the Color/Diffuse map only. For `hdri` assets the
+    zip contains a single .exr/.hdr file.
+
+    Returns (extracted_file_path, error). The caller is responsible for
+    cleanup of `dest_dir` after the downstream `import_texture` call.
+    """
+    import zipfile
+    import os
+    try:
+        with zipfile.ZipFile(zip_path, "r") as zf:
+            names = zf.namelist()
+            # Skip directories and hidden entries.
+            file_names = [n for n in names if not n.endswith("/") and not os.path.basename(n).startswith(".")]
+            if not file_names:
+                return None, {"code": -32603, "message": f"ambientcg: empty_zip: {zip_path}"}
+            pick: str | None = None
+            if asset_type == "texture":
+                # Prefer the Color map; AmbientCG's canonical convention is
+                # `<slug>_<Res>_Color.<ext>`. Fall back to `_Diffuse`. Both
+                # use case-insensitive matching to absorb the rare older
+                # asset that ships with a lowercase suffix.
+                for marker in ("_Color.", "_color.", "_Diffuse.", "_diffuse."):
+                    matches = [n for n in file_names if marker in os.path.basename(n)]
+                    if matches:
+                        pick = sorted(matches)[0]
+                        break
+                if pick is None:
+                    return None, {"code": -32603, "message": f"ambientcg: zip_has_no_color_map: files={[os.path.basename(n) for n in file_names]}"}
+            elif asset_type == "hdri":
+                # HDRI zip should ship exactly one .exr or .hdr. Prefer .exr.
+                exrs = [n for n in file_names if n.lower().endswith(".exr")]
+                hdrs = [n for n in file_names if n.lower().endswith(".hdr")]
+                if exrs:
+                    pick = sorted(exrs)[0]
+                elif hdrs:
+                    pick = sorted(hdrs)[0]
+                else:
+                    return None, {"code": -32603, "message": f"ambientcg: zip_has_no_hdri: files={[os.path.basename(n) for n in file_names]}"}
+            else:
+                return None, {"code": -32603, "message": f"ambientcg: asset_type_unsupported: '{asset_type}'"}
+            # Extract just the picked file. Use a flat path under dest_dir
+            # so any directory components inside the zip (including
+            # traversal sequences like "../") don't escape it.
+            safe_name = os.path.basename(pick)
+            dest_path = os.path.join(dest_dir, safe_name)
+            with zf.open(pick) as src, open(dest_path, "wb") as out:
+                while True:
+                    chunk = src.read(64 * 1024)
+                    if not chunk:
+                        break
+                    out.write(chunk)
+            return dest_path, None
+    except zipfile.BadZipFile as e:
+        return None, {"code": -32603, "message": f"ambientcg: bad_zip: {zip_path}: {e}"}
+    except Exception as e:
+        return None, {"code": -32603, "message": f"ambientcg: extract_failed: {zip_path}: {e}"}
+
+
 def synthetic_marketplace_search(req_id, args: dict) -> dict:
     """Search free CC0 asset marketplaces (Polyhaven, AmbientCG) for
     textures / HDRIs / models matching a keyword. Returns a normalised
@@ -5397,11 +5521,10 @@ def synthetic_marketplace_import(req_id, args: dict) -> dict:
             "message": "marketplace_import: invalid_arguments: arguments must be an object",
         })
     source = args.get("source", "polyhaven")
-    if source != "polyhaven":
-        # AmbientCG download path uses zipped multi-map archives — v2 work.
+    if source not in ("polyhaven", "ambientcg"):
         return make_response(req_id, error={
             "code": -32602,
-            "message": "marketplace_import: source_unsupported: only 'polyhaven' is wired in v1 (ambientcg ships zip archives, v2 work)",
+            "message": "marketplace_import: invalid_field: 'source' must be one of polyhaven|ambientcg",
         })
     slug = args.get("slug")
     if not isinstance(slug, str) or not slug:
@@ -5440,28 +5563,6 @@ def synthetic_marketplace_import(req_id, args: dict) -> dict:
         })
     dest_name = args.get("dest_name") or slug
 
-    # 1. Resolve download URL. URL-encode the slug so a value containing
-    # '/', '?', or '#' cannot escape the /files/{slug} path.
-    import urllib.parse as _urlparse
-    files_url = f"https://api.polyhaven.com/files/{_urlparse.quote(slug, safe='')}"
-    files, err = _marketplace_http_get_json(files_url)
-    if err is not None:
-        return make_response(req_id, error=err)
-    if not isinstance(files, dict):
-        return make_response(req_id, error={
-            "code": -32603,
-            "message": f"marketplace_import: unexpected_payload: /files/{slug} did not return a JSON object",
-        })
-    download_url, chosen_fmt, available, pick_err = _polyhaven_pick_file(files, asset_type, resolution, fmt)
-    if pick_err is not None:
-        return make_response(req_id, error=pick_err)
-
-    # 2. Download to temp. Suffix derives from the chosen format (which
-    # may differ from the requested fmt when a fallback fires), so
-    # downstream `import_texture` extension-validation picks the right
-    # importer. Each path-component is allowlist-sanitised to block any
-    # caller-supplied traversal sequences (e.g. "../") from steering the
-    # write outside the temp dir.
     import tempfile
     import os
     def _safe_path_token(s: str, default: str) -> str:
@@ -5469,13 +5570,67 @@ def synthetic_marketplace_import(req_id, args: dict) -> dict:
         return cleaned or default
     safe_slug = _safe_path_token(slug, "slug")
     safe_resolution = _safe_path_token(resolution, "res")
-    safe_fmt = _safe_path_token(chosen_fmt or fmt, "bin")
-    suffix = "." + safe_fmt
     tmp_dir = tempfile.gettempdir()
-    tmp_path = os.path.join(tmp_dir, f"marketplace_{safe_slug}_{safe_resolution}{suffix}")
-    dl_err = _marketplace_http_download(download_url, tmp_path)
-    if dl_err is not None:
-        return make_response(req_id, error=dl_err)
+
+    # 1. Resolve download URL + 2. Download to temp. Branches per source.
+    download_url: str
+    chosen_fmt: str | None
+    available: list
+    tmp_path: str  # filesystem path of the file `import_texture` will be handed.
+    if source == "polyhaven":
+        # Polyhaven: per-asset JSON has a flat map of per-resolution / per-
+        # format URLs. URL-encode the slug so a value containing '/', '?',
+        # or '#' cannot escape the /files/{slug} path.
+        import urllib.parse as _urlparse
+        files_url = f"https://api.polyhaven.com/files/{_urlparse.quote(slug, safe='')}"
+        files, err = _marketplace_http_get_json(files_url)
+        if err is not None:
+            return make_response(req_id, error=err)
+        if not isinstance(files, dict):
+            return make_response(req_id, error={
+                "code": -32603,
+                "message": f"marketplace_import: unexpected_payload: /files/{slug} did not return a JSON object",
+            })
+        download_url, chosen_fmt, available, pick_err = _polyhaven_pick_file(files, asset_type, resolution, fmt)
+        if pick_err is not None:
+            return make_response(req_id, error=pick_err)
+        # Suffix derives from the chosen format (may differ from the
+        # requested fmt when a fallback fires). Each path-component is
+        # allowlist-sanitised to block caller-supplied traversal sequences.
+        safe_fmt = _safe_path_token(chosen_fmt or fmt, "bin")
+        suffix = "." + safe_fmt
+        tmp_path = os.path.join(tmp_dir, f"marketplace_{safe_slug}_{safe_resolution}{suffix}")
+        dl_err = _marketplace_http_download(download_url, tmp_path)
+        if dl_err is not None:
+            return make_response(req_id, error=dl_err)
+    else:  # source == "ambientcg" (validated above)
+        # AmbientCG: zip-archive per resolution/format. Resolve the zip
+        # URL, download it, extract the diffuse map (or sole HDRI file),
+        # then hand the extracted file to `import_texture`.
+        zip_url, chosen_attr, available, pick_err = _ambientcg_resolve_zip_url(slug, asset_type, resolution, fmt)
+        if pick_err is not None:
+            return make_response(req_id, error=pick_err)
+        download_url = zip_url  # type: ignore[assignment]
+        chosen_fmt = (chosen_attr or "").split("-")[-1].lower() if chosen_attr else None
+        zip_tmp = os.path.join(tmp_dir, f"marketplace_{safe_slug}_{safe_resolution}.zip")
+        dl_err = _marketplace_http_download(zip_url, zip_tmp)
+        if dl_err is not None:
+            return make_response(req_id, error=dl_err)
+        # Extract under a per-asset subdir so concurrent imports of
+        # different assets don't collide. Mirror the same path-token
+        # sanitisation used for the zip filename itself.
+        extract_dir = os.path.join(tmp_dir, f"marketplace_{safe_slug}_{safe_resolution}_extract")
+        try:
+            os.makedirs(extract_dir, exist_ok=True)
+        except OSError as e:
+            return make_response(req_id, error={
+                "code": -32603,
+                "message": f"marketplace_import: ambientcg_mkdir_failed: {extract_dir}: {e}",
+            })
+        extracted_path, ex_err = _ambientcg_extract_primary_map(zip_tmp, asset_type, extract_dir)
+        if ex_err is not None:
+            return make_response(req_id, error=ex_err)
+        tmp_path = extracted_path  # type: ignore[assignment]
 
     # 3. Hand off to native import_texture.
     replace_existing = args.get("replace_existing", False)

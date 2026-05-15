@@ -3799,51 +3799,64 @@ Search free CC0 asset marketplaces (Polyhaven, AmbientCG) for textures, HDRIs, o
 
 ## marketplace_import
 
-Download a CC0 asset from a marketplace (Polyhaven in v1) and import it into the project as a `UTexture2D` via the native [`import_texture`](#import_texture) handler.
+Download a CC0 asset from a marketplace (Polyhaven or AmbientCG) and import it into the project as a `UTexture2D` via the native [`import_texture`](#import_texture) handler.
 
-**Bridge-side synthetic tool.** Composes:
+**Bridge-side synthetic tool.** Branches per source:
+
+**Polyhaven path** — direct file download:
 
 1. `GET https://api.polyhaven.com/files/{slug}` — resolves the per-resolution / per-format download URL.
-2. `urllib` streaming download to a temp file under the system tempdir (atomic via `.part` rename).
+2. `urllib` streaming download of the raw image to a temp file under the system tempdir (atomic via `.part` rename).
 3. `call_ue("import_texture", { source_path, dest_path, dest_name, replace_existing, automated, save })` — the native handler does the UE-side import via the canonical asset import pipeline.
 
-**Scope of v1**:
+**AmbientCG path** — zip-archive extraction:
 
-- **Textures** — diffuse map only (full PBR multi-map import is v2 work). Default format `png`.
+1. `GET https://ambientcg.com/api/v2/full_json?id={slug}&include=downloadData` — resolves the per-attribute (`<Res>K-<FMT>`, e.g. `2K-JPG`) zip URL.
+2. `urllib` streaming download of the zip to a temp file.
+3. `zipfile`-based extraction of the Color/Diffuse map (textures) or sole EXR/HDR (hdris) into a per-asset subdir under the system tempdir. Path-traversal sequences in zip entry names are flattened to the basename so extraction can't escape the destination dir.
+4. `call_ue("import_texture", { ... })` against the extracted file.
+
+**Scope**:
+
+- **Textures** — Color/Diffuse map only (full multi-map PBR import is parked for a later PR). Default format `png` for Polyhaven, `JPG` for AmbientCG.
 - **HDRIs** — single-file EXR (or HDR fallback). Default format `exr`.
 - **Models** — `asset_type=model` returns `not_implemented`. Native side has no glTF/FBX import wrapper today.
-- **Source**: only `polyhaven` is wired in v1. AmbientCG ships zipped multi-map archives — v2 work.
+- **Source**: `polyhaven` (default) or `ambientcg`.
 
 **Params**:
 
-- `source` *(string, optional, default `"polyhaven"`)* — must be `"polyhaven"` in v1.
-- `slug` *(string, **required**)* — source-specific asset identifier (e.g. `"aerial_beach_01"`). Obtain via [`marketplace_search`](#marketplace_search).
+- `source` *(string, optional, default `"polyhaven"`)* — one of `"polyhaven"` / `"ambientcg"`.
+- `slug` *(string, **required**)* — source-specific asset identifier. Polyhaven slugs are lowercase-snake (`"aerial_beach_01"`); AmbientCG slugs are PascalCase (`"Wood050"`). Obtain via [`marketplace_search`](#marketplace_search).
 - `asset_type` *(string, optional, default `"texture"`)* — `texture` / `hdri` / `model` (model → `not_implemented`).
-- `resolution` *(string, optional, default `"2k"`)* — common values `1k` / `2k` / `4k` / `8k`. The error message lists what the source actually offers when invalid.
-- `format` *(string, optional)* — defaults to `png` for textures and `exr` for HDRIs. Falls back to the source's default if the requested format isn't published.
+- `resolution` *(string, optional, default `"2k"`)* — common values `1k` / `2k` / `4k` / `8k`. Case-insensitive: AmbientCG normalises internally to `2K`. The error message lists what the source actually offers when invalid.
+- `format` *(string, optional)* — defaults to `png` for textures and `exr` for HDRIs. Both sources fall back to alternate formats at the same resolution (`png ↔ jpg` for textures, `exr ↔ hdr` for HDRIs) when the requested format isn't published.
 - `dest_path` *(string, optional, default `/Game/Marketplace`)* — UE package path; must start with `/Game/`.
 - `dest_name` *(string, optional)* — asset name override; defaults to the slug.
-- `replace_existing` *(bool, optional, default `false`)* — overwrite an existing asset at `dest_path/dest_name`.
+- `replace_existing` *(bool, optional, default `false`)* — overwrite an existing asset at `dest_path/dest_name`. Must be an actual boolean — `"false"` (string) is rejected.
 
 **Result**:
 
 - `ok` — bool.
 - `source`, `slug`, `asset_type`, `resolution`, `format` — echoes of input.
-- `downloaded_from` — resolved download URL.
-- `temp_path` — filesystem path of the downloaded file.
+- `downloaded_from` — resolved download URL (the per-asset Polyhaven file URL, or the AmbientCG zip URL).
+- `temp_path` — filesystem path of the file handed to `import_texture` (the raw image for Polyhaven, the extracted Color/HDRI file for AmbientCG).
 - `ue_asset_path` — final asset path in the project (`<dest_path>/<dest_name>`).
-- `available_resolutions` — array of resolutions the source offers for this asset.
+- `available_resolutions` — array of resolutions/attributes the source offers for this asset (`["1k","2k","4k","8k"]` for Polyhaven; `["1K-JPG","2K-JPG",...]` for AmbientCG).
 - `import_result` — passthrough of native `import_texture` result.
 - `license` — `"CC0"`.
 
 **Errors**:
 
-- `-32602 invalid_arguments` / `invalid_field: ...` — argument validation.
+- `-32602 invalid_arguments` / `invalid_field: ...` — argument validation (including unknown `source`).
 - `-32603 network_error: ...` — DNS / TCP / TLS failure.
 - `-32603 http_error: status=NNN` — non-2xx response from the catalog or CDN.
-- `-32603 not_implemented` — asset_type=model (parked for v2).
-- `-32603 resolution_unavailable: ...` — the requested resolution isn't published; message lists what is.
-- `-32603 format_unavailable: ...` — the requested format isn't published at that resolution.
+- `-32603 not_implemented` — `asset_type=model` (parked).
+- `-32603 resolution_unavailable: ...` (Polyhaven) / `resolution_or_format_unavailable: ...` (AmbientCG) — the requested resolution/format isn't published; message lists what is.
+- `-32603 format_unavailable: ...` — (Polyhaven only) the requested format isn't published at that resolution.
+- `-32603 ambientcg: asset_not_found: id=<slug>` — AmbientCG's `foundAssets` array is empty for the slug.
+- `-32603 ambientcg: bad_zip: ...` — downloaded zip is corrupt.
+- `-32603 ambientcg: zip_has_no_color_map: ...` — texture zip is missing `_Color`/`_Diffuse` map files (rare; the error lists the actual file set).
+- `-32603 ambientcg: zip_has_no_hdri: ...` — HDRI zip is missing both `.exr` and `.hdr` files.
 - `-32603 ue_import_failed: ...` — native `import_texture` returned an error (propagated verbatim).
 
 **Example — import a 2k sand diffuse map**
@@ -3865,6 +3878,19 @@ Download a CC0 asset from a marketplace (Polyhaven in v1) and import it into the
   "resolution": "4k",
   "format": "exr",
   "dest_path": "/Game/Validation/HDRI"
+}}
+```
+
+**Example — import an AmbientCG texture (2k JPG)**
+```json
+{"jsonrpc":"2.0","id":3,"method":"marketplace_import","params":{
+  "source": "ambientcg",
+  "slug": "Wood050",
+  "asset_type": "texture",
+  "resolution": "2k",
+  "format": "jpg",
+  "dest_path": "/Game/Validation/Marketplace",
+  "dest_name": "T_Wood_050"
 }}
 ```
 

@@ -883,9 +883,9 @@
     },
     {
       "name": "marketplace_import",
-      "description": "Download a CC0 asset from a marketplace (Polyhaven in v1) and import it into the project as a UTexture2D via the native import_texture handler. SYNTHETIC bridge-side handler — composes a /files/{slug} catalog lookup, a urllib download to the system tempdir, and a call_ue('import_texture', ...) round-trip. v1 supports texture (diffuse map) and hdri (EXR); model import is parked for v2 (native handler has no mesh-import wrapper today). All Polyhaven content is CC0 — no attribution required.",
+      "description": "Download a CC0 asset from a marketplace (Polyhaven or AmbientCG) and import it into the project as a UTexture2D via the native import_texture handler. SYNTHETIC bridge-side handler. Polyhaven path: /files/{slug} catalog lookup -> direct download. AmbientCG path: /api/v2/full_json?id={slug}&include=downloadData -> downloads the per-resolution zip -> extracts the Color map (textures) or sole EXR/HDR (hdris) -> hands the file to import_texture. Supports texture (Color/Diffuse map) and hdri (EXR/HDR); model import is parked for a later PR. Asset files: both sources are CC0. API access: Polyhaven public API is licensed for non-commercial / academic use only (commercial integrations require a custom license from Poly Haven); AmbientCG API and assets are both CC0.",
       "params": {
-        "source": "string (optional, default 'polyhaven') - only 'polyhaven' is wired in v1; ambientcg ships zip archives, v2 work",
+        "source": "string (optional, default 'polyhaven') - one of polyhaven|ambientcg",
         "slug": "string (required) - source-specific asset identifier obtained from marketplace_search",
         "asset_type": "string (optional, default 'texture') - one of texture|hdri|model; model returns not_implemented in v1",
         "resolution": "string (optional, default '2k') - common values 1k|2k|4k|8k; error message lists actual available set when invalid",

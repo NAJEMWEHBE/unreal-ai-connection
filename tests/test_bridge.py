@@ -5297,3 +5297,192 @@ def test_bulk_fix_redirectors_rejects_too_many_folders():
     assert m.call_count == 0
     assert resp["error"]["code"] == -32602
     assert "too_many_folders" in resp["error"]["message"]
+
+
+# -------- marketplace_import: ambientcg zip-unpack path ----------------------
+
+# Fixture shape mirrors the live AmbientCG /api/v2/full_json?include=downloadData
+# response. Top-level: { "foundAssets": [ { "assetId", "dataType",
+#   "downloadFolders": { "default": { "downloadFiletypeCategories": {
+#     "zip": { "downloads": [ {attribute, fullDownloadPath, fileName, filetype}, ... ]
+# }}}}}]}
+def _make_ambientcg_payload(slug, attrs):
+    return {
+        "foundAssets": [
+            {
+                "assetId": slug,
+                "dataType": "Material",
+                "downloadFolders": {
+                    "default": {
+                        "downloadFiletypeCategories": {
+                            "zip": {
+                                "downloads": [
+                                    {
+                                        "attribute": a,
+                                        "fullDownloadPath": "https://ambientcg.com/get?file=" + slug + "_" + a + ".zip",
+                                        "fileName": slug + "_" + a + ".zip",
+                                        "filetype": "zip",
+                                    }
+                                    for a in attrs
+                                ],
+                            }
+                        }
+                    }
+                },
+            }
+        ]
+    }
+
+
+def test_ambientcg_resolve_zip_url_exact_match():
+    """Caller asks 2k/jpg, response has 2K-JPG -> URL returned + attribute echoed."""
+    payload = _make_ambientcg_payload("Wood050", ["1K-JPG", "2K-JPG", "4K-JPG"])
+    with patch.object(bridge, "_marketplace_http_get_json", return_value=(payload, None)):
+        url, attr, available, err = bridge._ambientcg_resolve_zip_url("Wood050", "texture", "2k", "jpg")
+    assert err is None
+    assert attr == "2K-JPG"
+    assert url == "https://ambientcg.com/get?file=Wood050_2K-JPG.zip"
+    assert "2K-JPG" in available
+
+
+def test_ambientcg_resolve_zip_url_format_fallback_jpg_to_png():
+    """Caller asks 2k/jpg, only PNG variants exist -> falls back to PNG."""
+    payload = _make_ambientcg_payload("Rocks01", ["1K-PNG", "2K-PNG", "4K-PNG"])
+    with patch.object(bridge, "_marketplace_http_get_json", return_value=(payload, None)):
+        url, attr, available, err = bridge._ambientcg_resolve_zip_url("Rocks01", "texture", "2k", "jpg")
+    assert err is None
+    assert attr == "2K-PNG"
+    assert "2K-PNG" in url
+
+
+def test_ambientcg_resolve_zip_url_resolution_unavailable():
+    """Caller asks 16k but only 1K/2K/4K exist -> resolution_or_format_unavailable."""
+    payload = _make_ambientcg_payload("Wood050", ["1K-JPG", "2K-JPG", "4K-JPG"])
+    with patch.object(bridge, "_marketplace_http_get_json", return_value=(payload, None)):
+        url, attr, available, err = bridge._ambientcg_resolve_zip_url("Wood050", "texture", "16k", "jpg")
+    assert url is None
+    assert err is not None
+    assert err["code"] == -32603
+    assert "resolution_or_format_unavailable" in err["message"]
+    assert "1K-JPG" in err["message"]
+
+
+def test_ambientcg_resolve_zip_url_asset_not_found():
+    """Empty foundAssets -> asset_not_found error."""
+    with patch.object(bridge, "_marketplace_http_get_json", return_value=({"foundAssets": []}, None)):
+        url, attr, available, err = bridge._ambientcg_resolve_zip_url("NoSuchSlug", "texture", "2k", "jpg")
+    assert url is None
+    assert err is not None
+    assert "asset_not_found" in err["message"]
+
+
+def test_ambientcg_resolve_zip_url_propagates_http_error():
+    """Upstream JSON-fetch failure passes through unchanged."""
+    err_in = {"code": -32603, "message": "http_error: status=503 url=..."}
+    with patch.object(bridge, "_marketplace_http_get_json", return_value=(None, err_in)):
+        url, attr, available, err = bridge._ambientcg_resolve_zip_url("Wood050", "texture", "2k", "jpg")
+    assert err is err_in
+
+
+def test_ambientcg_extract_primary_map_picks_color_for_texture(tmp_path):
+    """A zip with Color/Roughness/Normal -> picks the Color file."""
+    import zipfile
+    zip_path = tmp_path / "Wood050_2K-JPG.zip"
+    with zipfile.ZipFile(zip_path, "w") as zf:
+        zf.writestr("Wood050_2K_Color.jpg", b"COLOR_BYTES")
+        zf.writestr("Wood050_2K_Roughness.jpg", b"ROUGH_BYTES")
+        zf.writestr("Wood050_2K_NormalGL.jpg", b"NORMAL_BYTES")
+    extract_dir = tmp_path / "extract"
+    extract_dir.mkdir()
+    picked, err = bridge._ambientcg_extract_primary_map(str(zip_path), "texture", str(extract_dir))
+    assert err is None
+    assert picked is not None
+    assert picked.endswith("Wood050_2K_Color.jpg")
+    with open(picked, "rb") as f:
+        assert f.read() == b"COLOR_BYTES"
+
+
+def test_ambientcg_extract_primary_map_falls_back_to_diffuse(tmp_path):
+    """When Color is absent but Diffuse exists, pick Diffuse."""
+    import zipfile
+    zip_path = tmp_path / "Old_2K-JPG.zip"
+    with zipfile.ZipFile(zip_path, "w") as zf:
+        zf.writestr("Old_2K_Diffuse.jpg", b"DIFFUSE_BYTES")
+        zf.writestr("Old_2K_Normal.jpg", b"NORMAL_BYTES")
+    extract_dir = tmp_path / "extract"
+    extract_dir.mkdir()
+    picked, err = bridge._ambientcg_extract_primary_map(str(zip_path), "texture", str(extract_dir))
+    assert err is None
+    assert picked.endswith("Old_2K_Diffuse.jpg")
+
+
+def test_ambientcg_extract_primary_map_no_color_map(tmp_path):
+    """A zip without Color or Diffuse -> structured error listing the files."""
+    import zipfile
+    zip_path = tmp_path / "Weird.zip"
+    with zipfile.ZipFile(zip_path, "w") as zf:
+        zf.writestr("Weird_2K_Roughness.jpg", b"R")
+        zf.writestr("Weird_2K_Normal.jpg", b"N")
+    extract_dir = tmp_path / "extract"
+    extract_dir.mkdir()
+    picked, err = bridge._ambientcg_extract_primary_map(str(zip_path), "texture", str(extract_dir))
+    assert picked is None
+    assert err is not None
+    assert "zip_has_no_color_map" in err["message"]
+
+
+def test_ambientcg_extract_primary_map_picks_exr_for_hdri(tmp_path):
+    """HDRI zip with both .exr and .hdr -> prefers .exr."""
+    import zipfile
+    zip_path = tmp_path / "Sky.zip"
+    with zipfile.ZipFile(zip_path, "w") as zf:
+        zf.writestr("Sky.exr", b"EXR_BYTES")
+        zf.writestr("Sky.hdr", b"HDR_BYTES")
+    extract_dir = tmp_path / "extract"
+    extract_dir.mkdir()
+    picked, err = bridge._ambientcg_extract_primary_map(str(zip_path), "hdri", str(extract_dir))
+    assert err is None
+    assert picked.endswith(".exr")
+
+
+def test_ambientcg_extract_primary_map_bad_zip(tmp_path):
+    """A corrupt zip file -> structured bad_zip error, no crash."""
+    bad = tmp_path / "bad.zip"
+    bad.write_bytes(b"not a zip")
+    extract_dir = tmp_path / "extract"
+    extract_dir.mkdir()
+    picked, err = bridge._ambientcg_extract_primary_map(str(bad), "texture", str(extract_dir))
+    assert picked is None
+    assert err is not None
+    assert "bad_zip" in err["message"]
+
+
+def test_ambientcg_extract_primary_map_traversal_safe(tmp_path):
+    """A zip entry with a path-traversal name lands inside dest_dir, not above it."""
+    import zipfile
+    import os
+    zip_path = tmp_path / "Evil.zip"
+    with zipfile.ZipFile(zip_path, "w") as zf:
+        zf.writestr("../../../../Evil_2K_Color.jpg", b"PWNED")
+    extract_dir = tmp_path / "extract"
+    extract_dir.mkdir()
+    picked, err = bridge._ambientcg_extract_primary_map(str(zip_path), "texture", str(extract_dir))
+    assert err is None
+    assert os.path.dirname(picked) == str(extract_dir)
+    assert os.path.basename(picked) == "Evil_2K_Color.jpg"
+
+
+def test_marketplace_import_rejects_invalid_source():
+    """source must be one of polyhaven|ambientcg."""
+    with patch.object(bridge, "call_ue") as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 700, "method": "tools/call",
+            "params": {"name": "marketplace_import", "arguments": {
+                "source": "sketchfab",
+                "slug": "anything",
+            }},
+        })
+    assert m.call_count == 0
+    assert resp["error"]["code"] == -32602
+    assert "invalid_field" in resp["error"]["message"]
+    assert "source" in resp["error"]["message"]
