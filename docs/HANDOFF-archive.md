@@ -1,6 +1,6 @@
 # HANDOFF archive
 
-> Historical session log — chronological, append-only, do not edit. This file holds **consecutive closing notes 1 through 19** (sessions 2026-05-09 through 2026-05-13 community-roadmap + Wave A/A.5). The active [`HANDOFF.md`](HANDOFF.md) keeps only the latest three consecutive notes (20th-22nd) for fast pickup; everything older lives here for grep-ability and audit trail. Chronological session indices in the TOC below run 1-25; entries 18-25 (8 chronological sessions) map to consecutive-notes 11-19 (9 notes) — the count mismatch is intentional, because the 2026-05-11 / 2026-05-12 stretch had one session window that produced two closing notes (a mid-session reset wrote the second). The mapping is many-to-many, not strict one-to-one.
+> Historical session log — chronological, append-only, do not edit. This file holds **consecutive closing notes 1 through 20** (sessions 2026-05-09 through 2026-05-13 final — token-burn cleanup + plugin diet + Waves B/C/D 88→100). The active [`HANDOFF.md`](HANDOFF.md) keeps only the latest three consecutive notes (21st-23rd) for fast pickup; everything older lives here for grep-ability and audit trail. Chronological session indices in the TOC below run 1-26; entries 18-26 (9 chronological sessions) map to consecutive-notes 11-20 (10 notes) — the count mismatch is intentional, because the 2026-05-11 / 2026-05-12 stretch had one session window that produced two closing notes (a mid-session reset wrote the second). The mapping is many-to-many, not strict one-to-one.
 
 ## Table of contents (chronological)
 
@@ -31,8 +31,9 @@
 | 23 | 2026-05-12 (autopilot extension — multi-agent ensemble shipped, 12 PRs doc + test hardening) | 80 tools, 282 pytest |
 | 24 | 2026-05-13 (autopilot resume — three standing rules locked, live verification panel, scaffolding docs) | 80 tools, 284 pytest — 18th consecutive closing-note |
 | 25 | 2026-05-13 (community-roadmap research + Wave A + Wave A.5 — first WRITE-side wave) | 88 tools (71 C++ + 17 synthetic), 302 pytest — 19th consecutive closing-note |
+| 26 | 2026-05-13 (final — token-burn cleanup, plugin diet, Waves B/C/D 88→100) | 100 tools (71 C++ + 29 synthetic), 396 pytest — 20th consecutive closing-note |
 
-Note: TOC stops at chronological-session #25 because the 20th consecutive closing-note onward lives in the active [`HANDOFF.md`](HANDOFF.md). Cross-reference by consecutive-note number: archive holds 1-19, active holds 20-22.
+Note: TOC stops at chronological-session #26 because the 21st consecutive closing-note onward lives in the active [`HANDOFF.md`](HANDOFF.md). Cross-reference by consecutive-note number: archive holds 1-20, active holds 21-23.
 
 ---
 
@@ -1153,3 +1154,61 @@ The pattern paid off again in CI: `test_no_personal_leaks.py` caught a comment-l
 - **Wave B prerequisites verified by this window's roadmap research:** existing `edit_widget_tree` is the architectural proof-of-concept for direct UObject mutation; the same `K2Node` mutation pattern extends naturally. `FBlueprintEditorUtils::AddMemberVariable` + `KismetEditorUtilities` + `UEdGraphSchema_K2::TryCreateConnection` are the canonical API surface.
 
 **Nineteenth consecutive closing-note.** Session 2026-05-12 → 13 now spans 11+ documented windows. The cadence is the project rhythm.
+
+---
+
+## Session 2026-05-13 (final — token-burn cleanup, plugin diet, 88 → 100 tools)
+
+Pickup after 19th note. Headline: token-burn investigation revealed pre-typed overhead averaging ~80-120K tokens per turn. Aggressive cuts taken to shrink that overhead, then three-wave push 88 → 100 tools landed the user's explicit milestone.
+
+**PRs landed in chronological order:**
+
+| PR | Title | Effect |
+|---|---|---|
+| #164 | Wave A + A.5 bot-findings cleanup | Applied 11 bot findings + P0 InputSettings non-existent overload |
+| #165 | Codify standing rules #4 + #5 | Delegation-by-default + bot-review gate, with mechanical-fix follow-up exception |
+| #166 | HANDOFF split | 1509 → 516 active + 941 archive; ~36K tokens saved per session-start |
+| #167 | Wave B — 4 asset-hygiene synthetics | find_unused_assets, get_reference_chain, bulk_compile_blueprints, audit_blueprint_compile_status; 88 → 92 tools |
+| #168 | Wave C — 4 actor-batch synthetics | find_actors_by_class, bulk_focus_actors, bulk_screenshot_actors, bulk_set_actor_property; 92 → 96; 4 bot follow-up fixes incl. trailing-dot guard, settle-delay race, malformed-JSON success false-positive, vendor-neutral wording |
+| #169 | Wave D — 4 utility synthetics | compare_assets, bulk_set_console_variables, inspect_dependency_graph, bulk_fix_redirectors; 96 → 100 ← TARGET HIT. Gemini caught + fixed rollback-order best-practice (reverse captured CVars when restoring) |
+
+**Token-burn investigation results.** Findings:
+
+- 13+ `claude.exe` processes running concurrently — likely CC subprocesses (MCP hosts, workers) not 13 separate conversations, but 805 MB and 419 MB ones suggested large active contexts
+- 68 plugins enabled — system-prompt manifest bloat
+- HANDOFF.md = 1509 lines (~54K tokens) auto-loaded
+- GSD hooks firing on every tool call injecting `additionalContext`
+- Output style "learning" preamble per turn (~3K tokens)
+- System reminders (skills list, MCP servers, deferred tools, modified-files notifications) per turn (~5-15K tokens)
+- No active cron / scheduled-tasks / loop-workers — burn was NOT background workers
+- Estimated total per-turn overhead: ~80-120K tokens
+
+Total cuts applied this session: ~55-65K tokens / session-start saved (HANDOFF split + plugin diet + project hook override + output-style swap user-side).
+
+**Plugin diet.** Three stages: Tier 1 conservative (68 → 53, dropped 15 web/SaaS/hardware), aggressive (53 → 13, dropped 32 ruflo-* + 8 unused official), de-dup (13 → 12, dropped skill-creator standalone in favor of superpowers:writing-skills). Final 12 plugins: caveman, claude-md-management, claude-mem, code-modernization, codex, commit-commands, feature-dev, github, mcp-server-dev, nvidia-models, security-guidance, superpowers. Backups saved at `~/.claude/settings.json.backup-*` for one-line revert.
+
+**Project-level hook override.** Wrote `F:/UnrealClaudeMCP/.claude/settings.local.json` (gitignored) overriding user-wide GSD hook set: kept gsd-context-monitor (useful context-pressure warning) + gsd-statusline (cheap status display). Dropped seven other GSD workflow guards (gsd-prompt-guard, gsd-read-guard, gsd-workflow-guard, gsd-phase-boundary, gsd-validate-commit, gsd-read-injection-scanner, gsd-check-update, gsd-session-state) for this project since it does not use the .planning workflow.
+
+**Local-model daemon empty-list bug (deferred).** The local OSS LLM runtime under the F: drive (named per maintainer's private memory file, not in this public doc) at daemon v0.23.3 returns `{"models":[]}` despite the on-disk model directory containing valid manifests + the runtime-specific `_MODELS` env var set at User scope. Hypotheses: the daemon's v0.23 may have renamed the env var, manifest format incompatibility, env var needs Machine scope (blocked by admin-shell requirement), or auto-start daemon doesn't inherit User-scope env. Parked for user. Local pre-commit ensemble review for this session relied entirely on GitHub PR bots (greptile / chatgpt-codex-connector / CodeRabbit / gemini-code-assist) per Rule #4 reformulation.
+
+**Bot-review pattern that worked across 5 PRs this session.** Each wave PR (167, 168, 169 + #164, #165, #166) followed the same flow: open PR → bots fire in 3-5 min → triage via direct `gh api` Bash readout (zero sub-agent cost) → mechanical fixes applied as follow-up commit on same branch → merge under Rule #5 mechanical-fix exception. Wave C surfaced 7 findings, 4 applied + 3 dismissed-with-rationale (the dismissed three were "vendor-neutral but lists multiple clients" — the agreed compromise from PR #164). Wave D had a single Gemini MEDIUM (rollback-order) which was a real best-practice improvement. The pattern's working.
+
+**Tool count trajectory across waves:**
+
+| PR | Wave | Tools before | Tools after | Cumulative pytest |
+|---|---|---:|---:|---:|
+| #164 | A + A.5 cleanup | 88 | 88 | 302 |
+| #165 | Rules #4 + #5 codified | 88 | 88 | 302 |
+| #166 | HANDOFF split | 88 | 88 | 302 |
+| #167 | B (asset-hygiene synthetics) | 88 | 92 | ~340 |
+| #168 | C (actor-batch synthetics) | 92 | 96 | ~370 |
+| #169 | D (utility synthetics) | 96 | 100 | 396 |
+
+**What to watch in the next session:**
+
+- HOST UE COLD-COMPILE pending for 7 Wave A + Wave A.5 C++ handlers (`get_engine_version`, `list_levels`, `save_dirty_assets`, `get_selected_actors`, `inspect_input_mappings`, `pie_control`, `inspect_project_setting`). Until rebuild, those handler names return `-32601`. Wave B/C/D synthetics ARE callable today since they're pure bridge composition.
+- Local OSS LLM runtime daemon env-var fix needed (admin shell to set Machine-scope env var or upgrade the daemon).
+- `inspect_blueprint` C++ handler doesn't yet emit `blueprint_status` field; `audit_blueprint_compile_status` buckets all BPs as `Unknown` until that gap is filled. Small follow-up C++ patch when host build cycle is open.
+- At 100 tools the user's explicit target is met. No new waves planned.
+
+**Twentieth consecutive closing-note. Session 2026-05-13 final.** Tool count: 100. Standing rules: 5 (delegation + bot-gate + mechanical-fix exception load-bearing). Token-overhead: ~55K cut per session-start.

@@ -2,7 +2,7 @@
 
 Single source of truth for resuming work on UnrealClaudeMCP in a fresh session of any MCP-compliant client. Read this first; it captures everything carried in the prior session's working memory.
 
-> Earlier closing notes (1st through 19th, sessions 2026-05-09 through 2026-05-13 autopilot resume) are archived to [`docs/HANDOFF-archive.md`](HANDOFF-archive.md). This active file keeps the latest three consecutive notes (20th-22nd) for quick pickup.
+> Earlier closing notes (1st through 20th, sessions 2026-05-09 through 2026-05-13 final) are archived to [`docs/HANDOFF-archive.md`](HANDOFF-archive.md). This active file keeps the latest three consecutive notes (21st-23rd) for quick pickup.
 
 ---
 
@@ -30,7 +30,7 @@ Recent waves that landed in the current session lineage:
 
 **Open PRs:** none.
 
-**Latest milestone on main:** PR #187 — AmbientCG zip-unpack v2 landed; merge commit on main is the next 22nd-closing-note PR. For the current HEAD commit hash, run `git log -1 origin/main`.
+**Latest milestone on main:** PR #189 — multi-map PBR mode for marketplace_import; merge commit on main is the next 23rd-closing-note PR. For the current HEAD commit hash, run `git log -1 origin/main`.
 
 **Pending verification on host machine (PRIMARY next-action item):**
 
@@ -309,65 +309,7 @@ For specific resumption:
 
 ## Closing notes from prior sessions
 
-> **Note:** Consecutive closing notes 1 through 19 (sessions 2026-05-09 through 2026-05-13 autopilot resume) are archived in [`HANDOFF-archive.md`](HANDOFF-archive.md). Only the latest three (20th-22nd) are kept active here.
-
-## Session 2026-05-13 (final — token-burn cleanup, plugin diet, 88 → 100 tools)
-
-Pickup after 19th note. Headline: token-burn investigation revealed pre-typed overhead averaging ~80-120K tokens per turn. Aggressive cuts taken to shrink that overhead, then three-wave push 88 → 100 tools landed the user's explicit milestone.
-
-**PRs landed in chronological order:**
-
-| PR | Title | Effect |
-|---|---|---|
-| #164 | Wave A + A.5 bot-findings cleanup | Applied 11 bot findings + P0 InputSettings non-existent overload |
-| #165 | Codify standing rules #4 + #5 | Delegation-by-default + bot-review gate, with mechanical-fix follow-up exception |
-| #166 | HANDOFF split | 1509 → 516 active + 941 archive; ~36K tokens saved per session-start |
-| #167 | Wave B — 4 asset-hygiene synthetics | find_unused_assets, get_reference_chain, bulk_compile_blueprints, audit_blueprint_compile_status; 88 → 92 tools |
-| #168 | Wave C — 4 actor-batch synthetics | find_actors_by_class, bulk_focus_actors, bulk_screenshot_actors, bulk_set_actor_property; 92 → 96; 4 bot follow-up fixes incl. trailing-dot guard, settle-delay race, malformed-JSON success false-positive, vendor-neutral wording |
-| #169 | Wave D — 4 utility synthetics | compare_assets, bulk_set_console_variables, inspect_dependency_graph, bulk_fix_redirectors; 96 → 100 ← TARGET HIT. Gemini caught + fixed rollback-order best-practice (reverse captured CVars when restoring) |
-
-**Token-burn investigation results.** Findings:
-
-- 13+ `claude.exe` processes running concurrently — likely CC subprocesses (MCP hosts, workers) not 13 separate conversations, but 805 MB and 419 MB ones suggested large active contexts
-- 68 plugins enabled — system-prompt manifest bloat
-- HANDOFF.md = 1509 lines (~54K tokens) auto-loaded
-- GSD hooks firing on every tool call injecting `additionalContext`
-- Output style "learning" preamble per turn (~3K tokens)
-- System reminders (skills list, MCP servers, deferred tools, modified-files notifications) per turn (~5-15K tokens)
-- No active cron / scheduled-tasks / loop-workers — burn was NOT background workers
-- Estimated total per-turn overhead: ~80-120K tokens
-
-Total cuts applied this session: ~55-65K tokens / session-start saved (HANDOFF split + plugin diet + project hook override + output-style swap user-side).
-
-**Plugin diet.** Three stages: Tier 1 conservative (68 → 53, dropped 15 web/SaaS/hardware), aggressive (53 → 13, dropped 32 ruflo-* + 8 unused official), de-dup (13 → 12, dropped skill-creator standalone in favor of superpowers:writing-skills). Final 12 plugins: caveman, claude-md-management, claude-mem, code-modernization, codex, commit-commands, feature-dev, github, mcp-server-dev, nvidia-models, security-guidance, superpowers. Backups saved at `~/.claude/settings.json.backup-*` for one-line revert.
-
-**Project-level hook override.** Wrote `F:/UnrealClaudeMCP/.claude/settings.local.json` (gitignored) overriding user-wide GSD hook set: kept gsd-context-monitor (useful context-pressure warning) + gsd-statusline (cheap status display). Dropped seven other GSD workflow guards (gsd-prompt-guard, gsd-read-guard, gsd-workflow-guard, gsd-phase-boundary, gsd-validate-commit, gsd-read-injection-scanner, gsd-check-update, gsd-session-state) for this project since it does not use the .planning workflow.
-
-**Local-model daemon empty-list bug (deferred).** The local OSS LLM runtime under the F: drive (named per maintainer's private memory file, not in this public doc) at daemon v0.23.3 returns `{"models":[]}` despite the on-disk model directory containing valid manifests + the runtime-specific `_MODELS` env var set at User scope. Hypotheses: the daemon's v0.23 may have renamed the env var, manifest format incompatibility, env var needs Machine scope (blocked by admin-shell requirement), or auto-start daemon doesn't inherit User-scope env. Parked for user. Local pre-commit ensemble review for this session relied entirely on GitHub PR bots (greptile / chatgpt-codex-connector / CodeRabbit / gemini-code-assist) per Rule #4 reformulation.
-
-**Bot-review pattern that worked across 5 PRs this session.** Each wave PR (167, 168, 169 + #164, #165, #166) followed the same flow: open PR → bots fire in 3-5 min → triage via direct `gh api` Bash readout (zero sub-agent cost) → mechanical fixes applied as follow-up commit on same branch → merge under Rule #5 mechanical-fix exception. Wave C surfaced 7 findings, 4 applied + 3 dismissed-with-rationale (the dismissed three were "vendor-neutral but lists multiple clients" — the agreed compromise from PR #164). Wave D had a single Gemini MEDIUM (rollback-order) which was a real best-practice improvement. The pattern's working.
-
-**Tool count trajectory across waves:**
-
-| PR | Wave | Tools before | Tools after | Cumulative pytest |
-|---|---|---:|---:|---:|
-| #164 | A + A.5 cleanup | 88 | 88 | 302 |
-| #165 | Rules #4 + #5 codified | 88 | 88 | 302 |
-| #166 | HANDOFF split | 88 | 88 | 302 |
-| #167 | B (asset-hygiene synthetics) | 88 | 92 | ~340 |
-| #168 | C (actor-batch synthetics) | 92 | 96 | ~370 |
-| #169 | D (utility synthetics) | 96 | 100 | 396 |
-
-**What to watch in the next session:**
-
-- HOST UE COLD-COMPILE pending for 7 Wave A + Wave A.5 C++ handlers (`get_engine_version`, `list_levels`, `save_dirty_assets`, `get_selected_actors`, `inspect_input_mappings`, `pie_control`, `inspect_project_setting`). Until rebuild, those handler names return `-32601`. Wave B/C/D synthetics ARE callable today since they're pure bridge composition.
-- Local OSS LLM runtime daemon env-var fix needed (admin shell to set Machine-scope env var or upgrade the daemon).
-- `inspect_blueprint` C++ handler doesn't yet emit `blueprint_status` field; `audit_blueprint_compile_status` buckets all BPs as `Unknown` until that gap is filled. Small follow-up C++ patch when host build cycle is open.
-- At 100 tools the user's explicit target is met. No new waves planned.
-
-**Twentieth consecutive closing-note. Session 2026-05-13 final.** Tool count: 100. Standing rules: 5 (delegation + bot-gate + mechanical-fix exception load-bearing). Token-overhead: ~55K cut per session-start.
-
----
+> **Note:** Consecutive closing notes 1 through 20 (sessions 2026-05-09 through 2026-05-13 final) are archived in [`HANDOFF-archive.md`](HANDOFF-archive.md). Only the latest three (21st-23rd) are kept active here.
 
 ## Session 2026-05-14 → 15 (PR #184 — scene-v7 + marketplace tools hardened through the full bot-review gate)
 
@@ -461,3 +403,48 @@ Follow-up commit `f1d60f3` bundled all bot-directed fixes. Mechanical-fix except
 - `inspect_blueprint` `blueprint_status` field state-check — cheap grep, not yet done.
 
 **Twenty-second consecutive closing-note.** Session 2026-05-15 single-window resume — bounded v8 item landed clean through the full bot-review gate in one bot pass + one follow-up. Tool count: 102. Standing rules: 5 (unchanged). Cadence intact.
+
+---
+
+## Session 2026-05-15 (PR #189 — marketplace_import multi-map PBR mode)
+
+Second bounded item picked from the 22nd-note parked list: complete the v2 promise of `marketplace_import` by adding opt-in `multi_map=true` so callers can pull a full PBR set in a single synthetic call instead of just the diffuse map. Default flow (diffuse-only) unchanged for back-compat.
+
+**What landed (PR #189, merge commit `9ee5a7d`):**
+
+- Two new bridge helpers: `_ambientcg_extract_pbr_maps(zip, dest_dir)` and `_polyhaven_pick_pbr_files(files, resolution, fmt)` — multi-map siblings of the existing single-map helpers. Same path-traversal safety (`os.path.basename` flatten) on the AmbientCG side; per-map format fallback (`png <-> jpg`) on the Polyhaven side so a mixed asset still resolves cleanly.
+- New top-level orchestrator `_marketplace_import_multimap` handles the fan-out: resolve table → download/extract all maps → one `import_texture` call per canonical map. Color first so its failure surfaces before secondary maps.
+- Canonical map set: `color`, `normal`, `roughness`, `ao`, `displacement`, `metalness`. Color is mandatory; other maps are best-effort and just absent from the response `maps` dict when the source doesn't ship them.
+- Normal preference: `_NormalGL` / `nor_gl` (UE's OpenGL tangent-space convention) wins over `_NormalDX` / `nor_dx`. **Note**: PR #189 originally dropped DX entirely — bot-review (CodeRabbit Major) caught it and follow-up `33afae8` added DX fallback so DX-only assets resolve their normal map.
+- New arg: `multi_map: bool = false`. Rejected for HDRIs and models (texture-only).
+- New response fields (multi-map mode only): `maps` dict (`canonical → UE asset path`) and `import_results` dict (`canonical → native passthrough`). `ue_asset_path` pinned to `maps['color']` for back-compat.
+- Naming in UE: Color stays at `<dest_name>` for back-compat; other maps land at `<dest_name>_<canonical>` (`<dest_name>_normal`, `<dest_name>_roughness`, etc.).
+- Catalog kept in sync: bridge `TOOLS` list, `mcp_manifest.json`, `docs/TOOLS.md` all describe the new arg + response fields + multi-map example.
+
+**Bot-review gate (rule #5 honored):**
+
+- Greptile P1 inline: partial-import on mid-fan-out failure leaves orphaned UE assets — color imports, normal fails, retry double-fails on stale color. Applied: error response now includes structured `data` block with `failed_map`, `imported_so_far` (map → asset path), `remaining_maps`, and a recovery `hint`. Caller can delete the orphans or retry with `replace_existing=true`.
+- Greptile P2: dead `_PBR_CANONICAL_MAPS` constant never referenced — iteration order is driven by the marker tables directly. Dropped.
+- Greptile P2: unreachable `if canonical not in extracted_paths: continue` guard inside fan-out loop — `map_order` is constructed from `extracted_paths.keys()` by definition. Removed.
+- CodeRabbit Major: DX-tangent normals dropped entirely from both marker tables. PR contract said GL *preferred over* DX, not GL-only. Added DX markers as fallback in both `_AMBIENTCG_MAP_MARKERS` (`_NormalDX` / `_normaldx`) and `_POLYHAVEN_MAP_KEYS` (`nor_dx` / `NormalDX`).
+- CodeRabbit Minor: `docs/TOOLS.md` param wording said `multi_map` rejection was HDRI-only when the documented error contract correctly says texture-only. Tightened to "valid solely when `asset_type='texture'`; rejected for HDRIs and models".
+
+Follow-up commit `33afae8` bundled all five bot-directed fixes plus three new regression tests (DX-only normal fallback on both backends + partial-failure `imported_so_far` shape). Mechanical-fix exception (CLAUDE.md rule #5) honored — same-branch surgical follow-up, no new logic, self-merge after CI green without second-pass bot review.
+
+**Tool/test totals:**
+
+- 102 tools (unchanged — PR #189 completes an existing tool's v2 promise, doesn't add a new one).
+- pytest: 413 → **430** (+17: 9 helper-level unit + 4 e2e/validation + 1 partial-failure + 1 NormalGL-preference + 2 DX-normal fallback).
+- Bridge coverage unchanged (~99%).
+- 25 PRs in cumulative lineage (#161 → #189).
+
+**Open follow-ups (carried forward from 22nd note, now reduced):**
+
+- HDRI cubemap conversion (longlat → cubemap; no Python wrapper found in 5.7) — still parked.
+- Sequencer keyframe authoring + Movie Render Queue — still attended-Codex C++ work.
+- Host UE cold-rebuild for the 7 Wave A/A.5 C++ handlers — still pending; bridge-side schemas correct so MCP clients see all 102 entries, calls to the new C++ tools return `-32601` until rebuild.
+- Local OSS LLM daemon empty-list bug — admin shell needed; pre-commit local-ensemble unavailable until fixed.
+- `inspect_blueprint.blueprint_status` field — **closed** this session via grep: PR #183 already shipped it at `Handler_InspectBlueprint.cpp` line 79.
+- v8 follow-ups list from 21st note: multi-map PBR — **closed by this PR**. AmbientCG zip-archive unpack — closed by PR #187. Two items remain (HDRI cubemap conversion, T1/T2/T3 reshoot under v7 textured lighting).
+
+**Twenty-third consecutive closing-note.** Session 2026-05-15 still single-window — three PRs landed in sequence (#187 AmbientCG zip, #188 HANDOFF rotation, #189 multi-map PBR). Bot-review gate caught real bugs every time (orphan recovery, DX-normal coverage) — worth the latency. Tool count: 102. Standing rules: 5 (unchanged). Cadence intact.
