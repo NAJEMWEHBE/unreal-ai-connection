@@ -2,7 +2,7 @@
 
 # Unreal Claude MCP
 
-**Drive Unreal Engine 5 from Claude Code over a local TCP socket.**
+**Drive Unreal Engine 5 from any MCP-compliant client over a local TCP socket.**
 
 102 tools total. Zero pixel-clicking. ~50ms round-trip.
 
@@ -11,8 +11,8 @@
 [![Unreal Engine](https://img.shields.io/badge/Unreal_Engine-5.7-313131?logo=unrealengine)](https://www.unrealengine.com/)
 [![Python](https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![MCP](https://img.shields.io/badge/MCP-compatible-7c3aed)](https://modelcontextprotocol.io/)
-[![Tests](https://img.shields.io/badge/pytest-396_passing-success?logo=pytest&logoColor=white)](tests/)
-[![Tools](https://img.shields.io/badge/tools-100-blue)](docs/TOOLS.md)
+[![Tests](https://img.shields.io/badge/pytest-400_passing-success?logo=pytest&logoColor=white)](tests/)
+[![Tools](https://img.shields.io/badge/tools-102-blue)](docs/TOOLS.md)
 [![Changelog](https://img.shields.io/badge/changelog-keep_a_changelog-orange)](CHANGELOG.md)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](#contributing)
 

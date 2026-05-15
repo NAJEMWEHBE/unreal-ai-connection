@@ -31,7 +31,35 @@ Per-tool details live in [`docs/TOOLS.md`](docs/TOOLS.md); architecture and the 
 - **Drift narrative cleanup** ([PR #141](https://github.com/NAJEMWEHBE/UnrealClaudeMCP/pull/141)). Bridge module docstring + TOOLS preamble comment + manifest description + TOOLS.md L16 + ARCHITECTURE.md mermaid Bridge node label all reconciled to the canonical 80 / 64 / 16 counts (was claiming 75 / 11).
 - **README polish** ([PR #154](https://github.com/NAJEMWEHBE/UnrealClaudeMCP/pull/154)). Added `pytest 282 passing` + `tools 80` static badges; new "Development workflow" Status row documenting the multi-agent ensemble (slot-level — specific identifiers stay private); expanded the "Tools" row to spell out the C++ / synthetic boundary explicitly.
 
-### Internal
+### Added (post-2026-05-13 — Wave A through PR #185)
+
+- **`marketplace_search` + `marketplace_import` synthetic tools** ([PR #184](https://github.com/NAJEMWEHBE/UnrealClaudeMCP/pull/184)). Browse public CC0 asset libraries (Polyhaven default + AmbientCG fan-out via `source=all`) and pull textures / HDRIs straight into the project as `UTexture2D` via the native `import_texture` handler. stdlib-only (`urllib.request`), no auth, no API key. Client-side AND-token filter across slug + name + tags + categories with `download_count`-desc ranking. Per-source quota when `source=all`. URL-encoded slug + non-https URL guard + allowlist-sanitised `resolution` / `fmt` before composing the temp filename. `.part` cleanup on failure. Format-fallback returns the chosen format so the temp suffix matches the actual downloaded body. Polyhaven API access terms (non-commercial / academic) called out in the tool descriptions distinct from the CC0 asset terms.
+- **Wave D — utility synthetics** ([PR #169](https://github.com/NAJEMWEHBE/UnrealClaudeMCP/pull/169)). `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`. Tool count 96 → 100 ← user-defined milestone.
+- **Wave C — actor-batch synthetics** ([PR #168](https://github.com/NAJEMWEHBE/UnrealClaudeMCP/pull/168)). `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`. Tool count 92 → 96.
+- **Wave B — asset-hygiene synthetics** ([PR #167](https://github.com/NAJEMWEHBE/UnrealClaudeMCP/pull/167)). `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`. Tool count 88 → 92.
+- **Wave A.5 — `pie_control` + `inspect_project_setting`** ([PR #162](https://github.com/NAJEMWEHBE/UnrealClaudeMCP/pull/162)). `pie_control` wraps `GEditor->RequestPlaySession` / `RequestEndPlayMap` / `IsPlayingSessionInEditor` with action=start|stop|query + mode=play|simulate. `inspect_project_setting` reflects any `UDeveloperSettings` subclass. Tool count 86 → 88. First pre-COMMIT multi-agent ensemble review window (caught one BLOCKER + two MAJOR findings at design phase, zero rework cost).
+- **Wave A — quick-win tools** ([PR #161](https://github.com/NAJEMWEHBE/UnrealClaudeMCP/pull/161)). `get_engine_version`, `list_levels`, `save_dirty_assets`, `get_selected_actors`, `inspect_input_mappings`, `bulk_inspect_assets`. Tool count 80 → 86.
+- **Standing rules #4 + #5 codified** ([PR #165](https://github.com/NAJEMWEHBE/UnrealClaudeMCP/pull/165)). Delegation-by-default (rule #4) and bot-review gate before merge (rule #5), with mechanical-fix follow-up exception.
+- **HANDOFF active/archive split** ([PR #166](https://github.com/NAJEMWEHBE/UnrealClaudeMCP/pull/166)). HANDOFF.md from 1509 → 516 lines (active rolling-3 invariant); 941 lines moved to HANDOFF-archive.md. ~36K tokens saved per session-start.
+- **`inspect_blueprint` emits `blueprint_status` field** ([PR #183](https://github.com/NAJEMWEHBE/UnrealClaudeMCP/pull/183)). Closes the `audit_blueprint_compile_status` gap that was bucketing every Blueprint as `Unknown`.
+- **Scene-build v3 → v7 trajectory** ([PR #181](https://github.com/NAJEMWEHBE/UnrealClaudeMCP/pull/181) and [PR #184](https://github.com/NAJEMWEHBE/UnrealClaudeMCP/pull/184)). Reconstructed desert scene from UE primitives + atmosphere. Brightness retune v3 burnout → v4 hell-red → v6/v6.1/v7 daylight (sun 2600K → 5500K, pitch −3° → −35°, fog density 0.12 → 0.04, post-process bias −1.8 → 0.0, saturation neutralised). Staged-capture flag (`builtins.DESERT_BUILD_STAGE`) for orchestrated workflow captures. Textured-MI rebuild over five Polyhaven CC0 assets via a procedurally-built `M_TexturedSurface` master material.
+- **21st HANDOFF closing-note** ([PR #185](https://github.com/NAJEMWEHBE/UnrealClaudeMCP/pull/185)). Single-session note for the PR #184 AFK-resume window. Rotated the 18th note to archive per the rolling-three invariant.
+
+### Changed (post-2026-05-13)
+
+- **`set_actor_property` polymorphic-typed schema** ([PR #182](https://github.com/NAJEMWEHBE/UnrealClaudeMCP/pull/182)). `value` field accepts the multi-typed union (`bool`, `number`, `string`, object) declared as `oneOf` rather than untyped.
+- **Bot-review gate hardened across PR #184's six commits**. Real bugs caught and fixed in flight: SSRF via non-https URL in `_marketplace_http_download`, format-fallback / temp-suffix mismatch in `_polyhaven_pick_file`, missing `STAGE_DONE_T4_hero` marker in `build_desert_scene.py`, `mi_crate` gated on the wrong texture branch, `replace_existing` bool coercion accepting truthy strings, `source=all` fan-out skipping AmbientCG when Polyhaven filled the quota, `builtins.DESERT_BUILD_STAGE` leaking across UE Python runs, path-traversal vector in temp filename from caller-controlled `resolution` / `fmt`, dead `if status < 200 or status >= 300` branches in `urlopen` wrappers (unreachable since urlopen raises HTTPError pre-return), missing `.part` cleanup on download failure, missing URL-encode on `/files/{slug}` slug.
+- **Vendor-neutral manifest description** ([PR #184](https://github.com/NAJEMWEHBE/UnrealClaudeMCP/pull/184)). Hard-coded product-name list (`Claude Code, Codex CLI, Cursor, Gemini CLI, Continue, ...`) removed from the shipped `mcp_manifest.json` description field. Generic "any MCP-compliant client" framing.
+- **Plugin diet** (HANDOFF.md). User-wide Claude Code plugin set trimmed 68 → 12 (`caveman`, `claude-md-management`, `claude-mem`, `code-modernization`, `codex`, `commit-commands`, `feature-dev`, `github`, `mcp-server-dev`, `nvidia-models`, `security-guidance`, `superpowers`). Project-level `.claude/settings.local.json` override kept the cheap GSD hooks (context-monitor + statusline), dropped the workflow-guard set this project doesn't use. ~55-65K tokens saved per session-start.
+
+### Internal (post-2026-05-13)
+
+- Tool count: 80 → **102** (+22 — 6 Wave A + 2 Wave A.5 + 4 Wave B + 4 Wave C + 4 Wave D + 2 marketplace synthetics).
+- Split: 64 C++ + 16 synthetic → **71 C++ + 31 synthetic**.
+- `pytest` cases: 283 → **400** (+117).
+- 26 PRs (#161 → #185) merged across two autopilot-extension windows + one AFK-resume window 2026-05-13 → 2026-05-15.
+
+### Internal (2026-05-12 → 13 hardening window)
 
 - `pytest` cases: 243 → 283 (+40) across the session.
 - 80 tools (64 C++ + 16 bridge-side synthetic) unchanged — the focus of this window was hardening the scaffolding around the existing surface, not net-new tools.
