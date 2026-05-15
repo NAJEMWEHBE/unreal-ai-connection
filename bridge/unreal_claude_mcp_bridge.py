@@ -5088,9 +5088,6 @@ def _marketplace_http_get_json(url: str) -> tuple[dict | list | None, dict | Non
     req = urllib.request.Request(url, headers={"User-Agent": _MARKETPLACE_USER_AGENT, "Accept": "application/json"})
     try:
         with urllib.request.urlopen(req, timeout=_MARKETPLACE_TIMEOUT_SECS) as resp:
-            status = getattr(resp, "status", 200)
-            if status < 200 or status >= 300:
-                return None, {"code": -32603, "message": f"http_error: status={status} url={url}"}
             body = resp.read()
     except urllib.error.HTTPError as e:
         return None, {"code": -32603, "message": f"http_error: status={e.code} url={url}: {e.reason}"}
@@ -5107,31 +5104,40 @@ def _marketplace_http_get_json(url: str) -> tuple[dict | list | None, dict | Non
 def _marketplace_http_download(url: str, dest_path: str) -> dict | None:
     """Stream a binary URL to dest_path. Returns None on success or an
     error dict suitable for `make_response`. Atomic-ish: writes to
-    dest_path + ".part" then renames."""
+    dest_path + ".part" then renames. On any failure mid-download the
+    .part file is removed so it does not orphan in the temp dir."""
     import urllib.request
     import urllib.error
     import os
     tmp = dest_path + ".part"
     req = urllib.request.Request(url, headers={"User-Agent": _MARKETPLACE_USER_AGENT})
+    err_result: dict | None = None
     try:
         with urllib.request.urlopen(req, timeout=_MARKETPLACE_TIMEOUT_SECS) as resp, open(tmp, "wb") as out:
-            status = getattr(resp, "status", 200)
-            if status < 200 or status >= 300:
-                return {"code": -32603, "message": f"http_error: download status={status} url={url}"}
             while True:
                 chunk = resp.read(64 * 1024)
                 if not chunk:
                     break
                 out.write(chunk)
     except urllib.error.HTTPError as e:
-        return {"code": -32603, "message": f"http_error: status={e.code} url={url}: {e.reason}"}
+        err_result = {"code": -32603, "message": f"http_error: status={e.code} url={url}: {e.reason}"}
     except urllib.error.URLError as e:
-        return {"code": -32603, "message": f"network_error: url={url}: {e.reason}"}
+        err_result = {"code": -32603, "message": f"network_error: url={url}: {e.reason}"}
     except Exception as e:
-        return {"code": -32603, "message": f"download_failed: url={url}: {e}"}
+        err_result = {"code": -32603, "message": f"download_failed: url={url}: {e}"}
+    if err_result is not None:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        return err_result
     try:
         os.replace(tmp, dest_path)
     except Exception as e:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
         return {"code": -32603, "message": f"rename_failed: {tmp} -> {dest_path}: {e}"}
     return None
 
@@ -5419,8 +5425,10 @@ def synthetic_marketplace_import(req_id, args: dict) -> dict:
         })
     dest_name = args.get("dest_name") or slug
 
-    # 1. Resolve download URL.
-    files_url = f"https://api.polyhaven.com/files/{slug}"
+    # 1. Resolve download URL. URL-encode the slug so a value containing
+    # '/', '?', or '#' cannot escape the /files/{slug} path.
+    import urllib.parse as _urlparse
+    files_url = f"https://api.polyhaven.com/files/{_urlparse.quote(slug, safe='')}"
     files, err = _marketplace_http_get_json(files_url)
     if err is not None:
         return make_response(req_id, error=err)
@@ -5436,13 +5444,20 @@ def synthetic_marketplace_import(req_id, args: dict) -> dict:
     # 2. Download to temp. Suffix derives from the chosen format (which
     # may differ from the requested fmt when a fallback fires), so
     # downstream `import_texture` extension-validation picks the right
-    # importer.
+    # importer. Each path-component is allowlist-sanitised to block any
+    # caller-supplied traversal sequences (e.g. "../") from steering the
+    # write outside the temp dir.
     import tempfile
     import os
-    suffix = "." + (chosen_fmt or fmt or "bin")
+    def _safe_path_token(s: str, default: str) -> str:
+        cleaned = "".join(c for c in (s or "") if c.isalnum() or c in "._-")
+        return cleaned or default
+    safe_slug = _safe_path_token(slug, "slug")
+    safe_resolution = _safe_path_token(resolution, "res")
+    safe_fmt = _safe_path_token(chosen_fmt or fmt, "bin")
+    suffix = "." + safe_fmt
     tmp_dir = tempfile.gettempdir()
-    safe_slug = "".join(c for c in slug if c.isalnum() or c in "._-")
-    tmp_path = os.path.join(tmp_dir, f"marketplace_{safe_slug}_{resolution}{suffix}")
+    tmp_path = os.path.join(tmp_dir, f"marketplace_{safe_slug}_{safe_resolution}{suffix}")
     dl_err = _marketplace_http_download(download_url, tmp_path)
     if dl_err is not None:
         return make_response(req_id, error=dl_err)
