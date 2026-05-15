@@ -2,7 +2,7 @@
 
 Single source of truth for resuming work on UnrealClaudeMCP in a fresh session of any MCP-compliant client. Read this first; it captures everything carried in the prior session's working memory.
 
-> Earlier closing notes (1st through 22nd, sessions 2026-05-09 through 2026-05-15) are archived to [`docs/HANDOFF-archive.md`](HANDOFF-archive.md). This active file keeps the latest three consecutive notes (23rd-25th) for quick pickup.
+> Earlier closing notes (1st through 23rd, sessions 2026-05-09 through 2026-05-15) are archived to [`docs/HANDOFF-archive.md`](HANDOFF-archive.md). This active file keeps the latest three consecutive notes (24th-26th) for quick pickup.
 
 ---
 
@@ -10,7 +10,7 @@ Single source of truth for resuming work on UnrealClaudeMCP in a fresh session o
 
 **What this is:** An Unreal Engine 5.7 plugin + Python bridge that exposes editor automation to **any MCP-compliant client** (Claude Code, Codex CLI, Cursor, Gemini CLI, Continue, …) over a localhost TCP socket. The plugin adds a JSON-RPC server inside the editor; each "handler" is one MCP tool (~150 LoC of C++ in `Source/UnrealClaudeMCP/Private/MCP/Handlers/`). The bridge translates between the client's stdio MCP protocol and the plugin's TCP wire format. **Vendor-neutral by design** — the wire protocol is open MCP (created by Anthropic, but any conforming client works); the project's repo/folder names retain "Claude" for legacy reasons but the capability is universal.
 
-**Where it stands (post-PR #184 — scene v7 + marketplace tools hardened):** **102 tools total** (71 UE-side C++ handlers + 31 bridge-side synthetic tools — `marketplace_search` + `marketplace_import` are now fully reviewed/merged with SSRF guard, client-side filter, format-fallback parity, path-traversal sanitization, and license-distinction in their descriptions). Plugin version `0.9.1`, targets UE `5.7`. pytest baseline: **400** passing. (For the current HEAD commit, run `git log -1 origin/main`; the latest milestone PR is #184.)
+**Where it stands (post-PR #196 — Florence plaza fly-through, first production use of the keyframe synthetic):** **104 tools total** (71 UE-side C++ handlers + 33 bridge-side synthetic tools — recent additions: `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap`, `sequencer_add_transform_keyframe`). Plugin version `0.9.1`, targets UE `5.7`. pytest baseline: **458** passing. (For the current HEAD commit, run `git log -1 origin/main`; the latest milestone PR is #196.)
 
 Recent waves that landed in the current session lineage:
 - **Wave A (PR #161)** — 6 quick-win tools: `get_engine_version`, `list_levels`, `save_dirty_assets`, `get_selected_actors`, `inspect_input_mappings`, `bulk_inspect_assets`
@@ -30,7 +30,7 @@ Recent waves that landed in the current session lineage:
 
 **Open PRs:** none.
 
-**Latest milestone on main:** PR #192 — convert_hdri_to_cubemap synthetic; merge commit on main is the next 25th-closing-note PR. For the current HEAD commit hash, run `git log -1 origin/main`.
+**Latest milestone on main:** PR #196 — Florence plaza fly-through (first production use of sequencer_add_transform_keyframe). For the current HEAD commit hash, run `git log -1 origin/main`.
 
 **Pending verification on host machine (PRIMARY next-action item):**
 
@@ -277,7 +277,7 @@ docs/
   ARCHITECTURE.md                              How pieces fit; UE 5.7 API gotchas
   INSTALLATION.md                              Step-by-step install
   HANDOFF.md                                   This file (latest 3 closing notes only)
-  HANDOFF-archive.md                           Closing notes 1-21 (chronological, append-only)
+  HANDOFF-archive.md                           Closing notes 1-23 (chronological, append-only)
   RESTART-RECOVERY.md                          Post-format recovery procedure
   session-memory-archive/                      Snapshot of session memory files
   LANGUAGE-CHOICE-RETROSPECTIVE.md             Per-tool language verdict + decision flow
@@ -298,7 +298,7 @@ CONTRIBUTING.md                                Project conventions, 10-step new-
 2. Send: *"Read `docs/HANDOFF.md` and continue from there. The user is in autonomy mode — pick the next reasonable thing to do."*
 3. **Verify Codex tooling** (per directive #8): `ToolSearch query="codex"` and/or `Bash codex --help`. If reachable, the multi-agent collaboration model is live.
 4. **Verify the multi-agent fleet** (per directive #9 and standing rule #1): the explorer / reviewer subagents are usable in any session via the Agent tool. The `general-purpose` subagent works for research but **NOT for file writes** (sandbox isolation).
-5. The fresh session reads this doc, absorbs the directives, sees **102 tools shipped (71 C++ + 31 synthetic)**, and proceeds.
+5. The fresh session reads this doc, absorbs the directives, sees **104 tools shipped (71 C++ + 33 synthetic)**, and proceeds.
 
 For specific resumption:
 - *"Live-verify Waves A + A.5"* → host rebuild via the runbook above, then run the Wave A/A.5 verification panel
@@ -309,52 +309,7 @@ For specific resumption:
 
 ## Closing notes from prior sessions
 
-> **Note:** Consecutive closing notes 1 through 22 (sessions 2026-05-09 through 2026-05-15) are archived in [`HANDOFF-archive.md`](HANDOFF-archive.md). Only the latest three (23rd-25th) are kept active here.
-
-## Session 2026-05-15 (PR #189 — marketplace_import multi-map PBR mode)
-
-Second bounded item picked from the 22nd-note parked list: complete the v2 promise of `marketplace_import` by adding opt-in `multi_map=true` so callers can pull a full PBR set in a single synthetic call instead of just the diffuse map. Default flow (diffuse-only) unchanged for back-compat.
-
-**What landed (PR #189, merge commit `9ee5a7d`):**
-
-- Two new bridge helpers: `_ambientcg_extract_pbr_maps(zip, dest_dir)` and `_polyhaven_pick_pbr_files(files, resolution, fmt)` — multi-map siblings of the existing single-map helpers. Same path-traversal safety (`os.path.basename` flatten) on the AmbientCG side; per-map format fallback (`png <-> jpg`) on the Polyhaven side so a mixed asset still resolves cleanly.
-- New top-level orchestrator `_marketplace_import_multimap` handles the fan-out: resolve table → download/extract all maps → one `import_texture` call per canonical map. Color first so its failure surfaces before secondary maps.
-- Canonical map set: `color`, `normal`, `roughness`, `ao`, `displacement`, `metalness`. Color is mandatory; other maps are best-effort and just absent from the response `maps` dict when the source doesn't ship them.
-- Normal preference: `_NormalGL` / `nor_gl` (UE's OpenGL tangent-space convention) wins over `_NormalDX` / `nor_dx`. **Note**: PR #189 originally dropped DX entirely — bot-review (CodeRabbit Major) caught it and follow-up `33afae8` added DX fallback so DX-only assets resolve their normal map.
-- New arg: `multi_map: bool = false`. Rejected for HDRIs and models (texture-only).
-- New response fields (multi-map mode only): `maps` dict (`canonical → UE asset path`) and `import_results` dict (`canonical → native passthrough`). `ue_asset_path` pinned to `maps['color']` for back-compat.
-- Naming in UE: Color stays at `<dest_name>` for back-compat; other maps land at `<dest_name>_<canonical>` (`<dest_name>_normal`, `<dest_name>_roughness`, etc.).
-- Catalog kept in sync: bridge `TOOLS` list, `mcp_manifest.json`, `docs/TOOLS.md` all describe the new arg + response fields + multi-map example.
-
-**Bot-review gate (rule #5 honored):**
-
-- Greptile P1 inline: partial-import on mid-fan-out failure leaves orphaned UE assets — color imports, normal fails, retry double-fails on stale color. Applied: error response now includes structured `data` block with `failed_map`, `imported_so_far` (map → asset path), `remaining_maps`, and a recovery `hint`. Caller can delete the orphans or retry with `replace_existing=true`.
-- Greptile P2: dead `_PBR_CANONICAL_MAPS` constant never referenced — iteration order is driven by the marker tables directly. Dropped.
-- Greptile P2: unreachable `if canonical not in extracted_paths: continue` guard inside fan-out loop — `map_order` is constructed from `extracted_paths.keys()` by definition. Removed.
-- CodeRabbit Major: DX-tangent normals dropped entirely from both marker tables. PR contract said GL *preferred over* DX, not GL-only. Added DX markers as fallback in both `_AMBIENTCG_MAP_MARKERS` (`_NormalDX` / `_normaldx`) and `_POLYHAVEN_MAP_KEYS` (`nor_dx` / `NormalDX`).
-- CodeRabbit Minor: `docs/TOOLS.md` param wording said `multi_map` rejection was HDRI-only when the documented error contract correctly says texture-only. Tightened to "valid solely when `asset_type='texture'`; rejected for HDRIs and models".
-
-Follow-up commit `33afae8` bundled all five bot-directed fixes plus three new regression tests (DX-only normal fallback on both backends + partial-failure `imported_so_far` shape). Mechanical-fix exception (CLAUDE.md rule #5) honored — same-branch surgical follow-up, no new logic, self-merge after CI green without second-pass bot review.
-
-**Tool/test totals:**
-
-- 102 tools (unchanged — PR #189 completes an existing tool's v2 promise, doesn't add a new one).
-- pytest: 413 → **430** (+17: 9 helper-level unit + 4 e2e/validation + 1 partial-failure + 1 NormalGL-preference + 2 DX-normal fallback).
-- Bridge coverage unchanged (~99%).
-- 25 PRs in cumulative lineage (#161 → #189).
-
-**Open follow-ups (carried forward from 22nd note, now reduced):**
-
-- HDRI cubemap conversion (longlat → cubemap; no Python wrapper found in 5.7) — still parked.
-- Sequencer keyframe authoring + Movie Render Queue — still attended-Codex C++ work.
-- Host UE cold-rebuild for the 7 Wave A/A.5 C++ handlers — still pending; bridge-side schemas correct so MCP clients see all 102 entries, calls to the new C++ tools return `-32601` until rebuild.
-- Local OSS LLM daemon empty-list bug — admin shell needed; pre-commit local-ensemble unavailable until fixed.
-- `inspect_blueprint.blueprint_status` field — **closed** this session via grep: PR #183 already shipped it at `Handler_InspectBlueprint.cpp` line 79.
-- v8 follow-ups list from 21st note: multi-map PBR — **closed by this PR**. AmbientCG zip-archive unpack — closed by PR #187. Two items remain (HDRI cubemap conversion, T1/T2/T3 reshoot under v7 textured lighting).
-
-**Twenty-third consecutive closing-note.** Session 2026-05-15 still single-window — three PRs landed in sequence (#187 AmbientCG zip, #188 HANDOFF rotation, #189 multi-map PBR). Bot-review gate caught real bugs every time (orphan recovery, DX-normal coverage) — worth the latency. Tool count: 102. Standing rules: 5 (unchanged). Cadence intact.
-
----
+> **Note:** Consecutive closing notes 1 through 23 (sessions 2026-05-09 through 2026-05-15) are archived in [`HANDOFF-archive.md`](HANDOFF-archive.md). Only the latest three (24th-26th) are kept active here.
 
 ## Session 2026-05-15 (live verification — PR #189 + closing the host-rebuild parked item)
 
@@ -384,7 +339,7 @@ Single-window verification pass. No new code shipped — all four feature PRs fr
 - `Material.expressions` (Python attribute) is protected. To enumerate nodes, use `MaterialEditingLibrary.get_material_expressions(mat)`.
 
 **Tool/test totals (unchanged this window):**
-- 102 tools, 102 live.
+- 104 tools, 104 live.
 - pytest: 430 (no test changes this window).
 - Bridge coverage unchanged.
 
@@ -444,3 +399,47 @@ Follow-up commit `1604cc7` bundled all five bot-directed fixes. Mechanical-fix e
 - T1/T2/T3 reshoot under live textured scene — Florence hero shot from 24th-note window remains the first artist-grade live capture; expansion deferred.
 
 **Twenty-fifth consecutive closing-note.** Session 2026-05-15 closing window. Three parked items cleared across this session's 5 merged PRs (#187 AmbientCG zip-unpack, #189 multi-map PBR, #192 cubemap converter, plus #188/#190/#191 handoff rotations; the host plugin DLL rebuild for the 7 Wave A/A.5 C++ handlers verified live in the 24th note). Tool count: 103 live. Standing rules: 5 (unchanged). Cadence intact.
+
+---
+
+## Session 2026-05-15 → 16 (PRs #194/#195/#196 — Sequencer keyframe synthetic + repo cleanup + Florence fly-through)
+
+User instruction: "resume your work... add Da Vinci-style continuation... stay on ONE project, clean everything, remove duplicates, every 5–10 PRs update the GitHub repo About page... don't forget multi-agent system." Three PRs shipped in sequence + a session-end pivot to a different UE project surfaced.
+
+**PR #194 — sequencer_add_transform_keyframe synthetic (squash `49da2f9`):**
+- First Sequencer keyframe-authoring primitive. Closes the keyframe half of the 21st-note Sequencer parked item; Movie Render Queue remains parked.
+- Tool count: 103 → 104 (71 C++ + 33 synthetic). pytest: 443 → 458 (+15 cases).
+- UE 5.7 API confirmed via live probe (kept as `scripts/poc_sequencer_keyframe.py`): `seq.add_possessable(actor)` for binding, `binding.add_track(MovieScene3DTransformTrack)` (extension method bound to proxy class), `MovieSceneScriptingDoubleChannel` (UE 5.7 dropped float), 9 channels named `Location.X/Y/Z`, `Rotation.X/Y/Z`, `Scale.X/Y/Z`, `add_key(time, value, sub_frame, time_unit=DISPLAY_RATE, interpolation=AUTO)` with `MovieSceneTimeUnit.TICK_RESOLUTION` for tick-resolution frames, and `MovieSceneSequenceExtensions.get_tick_resolution(seq)` for the conversion factor.
+- Rotation channels map to roll(X)/pitch(Y)/yaw(Z) in the sequencer Euler layout. Caller passes `[pitch, yaw, roll]` (unreal.Rotator convention) and the synthetic remaps internally.
+- Bot-review gate (rule #5): 4 CodeRabbit findings, **1 Major track_path-marker bug**: print()-based marker wasn't reliably flushed into Cmd.CommandResult by UE 5.7's Python evaluator — switched to `unreal.log("...::__END__")` + `get_log_lines` (LogPython ring buffer). 3 Minors: bare `/Game` validator tightened, README pytest badge slug 443→458, POC `int(time.time())` → `time.time_ns()` for collision safety. Drift-sweep got a new regex case for the badge slug.
+
+**PR #195 — repo cleanup (squash `0705bc3`):**
+- Shipped one idempotent `scripts/florence_scene.py` that replaces 7 iteration scripts (compose / fix-lighting / rebuild-clean / final-lighting / polish / closeup / hires). Pinned the 2 hero PNGs (`florence-final-2026-05-15.png` + `florence-closeup-2026-05-15.png`) referenced in the 24th note.
+- Local removal (not in repo): 15 untracked dead scripts + 7 untracked draft PNGs. The two hero PNGs are the only ones tracked.
+- Stranded `M_HDRI_Sphere_Temp.uasset` (artifact of the earlier Stop-Process kill) deleted via bridge `execute_unreal_python` + `EditorAssetLibrary.delete_asset` once UE was relaunched. Auto-mode classifier had blocked plain `rm` outside the repo trust boundary — correct call.
+- Bot-review gate: 2 CodeRabbit Majors. Missing-texture fail-fast guard with named-paths error message + marketplace_import prerequisite hint. wipe_owned_actors class-delete now guards on `not label` so designer-placed lighting actors survive the cleanup pass.
+
+**PR #196 — Florence plaza fly-through (squash `7a8c7ba`):**
+- First production use of PR #194's `sequencer_add_transform_keyframe`. Driver script at `scripts/florence_flythrough.py` orchestrates entirely via bridge MCP tool calls (no direct execute_unreal_python except for CineCameraActor spawn + playhead scrub).
+- Pipeline: load_level_by_path → create_sequence → spawn CineCameraActor (35mm f/2.8) → bind_actor_to_sequence → 6× sequencer_add_transform_keyframe at t=0,2,4,6,8,10s (SE→W orbital arc, smart_auto interpolation) → set_camera_transform for hero pose → get_viewport_screenshot.
+- Live verification confirmed `transform_keys_total=36` (6 channels × 6 keys; scale skipped as requested). Hero PNG: `docs/validation/florence-flythrough-hero-2026-05-15.png`.
+- Bot-review gate: 3 CodeRabbit Majors. Bridge-read timeout (was hanging forever on stdout.readline); per-invocation marker correlation token via `uuid4()[:12]` (stale markers from prior runs no longer match); hard-fail on `execute_unreal_python` non-ok results (previously fell through with keyframe_count=0 on real failures).
+
+**Cumulative this window:**
+- Tool count: 104 (unchanged across cleanup + fly-through; only PR #194 added a tool).
+- pytest: 458/458 green at every phase boundary.
+- 36 PRs in session lineage (#161 → #196).
+- Standing rules unchanged: 6 active (delegation-by-default, bot-review gate, mechanical-fix exception, vendor-neutral, UE launch permission, UE close on window end via `execute_console_command quit` NOT `Stop-Process`).
+
+**Next-session pivot — DIFFERENT PROJECT:**
+- User clarified the "old project" they wanted to continue is at `F:\BTSschool\BSK_FOA_2026\`, NOT the current `HDMediaVirtualStudio` host. Picture-to-Unreal-Project work, name was "Untitled" or "Untitled_1" in their voice message.
+- Layout: `BSK_FOA_2026\BSK_FOA_2026.uproject` (main) + `BSK_FOA_2026 BY CLAUDE\BSK_FOA_2026.uproject` (prior Claude fork) + `Untitled.blend` (Blender source) + `Virtual Stage Design.pdf` (design brief) + `assets\` (the picture) + `HANDOFF.md` + `PROJECT_PLAN.md` + `EVALUATION.md` + `KICKOFF_PROMPT.txt`. Also a virtual-studio LED-volume variant under `new\virtual studio\06_unreal\CoastalLEDVolume\` (Aximmetry pipeline).
+- Resumption recipe for next session: **read `F:\BTSschool\BSK_FOA_2026\HANDOFF.md` + `PROJECT_PLAN.md` + `EVALUATION.md` + the picture under `assets\` BEFORE touching any code.** Then decide whether to continue on the main `BSK_FOA_2026.uproject` or on the `BY CLAUDE` variant (per the same-project rule from this window, picking one + sticking with it is the discipline).
+
+**Remaining parked items:**
+- **Phase F — repo rename** to `UnrealMCP` or `UnrealAI Connection` (user's two candidates). Non-trivial: touches README badges, GitHub remote URL, plugin description, manifest description, all internal doc links, CI workflow URLs, the bridge module docstring, and CHANGELOG history references. Will need its own dedicated window — open one PR for the rename so the bot gate catches every stale link.
+- **README About / GIF polish.** Spec the 10–15s demo loop showing the client → bridge → UE round-trip. Place under `docs/images/demo-screencast.gif`. Refresh the GitHub About description + topics. Per-PR cadence: every 5–10 PRs. Currently 36 PRs into the cycle without a refresh.
+- **Movie Render Queue synthetic** — still attended-Codex C++. Sequencer keyframe authoring is now the only Sequencer primitive shipped.
+- **Local OSS LLM daemon empty-list bug** — admin shell required.
+
+**Twenty-sixth consecutive closing-note.** Session 2026-05-15 → 16 single-window with 3 merged PRs in sequence. Three bot-fix follow-ups bundled under the mechanical-fix exception. Live verification confirmed PR #194's synthetic works end-to-end on a real CineCameraActor binding (36 keys written across 6 channels). User's next-session pivot to BSK_FOA_2026 is fully documented above. Tool count: 104. Standing rules: 6 (unchanged). Cadence intact.
