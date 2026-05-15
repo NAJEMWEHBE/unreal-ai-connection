@@ -1,4 +1,4 @@
-# PR-Agent (Qodo) — self-hosted reviewer bot.
+# PR-Agent (Qodo) - self-hosted reviewer bot.
 #
 # Pinned to a tagged release (v0.35.0) on purpose: never run a third-party
 # review action from @main / @latest. An unpinned action is the same
@@ -37,7 +37,7 @@ jobs:
           OPENAI_KEY: ${{ secrets.OPENAI_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Conservative defaults: auto-review on PR open, no auto-describe /
-          # auto-improve (those mutate the PR body / push suggestions —
+          # auto-improve (those mutate the PR body / push suggestions -
           # opt in explicitly later if wanted).
           github_action_config.auto_review: "true"
           github_action_config.auto_describe: "false"
