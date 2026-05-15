@@ -1,8 +1,8 @@
 # Competitive analysis — Unreal + MCP ecosystem
 
-**Date:** 2026-05-16
+**As of:** 2026-05-15 (snapshot — metrics drift over time)
 **Scope:** This repo (`NAJEMWEHBE/UnrealClaudeMCP`) vs. 12 other Unreal + MCP projects + 3 marketplace listings.
-**Method:** WebFetch on each README + `gh api repos/<owner>/<repo>` + tree listings via the GitHub REST API. Tool counts are claimed-or-observed; CI/test claims verified via `.github/workflows/` listings; license + activity from API metadata. Three Explore sub-agents fanned out (~4 repos each) to keep token cost honest.
+**Method:** WebFetch on each README + `gh api repos/<owner>/<repo>` + tree listings via the GitHub REST API. Tool counts are claimed-or-observed from READMEs / manifests / tree listings; CI/test claims verified via `.github/workflows/` listings; license + activity from API metadata. Source code itself was not exhaustively audited. Three Explore sub-agents fanned out (~4 repos each) to keep token cost honest.
 
 This is an **honest** scorecard, not marketing. Where we lead is documented; where we lag is documented.
 
@@ -13,11 +13,11 @@ This is an **honest** scorecard, not marketing. Where we lead is documented; whe
 | Where this repo leads | Evidence |
 |---|---|
 | **Tool count** | 104 (71 C++ + 33 synthetic). Closest rival GenOrca has 68; everyone else ≤ 51. |
-| **Test coverage + CI** | 458 pytest cases, ~99% bridge coverage, CI on every push/PR. **All other repos surveyed have zero or near-zero test automation.** |
+| **Test coverage + CI** | 458 pytest cases, ~99% bridge coverage, CI on every push/PR. Two rivals (remiphilippe, ChiR24) ship CI workflows; none publish a comparable pytest count. |
 | **PBR / texture depth** | Multi-map import (color + normal + roughness + AO + displacement + metalness) via `marketplace_import` + longlat→cubemap via `convert_hdri_to_cubemap`. No rival ships either. |
 | **Sequencer authoring** | `sequencer_add_transform_keyframe` synthetic with caller-friendly `[pitch, yaw, roll]` Euler + `[location, rotation, scale]` partial keys + 5 interpolation modes. Two rivals (ChiR24, flopperam) mention "sequencer support"; neither documents a keyframe-authoring primitive. |
 | **Docs depth** | `docs/TOOLS.md` per-tool JSON schemas + examples (~3900 lines), `docs/HANDOFF.md` rolling-three session log, `docs/ARCHITECTURE.md` UE 5.7 traps catalogue. No rival ships comparable docs. |
-| **Vendor-neutrality** | 6+ clients explicitly: Claude Code, Cursor, Codex CLI, VS Copilot, Windsurf, Cline, Zed. Tied with `remiphilippe/mcp-unreal`; ahead of everyone else (most are Claude-only or Claude+Cursor). |
+| **Vendor-neutrality** | 7 clients explicitly: Claude Code, Cursor, Codex CLI, VS Copilot, Windsurf, Cline, Zed. Tied with `remiphilippe/mcp-unreal`; ahead of everyone else (most are Claude-only or Claude+Cursor). |
 
 | Where this repo lags | Evidence |
 |---|---|
@@ -38,7 +38,7 @@ This is an **honest** scorecard, not marketing. Where we lead is documented; whe
 |---|---|
 | Stars / Forks / Issues | **3 / 1 / 1** |
 | Created | 2026-05-07 |
-| Last commit | 2026-05-16 (today) |
+| Last commit | 2026-05-15 |
 | Primary language | Python (bridge) + C++ (plugin) |
 | License | MIT |
 | UE version range | **5.7** (Phase H roadmap: 4.27 → 5.8 preview) |
@@ -229,7 +229,7 @@ This is an **honest** scorecard, not marketing. Where we lead is documented; whe
 
 | Repo | Stars | Tool count | UE range | Sequencer | Cubemap/PBR | Tests | Clients | License |
 |---|---:|---:|---|---|---|---|---:|---|
-| **this repo** | **3** | **104** | 5.7 → 4.27+ (planned) | **Yes** (auth+kf) | **Yes (multi-map + cubemap)** | **458** | **7** | MIT |
+| **this repo** | **3** | **104** | 5.7 (planned: 4.27 → 5.8 preview) | **Yes** (auth+kf) | **Yes (multi-map + cubemap)** | **458** | **7** | MIT |
 | ChiR24/Unreal_mcp | 621 | 36 | 5.0–5.7 | Yes | Partial | Unknown CI | 2 | MIT |
 | VedantRGosavi/UE5-MCP | 397 | ? | unspecified | Unclear | "AI-generated textures" | None | unknown | other |
 | chongdashu/unreal-mcp | 304 | ≈ 10 | 5.5+ | No | No | None | 3 | MIT |
@@ -303,6 +303,6 @@ Distinct slugs that **do NOT collide** (recommended ordered by clarity):
 
 ## Closing note
 
-We are **technically ahead** on every dimension that survives a careful read of each rival's actual code (tool count, tests, sequencer authoring, multi-map PBR, longlat→cubemap, docs, vendor-neutrality), and **adoption-behind** by 1–2 orders of magnitude because the repo is one week old and not yet on any distribution channel. The technical lead is real and defensible; the awareness gap is fixable in 2–3 PR cycles (Phases G + F).
+We are **technically ahead** on every dimension that survives a careful read of each rival's README, manifest, and tree listing (tool count, tests, sequencer authoring, multi-map PBR, longlat→cubemap, docs, vendor-neutrality), and **adoption-behind** by 1–2 orders of magnitude because the repo is one week old and not yet on any distribution channel. The technical lead is real and defensible; the awareness gap is fixable in 2–3 PR cycles (Phases G + F).
 
 The honest takeaway: **this is not "the best" in the sense of most-starred or most-installed — yet.** It IS the most feature-complete + most-tested + most-honestly-vendor-neutral + most-documented Unreal+MCP plugin currently in the field. Closing the distribution gap is the next moat to dig.
