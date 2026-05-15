@@ -277,7 +277,7 @@ docs/
   ARCHITECTURE.md                              How pieces fit; UE 5.7 API gotchas
   INSTALLATION.md                              Step-by-step install
   HANDOFF.md                                   This file (latest 3 closing notes only)
-  HANDOFF-archive.md                           Closing notes 1-17 (chronological, append-only)
+  HANDOFF-archive.md                           Closing notes 1-21 (chronological, append-only)
   RESTART-RECOVERY.md                          Post-format recovery procedure
   session-memory-archive/                      Snapshot of session memory files
   LANGUAGE-CHOICE-RETROSPECTIVE.md             Per-tool language verdict + decision flow
