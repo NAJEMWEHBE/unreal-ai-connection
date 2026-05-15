@@ -9,7 +9,7 @@ AI-first code editor. MCP servers configured via `.cursor/mcp.json` (project-sco
    - **Global**: `~/.cursor/mcp.json` (Windows: `%USERPROFILE%\.cursor\mcp.json`).
 2. **Create the file** with the snippet below.
 3. **Replace the path** with your full path to `bridge/unreal_claude_mcp_bridge.py`.
-4. **Reload Cursor.** `Cmd/Ctrl+Shift+P` → *Reload Window*.
+4. **Refresh the tool list.** On Cursor v0.43+ the change is picked up automatically on file save (see Notes). On older versions, `Cmd/Ctrl+Shift+P` → *Reload Window*.
 5. **First-call test.** Open Cursor Chat (`Cmd/Ctrl+L`) and ask: *"Use the unreal-claude-mcp tool to call get_engine_version."*
 
 ## Config snippet

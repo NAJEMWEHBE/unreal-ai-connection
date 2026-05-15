@@ -48,11 +48,11 @@ First time Claude Code launches with this server in `.mcp.json`, it prompts you 
 
 ## Verification
 
-```
+```text
 > /mcp
 ```
 
-Should show `unreal-claude-mcp` → connected, 104 tools.
+Should show `unreal-claude-mcp` connected with the full tool list (currently 104; expect this number to grow over time). Run `get_engine_version` as the canonical first call.
 
 ## Notes
 

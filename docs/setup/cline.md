@@ -45,7 +45,7 @@ Open-source coding agent for VS Code (formerly Claude Dev). Config: `cline_mcp_s
 
 ## Verification
 
-Cline panel → **MCP Servers** tab → look for `unreal-claude-mcp` with a green dot. Click it to see all 104 tools.
+Cline panel → **MCP Servers** tab → look for `unreal-claude-mcp` with a green dot. Click it to see the published tool list. As a single-tool smoke test, ask Cline to call `get_engine_version`.
 
 ## Notes
 

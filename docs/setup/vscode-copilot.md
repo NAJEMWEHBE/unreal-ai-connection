@@ -40,7 +40,7 @@ GitHub Copilot's agent mode in VS Code reads MCP servers from `.vscode/mcp.json`
 
 ## Verification
 
-Copilot Chat (Agent mode) → 🛠️ tools button (input bar) → expand **MCP: unreal-claude-mcp**. All 104 tools should appear with checkboxes.
+Copilot Chat (Agent mode) → 🛠️ tools button (input bar) → expand **MCP: unreal-claude-mcp**. The published tool list should appear with checkboxes. Quickest sanity check: enable `get_engine_version` and call it.
 
 ## Notes
 
