@@ -33,7 +33,7 @@ gh auth login
 Then re-run the PR creation. Suggested title + body live in the rejected `gh pr create` command in this conversation's history; the body is preserved verbatim in the section below ("PR body, ready to paste").
 
 ### 2. UE HighResShot pipeline jammed
-After successfully writing `HighresScreenshot00007` through `00019`, every subsequent `HighResShot` dispatch (both via `mcp__unreal-claude-mcp__take_high_res_screenshot` and via direct `execute_console_command(None, 'HighResShot ...')`) reports `dispatched: true` but no new file appears in `F:/ax plug in/HDMediaVirtualStudio/Saved/Screenshots/WindowsEditor/`.
+After successfully writing `HighresScreenshot00007` through `00019`, every subsequent `HighResShot` dispatch (both via `mcp__unreal-ai-connection__take_high_res_screenshot` and via direct `execute_console_command(None, 'HighResShot ...')`) reports `dispatched: true` but no new file appears in `F:/ax plug in/HDMediaVirtualStudio/Saved/Screenshots/WindowsEditor/`.
 
 Diagnostic state at jam time:
 - UE editor process still alive (`get_engine_version` still responds)
@@ -114,9 +114,9 @@ Related drift the finding implies:
 
 ## Unverified claim from the sub-agent — review before adopting
 
-While drafting the design doc, the sub-agent inspected `_polyhaven_search` in `bridge/unreal_claude_mcp_bridge.py` (~line 5148) and claimed the Polyhaven `/assets` endpoint does NOT support a free-text `search=` query param server-side. If true, the current `qparts.append(f"search={urllib.parse.quote(query)}")` is a no-op and `marketplace_search` returns the full catalog instead of keyword-matched results.
+While drafting the design doc, the sub-agent inspected `_polyhaven_search` in `bridge/unreal_ai_connection_bridge.py` (~line 5148) and claimed the Polyhaven `/assets` endpoint does NOT support a free-text `search=` query param server-side. If true, the current `qparts.append(f"search={urllib.parse.quote(query)}")` is a no-op and `marketplace_search` returns the full catalog instead of keyword-matched results.
 
-The sub-agent then went out-of-scope and edited `bridge/unreal_claude_mcp_bridge.py` to filter client-side by tokens in name/tags/categories/slug + rank by `download_count` descending. **That edit has been reverted** — design-doc work shouldn't ship production-code changes without review, and the claim wasn't verified against the live Polyhaven API.
+The sub-agent then went out-of-scope and edited `bridge/unreal_ai_connection_bridge.py` to filter client-side by tokens in name/tags/categories/slug + rank by `download_count` descending. **That edit has been reverted** — design-doc work shouldn't ship production-code changes without review, and the claim wasn't verified against the live Polyhaven API.
 
 When you pick up PR #2, verify the claim first: `curl https://api.polyhaven.com/assets?search=rock` and compare against `curl https://api.polyhaven.com/assets`. If the `search=` query is honoured, leave the helper alone. If it's silently ignored, the sub-agent's client-side filter approach is the correct fix and can be reinstated as part of PR #2.
 

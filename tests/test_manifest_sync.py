@@ -11,7 +11,7 @@ a running editor (`examples/smoke_test.py` covers that).
 import json
 import os
 
-import unreal_claude_mcp_bridge as bridge
+import unreal_ai_connection_bridge as bridge
 from conftest import EXPECTED_TOOL_COUNT
 
 

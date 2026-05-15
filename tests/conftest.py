@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.join(ROOT, "bridge"))
 
 # Single source of truth for the total tool catalog size.
 # Bumps as new C++ handlers register or new synthetic tools land in
-# bridge/unreal_claude_mcp_bridge.py::SYNTHETIC_TOOLS. The split below is
+# bridge/unreal_ai_connection_bridge.py::SYNTHETIC_TOOLS. The split below is
 # informational; tests assert against the total via EXPECTED_TOOL_COUNT.
 EXPECTED_CPP_HANDLER_COUNT = 71
 EXPECTED_SYNTHETIC_TOOL_COUNT = 33  # bumped from 32 — added sequencer_add_transform_keyframe

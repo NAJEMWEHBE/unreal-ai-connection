@@ -1,14 +1,14 @@
 #!/usr/bin/env python
 """
-UnrealClaudeMCP <-> Claude Code bridge.
+Unreal AI Connection — MCP client bridge.
 
-Claude Code (and any MCP client) speaks the MCP protocol
-(initialize / tools/list / tools/call) over stdio. The UnrealClaudeMCP
+Any MCP client speaks the MCP protocol
+(initialize / tools/list / tools/call) over stdio. The Unreal AI Connection
 plugin speaks raw JSON-RPC over a local TCP socket (default
 127.0.0.1:18888). This script translates between the two:
 
-  Claude Code (stdin, MCP)  ->  this bridge  ->  TCP 127.0.0.1:18888 (raw JSON-RPC)
-  Claude Code (stdout, MCP) <-  this bridge  <-  TCP 127.0.0.1:18888
+  MCP client (stdin, MCP)  ->  this bridge  ->  TCP 127.0.0.1:18888 (raw JSON-RPC)
+  MCP client (stdout, MCP) <-  this bridge  <-  TCP 127.0.0.1:18888
 
 Behaviour:
   - "initialize"             returned synthetically (does NOT hit the UE server)
@@ -24,7 +24,7 @@ Behaviour:
 
 The bridge tolerates the UE server being down: it returns a JSON-RPC error
 rather than crashing, so the MCP client can show "MCP server not running -
-launch UE editor with the UnrealClaudeMCP plugin enabled".
+launch UE editor with the Unreal AI Connection plugin enabled".
 
 Override host/port via env: UCMCP_HOST, UCMCP_PORT.
 """
@@ -41,7 +41,7 @@ UE_HOST = os.environ.get("UCMCP_HOST", "127.0.0.1")
 UE_PORT = int(os.environ.get("UCMCP_PORT", "18888"))
 
 PROTOCOL_VERSION = "2024-11-05"
-SERVER_NAME = "unreal-claude-mcp"
+SERVER_NAME = "unreal-ai-connection"
 SERVER_VERSION = "0.9.1"
 
 # Mirror of UnrealClaudeMCP/Resources/mcp_manifest.json - kept in sync manually.
@@ -5106,7 +5106,7 @@ def synthetic_bulk_fix_redirectors(req_id, args: dict) -> dict:
 # ---------------------------------------------------------------------------
 
 
-_MARKETPLACE_USER_AGENT = "UnrealClaudeMCP/0.9.1 (+https://github.com/NAJEMWEHBE/unreal-ai-connection)"
+_MARKETPLACE_USER_AGENT = "UnrealAIConnection/0.9.1 (+https://github.com/NAJEMWEHBE/unreal-ai-connection)"
 _MARKETPLACE_TIMEOUT_SECS = 30
 
 

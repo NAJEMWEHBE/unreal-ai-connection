@@ -12,7 +12,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-import unreal_claude_mcp_bridge as bridge
+import unreal_ai_connection_bridge as bridge
 
 
 # -------- Parameterised round-trip across all 19 tools -----------------------

@@ -1,4 +1,4 @@
-# Copilot review instructions — UnrealClaudeMCP
+# Copilot review instructions — Unreal AI Connection
 
 GitHub Copilot, when invoked as a PR reviewer on this repository, should
 review under the constraints below. These mirror the conventions already
@@ -69,7 +69,7 @@ Top-level read-first: [`docs/HANDOFF.md`](../docs/HANDOFF.md) (resumption contex
    emission. Diff-friendly JSON for callers.
 
 6. **Bridge-side synthetic tools** (`SYNTHETIC_TOOLS` dict in
-   `bridge/unreal_claude_mcp_bridge.py`) are pure Python. They:
+   `bridge/unreal_ai_connection_bridge.py`) are pure Python. They:
    - Compose existing UE handlers via `call_ue` OR shell out to host commands
      (e.g. `compile_mod_pak` shells `RunUAT.bat`).
    - **MUST be added** to: bridge `TOOLS` list, `SYNTHETIC_TOOLS` dict,

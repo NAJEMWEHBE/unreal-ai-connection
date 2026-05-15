@@ -55,13 +55,13 @@ def test_bash_script_lists_every_client():
 
 def test_powershell_references_bridge():
     text = PS_SCRIPT.read_text(encoding="utf-8")
-    assert "unreal_claude_mcp_bridge.py" in text
-    assert "bridge\\unreal_claude_mcp_bridge.py" in text or "bridge/unreal_claude_mcp_bridge.py" in text
+    assert "unreal_ai_connection_bridge.py" in text
+    assert "bridge\\unreal_ai_connection_bridge.py" in text or "bridge/unreal_ai_connection_bridge.py" in text
 
 
 def test_bash_references_bridge():
     text = SH_SCRIPT.read_text(encoding="utf-8")
-    assert "bridge/unreal_claude_mcp_bridge.py" in text
+    assert "bridge/unreal_ai_connection_bridge.py" in text
 
 
 def test_powershell_has_dry_run():

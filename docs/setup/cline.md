@@ -11,7 +11,7 @@ Open-source coding agent for VS Code (formerly Claude Dev). Config: `cline_mcp_s
 2. **Or use the in-app editor.** Open Cline panel → ⚙️ → **MCP Servers** → **Edit Configuration**.
 3. **Paste / replace** with the snippet below, swapping the path to your bridge.
 4. **Cline auto-reloads** on file save. No window reload required.
-5. **First-call test.** In the Cline chat: *"Use unreal-claude-mcp to call get_engine_version."*
+5. **First-call test.** In the Cline chat: *"Use unreal-ai-connection to call get_engine_version."*
 
 ## Config snippet
 
@@ -19,9 +19,9 @@ Open-source coding agent for VS Code (formerly Claude Dev). Config: `cline_mcp_s
 ```json
 {
   "mcpServers": {
-    "unreal-claude-mcp": {
+    "unreal-ai-connection": {
       "command": "py",
-      "args": ["C:\\full\\path\\to\\UnrealClaudeMCP\\bridge\\unreal_claude_mcp_bridge.py"],
+      "args": ["C:\\full\\path\\to\\UnrealClaudeMCP\\bridge\\unreal_ai_connection_bridge.py"],
       "disabled": false,
       "autoApprove": []
     }
@@ -33,9 +33,9 @@ Open-source coding agent for VS Code (formerly Claude Dev). Config: `cline_mcp_s
 ```json
 {
   "mcpServers": {
-    "unreal-claude-mcp": {
+    "unreal-ai-connection": {
       "command": "python3",
-      "args": ["/full/path/to/UnrealClaudeMCP/bridge/unreal_claude_mcp_bridge.py"],
+      "args": ["/full/path/to/UnrealClaudeMCP/bridge/unreal_ai_connection_bridge.py"],
       "disabled": false,
       "autoApprove": []
     }
@@ -45,7 +45,7 @@ Open-source coding agent for VS Code (formerly Claude Dev). Config: `cline_mcp_s
 
 ## Verification
 
-Cline panel → **MCP Servers** tab → look for `unreal-claude-mcp` with a green dot. Click it to see the published tool list. As a single-tool smoke test, ask Cline to call `get_engine_version`.
+Cline panel → **MCP Servers** tab → look for `unreal-ai-connection` with a green dot. Click it to see the published tool list. As a single-tool smoke test, ask Cline to call `get_engine_version`.
 
 ## Notes
 

@@ -24,7 +24,7 @@ camera actor is reused (no double-bind). Each output line is a single
 read progress without parsing JSON.
 
 Usage:
-    py scripts/florence_flythrough.py [--bridge bridge/unreal_claude_mcp_bridge.py]
+    py scripts/florence_flythrough.py [--bridge bridge/unreal_ai_connection_bridge.py]
 """
 
 import argparse
@@ -40,7 +40,7 @@ import uuid
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_BRIDGE = REPO_ROOT / "bridge" / "unreal_claude_mcp_bridge.py"
+DEFAULT_BRIDGE = REPO_ROOT / "bridge" / "unreal_ai_connection_bridge.py"
 
 LEVEL_PATH = "/Game/Validation/Florence/L_Florence_Plaza"
 SEQ_FOLDER = "/Game/Validation/Florence"
@@ -665,7 +665,7 @@ def step_hero_screenshot(client: BridgeClient, out_path: Path) -> int:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--bridge", default=str(DEFAULT_BRIDGE),
-                    help="Path to unreal_claude_mcp_bridge.py")
+                    help="Path to unreal_ai_connection_bridge.py")
     args = ap.parse_args()
     bridge_path = Path(args.bridge).resolve()
     if not bridge_path.exists():

@@ -1,6 +1,6 @@
 # Handoff document
 
-Single source of truth for resuming work on UnrealClaudeMCP in a fresh session of any MCP-compliant client. Read this first; it captures everything carried in the prior session's working memory.
+Single source of truth for resuming work on Unreal AI Connection in a fresh session of any MCP-compliant client. Read this first; it captures everything carried in the prior session's working memory.
 
 > Earlier closing notes (1st through 24th, sessions 2026-05-09 through 2026-05-15) are archived to [`docs/HANDOFF-archive.md`](HANDOFF-archive.md). This active file keeps the latest three consecutive notes (25th-27th) for quick pickup.
 
@@ -62,7 +62,7 @@ The 7 new C++ handlers from Waves A + A.5 (`get_engine_version`, `list_levels`, 
    ```
    Robocopy exit codes 0–7 mean success. The `/XD Binaries Intermediate` exclusion preserves the host's UBT cache so step 4 stays incremental.
 4. `& "F:\UE_5.7\Engine\Build\BatchFiles\Build.bat" <HostProjectName>Editor Win64 Development -project="<full path to host .uproject>"` — must end with `Result: Succeeded`. The target is `<HostProjectName>Editor`, NOT `<PluginName>Editor`. For the canonical host project, that's `HDMediaVirtualStudioEditor`.
-5. Open the host `.uproject` in UE editor (use the path-quoting recipe in CLAUDE.md — pre-quote inside the `-ArgumentList` array element). Confirm **71 UE C++ handlers register** in the Output Log. Filter by `LogUCMCPHandler` and you should see exactly 71 lines `Registered handler '<name>'`. The 31 bridge-side synthetic tools never reach the UE process and so never appear in the Output Log; they're served by `SYNTHETIC_TOOLS` in `bridge/unreal_claude_mcp_bridge.py`. Total tools visible to MCP clients: 102. The TCP server then binds `127.0.0.1:18888` (~10s on warm DDC, 1–5 min cold). With the module: `$proc = Start-UCMCPEditor -ProjectPath "<full path>"; $ready = Wait-UCMCPReady; $check = Test-UCMCPHandlers -LogPath "<host-project>\Saved\Logs\<HostProjectName>.log" -ExpectedCount 71`.
+5. Open the host `.uproject` in UE editor (use the path-quoting recipe in CLAUDE.md — pre-quote inside the `-ArgumentList` array element). Confirm **71 UE C++ handlers register** in the Output Log. Filter by `LogUCMCPHandler` and you should see exactly 71 lines `Registered handler '<name>'`. The 31 bridge-side synthetic tools never reach the UE process and so never appear in the Output Log; they're served by `SYNTHETIC_TOOLS` in `bridge/unreal_ai_connection_bridge.py`. Total tools visible to MCP clients: 102. The TCP server then binds `127.0.0.1:18888` (~10s on warm DDC, 1–5 min cold). With the module: `$proc = Start-UCMCPEditor -ProjectPath "<full path>"; $ready = Wait-UCMCPReady; $check = Test-UCMCPHandlers -LogPath "<host-project>\Saved\Logs\<HostProjectName>.log" -ExpectedCount 71`.
 6. **Smoke** — `py -3 examples\smoke_test.py --material-instance /Game/SmokeTest_MI --sequence /Game/SmokeTest_LS`. Then run the Wave A/A.5 live verification panel above.
 
 **Pause/restart note (PR #174 scorecard follow-up #10):** Long verification runs that span an editor restart (manual or crash) lose every actor and edit that wasn't saved to the level. If you spawn validation actors or mutate the open map and intend to pause, run `save_dirty_assets {}` (or Ctrl+S in the editor) *before* the pause — unsaved actors and properties revert to the last on-disk state on relaunch. The PR #174 scorecard's `delete_actor` row hit this exact case (ValEnvPanelL/R spawned pre-pause, lost on restart, then returned `actor_not_found` on the post-resume delete — correct shape, not a tool defect, but easy to mistake for one).
@@ -132,7 +132,7 @@ These are the bugs that bit prior sessions. Don't re-discover them. (Historical 
 | `FPythonCommandEx::ExecuteFile` mode does not capture script stdout / eval-result back through `CommandResult`; `EvaluateStatement` mode captures only the last expression's value. | For Python-script results that need to round-trip back to the bridge, emit a marker via `unreal.log("__MARKER__<json>__END__")` and retrieve through `get_log_lines{category_filter:"LogPython"}`. Use a per-call UUID in the marker to disambiguate from stale entries. |
 | `FPythonCommandEx::ExecuteFile` mode tries to resolve `Cmd.Command` as a file path FIRST. Multi-line literal Python source can be misclassified as a path → `ExecPythonCommandEx` returns false silently. | All `ExecuteFile`-mode handlers MUST write the source to a real temp `.py` file (under `Intermediate/UnrealClaudeMCPPython/`) via `FFileHelper::SaveStringToFile` + `ON_SCOPE_EXIT` deletion, then pass the file path. |
 | `static_cast<int32>(double)` for values > `INT_MAX` is **undefined behavior** — could overflow to negative, wrap, or worse. | Always **clamp on the wide type FIRST, narrow LAST**: `static_cast<int32>(FMath::Min(Raw, static_cast<double>(kMax)))`. |
-| **`FPlatformProcess::Sleep` on the game thread freezes the editor.** UE's MCP dispatcher runs on the game thread. A blocking handler stalls every game-thread system AND the very delegates that fire the events you'd be waiting for. | Don't write blocking handlers in C++ for editor-event waits. The right home for "wait for X" logic is **bridge-side synthetic tools** (`SYNTHETIC_TOOLS` dict in `bridge/unreal_claude_mcp_bridge.py`). |
+| **`FPlatformProcess::Sleep` on the game thread freezes the editor.** UE's MCP dispatcher runs on the game thread. A blocking handler stalls every game-thread system AND the very delegates that fire the events you'd be waiting for. | Don't write blocking handlers in C++ for editor-event waits. The right home for "wait for X" logic is **bridge-side synthetic tools** (`SYNTHETIC_TOOLS` dict in `bridge/unreal_ai_connection_bridge.py`). |
 | **Off-by-one cursor on poll-with-pass-next-seq-back contracts.** Exclusive `>` filter silently skips the very next event whose seq exactly equals the previous `next_seq`. | Use **inclusive** cursor semantics: filter `seq < since_seq` to skip (return `seq >= since_seq`). Drop detection: `since_seq < first_seq_in_buffer`. |
 | **`set_*` handlers with optional fields default-to-zero is destructive.** Callers supplying only one side silently snap the other to origin/identity. | Either reject partial-update calls explicitly, OR read the current state first and preserve omitted sides. |
 | **`UEditorAssetLibrary::LoadAsset` is the established pattern across all inspect/compile/move/rename/delete handlers.** | Follow the established pattern. Per directive #4, when source-grounded reasoning supports your judgment, your opinion overrides bot suggestions. |
@@ -154,7 +154,7 @@ These are the bugs that bit prior sessions. Don't re-discover them. (Historical 
 | **`USoundWave::GetNumFrames()` returns `int64`.** | Cast `int64` directly to `double` to preserve up-to-2^53 range; never narrow through `int32` first. |
 | **`FRealCurve::GetNumKeys()` is the polymorphic accessor.** | Use this rather than `static_cast<FRichCurve*>` + `Keys.Num()` — survives any future `FRealCurve` subclass. |
 | **UE 5.7 Python `unreal.Rotator(a, b, c)` takes `(roll, pitch, yaw)` positionally** — struct-memory order, NOT property-name order. Same with `unreal.Color(B, G, R, A)`. | Construct empty + assign by property name. Probe any new `unreal.*` struct before assuming positional args follow the docstring. |
-| **MCP server bridge code changes do NOT take effect mid-session.** The bridge MCP server process loads `bridge/unreal_claude_mcp_bridge.py` at session startup and caches the module. | Bridge-touching PRs are NOT live-verifiable until the MCP client restarts. First action on next session is the canonical live test panel. |
+| **MCP server bridge code changes do NOT take effect mid-session.** The bridge MCP server process loads `bridge/unreal_ai_connection_bridge.py` at session startup and caches the module. | Bridge-touching PRs are NOT live-verifiable until the MCP client restarts. First action on next session is the canonical live test panel. |
 | **JSON-RPC transport strips embedded NUL bytes in path arguments.** | Defense-in-depth NUL-rejection in bulk-* validators is unreachable via the canonical MCP transport. Still worth keeping for direct-TCP probes. |
 | **curl-on-18888 returns exit 56 (empty reply) even when plugin is bound** — the plugin's length-prefixed framing rejects HTTP with `framing_error: body length exceeds 1 GB cap`. | Confirm bind via `list_tools` through MCP, not curl through HTTP. |
 | **`UInputSettings::GetActionMappings(NAME_None, ...)` does not exist as an overload.** Caught by chatgpt-codex-connector on PR #161. | Use the no-arg `GetActionMappings()` accessor + filter results manually if needed. |
@@ -166,7 +166,7 @@ These are the bugs that bit prior sessions. Don't re-discover them. (Historical 
 
 When implementing a bundle, each task is one self-contained vertical slice that ends with a green commit:
 1. Create `Handler_<Name>.cpp` + register in `UnrealClaudeMCPModule.cpp`
-2. Add bridge `TOOLS` entry in `bridge/unreal_claude_mcp_bridge.py` (or a `SYNTHETIC_TOOLS` entry if it's bridge-side)
+2. Add bridge `TOOLS` entry in `bridge/unreal_ai_connection_bridge.py` (or a `SYNTHETIC_TOOLS` entry if it's bridge-side)
 3. Add manifest entry in `UnrealClaudeMCP/Resources/mcp_manifest.json`
 4. Add bridge schema test in `tests/test_bridge.py`
 5. Bump `EXPECTED_TOOL_COUNT` (+ `EXPECTED_CPP_HANDLER_COUNT` or `EXPECTED_SYNTHETIC_TOOL_COUNT`) in `tests/conftest.py` and `tests/test_manifest_sync.py`. The parametrized `test_every_tool_routes_through_tools_call` automatically picks up new UE handlers; for synthetic tools it auto-skips.
@@ -233,7 +233,7 @@ UnrealClaudeMCP/                               UE plugin (drops into <Project>/P
   UnrealClaudeMCP.uplugin                      Plugin manifest (v0.9.1 / UE 5.7)
 
 bridge/
-  unreal_claude_mcp_bridge.py                  stdio↔TCP bridge.
+  unreal_ai_connection_bridge.py                  stdio↔TCP bridge.
                                                - SYNTHETIC_TOOLS dict (31 entries).
                                                - synthetic_* functions (one per synthetic tool).
                                                - Marker pattern for round-tripping results from
@@ -256,7 +256,7 @@ scripts/
                                                Run before any PR that bumps counts.
 
 .mcp.json (gitignored)                         Local MCP client config; points at
-                                               bridge/unreal_claude_mcp_bridge.py.
+                                               bridge/unreal_ai_connection_bridge.py.
 AGENTS.md                                      Universal-agent project context (auto-loaded by
                                                Codex CLI, Copilot CLI, Cursor, Gemini CLI).
                                                Keep in sync with CLAUDE.md.

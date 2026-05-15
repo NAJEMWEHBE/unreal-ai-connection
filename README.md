@@ -1,6 +1,6 @@
 <div align="center">
 
-# Unreal Claude MCP
+# Unreal AI Connection
 
 **Drive Unreal Engine 5 from any MCP-compliant client over a local TCP socket.**
 
@@ -16,7 +16,7 @@
 [![Changelog](https://img.shields.io/badge/changelog-keep_a_changelog-orange)](CHANGELOG.md)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](#contributing)
 
-![UnrealClaudeMCP — abstract geometric AI core on the left, orange data streams flowing right into a wireframe low-poly 3D landscape with mountains and a glowing river](docs/images/hero-banner.png)
+![Unreal AI Connection — abstract geometric AI core on the left, orange data streams flowing right into a wireframe low-poly 3D landscape with mountains and a glowing river](docs/images/hero-banner.png)
 
 </div>
 
@@ -97,7 +97,7 @@ The wire format is `stdio MCP` between client and bridge, then a tight `length-p
 
 ## Tools
 
-**104 tools total.** 71 are native C++ handlers registered by the plugin at editor startup; 33 are bridge-side synthetic tools (`wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`, `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap`, `sequencer_add_transform_keyframe`) that compose existing handlers without a dedicated UE round-trip (or, for `compile_mod_pak` and `compile_mod_pak_direct`, shell out to RunUAT or UnrealPak entirely outside the UE process) — see `bridge/unreal_claude_mcp_bridge.py`'s `SYNTHETIC_TOOLS`. Per-tool JSON schemas and examples live in [`docs/TOOLS.md`](docs/TOOLS.md). Grouped overview:
+**104 tools total.** 71 are native C++ handlers registered by the plugin at editor startup; 33 are bridge-side synthetic tools (`wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`, `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap`, `sequencer_add_transform_keyframe`) that compose existing handlers without a dedicated UE round-trip (or, for `compile_mod_pak` and `compile_mod_pak_direct`, shell out to RunUAT or UnrealPak entirely outside the UE process) — see `bridge/unreal_ai_connection_bridge.py`'s `SYNTHETIC_TOOLS`. Per-tool JSON schemas and examples live in [`docs/TOOLS.md`](docs/TOOLS.md). Grouped overview:
 
 ### Python execution (5 tools)
 
@@ -315,7 +315,7 @@ The wire format is `stdio MCP` between client and bridge, then a tight `length-p
 
 </details>
 
-Adding a 72nd C++ handler is one `.cpp` file plus one line of registration — see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). New synthetic tools are an entry in `SYNTHETIC_TOOLS` plus a function in [`bridge/unreal_claude_mcp_bridge.py`](bridge/unreal_claude_mcp_bridge.py).
+Adding a 72nd C++ handler is one `.cpp` file plus one line of registration — see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). New synthetic tools are an entry in `SYNTHETIC_TOOLS` plus a function in [`bridge/unreal_ai_connection_bridge.py`](bridge/unreal_ai_connection_bridge.py).
 
 ---
 
@@ -333,7 +333,7 @@ Adding a 72nd C++ handler is one `.cpp` file plus one line of registration — s
      ... (64 lines)
    [LogUCMCP] Listening on 127.0.0.1:18888
    ```
-5. **Wire your MCP client.** Copy `examples/.mcp.json.example` to your project root as `.mcp.json`, edit the path to point at `bridge/unreal_claude_mcp_bridge.py`, restart your client, and approve the new MCP server. Same bridge works with Claude Code, Claude Desktop, Cursor, Codex CLI, Windsurf, Continue, Cline, Zed, Gemini CLI, and VS Code Copilot — see [`docs/setup/`](docs/setup/) for per-client copy-paste recipes.
+5. **Wire your MCP client.** Copy `examples/.mcp.json.example` to your project root as `.mcp.json`, edit the path to point at `bridge/unreal_ai_connection_bridge.py`, restart your client, and approve the new MCP server. Same bridge works with Claude Code, Claude Desktop, Cursor, Codex CLI, Windsurf, Continue, Cline, Zed, Gemini CLI, and VS Code Copilot — see [`docs/setup/`](docs/setup/) for per-client copy-paste recipes.
 
 ### Non-engineers / GUI-only users
 
@@ -360,7 +360,7 @@ UnrealClaudeMCP/                The Unreal Engine plugin (drop into <Project>/Pl
   UnrealClaudeMCP.uplugin         Plugin manifest
 
 bridge/
-  unreal_claude_mcp_bridge.py     Python stdio ↔ TCP bridge for Claude Code MCP
+  unreal_ai_connection_bridge.py     Python stdio ↔ TCP bridge for Claude Code MCP
 
 examples/
   smoke_test.py                   Connects to the live server, fires the safe tools

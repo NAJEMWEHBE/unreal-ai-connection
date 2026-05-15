@@ -126,10 +126,10 @@ Wait ~2 min for bind on `127.0.0.1:18888`. Dismiss any "Restore Packages" modal 
 Then via MCP:
 
 ```text
-mcp__unreal-claude-mcp__run_python_file path=F:\UnrealClaudeMCP\scripts\build_desert_scene.py
+mcp__unreal-ai-connection__run_python_file path=F:\UnrealClaudeMCP\scripts\build_desert_scene.py
 ```
 
-Confirm via `mcp__unreal-claude-mcp__get_log_lines category_filter=LogPython count=15` — last line should be `[desert] SCENE_BUILD_COMPLETE_V3` (the log marker is currently still v3 — fine).
+Confirm via `mcp__unreal-ai-connection__get_log_lines category_filter=LogPython count=15` — last line should be `[desert] SCENE_BUILD_COMPLETE_V3` (the log marker is currently still v3 — fine).
 
 ### Step 3 — capture the workflow screenshots series
 
@@ -145,7 +145,7 @@ Simpler: add 5 capture points to the script's tail:
 
 For each capture, store via `unreal.AutomationLibrary.take_high_res_screenshot()` OR build the file write inside python using `get_viewport_screenshot` + base64 decode.
 
-**Viewport caching trap**: the editor's viewport sometimes returns the same PNG byte-for-byte across `get_viewport_screenshot` calls when no real frame was drawn. Force redraws between captures by calling `mcp__unreal-claude-mcp__set_camera_transform` with a slightly different location each time. The HighResShot path is more reliable — it writes a new file regardless — but it can also silently no-op if the viewport is offscreen. Mix both for safety:
+**Viewport caching trap**: the editor's viewport sometimes returns the same PNG byte-for-byte across `get_viewport_screenshot` calls when no real frame was drawn. Force redraws between captures by calling `mcp__unreal-ai-connection__set_camera_transform` with a slightly different location each time. The HighResShot path is more reliable — it writes a new file regardless — but it can also silently no-op if the viewport is offscreen. Mix both for safety:
 
 ```python
 # In each capture step:

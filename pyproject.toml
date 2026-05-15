@@ -1,7 +1,7 @@
 [project]
-name = "unreal-claude-mcp-bridge"
+name = "unreal-ai-connection-bridge"
 version = "0.2.0"
-description = "Python bridge for the UnrealClaudeMCP Unreal Engine 5.7 plugin. Translates Claude Code's stdio MCP transport to the plugin's raw JSON-RPC over a local TCP socket."
+description = "Python bridge for the Unreal AI Connection Unreal Engine 5.7 plugin. Translates any MCP client's stdio MCP transport to the plugin's raw JSON-RPC over a local TCP socket."
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
@@ -85,7 +85,7 @@ select = [
 ignore = ["E501"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["unreal_claude_mcp_bridge"]
+known-first-party = ["unreal_ai_connection_bridge"]
 
 [tool.ruff.format]
 # Ruff format is roughly black-compatible.

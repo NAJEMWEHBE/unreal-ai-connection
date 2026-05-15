@@ -6,33 +6,33 @@ Open-source IDE assistant. Configured via YAML at `~/.continue/config.yaml`.
 
 1. **Open the config.** `~/.continue/config.yaml` (Windows: `%USERPROFILE%\.continue\config.yaml`). If you only have `config.json` (pre-v0.9.x), upgrade Continue first.
 2. **Add an `mcpServers` block** under the top level. Snippet below.
-3. **Replace the path** with your full path to `bridge/unreal_claude_mcp_bridge.py`.
+3. **Replace the path** with your full path to `bridge/unreal_ai_connection_bridge.py`.
 4. **Reload Continue.** Command palette → *Continue: Reload Window*.
-5. **First-call test.** Open the Continue chat panel and type: *"Use the unreal-claude-mcp tool, call get_engine_version."*
+5. **First-call test.** Open the Continue chat panel and type: *"Use the unreal-ai-connection tool, call get_engine_version."*
 
 ## YAML snippet
 
 **Windows:**
 ```yaml
 mcpServers:
-  - name: unreal-claude-mcp
+  - name: unreal-ai-connection
     command: py
     args:
-      - C:\full\path\to\UnrealClaudeMCP\bridge\unreal_claude_mcp_bridge.py
+      - C:\full\path\to\UnrealClaudeMCP\bridge\unreal_ai_connection_bridge.py
 ```
 
 **macOS / Linux:**
 ```yaml
 mcpServers:
-  - name: unreal-claude-mcp
+  - name: unreal-ai-connection
     command: python3
     args:
-      - /full/path/to/UnrealClaudeMCP/bridge/unreal_claude_mcp_bridge.py
+      - /full/path/to/UnrealClaudeMCP/bridge/unreal_ai_connection_bridge.py
 ```
 
 ## Verification
 
-In the Continue panel, click the gear icon → **Tools**. You should see `unreal-claude-mcp` listed; clicking it shows the 104 tools.
+In the Continue panel, click the gear icon → **Tools**. You should see `unreal-ai-connection` listed; clicking it shows the 104 tools.
 
 ## Notes
 

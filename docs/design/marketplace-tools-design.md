@@ -6,7 +6,7 @@
 
 Two new bridge-side synthetic MCP tools — `marketplace_search` and `marketplace_import` — that let any MCP-compliant client browse public CC0 / CC-BY asset libraries and pull textures + HDRIs straight into a UE 5.7 project as `UTexture2D` assets, without leaving the editor session. Original v1 scope targeted Polyhaven (uniformly CC0) and Sketchfab (CC0 + CC-BY filtered server-side); shipped v1 swapped Sketchfab for AmbientCG (see STATUS note above). 3D model (.fbx/.glb) import is explicitly **out of scope for this PR** — the native side has no mesh-import wrapper yet, so models land in a later PR. Both tools are stdlib-only (`urllib.request` + `urllib.parse`) and add no Python runtime dependency.
 
-> **Prior-art note.** The bridge already shipped a Polyhaven + AmbientCG implementation before this design landed (search `synthetic_marketplace_search` and `synthetic_marketplace_import` in `bridge/unreal_claude_mcp_bridge.py`, ~line 5040). The original recommendation here was to supersede AmbientCG with Sketchfab because AmbientCG's download artefacts are zipped multi-map archives that v1 cannot unpack cleanly. **Resolved during implementation by keeping AmbientCG with a clear `source_unsupported` envelope for the import path** (search-side AmbientCG works; import-side returns a descriptive error so the surface stays discoverable). Sketchfab integration is deferred — when it lands, it should be added as a third `source` value alongside `polyhaven` + `ambientcg`, not replace either.
+> **Prior-art note.** The bridge already shipped a Polyhaven + AmbientCG implementation before this design landed (search `synthetic_marketplace_search` and `synthetic_marketplace_import` in `bridge/unreal_ai_connection_bridge.py`, ~line 5040). The original recommendation here was to supersede AmbientCG with Sketchfab because AmbientCG's download artefacts are zipped multi-map archives that v1 cannot unpack cleanly. **Resolved during implementation by keeping AmbientCG with a clear `source_unsupported` envelope for the import path** (search-side AmbientCG works; import-side returns a descriptive error so the surface stays discoverable). Sketchfab integration is deferred — when it lands, it should be added as a third `source` value alongside `polyhaven` + `ambientcg`, not replace either.
 
 > **Permission gate.** The bridge's auto-mode classifier previously rejected `Invoke-WebRequest` to `api.polyhaven.com` as "exfil scouting". The maintainer has since explicitly authorized "downloading plugins/textures/materials" (2026-05-13 session memory). Before merging this PR, add an explicit allow-rule in `~/.claude/settings.json` for outbound HTTPS to `api.polyhaven.com`, `dl.polyhaven.org`, `api.sketchfab.com`, and `media.sketchfab.com` so the gate doesn't fire mid-import.
 
@@ -207,7 +207,7 @@ Anonymous browse is open; **download requires an API token** (Sketchfab account 
 
 Lookup order:
 1. Env var `SKETCHFAB_API_TOKEN`.
-2. File at `~/.unreal-claude-mcp/sketchfab_token` (single-line, trimmed).
+2. File at `~/.unreal-ai-connection/sketchfab_token` (single-line, trimmed).
 3. Absent → `marketplace_search` still works (anonymous browse); `marketplace_import` for `backend=sketchfab` returns `auth_required`.
 
 The file form survives env-var unsetting and is the same convention several other "personal CLI" tools use.
@@ -274,7 +274,7 @@ v1 only surfaces `asset_type=texture` / `asset_type=hdri` for Sketchfab — and 
 
 ## 5. Bridge implementation outline
 
-Both handlers live in `bridge/unreal_claude_mcp_bridge.py` immediately above the `SYNTHETIC_TOOLS = { ... }` dict (where the existing Polyhaven/AmbientCG code already sits). Pseudocode:
+Both handlers live in `bridge/unreal_ai_connection_bridge.py` immediately above the `SYNTHETIC_TOOLS = { ... }` dict (where the existing Polyhaven/AmbientCG code already sits). Pseudocode:
 
 ```python
 _MARKETPLACE_USER_AGENT = "UnrealClaudeMCP/0.9 (+https://github.com/NAJEMWEHBE/unreal-ai-connection)"
@@ -299,7 +299,7 @@ def _http_get_json(url: str, headers: dict | None = None) -> tuple[dict | list |
 def _sketchfab_token() -> str | None:
     tok = os.environ.get("SKETCHFAB_API_TOKEN")
     if tok: return tok.strip()
-    p = os.path.expanduser("~/.unreal-claude-mcp/sketchfab_token")
+    p = os.path.expanduser("~/.unreal-ai-connection/sketchfab_token")
     if os.path.isfile(p):
         with open(p, "r", encoding="utf-8") as f:
             return f.read().strip() or None
@@ -407,7 +407,7 @@ Resolve the host project's `Saved/` dir via the existing convention (the bridge 
 UCMCP_HOST_PROJECT  (absolute path to .uproject's parent — e.g. F:\ax plug in\HDMediaVirtualStudio)
 ```
 
-If unset, fall back to `os.path.expanduser("~/.unreal-claude-mcp/marketplace/")`.
+If unset, fall back to `os.path.expanduser("~/.unreal-ai-connection/marketplace/")`.
 
 ```
 <host-project>/Saved/Marketplace/
@@ -431,7 +431,7 @@ If unset, fall back to `os.path.expanduser("~/.unreal-claude-mcp/marketplace/")`
 
 Three sites must be edited in lockstep — the `tests/test_manifest_sync.py` suite catches drift.
 
-### 7.1 `bridge/unreal_claude_mcp_bridge.py` (`TOOLS` list)
+### 7.1 `bridge/unreal_ai_connection_bridge.py` (`TOOLS` list)
 
 ```python
 {
@@ -441,7 +441,7 @@ Three sites must be edited in lockstep — the `tests/test_manifest_sync.py` sui
 },
 {
     "name": "marketplace_import",
-    "description": "Download an asset from a public CC0 / CC-BY library (Polyhaven, Sketchfab) and stage it on disk under <host-project>/Saved/Marketplace/. SYNTHETIC bridge-side handler. For Polyhaven textures + HDRIs, optionally chain into the native `import_texture` handler (chain_import=true) to round-trip into the project as a UTexture2D. For Sketchfab models, returns not_implemented in v1. Sketchfab download requires SKETCHFAB_API_TOKEN env var or ~/.unreal-claude-mcp/sketchfab_token file.",
+    "description": "Download an asset from a public CC0 / CC-BY library (Polyhaven, Sketchfab) and stage it on disk under <host-project>/Saved/Marketplace/. SYNTHETIC bridge-side handler. For Polyhaven textures + HDRIs, optionally chain into the native `import_texture` handler (chain_import=true) to round-trip into the project as a UTexture2D. For Sketchfab models, returns not_implemented in v1. Sketchfab download requires SKETCHFAB_API_TOKEN env var or ~/.unreal-ai-connection/sketchfab_token file.",
     "inputSchema": { /* §2.2 */ },
 },
 ```
@@ -521,7 +521,7 @@ No changes needed. After the manifest + TOOLS entries are added and `EXPECTED_TO
 
 ## 9. Open questions
 
-1. **Sketchfab API token storage convention.** Recommend env var first, `~/.unreal-claude-mcp/sketchfab_token` second. Both documented in `docs/INSTALLATION.md` under a new "Marketplace integration" subsection. Token file should be `chmod 600` on POSIX (no-op on Windows — note this in the docs).
+1. **Sketchfab API token storage convention.** Recommend env var first, `~/.unreal-ai-connection/sketchfab_token` second. Both documented in `docs/INSTALLATION.md` under a new "Marketplace integration" subsection. Token file should be `chmod 600` on POSIX (no-op on Windows — note this in the docs).
 2. **Rate limit handling.** Polyhaven publishes no rate limit; treat as best-effort with no client-side throttle. Sketchfab anonymous: 1000 req/hour; authenticated: 5000 req/hour. v1 doesn't implement a rate limiter — if a 429 comes back, surface it as `http_error: status=429` and let the LLM client back off. v2 can add a token-bucket if usage patterns demand it.
 3. **HTTPS verify mode.** Use system CAs (Python's default `ssl.create_default_context()` behaviour with `urllib.request.urlopen`). Do **not** add `ssl._create_unverified_context()` anywhere — that's a known foot-gun. Note that on Windows the Python distribution must have `certifi` or use OS cert store; the runbook in `docs/INSTALLATION.md` should call this out.
 4. **Should `marketplace_import` auto-chain `import_texture`?** **Recommend default `chain_import=false`** for v1. Rationale: keeps the synthetic single-responsibility (download to disk); composes cleanly with the existing `import_texture` C++ handler; lets the LLM client decide whether to also import a Normal map, set a `dest_name`, or batch multiple slugs into one import. Auto-chain stays available as an opt-in flag for one-shot "give me an HDRI in my level" prompts. The MCP client orchestrates the next `tools/call` based on `next_step_hint` in the response.
