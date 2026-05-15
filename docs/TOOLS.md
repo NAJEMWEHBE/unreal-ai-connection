@@ -1,6 +1,6 @@
 # MCP Tools Reference
 
-**102 tools total.** 71 are JSON-RPC 2.0 methods served on `127.0.0.1:18888` directly by the plugin's C++ handlers. The remaining 31 — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors` — are bridge-side **synthetic tools** that are intercepted by `bridge/unreal_claude_mcp_bridge.py` and served by composing existing handlers (or running Python via `execute_unreal_python`, or — for `compile_mod_pak` — shelling out to `RunUAT.bat` entirely outside the UE process). They are visible to MCP clients exactly like the C++ tools but cannot be reached by sending raw JSON-RPC to the TCP socket — only via the MCP bridge or by replicating their composition manually. The "Implementation" header on each entry below indicates whether a tool is C++ or bridge-side.
+**103 tools total.** 71 are JSON-RPC 2.0 methods served on `127.0.0.1:18888` directly by the plugin's C++ handlers. The remaining 32 — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`, `convert_hdri_to_cubemap` — are bridge-side **synthetic tools** that are intercepted by `bridge/unreal_claude_mcp_bridge.py` and served by composing existing handlers (or running Python via `execute_unreal_python`, or — for `compile_mod_pak` — shelling out to `RunUAT.bat` entirely outside the UE process). They are visible to MCP clients exactly like the C++ tools but cannot be reached by sending raw JSON-RPC to the TCP socket — only via the MCP bridge or by replicating their composition manually. The "Implementation" header on each entry below indicates whether a tool is C++ or bridge-side.
 
 Each tool's params and result are documented with a working example.
 
@@ -3913,6 +3913,53 @@ Download a CC0 asset from a marketplace (Polyhaven or AmbientCG) and import it i
 }}
 ```
 Result `maps` dict lists every imported map: `{"color": "/Game/Validation/Marketplace/T_Rocks_023.T_Rocks_023", "normal": "/Game/Validation/Marketplace/T_Rocks_023_normal.T_Rocks_023_normal", "roughness": ..., "ao": ..., "displacement": ...}`. Maps the source doesn't ship are simply absent.
+
+---
+
+## convert_hdri_to_cubemap
+
+Convert a longlat-projection HDRI (`UTexture2D`) into a `UTextureCube` so it can drive a `SkyLight`'s SpecifiedCubemap slot. Closes the longlat→cubemap parked item — UE 5.7 has no Python-exposed direct converter, but the canonical editor pipeline (`SceneCaptureCube` against an inside-out sphere with the HDRI as an unlit emissive material) is fully scriptable and that's what this tool wraps.
+
+**Bridge-side synthetic tool.** Pipeline:
+
+1. Create a `TextureRenderTargetCube` asset under `dest_path`.
+2. Create a `Material` flagged `MSM_UNLIT` with a single `TextureSample` (sampler `LinearColor`) wired into `MP_EMISSIVE_COLOR`.
+3. Spawn a unit `Sphere` scaled `(-50, 50, 50)` so its faces flip inside-out, with the unlit HDRI material applied. The camera will see the HDRI projected from inside.
+4. Spawn a `SceneCaptureCube` actor at the origin, point its `texture_target` at the render-target cube, set `capture_source=SCS_FINAL_COLOR_LDR`, and call `capture_scene()` once.
+5. `unreal.RenderingLibrary.render_target_create_static_texture_cube_editor_only(rt, dest_name, compression)` materializes the static `UTextureCube` next to the render target.
+6. Destroy the temp sphere + capture actor; delete the temp render-target + temp material assets. The new cube is the only artifact left in the project.
+
+**Params**:
+
+- `hdri_path` *(string, **required**)* — UE asset path of the source longlat `UTexture2D`. Must start with `/Game/`.
+- `dest_path` *(string, optional)* — UE package path for the new cube. Defaults to the source HDRI's folder.
+- `dest_name` *(string, optional)* — asset name override. Defaults to `<source_basename>_Cube`. Must not contain path separators or quotes (input is interpolated into a generated UE Python literal; the validator rejects shell-meta characters).
+- `cube_size` *(int, optional, default `1024`)* — square face size in pixels. Range `[16, 8192]`; powers of two recommended.
+- `compression` *(string, optional, default `"TC_HDR"`)* — one of `TC_HDR` / `TC_HDR_COMPRESSED` / `TC_HDR_F32` / `TC_DEFAULT`. Any other value is rejected — the allowlist exists to keep caller input from injecting arbitrary enum names into the generated Python.
+
+**Result**:
+
+- `ok` — bool.
+- `source_hdri`, `dest_path`, `dest_name`, `cube_size`, `compression` — echoes of input.
+- `cube_asset_path` — final UE asset path of the new `UTextureCube` (`<dest_path>/<dest_name>.<dest_name>`).
+
+**Errors**:
+
+- `-32602 invalid_arguments` / `invalid_field: ...` — argument validation.
+- `-32603 convert_hdri_to_cubemap: ue_exec_failed: ...` — `execute_unreal_python` returned an error before the script ran.
+- `-32603 convert_hdri_to_cubemap: ue_python_error: ...` — the generated UE Python raised inside the editor (e.g. `hdri_not_found`, `cube_create_failed`); the inner traceback is included.
+
+**Example — convert Polyhaven Venice Sunset HDRI to a SkyLight-ready cubemap**
+```json
+{"jsonrpc":"2.0","id":1,"method":"convert_hdri_to_cubemap","params":{
+  "hdri_path": "/Game/Validation/Florence/HDRI_Venice_Sunset",
+  "dest_name": "HDRI_Venice_Sunset_Cube",
+  "cube_size": 2048,
+  "compression": "TC_HDR"
+}}
+```
+
+After this returns, assign the cube to `SkyLight.cubemap` and set `SkyLight.source_type=SLS_SPECIFIED_CUBEMAP` — that completes the pipeline the SkyLight-from-longlat workaround in the 23rd HANDOFF note was avoiding.
 
 ---
 

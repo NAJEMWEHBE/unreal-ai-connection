@@ -13,9 +13,9 @@ plugin speaks raw JSON-RPC over a local TCP socket (default
 Behaviour:
   - "initialize"             returned synthetically (does NOT hit the UE server)
   - "notifications/*"        consumed silently
-  - "tools/list"             returns a static list of all 102 tools (71
+  - "tools/list"             returns a static list of all 103 tools (71
                              dispatched to the UE plugin's C++ handlers
-                             plus 31 bridge-side synthetic tools served by
+                             plus 32 bridge-side synthetic tools served by
                              SYNTHETIC_TOOLS without crossing the wire as
                              a single UE round-trip)
   - "tools/call"             unpacks {name, arguments} and forwards to the
@@ -1413,6 +1413,21 @@ TOOLS = [
                 "multi_map": {"type": "boolean", "description": "When true and asset_type='texture', pull every canonical PBR map (color, normal, roughness, ao, displacement, metalness) the source ships and import each as a separate UTexture2D. Color is required; other maps are best-effort. Naming: Color -> <dest_name>; others -> <dest_name>_<map>. Default false (diffuse only, back-compat)."},
             },
             "required": ["slug"],
+        },
+    },
+    {
+        "name": "convert_hdri_to_cubemap",
+        "description": "Convert a longlat-projection HDRI (UTexture2D) into a UTextureCube so it can drive a SkyLight's SpecifiedCubemap slot. SYNTHETIC bridge-side handler. Pipeline: spawn an inside-out sphere with the HDRI as an unlit emissive material, capture it with a SceneCaptureCube into a TextureRenderTargetCube, then materialize the static UTextureCube via RenderingLibrary.render_target_create_static_texture_cube_editor_only. Temp render-target + temp material + temp actors are cleaned up before return. Closes the 23rd HANDOFF note's HDRI cubemap parked item.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "hdri_path": {"type": "string", "description": "UE asset path of the source longlat UTexture2D (must start with /Game/), e.g. /Game/Marketplace/HDRI_Venice_Sunset."},
+                "dest_path": {"type": "string", "description": "UE package path for the new cube. Defaults to the source HDRI's folder."},
+                "dest_name": {"type": "string", "description": "Asset name override for the new UTextureCube. Defaults to <source_basename>_Cube."},
+                "cube_size": {"type": "integer", "description": "Square face size in pixels for the render target. Range [16, 8192]; powers of two recommended. Default 1024."},
+                "compression": {"type": "string", "description": "Texture compression preset. One of TC_HDR (default), TC_HDR_COMPRESSED, TC_HDR_F32, TC_DEFAULT."},
+            },
+            "required": ["hdri_path"],
         },
     },
 ]
@@ -5981,6 +5996,213 @@ def synthetic_marketplace_import(req_id, args: dict) -> dict:
     return _wrap_tool_result(req_id, body)
 
 
+# ---------------------------------------------------------------------------
+# convert_hdri_to_cubemap (synthetic)
+# ---------------------------------------------------------------------------
+
+# Allowed compression presets the conversion script will pass through to
+# `unreal.TextureCompressionSettings`. Restricting to this allowlist keeps
+# caller input from injecting arbitrary enum names into the generated UE
+# Python.
+_HDRI_CUBE_COMPRESSION_ALLOWED = {
+    "TC_HDR",
+    "TC_HDR_COMPRESSED",
+    "TC_HDR_F32",
+    "TC_DEFAULT",
+}
+
+
+def _render_hdri_to_cubemap_script(hdri_path: str, dest_pkg: str, cube_name: str,
+                                   cube_size: int, compression: str) -> str:
+    """Return the UE Python script that executes the longlat -> cubemap
+    pipeline (SceneCaptureCube against an inside-out unit sphere with the
+    HDRI as an unlit emissive material). Inputs MUST already be validated
+    by the caller — this helper does no escaping."""
+    return f"""\
+import unreal
+HDRI_PATH = {hdri_path!r}
+DEST_PKG = {dest_pkg!r}
+CUBE_NAME = {cube_name!r}
+RT_SIZE = {int(cube_size)}
+COMPRESSION = unreal.TextureCompressionSettings.{compression}
+
+el = unreal.EditorAssetLibrary
+ll = unreal.EditorLevelLibrary
+asset_tools = unreal.AssetToolsHelpers.get_asset_tools()
+mel = unreal.MaterialEditingLibrary
+
+if not el.does_asset_exist(HDRI_PATH):
+    raise RuntimeError(f"hdri_not_found: {{HDRI_PATH}}")
+
+rt_path = f"{{DEST_PKG}}/RT_HDRI_ToCube_Temp"
+if el.does_asset_exist(rt_path):
+    el.delete_asset(rt_path)
+rt = asset_tools.create_asset(
+    "RT_HDRI_ToCube_Temp", DEST_PKG, unreal.TextureRenderTargetCube,
+    unreal.TextureRenderTargetCubeFactoryNew(),
+)
+rt.set_editor_property("size_x", RT_SIZE)
+
+mat_path = f"{{DEST_PKG}}/M_HDRI_Sphere_ToCube_Temp"
+if el.does_asset_exist(mat_path):
+    el.delete_asset(mat_path)
+mat = asset_tools.create_asset(
+    "M_HDRI_Sphere_ToCube_Temp", DEST_PKG, unreal.Material,
+    unreal.MaterialFactoryNew(),
+)
+mat.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
+hdri_tex = el.load_asset(HDRI_PATH)
+ts = mel.create_material_expression(mat, unreal.MaterialExpressionTextureSample, -400, 0)
+ts.texture = hdri_tex
+ts.sampler_type = unreal.MaterialSamplerType.SAMPLERTYPE_LINEAR_COLOR
+mel.connect_material_property(ts, "RGB", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+mel.recompile_material(mat)
+el.save_loaded_asset(mat)
+
+sphere = ll.spawn_actor_from_object(
+    el.load_asset("/Engine/BasicShapes/Sphere"),
+    unreal.Vector(0, 0, 0), unreal.Rotator(0, 0, 0))
+sphere.set_actor_label("HDRI_ToCube_Sphere_Temp")
+sphere.set_actor_scale3d(unreal.Vector(-50, 50, 50))
+sphere.static_mesh_component.set_material(0, mat)
+
+scc = ll.spawn_actor_from_class(unreal.SceneCaptureCube, unreal.Vector(0, 0, 0), unreal.Rotator(0, 0, 0))
+scc.set_actor_label("HDRI_ToCube_SCC_Temp")
+scc_comp = scc.get_component_by_class(unreal.SceneCaptureComponentCube)
+scc_comp.set_editor_property("texture_target", rt)
+scc_comp.set_editor_property("capture_source", unreal.SceneCaptureSource.SCS_FINAL_COLOR_LDR)
+for p, v in (("capture_every_frame", False), ("capture_on_movement", False)):
+    try:
+        scc_comp.set_editor_property(p, v)
+    except Exception:
+        pass
+scc_comp.capture_scene()
+
+cube_full = f"{{DEST_PKG}}/{{CUBE_NAME}}"
+if el.does_asset_exist(cube_full):
+    el.delete_asset(cube_full)
+cube = unreal.RenderingLibrary.render_target_create_static_texture_cube_editor_only(
+    rt, CUBE_NAME, COMPRESSION,
+)
+if cube is None:
+    raise RuntimeError("cube_create_failed: convert returned None")
+el.save_loaded_asset(cube)
+
+els = unreal.EditorActorSubsystem()
+for a in (sphere, scc):
+    els.destroy_actor(a)
+el.delete_asset(mat_path)
+el.delete_asset(rt_path)
+
+print(f"CUBE_PATH={{cube.get_path_name()}}")
+"""
+
+
+def synthetic_convert_hdri_to_cubemap(req_id, args: dict) -> dict:
+    """Convert a longlat-projection HDRI (UTexture2D) into a UTextureCube
+    so it can drive a SkyLight's SpecifiedCubemap slot. Uses a
+    SceneCaptureCube against an inside-out sphere whose unlit emissive
+    material samples the HDRI — the canonical UE editor path with no
+    Python wrapper in 5.7 vanilla.
+
+    Args (object):
+      - hdri_path (str, required): UE asset path of the source longlat
+        UTexture2D (e.g. /Game/Marketplace/HDRI_Venice_Sunset).
+      - dest_path (str, optional): UE package path for the new cube.
+        Defaults to the source HDRI's folder.
+      - dest_name (str, optional): Asset name override. Defaults to
+        '<source_basename>_Cube'.
+      - cube_size (int, optional, default 1024): Square face size in
+        pixels for the render target. Powers of two recommended.
+      - compression (str, optional, default 'TC_HDR'): One of
+        TC_HDR / TC_HDR_COMPRESSED / TC_HDR_F32 / TC_DEFAULT.
+
+    Returns:
+      - ok, cube_asset_path, source_hdri, cube_size, compression
+    """
+    if not isinstance(args, dict):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "convert_hdri_to_cubemap: invalid_arguments: arguments must be an object",
+        })
+    hdri_path = args.get("hdri_path")
+    if not isinstance(hdri_path, str) or not hdri_path.startswith("/Game/"):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "convert_hdri_to_cubemap: invalid_field: 'hdri_path' must be a non-empty string starting with /Game/",
+        })
+    # Default dest = source's folder.
+    if "/" in hdri_path:
+        default_dest = hdri_path.rsplit("/", 1)[0]
+        default_basename = hdri_path.rsplit("/", 1)[1]
+    else:
+        default_dest = "/Game"
+        default_basename = hdri_path
+    # Strip any trailing `.AssetName` syntax some callers use.
+    default_basename = default_basename.split(".")[0]
+
+    dest_path = args.get("dest_path") or default_dest
+    if not isinstance(dest_path, str) or not dest_path.startswith("/Game"):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "convert_hdri_to_cubemap: invalid_field: 'dest_path' must start with /Game",
+        })
+    dest_name = args.get("dest_name") or f"{default_basename}_Cube"
+    if not isinstance(dest_name, str) or not dest_name:
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "convert_hdri_to_cubemap: invalid_field: 'dest_name' must be a non-empty string",
+        })
+    # Asset names must not contain path separators / dots / quotes / shell
+    # metacharacters that could break our generated UE Python literal.
+    for ch in "/\\\"'`\n\r\t;":
+        if ch in dest_name:
+            return make_response(req_id, error={
+                "code": -32602,
+                "message": f"convert_hdri_to_cubemap: invalid_field: 'dest_name' must not contain {ch!r}",
+            })
+
+    cube_size = args.get("cube_size", 1024)
+    if not isinstance(cube_size, int) or cube_size < 16 or cube_size > 8192:
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "convert_hdri_to_cubemap: invalid_field: 'cube_size' must be an int in [16, 8192]",
+        })
+
+    compression = args.get("compression", "TC_HDR")
+    if compression not in _HDRI_CUBE_COMPRESSION_ALLOWED:
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": f"convert_hdri_to_cubemap: invalid_field: 'compression' must be one of {sorted(_HDRI_CUBE_COMPRESSION_ALLOWED)}",
+        })
+
+    code = _render_hdri_to_cubemap_script(hdri_path, dest_path, dest_name, cube_size, compression)
+    resp = call_ue("execute_unreal_python", {"code": code, "capture_output": True})
+    if "error" in resp:
+        upstream = resp.get("error") or {}
+        return make_response(req_id, error={
+            "code": upstream.get("code", -32603) or -32603,
+            "message": f"convert_hdri_to_cubemap: ue_exec_failed: {upstream.get('message') or 'execute_unreal_python returned an error'}",
+        })
+    result = resp.get("result") or {}
+    if not result.get("ok"):
+        return make_response(req_id, error={
+            "code": -32603,
+            "message": f"convert_hdri_to_cubemap: ue_python_error: {result.get('output') or result}",
+        })
+
+    body = {
+        "ok": True,
+        "source_hdri": hdri_path,
+        "cube_asset_path": f"{dest_path}/{dest_name}.{dest_name}",
+        "dest_path": dest_path,
+        "dest_name": dest_name,
+        "cube_size": cube_size,
+        "compression": compression,
+    }
+    return _wrap_tool_result(req_id, body)
+
+
 SYNTHETIC_TOOLS = {
     "wait_for_events": synthetic_wait_for_events,
     "get_camera_transform": synthetic_get_camera_transform,
@@ -6013,6 +6235,7 @@ SYNTHETIC_TOOLS = {
     "bulk_fix_redirectors": synthetic_bulk_fix_redirectors,
     "marketplace_search": synthetic_marketplace_search,
     "marketplace_import": synthetic_marketplace_import,
+    "convert_hdri_to_cubemap": synthetic_convert_hdri_to_cubemap,
 }
 
 

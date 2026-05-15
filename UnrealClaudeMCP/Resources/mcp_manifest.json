@@ -1,7 +1,7 @@
 {
   "name": "UnrealClaudeMCP",
   "version": "0.9.1",
-  "description": "Drive Unreal Engine 5.7 from any MCP-compliant client over a local TCP socket. 102 tools total (71 native C++ handlers plus 31 bridge-side synthetic tools) that work with any UE 5.7 project.",
+  "description": "Drive Unreal Engine 5.7 from any MCP-compliant client over a local TCP socket. 103 tools total (71 native C++ handlers plus 32 bridge-side synthetic tools) that work with any UE 5.7 project.",
   "transport": {
     "type": "tcp",
     "host": "127.0.0.1",
@@ -896,6 +896,18 @@
         "multi_map": "bool (optional, default false) - texture only; when true pulls every canonical PBR map (color/normal/roughness/ao/displacement/metalness) the source ships; color is mandatory, others best-effort; Color -> <dest_name>, others -> <dest_name>_<map>"
       },
       "returns": { "ok": "bool", "source": "string (echo)", "slug": "string (echo)", "asset_type": "string (echo)", "resolution": "string (echo)", "format": "string (echo)", "downloaded_from": "string (resolved download URL)", "temp_path": "string (single-map mode only; filesystem path of downloaded file)", "ue_asset_path": "string (final asset path in project; in multi_map mode this is the color map path)", "available_resolutions": "array of string (resolutions the source actually offers for this asset)", "import_result": "object (single-map mode only; passthrough of native import_texture result)", "maps": "object (multi_map mode only; canonical_name -> UE asset path)", "import_results": "object (multi_map mode only; canonical_name -> native import_texture result)", "license": "string ('CC0')" }
+    },
+    {
+      "name": "convert_hdri_to_cubemap",
+      "description": "Convert a longlat-projection HDRI (UTexture2D) into a UTextureCube so it can drive a SkyLight's SpecifiedCubemap slot. SYNTHETIC bridge-side handler. Pipeline: spawn an inside-out sphere with the HDRI as an unlit emissive material, capture it with a SceneCaptureCube into a TextureRenderTargetCube, then materialize the static UTextureCube via RenderingLibrary.render_target_create_static_texture_cube_editor_only. Temp render-target + temp material + temp actors are cleaned up before return. Closes the 23rd HANDOFF note's HDRI cubemap parked item.",
+      "params": {
+        "hdri_path": "string (required) - UE asset path of the source longlat UTexture2D; must start with /Game/",
+        "dest_path": "string (optional) - UE package path for the new cube; defaults to the source HDRI's folder",
+        "dest_name": "string (optional) - asset name override; defaults to <source_basename>_Cube",
+        "cube_size": "int (optional, default 1024) - square face size in pixels; range [16, 8192]; powers of two recommended",
+        "compression": "string (optional, default 'TC_HDR') - one of TC_HDR | TC_HDR_COMPRESSED | TC_HDR_F32 | TC_DEFAULT"
+      },
+      "returns": { "ok": "bool", "source_hdri": "string (echo)", "cube_asset_path": "string (final cube asset path)", "dest_path": "string (echo)", "dest_name": "string (echo)", "cube_size": "int (echo)", "compression": "string (echo)" }
     }
   ]
 }
