@@ -1,6 +1,6 @@
 # HANDOFF archive
 
-> Historical session log — chronological, append-only, do not edit. This file holds **consecutive closing notes 1 through 22** (sessions 2026-05-09 through 2026-05-15 — token-burn cleanup + plugin diet + Waves B/C/D 88→100 + PR #184 scene-v7 + marketplace tools hardened + PR #187 AmbientCG zip-unpack v2). The active [`HANDOFF.md`](HANDOFF.md) keeps only the latest three consecutive notes (23rd-25th) for fast pickup; everything older lives here for grep-ability and audit trail. Chronological session indices in the TOC below run 1-28; entries 18-28 (11 chronological sessions) map to consecutive-notes 11-22 (12 notes) — the count mismatch is intentional, because the 2026-05-11 / 2026-05-12 stretch had one session window that produced two closing notes (a mid-session reset wrote the second). The mapping is many-to-many, not strict one-to-one.
+> Historical session log — chronological, append-only, do not edit. This file holds **consecutive closing notes 1 through 23** (sessions 2026-05-09 through 2026-05-15 — token-burn cleanup + plugin diet + Waves B/C/D 88→100 + PR #184 scene-v7 + marketplace tools hardened + PR #187 AmbientCG zip-unpack v2 + PR #189 multi-map PBR). The active [`HANDOFF.md`](HANDOFF.md) keeps only the latest three consecutive notes (24th-26th) for fast pickup; everything older lives here for grep-ability and audit trail. Chronological session indices in the TOC below run 1-29; entries 18-29 (12 chronological sessions) map to consecutive-notes 11-23 (13 notes) — the count mismatch is intentional, because the 2026-05-11 / 2026-05-12 stretch had one session window that produced two closing notes (a mid-session reset wrote the second). The mapping is many-to-many, not strict one-to-one.
 
 ## Table of contents (chronological)
 
@@ -34,8 +34,9 @@
 | 26 | 2026-05-13 (final — token-burn cleanup, plugin diet, Waves B/C/D 88→100) | 100 tools (71 C++ + 29 synthetic), 396 pytest — 20th consecutive closing-note |
 | 27 | 2026-05-14 → 15 (PR #184 — scene-v7 + marketplace tools hardened through the full bot-review gate) | 102 tools (71 C++ + 31 synthetic), 400 pytest — 21st consecutive closing-note |
 | 28 | 2026-05-15 (PR #187 — marketplace_import v2 AmbientCG zip-unpack) | 102 tools (71 C++ + 31 synthetic), 413 pytest — 22nd consecutive closing-note |
+| 29 | 2026-05-15 (PR #189 — marketplace_import multi-map PBR mode) | 102 tools (71 C++ + 31 synthetic), 430 pytest — 23rd consecutive closing-note |
 
-Note: TOC stops at chronological-session #28 because the 23rd consecutive closing-note onward lives in the active [`HANDOFF.md`](HANDOFF.md). Cross-reference by consecutive-note number: archive holds 1-22, active holds 23-25.
+Note: TOC stops at chronological-session #29 because the 24th consecutive closing-note onward lives in the active [`HANDOFF.md`](HANDOFF.md). Cross-reference by consecutive-note number: archive holds 1-23, active holds 24-26.
 
 ---
 
@@ -1309,3 +1310,48 @@ Follow-up commit `f1d60f3` bundled all bot-directed fixes. Mechanical-fix except
 - `inspect_blueprint` `blueprint_status` field state-check — cheap grep, not yet done.
 
 **Twenty-second consecutive closing-note.** Session 2026-05-15 single-window resume — bounded v8 item landed clean through the full bot-review gate in one bot pass + one follow-up. Tool count: 102. Standing rules: 5 (unchanged). Cadence intact.
+
+---
+
+## Session 2026-05-15 (PR #189 — marketplace_import multi-map PBR mode)
+
+Second bounded item picked from the 22nd-note parked list: complete the v2 promise of `marketplace_import` by adding opt-in `multi_map=true` so callers can pull a full PBR set in a single synthetic call instead of just the diffuse map. Default flow (diffuse-only) unchanged for back-compat.
+
+**What landed (PR #189, merge commit `9ee5a7d`):**
+
+- Two new bridge helpers: `_ambientcg_extract_pbr_maps(zip, dest_dir)` and `_polyhaven_pick_pbr_files(files, resolution, fmt)` — multi-map siblings of the existing single-map helpers. Same path-traversal safety (`os.path.basename` flatten) on the AmbientCG side; per-map format fallback (`png <-> jpg`) on the Polyhaven side so a mixed asset still resolves cleanly.
+- New top-level orchestrator `_marketplace_import_multimap` handles the fan-out: resolve table → download/extract all maps → one `import_texture` call per canonical map. Color first so its failure surfaces before secondary maps.
+- Canonical map set: `color`, `normal`, `roughness`, `ao`, `displacement`, `metalness`. Color is mandatory; other maps are best-effort and just absent from the response `maps` dict when the source doesn't ship them.
+- Normal preference: `_NormalGL` / `nor_gl` (UE's OpenGL tangent-space convention) wins over `_NormalDX` / `nor_dx`. **Note**: PR #189 originally dropped DX entirely — bot-review (CodeRabbit Major) caught it and follow-up `33afae8` added DX fallback so DX-only assets resolve their normal map.
+- New arg: `multi_map: bool = false`. Rejected for HDRIs and models (texture-only).
+- New response fields (multi-map mode only): `maps` dict (`canonical → UE asset path`) and `import_results` dict (`canonical → native passthrough`). `ue_asset_path` pinned to `maps['color']` for back-compat.
+- Naming in UE: Color stays at `<dest_name>` for back-compat; other maps land at `<dest_name>_<canonical>` (`<dest_name>_normal`, `<dest_name>_roughness`, etc.).
+- Catalog kept in sync: bridge `TOOLS` list, `mcp_manifest.json`, `docs/TOOLS.md` all describe the new arg + response fields + multi-map example.
+
+**Bot-review gate (rule #5 honored):**
+
+- Greptile P1 inline: partial-import on mid-fan-out failure leaves orphaned UE assets — color imports, normal fails, retry double-fails on stale color. Applied: error response now includes structured `data` block with `failed_map`, `imported_so_far` (map → asset path), `remaining_maps`, and a recovery `hint`. Caller can delete the orphans or retry with `replace_existing=true`.
+- Greptile P2: dead `_PBR_CANONICAL_MAPS` constant never referenced — iteration order is driven by the marker tables directly. Dropped.
+- Greptile P2: unreachable `if canonical not in extracted_paths: continue` guard inside fan-out loop — `map_order` is constructed from `extracted_paths.keys()` by definition. Removed.
+- CodeRabbit Major: DX-tangent normals dropped entirely from both marker tables. PR contract said GL *preferred over* DX, not GL-only. Added DX markers as fallback in both `_AMBIENTCG_MAP_MARKERS` (`_NormalDX` / `_normaldx`) and `_POLYHAVEN_MAP_KEYS` (`nor_dx` / `NormalDX`).
+- CodeRabbit Minor: `docs/TOOLS.md` param wording said `multi_map` rejection was HDRI-only when the documented error contract correctly says texture-only. Tightened to "valid solely when `asset_type='texture'`; rejected for HDRIs and models".
+
+Follow-up commit `33afae8` bundled all five bot-directed fixes plus three new regression tests (DX-only normal fallback on both backends + partial-failure `imported_so_far` shape). Mechanical-fix exception (CLAUDE.md rule #5) honored — same-branch surgical follow-up, no new logic, self-merge after CI green without second-pass bot review.
+
+**Tool/test totals:**
+
+- 102 tools (unchanged — PR #189 completes an existing tool's v2 promise, doesn't add a new one).
+- pytest: 413 → **430** (+17: 9 helper-level unit + 4 e2e/validation + 1 partial-failure + 1 NormalGL-preference + 2 DX-normal fallback).
+- Bridge coverage unchanged (~99%).
+- 25 PRs in cumulative lineage (#161 → #189).
+
+**Open follow-ups (carried forward from 22nd note, now reduced):**
+
+- HDRI cubemap conversion (longlat → cubemap; no Python wrapper found in 5.7) — still parked.
+- Sequencer keyframe authoring + Movie Render Queue — still attended-Codex C++ work.
+- Host UE cold-rebuild for the 7 Wave A/A.5 C++ handlers — still pending; bridge-side schemas correct so MCP clients see all 102 entries, calls to the new C++ tools return `-32601` until rebuild.
+- Local OSS LLM daemon empty-list bug — admin shell needed; pre-commit local-ensemble unavailable until fixed.
+- `inspect_blueprint.blueprint_status` field — **closed** this session via grep: PR #183 already shipped it at `Handler_InspectBlueprint.cpp` line 79.
+- v8 follow-ups list from 21st note: multi-map PBR — **closed by this PR**. AmbientCG zip-archive unpack — closed by PR #187. Two items remain (HDRI cubemap conversion, T1/T2/T3 reshoot under v7 textured lighting).
+
+**Twenty-third consecutive closing-note.** Session 2026-05-15 still single-window — three PRs landed in sequence (#187 AmbientCG zip, #188 HANDOFF rotation, #189 multi-map PBR). Bot-review gate caught real bugs every time (orphan recovery, DX-normal coverage) — worth the latency. Tool count: 102. Standing rules: 5 (unchanged). Cadence intact.
