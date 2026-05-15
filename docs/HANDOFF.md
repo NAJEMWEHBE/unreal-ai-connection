@@ -2,7 +2,7 @@
 
 Single source of truth for resuming work on UnrealClaudeMCP in a fresh session of any MCP-compliant client. Read this first; it captures everything carried in the prior session's working memory.
 
-> Earlier closing notes (1st through 21st, sessions 2026-05-09 through 2026-05-15) are archived to [`docs/HANDOFF-archive.md`](HANDOFF-archive.md). This active file keeps the latest three consecutive notes (22nd-24th) for quick pickup.
+> Earlier closing notes (1st through 22nd, sessions 2026-05-09 through 2026-05-15) are archived to [`docs/HANDOFF-archive.md`](HANDOFF-archive.md). This active file keeps the latest three consecutive notes (23rd-25th) for quick pickup.
 
 ---
 
@@ -30,7 +30,7 @@ Recent waves that landed in the current session lineage:
 
 **Open PRs:** none.
 
-**Latest milestone on main:** PR #190 — 23rd closing-note + 20th rotated to archive. For the current HEAD commit hash, run `git log -1 origin/main`.
+**Latest milestone on main:** PR #192 — convert_hdri_to_cubemap synthetic; merge commit on main is the next 25th-closing-note PR. For the current HEAD commit hash, run `git log -1 origin/main`.
 
 **Pending verification on host machine (PRIMARY next-action item):**
 
@@ -309,50 +309,7 @@ For specific resumption:
 
 ## Closing notes from prior sessions
 
-> **Note:** Consecutive closing notes 1 through 21 (sessions 2026-05-09 through 2026-05-15) are archived in [`HANDOFF-archive.md`](HANDOFF-archive.md). Only the latest three (22nd-24th) are kept active here.
-
-## Session 2026-05-15 (PR #187 — marketplace_import v2 AmbientCG zip-unpack)
-
-Resume off the 21st-note state. One bounded item: complete the v2 promise from PR #184 by wiring AmbientCG's zip-archive backend into `marketplace_import`. Polyhaven path already shipped; AmbientCG was punting with `source_unsupported`.
-
-**What landed (PR #187, merge commit `9da5835`):**
-
-- Bridge helpers: `_ambientcg_resolve_zip_url(slug, asset_type, resolution, fmt)` — walks `/api/v2/full_json?id=<slug>&include=downloadData` JSON, normalises `(2k, jpg)` → `2K-JPG`, format-swap fallback `JPG<->PNG` / `EXR<->HDR`. `_ambientcg_extract_primary_map(zip_path, asset_type, dest_dir)` — zipfile extraction; texture path picks `_Color.` then falls back to `_Diffuse.`; HDRI prefers `.exr` over `.hdr`. **Path-traversal-safe** via `os.path.basename()` flattening on every extracted name.
-- `synthetic_marketplace_import` branches per source; AmbientCG path downloads zip → extracts primary map → routes through the same `import_texture` call used by Polyhaven.
-- Schema/manifest/docs/TOOLS.md kept in sync with the new `source` enum.
-- 12 new tests + 1 e2e wiring test → pytest **400 → 413**.
-
-**Bot-review gate (rule #5 honored):**
-
-- Greptile P2 inline: zip_tmp orphan leak → applied `os.remove(zip_tmp)` after successful extract, OSError-swallowed best-effort cleanup.
-- Greptile P2 outside-diff: missing e2e wiring test → added `test_marketplace_import_ambientcg_end_to_end` mocking all three I/O seams + `call_ue`, asserts response shape + call chain.
-- CodeRabbit Minor: `empty_zip` error code → collapsed to `bad_zip` for namespace consistency with the documented error set.
-- CodeRabbit Minor: response `format` field reported the *requested* format even after AmbientCG fell back → now echoes `chosen_fmt or fmt`.
-- CodeRabbit Minor: README pytest badge said `400_passing` — bumped to `413_passing`.
-- CodeRabbit outside-diff Major (manifest vs TOOLS.md format-default drift): resolved by aligning TOOLS.md (the inconsistent artifact) instead of the manifest — bridge actual default is `png` for both sources, with AmbientCG fallback to `jpg`. All three catalog mirrors now agree.
-- CodeRabbit Nitpick (Ruff RUF059): unused tuple unpacks renamed to `_`-prefix placeholders.
-
-Follow-up commit `f1d60f3` bundled all bot-directed fixes. Mechanical-fix exception (CLAUDE.md rule #5) honored — same-branch surgical follow-up, no new logic, self-merge allowed without second-pass bot review since the bots' first pass directed every change.
-
-**Tool/test totals:**
-
-- 102 tools (unchanged — no new tool added; this PR completes an existing tool's v2 promise).
-- pytest: 400 → **413** (+13: 12 unit + 1 e2e).
-- Bridge coverage unchanged (~99%).
-- 24 PRs in cumulative lineage (#161 → #187).
-
-**Open follow-ups (carried forward from 21st note, still parked):**
-
-- HDRI cubemap conversion (longlat → cubemap; no Python wrapper found in 5.7).
-- Multi-map PBR import (Normal/Roughness/AO/Disp in a single call instead of diffuse-only).
-- Sequencer keyframe authoring + Movie Render Queue (attended-Codex C++ work).
-- Host UE cold-rebuild for the 7 Wave A/A.5 C++ handlers (still pending).
-- Local OSS LLM daemon empty-list bug (admin shell needed; pre-commit local-ensemble unavailable until fixed).
-- `inspect_blueprint` `blueprint_status` field state-check — cheap grep, not yet done.
-
-**Twenty-second consecutive closing-note.** Session 2026-05-15 single-window resume — bounded v8 item landed clean through the full bot-review gate in one bot pass + one follow-up. Tool count: 102. Standing rules: 5 (unchanged). Cadence intact.
-
----
+> **Note:** Consecutive closing notes 1 through 22 (sessions 2026-05-09 through 2026-05-15) are archived in [`HANDOFF-archive.md`](HANDOFF-archive.md). Only the latest three (23rd-25th) are kept active here.
 
 ## Session 2026-05-15 (PR #189 — marketplace_import multi-map PBR mode)
 
@@ -438,3 +395,52 @@ Single-window verification pass. No new code shipped — all four feature PRs fr
 - T1/T2/T3 reshoot under live textured scene — not done this window (time spent on multi-map validation + scene compose iterations); the Florence hero shot is the first artist-grade live capture of the post-v7 pipeline though.
 
 **Twenty-fourth consecutive closing-note.** Session 2026-05-15 single window; verification-only, no merges. The bigger value of this window was that it cleared a parked item that had been load-bearing in three prior notes — the 7 C++ handlers are simply live now. Tool count: 102 live (corrected from 95). Standing rules: 5 (unchanged). Cadence intact.
+
+---
+
+## Session 2026-05-15 (PR #192 — convert_hdri_to_cubemap synthetic, closes 23rd-note longlat parked item)
+
+User authorized "run until you finish all of that task" — single-window feature push closing the HDRI longlat→cubemap parked item carried since the 21st note.
+
+**What landed (PR #192, merge commit `b682a53`):**
+
+- New synthetic bridge tool `convert_hdri_to_cubemap` — wraps the canonical UE editor pipeline that has no direct Python converter in 5.7 vanilla: `SceneCaptureCube` against an inside-out unit sphere with the HDRI as an unlit emissive material, then `RenderingLibrary.render_target_create_static_texture_cube_editor_only` materializes the static `UTextureCube`.
+- Tool count: 102 → **103** (71 C++ + 32 synthetic). Catalog mirrors in bridge `TOOLS`, `mcp_manifest.json`, `docs/TOOLS.md` all updated.
+- Doc-count drift sweep across 11 files (102→103, 31→32 synthetic, 430→443 pytest, enumeration sentences extended).
+- Args (validated): `hdri_path` (required, must start with `/Game/`), `dest_path` (optional, defaults to source folder), `dest_name` (optional, defaults to `<basename>_Cube`), `cube_size` (optional 16-8192, default 1024), `compression` (optional allowlist: `TC_HDR` / `TC_HDR_COMPRESSED` / `TC_HDR_F32` / `TC_DEFAULT`, default `TC_HDR`).
+- Returns: `ok`, `source_hdri`, `cube_asset_path`, `dest_path`, `dest_name`, `cube_size`, `compression`.
+- Live POC validated against Polyhaven `venice_sunset` — cube created at `/Game/Validation/Florence/HDRI_Venice_Sunset_Cube` before the PR opened.
+
+**Bot-review gate (rule #5 honored; mechanical-fix exception applied):**
+
+- CodeRabbit Major: capture source `SCS_FINAL_COLOR_LDR` → `SCS_SCENE_COLOR_HDR_NO_ALPHA`. LDR was tone-mapping + clamping HDR to 8-bit SDR — defeats the point of an HDR cubemap. **Critical fix** for fidelity.
+- CodeRabbit Major: fixed temp asset names (`RT_HDRI_ToCube_Temp` / `M_HDRI_Sphere_ToCube_Temp`) → per-call `uuid4()[:12]` suffix. Concurrent calls no longer race; cleanup never touches pre-existing user content.
+- CodeRabbit Major: wrapped RT/material/sphere/SCC/cube creation in `try/finally` with per-step guarded cleanup. One failure no longer strands the rest of the temp state.
+- CodeRabbit Minor: `dest_path` validation tightened to exact `/Game` or prefix `/Game/`. Rejects `/GameFoo`, `/Gameplay/x`, `..`/`.` segments, backslashes.
+- CodeRabbit Minor: TOOLS.md synthetic enumeration sentence — added `marketplace_search` + `marketplace_import` back to the list of 32 (count was correct but enumeration list was short).
+- +5 regression tests for new validation + safety. Greptile: no findings.
+
+Follow-up commit `1604cc7` bundled all five bot-directed fixes. Mechanical-fix exception (CLAUDE.md rule #5) honored — same-branch surgical follow-up, no new logic, self-merge after CI green.
+
+**UE 5.7 API surface confirmed available (recorded for next time):**
+
+- `unreal.SceneCaptureCube` (actor) + `unreal.SceneCaptureComponentCube` (component).
+- `unreal.TextureRenderTargetCube` + `unreal.TextureRenderTargetCubeFactoryNew`.
+- `unreal.RenderingLibrary.render_target_create_static_texture_cube_editor_only(rt, name, compression, mip_settings)` — 4-arg signature, NOT 5; the cube is created in the same package as the render target. **Compression enum must be passed as the enum member, not a string**.
+- `SceneCaptureSource.SCS_SCENE_COLOR_HDR_NO_ALPHA` preserves HDR; the `SCS_FINAL_COLOR_*` variants tone-map and discard HDR range.
+- `SceneCaptureComponentCube` in 5.7 dropped the `b_` prefix on Boolean properties — use `capture_every_frame` / `capture_on_movement`, not `b_capture_every_frame`.
+
+**Tool/test totals:**
+
+- 103 tools (71 C++ + 32 synthetic) — `+1` (`convert_hdri_to_cubemap`).
+- pytest: 430 → **443** (+13: 8 initial coverage + 5 regression for bot-directed fixes).
+- Bridge coverage unchanged (~99%).
+- 26 PRs in cumulative lineage (#161 → #192).
+
+**Remaining parked items after this window:**
+
+- Sequencer keyframe authoring + Movie Render Queue — still attended-Codex C++ work; scoping touch happened this window but no code landed (risk of half-baked primitive > value).
+- Local OSS LLM daemon empty-list bug — admin shell needed for Machine-scope env var or daemon upgrade.
+- T1/T2/T3 reshoot under live textured scene — Florence hero shot from 24th-note window remains the first artist-grade live capture; expansion deferred.
+
+**Twenty-fifth consecutive closing-note.** Session 2026-05-15 closing window. Three parked items cleared across this session's 5 merged PRs (#187 AmbientCG zip-unpack, #189 multi-map PBR, #192 cubemap converter, plus #188/#190/#191 handoff rotations; the host plugin DLL rebuild for the 7 Wave A/A.5 C++ handlers verified live in the 24th note). Tool count: 103 live. Standing rules: 5 (unchanged). Cadence intact.

@@ -1,6 +1,6 @@
 # HANDOFF archive
 
-> Historical session log — chronological, append-only, do not edit. This file holds **consecutive closing notes 1 through 21** (sessions 2026-05-09 through 2026-05-15 — token-burn cleanup + plugin diet + Waves B/C/D 88→100 + PR #184 scene-v7 + marketplace tools hardened). The active [`HANDOFF.md`](HANDOFF.md) keeps only the latest three consecutive notes (22nd-24th) for fast pickup; everything older lives here for grep-ability and audit trail. Chronological session indices in the TOC below run 1-27; entries 18-27 (10 chronological sessions) map to consecutive-notes 11-21 (11 notes) — the count mismatch is intentional, because the 2026-05-11 / 2026-05-12 stretch had one session window that produced two closing notes (a mid-session reset wrote the second). The mapping is many-to-many, not strict one-to-one.
+> Historical session log — chronological, append-only, do not edit. This file holds **consecutive closing notes 1 through 22** (sessions 2026-05-09 through 2026-05-15 — token-burn cleanup + plugin diet + Waves B/C/D 88→100 + PR #184 scene-v7 + marketplace tools hardened + PR #187 AmbientCG zip-unpack v2). The active [`HANDOFF.md`](HANDOFF.md) keeps only the latest three consecutive notes (23rd-25th) for fast pickup; everything older lives here for grep-ability and audit trail. Chronological session indices in the TOC below run 1-28; entries 18-28 (11 chronological sessions) map to consecutive-notes 11-22 (12 notes) — the count mismatch is intentional, because the 2026-05-11 / 2026-05-12 stretch had one session window that produced two closing notes (a mid-session reset wrote the second). The mapping is many-to-many, not strict one-to-one.
 
 ## Table of contents (chronological)
 
@@ -33,8 +33,9 @@
 | 25 | 2026-05-13 (community-roadmap research + Wave A + Wave A.5 — first WRITE-side wave) | 88 tools (71 C++ + 17 synthetic), 302 pytest — 19th consecutive closing-note |
 | 26 | 2026-05-13 (final — token-burn cleanup, plugin diet, Waves B/C/D 88→100) | 100 tools (71 C++ + 29 synthetic), 396 pytest — 20th consecutive closing-note |
 | 27 | 2026-05-14 → 15 (PR #184 — scene-v7 + marketplace tools hardened through the full bot-review gate) | 102 tools (71 C++ + 31 synthetic), 400 pytest — 21st consecutive closing-note |
+| 28 | 2026-05-15 (PR #187 — marketplace_import v2 AmbientCG zip-unpack) | 102 tools (71 C++ + 31 synthetic), 413 pytest — 22nd consecutive closing-note |
 
-Note: TOC stops at chronological-session #27 because the 22nd consecutive closing-note onward lives in the active [`HANDOFF.md`](HANDOFF.md). Cross-reference by consecutive-note number: archive holds 1-21, active holds 22-24.
+Note: TOC stops at chronological-session #28 because the 23rd consecutive closing-note onward lives in the active [`HANDOFF.md`](HANDOFF.md). Cross-reference by consecutive-note number: archive holds 1-22, active holds 23-25.
 
 ---
 
@@ -1265,3 +1266,46 @@ This window opened with an AFK return-pickup: the maintainer had granted ~1.5h a
 - **`gh` auth for AFK sessions**: if the next AFK pickup again finds `gh` unauthenticated and the auto-mode classifier blocks the standard `gh auth login` browser handshake, the maintainer-authorized fallback is to load a personal-access-token (PAT) into the `GH_TOKEN` env var via `gh auth login --with-token < path/to/token` — see [`gh auth login` docs](https://cli.github.com/manual/gh_auth_login). Do **not** publish the actual extraction one-liner here; the live recipe is in the maintainer's private notes. Pattern: short-lived token, env-var only (no persistent `gh` config write), narrow scopes (`repo` is sufficient for the PR-lifecycle commands the gate needs).
 
 **Twenty-first consecutive closing-note.** Session 2026-05-14 → 15 spans 2 distinct work windows (AFK push + resume merge). The bot-review gate caught real bugs in every wave — SSRF, format-mismatch, missing stage marker, gating bug, bool coercion, fan-out quota leak. Worth the latency. Tool count: 102. Standing rules: 5 (unchanged). Cadence intact.
+
+---
+
+## Session 2026-05-15 (PR #187 — marketplace_import v2 AmbientCG zip-unpack)
+
+Resume off the 21st-note state. One bounded item: complete the v2 promise from PR #184 by wiring AmbientCG's zip-archive backend into `marketplace_import`. Polyhaven path already shipped; AmbientCG was punting with `source_unsupported`.
+
+**What landed (PR #187, merge commit `9da5835`):**
+
+- Bridge helpers: `_ambientcg_resolve_zip_url(slug, asset_type, resolution, fmt)` — walks `/api/v2/full_json?id=<slug>&include=downloadData` JSON, normalises `(2k, jpg)` → `2K-JPG`, format-swap fallback `JPG<->PNG` / `EXR<->HDR`. `_ambientcg_extract_primary_map(zip_path, asset_type, dest_dir)` — zipfile extraction; texture path picks `_Color.` then falls back to `_Diffuse.`; HDRI prefers `.exr` over `.hdr`. **Path-traversal-safe** via `os.path.basename()` flattening on every extracted name.
+- `synthetic_marketplace_import` branches per source; AmbientCG path downloads zip → extracts primary map → routes through the same `import_texture` call used by Polyhaven.
+- Schema/manifest/docs/TOOLS.md kept in sync with the new `source` enum.
+- 12 new tests + 1 e2e wiring test → pytest **400 → 413**.
+
+**Bot-review gate (rule #5 honored):**
+
+- Greptile P2 inline: zip_tmp orphan leak → applied `os.remove(zip_tmp)` after successful extract, OSError-swallowed best-effort cleanup.
+- Greptile P2 outside-diff: missing e2e wiring test → added `test_marketplace_import_ambientcg_end_to_end` mocking all three I/O seams + `call_ue`, asserts response shape + call chain.
+- CodeRabbit Minor: `empty_zip` error code → collapsed to `bad_zip` for namespace consistency with the documented error set.
+- CodeRabbit Minor: response `format` field reported the *requested* format even after AmbientCG fell back → now echoes `chosen_fmt or fmt`.
+- CodeRabbit Minor: README pytest badge said `400_passing` — bumped to `413_passing`.
+- CodeRabbit outside-diff Major (manifest vs TOOLS.md format-default drift): resolved by aligning TOOLS.md (the inconsistent artifact) instead of the manifest — bridge actual default is `png` for both sources, with AmbientCG fallback to `jpg`. All three catalog mirrors now agree.
+- CodeRabbit Nitpick (Ruff RUF059): unused tuple unpacks renamed to `_`-prefix placeholders.
+
+Follow-up commit `f1d60f3` bundled all bot-directed fixes. Mechanical-fix exception (CLAUDE.md rule #5) honored — same-branch surgical follow-up, no new logic, self-merge allowed without second-pass bot review since the bots' first pass directed every change.
+
+**Tool/test totals:**
+
+- 102 tools (unchanged — no new tool added; this PR completes an existing tool's v2 promise).
+- pytest: 400 → **413** (+13: 12 unit + 1 e2e).
+- Bridge coverage unchanged (~99%).
+- 24 PRs in cumulative lineage (#161 → #187).
+
+**Open follow-ups (carried forward from 21st note, still parked):**
+
+- HDRI cubemap conversion (longlat → cubemap; no Python wrapper found in 5.7).
+- Multi-map PBR import (Normal/Roughness/AO/Disp in a single call instead of diffuse-only).
+- Sequencer keyframe authoring + Movie Render Queue (attended-Codex C++ work).
+- Host UE cold-rebuild for the 7 Wave A/A.5 C++ handlers (still pending).
+- Local OSS LLM daemon empty-list bug (admin shell needed; pre-commit local-ensemble unavailable until fixed).
+- `inspect_blueprint` `blueprint_status` field state-check — cheap grep, not yet done.
+
+**Twenty-second consecutive closing-note.** Session 2026-05-15 single-window resume — bounded v8 item landed clean through the full bot-review gate in one bot pass + one follow-up. Tool count: 102. Standing rules: 5 (unchanged). Cadence intact.
