@@ -27,6 +27,54 @@
 
 ---
 
+## Install (one paste, any client)
+
+> **Every route below only wires the stdio bridge.** You must separately install the UE 5.7 plugin into your project's `Plugins/` folder and launch the editor (it binds `127.0.0.1:18888`). See [`docs/setup/README.md`](docs/setup/README.md) for the prerequisite, and [`docs/DISTRIBUTION.md`](docs/DISTRIBUTION.md) for how this is published.
+
+**Claude Code** — paste the owner/repo, no clone needed:
+
+```
+/plugin marketplace add NAJEMWEHBE/unreal-ai-connection
+/plugin install unreal-ai-connection@unreal-ai-connection
+```
+
+**Cursor** — one-click deeplink. Base64-encode your machine's bridge path into this template:
+
+```
+cursor://anysphere.cursor-deeplink/mcp/install?name=unreal-ai-connection&config=<BASE64>
+```
+
+where `<BASE64>` is base64 of `{"command":"python3","args":["/ABSOLUTE/PATH/TO/bridge/unreal_ai_connection_bridge.py"]}`. Manual fallback — `.cursor/mcp.json`:
+
+```json
+{ "mcpServers": { "unreal-ai-connection": { "command": "python3", "args": ["/ABSOLUTE/PATH/TO/bridge/unreal_ai_connection_bridge.py"] } } }
+```
+
+**VS Code** — install deeplink (URL-encode the JSON for your path):
+
+```
+vscode:mcp/install?<URL-ENCODED {"name":"unreal-ai-connection","command":"python3","args":["/ABSOLUTE/PATH/.../bridge/unreal_ai_connection_bridge.py"]}>
+```
+
+**Every other client** — copy-paste recipe per client:
+
+| Client | Route | Recipe |
+|---|---|---|
+| Claude Code | `/plugin marketplace add NAJEMWEHBE/unreal-ai-connection` | [docs/setup/claude-code.md](docs/setup/claude-code.md) |
+| Claude Desktop | edit `claude_desktop_config.json` | [docs/setup/claude-desktop.md](docs/setup/claude-desktop.md) |
+| Cursor | deeplink / `.cursor/mcp.json` | [docs/setup/cursor.md](docs/setup/cursor.md) |
+| Codex CLI | `codex mcp add unreal-ai-connection -- …` | [docs/setup/codex-cli.md](docs/setup/codex-cli.md) |
+| Windsurf | `mcp_config.json` | [docs/setup/windsurf.md](docs/setup/windsurf.md) |
+| Continue | `~/.continue/config.yaml` | [docs/setup/continue.md](docs/setup/continue.md) |
+| Cline | MCP Marketplace tab / settings | [docs/setup/cline.md](docs/setup/cline.md) |
+| Zed | `~/.config/zed/settings.json` | [docs/setup/zed.md](docs/setup/zed.md) |
+| Gemini CLI | `~/.gemini/settings.json` | [docs/setup/gemini-cli.md](docs/setup/gemini-cli.md) |
+| VS Code Copilot | `.vscode/mcp.json` | [docs/setup/vscode-copilot.md](docs/setup/vscode-copilot.md) |
+
+Also discoverable in the [official MCP Registry](https://github.com/modelcontextprotocol/registry) as `io.github.NAJEMWEHBE/unreal-ai-connection` (feeds the VS Code MCP gallery, mcp.so, PulseMCP) and submittable to the Cline marketplace via [`llms-install.md`](llms-install.md).
+
+---
+
 ## Jump to
 
 - [How it fits together](#how-it-fits-together) — architecture diagram + per-call sequence
