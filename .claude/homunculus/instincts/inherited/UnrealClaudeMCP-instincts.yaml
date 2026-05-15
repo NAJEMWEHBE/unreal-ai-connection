@@ -83,7 +83,7 @@ Use relative imports for project files
 ## Evidence
 
 - Import analysis shows relative import pattern
-- Example: import { x } from '../lib/x'
+- Example: from .module import name
 
 ---
 id: UnrealClaudeMCP-export-style
