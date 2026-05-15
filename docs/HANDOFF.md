@@ -2,7 +2,7 @@
 
 Single source of truth for resuming work on UnrealClaudeMCP in a fresh session of any MCP-compliant client. Read this first; it captures everything carried in the prior session's working memory.
 
-> Earlier closing notes (1st through 18th, sessions 2026-05-09 through 2026-05-13 autopilot resume) are archived to [`docs/HANDOFF-archive.md`](HANDOFF-archive.md). This active file keeps the latest three consecutive notes (19th-21st) for quick pickup.
+> Earlier closing notes (1st through 19th, sessions 2026-05-09 through 2026-05-13 autopilot resume) are archived to [`docs/HANDOFF-archive.md`](HANDOFF-archive.md). This active file keeps the latest three consecutive notes (20th-22nd) for quick pickup.
 
 ---
 
@@ -30,7 +30,7 @@ Recent waves that landed in the current session lineage:
 
 **Open PRs:** none.
 
-**Latest milestone on main:** PR #170 — 20th closing-note + 17th rotated to archive. For the current HEAD commit hash, run `git log -1 origin/main` (intentionally not pinned in this doc since closing-note PRs are self-referential and any pinned hash falls one commit behind on merge).
+**Latest milestone on main:** PR #187 — AmbientCG zip-unpack v2 landed; merge commit on main is the next 22nd-closing-note PR. For the current HEAD commit hash, run `git log -1 origin/main`.
 
 **Pending verification on host machine (PRIMARY next-action item):**
 
@@ -309,83 +309,7 @@ For specific resumption:
 
 ## Closing notes from prior sessions
 
-> **Note:** Consecutive closing notes 1 through 18 (sessions 2026-05-09 through 2026-05-13 autopilot resume) are archived in [`HANDOFF-archive.md`](HANDOFF-archive.md). Only the latest three (19th-21st) are kept active here.
-
-**Session 2026-05-13 (community-roadmap research + Wave A + Wave A.5 — first WRITE-side wave of the autopilot extension):**
-
-After the 18th closing-note resume window (doc + test hardening only) the maintainer asked "how can we make this more useful for the community?" This window answered by running a multi-agent deep-research sweep, deriving a 10-tool priority roadmap, and shipping the first two batches (Wave A + Wave A.5 = 8 new tools).
-
-**Community-roadmap research (multi-agent deep-research):**
-
-Three parallel reviewers (general-purpose web-search agent reading Reddit r/unrealengine + UE forums + YouTube tutorial demand + competitor MCP open issues; Sonnet read-only codebase mapper; cloud reasoning model strategic synthesis) converged independently on the same TOP-10 priorities. Convergence across distinct retrieval surfaces is the strongest signal that the answer isn't an artifact of one reviewer's bias.
-
-The top-10 by impact-to-cost ratio:
-
-1. Blueprint graph authoring (`add_node`, `connect_pins`, `add_variable`, `create_blueprint`) — biggest competitive gap vs every other UE-MCP
-2. Sequencer keyframe authoring — cinematics #1 friction point
-3. PIE control loop (`start_pie/stop_pie`, `run_automation_tests`, `save_dirty_assets`) — closes the "did my edit work?" validation feedback loop
-4. Project settings get/set (`UDeveloperSettings` reflection)
-5. Asset hygiene (`find_unused_assets`, `get_reference_chain`)
-6. Movie Render Queue (already-deferred C++ item)
-7. Enhanced Input scaffolding
-8. Insights performance capture
-9. Build automation (`run_cook_commandlet`, `parse_cook_failure`)
-10. Quick-win cluster (`bulk_inspect_assets`, `inspect_input_mappings`, `get_engine_version`, `list_levels`, `get_selected_actors`, `set_actor_selection`)
-
-The MCP/MCP ecosystem skews heavily toward inspection (50%+ of competing surfaces are read-only); the underserved phase is graph mutation. That's where Wave B will go.
-
-**Wave A shipped (PR #161, MERGED) — 6 new tools, 7 atomic commits:**
-
-| Tool | Tier | Effect |
-|------|------|--------|
-| `get_engine_version` | C++ | Structured engine-version fields (major/minor/patch/changelist/branch + minor_dotted) — LLM branches on version without parsing get_project_summary's string |
-| `list_levels` | C++ | UWorld asset registry query with optional path_under + name_contains — closes the load_level_by_path gap (caller no longer needs pre-knowledge of paths) |
-| `save_dirty_assets` | C++ | UEditorLoadingAndSavingUtils::SaveDirtyPackages wrapper, mirrors editor 'Save All' — closes the persistence loop after every edit-side tool |
-| `get_selected_actors` | C++ | USelection iterator → per-actor name/label/class/transform — companion to apply_python_to_selection, lets LLM observe before acting |
-| `inspect_input_mappings` | C++ | UInputSettings CDO: action+axis mappings + uses_enhanced_input flag — #1 beginner Enhanced-Input migration blocker |
-| `bulk_inspect_assets` | Synthetic | inspect_asset composition over paths[] — pipeline-audit pattern (500 inspects in 1 call) |
-
-Wave A initially shipped solo (no multi-agent review) — the maintainer flagged it as a standing-rule violation. Retroactive ensemble review caught a real BLOCKER (Handler_SaveDirtyAssets included `FileHelpers.h` but called `UEditorLoadingAndSavingUtils::SaveDirtyPackages` which lives in `EditorLoadingAndSavingUtils.h`). Fixed mid-PR before merge. Lesson logged.
-
-**Wave A.5 shipped (PR #162, awaiting CI merge at this closing-note) — 2 new tools:**
-
-| Tool | Tier | Effect |
-|------|------|--------|
-| `pie_control` | C++ | Single tool with action=start\|stop\|query + optional mode=play\|simulate. Wraps GEditor->RequestPlaySession / RequestEndPlayMap / IsPlayingSessionInEditor. Closes the canonical "did my edit work?" feedback loop |
-| `inspect_project_setting` | C++ | Reflects any UDeveloperSettings subclass; bulk mode dumps every editable UPROPERTY, single mode returns one. Stringification mirrors inspect_data_asset's heuristic (ExportText / container sentinel / asset path) |
-
-Wave A.5 used the **pre-COMMIT** multi-agent ensemble pattern (not retroactive — the lesson from Wave A applied). One BLOCKER + two MAJOR findings caught at design phase, applied before any code was written:
-
-- BLOCKER → `GEditor->IsPlayingSessionInEditor()` chosen over the less-reliable older `GEditor->PlayWorld != nullptr` check
-- MAJOR → `FindObject<UClass>(nullptr, *ClassPath)` chosen over deprecated `ANY_PACKAGE` (deprecated in UE 5.1)
-- MAJOR → `GEditor->RequestPlaySession(FRequestPlaySessionParams)` chosen over `EditorInvokeCommand` / `EditorPlaySimulate` as the canonical 5.7 launch API
-
-The pattern paid off again in CI: `test_no_personal_leaks.py` caught a comment-leak — two handler files had credited the specific pre-flight reviewer by name. A follow-up scrub-commit fixed both. Local pytest had skipped the leak because `git ls-files` doesn't surface unstaged files — operational lesson recorded: **run pytest AFTER git add when adding new files**, not before.
-
-**Tool / test totals at the end of this window:**
-
-- 86 → **88 tools** (+8 from session start; +6 Wave A merged, +2 Wave A.5 in flight). Split: 69 → **71 C++ handlers**; synthetic count holds at **17** (one new synthetic landed in Wave A).
-- pytest: 243 → **302** (+59 across the autopilot-extension + Wave A + Wave A.5 windows combined).
-- 8 → **12 files** under drift_sweep coverage (extension from the previous window holds; no new scan targets added).
-- 23 PRs in the cumulative session (#141 → #162).
-
-**The three standing rules remain load-bearing project knowledge:**
-
-1. Multi-agent ensemble review on every substantive change. **Pre-COMMIT, not post-PR-push.** Wave A's retroactive review caught a real BLOCKER but added the cost of one round-trip + fix-up commit; Wave A.5's pre-commit review caught comparable findings with zero rework. The pre-commit cadence is the canonical form going forward.
-2. UE 5.7 launch pre-authorized in every session — never ask, never skip live verification when it adds signal.
-3. UE close when verification work finishes — Editor mode reserves ~4 GB RAM, do not leave running idle.
-
-**What to watch in the next session:**
-
-- **First action: restart Claude Code.** Wave A's 5 new C++ handlers + Wave A.5's 2 new C++ handlers all need fresh-bridge load. 7 new handler.cpp files added; bridge cache is stale across all of them.
-- **Cold-compile in UE.** All 7 new C++ handlers need editor rebuild on the host project before live verification works. This is the maintainer's next build window; bridge-side schema is already correct so any MCP client will see all 88 tool entries on `tools/list` immediately — but calls to the new handlers will return JSON-RPC error -32601 (method not found) until UE rebuilds the plugin DLL with the new handler registrations.
-- **PR #162 awaits CI green + merge** (was failing on personal-leak guard at the start of this closing-note — scrub commit fixed). Re-check CI status, merge with `--admin --squash --delete-branch` when green.
-- **Wave B = Blueprint graph mutation** is the headline next priority. Per multi-agent partitioning rule, this is attended-Codex work. Do not auto-dispatch.
-- **Wave B prerequisites verified by this window's roadmap research:** existing `edit_widget_tree` is the architectural proof-of-concept for direct UObject mutation; the same `K2Node` mutation pattern extends naturally. `FBlueprintEditorUtils::AddMemberVariable` + `KismetEditorUtilities` + `UEdGraphSchema_K2::TryCreateConnection` are the canonical API surface.
-
-**Nineteenth consecutive closing-note.** Session 2026-05-12 → 13 now spans 11+ documented windows. The cadence is the project rhythm.
-
----
+> **Note:** Consecutive closing notes 1 through 19 (sessions 2026-05-09 through 2026-05-13 autopilot resume) are archived in [`HANDOFF-archive.md`](HANDOFF-archive.md). Only the latest three (20th-22nd) are kept active here.
 
 ## Session 2026-05-13 (final — token-burn cleanup, plugin diet, 88 → 100 tools)
 
@@ -494,3 +418,46 @@ This window opened with an AFK return-pickup: the maintainer had granted ~1.5h a
 - **`gh` auth for AFK sessions**: if the next AFK pickup again finds `gh` unauthenticated and the auto-mode classifier blocks the standard `gh auth login` browser handshake, the maintainer-authorized fallback is to load a personal-access-token (PAT) into the `GH_TOKEN` env var via `gh auth login --with-token < path/to/token` — see [`gh auth login` docs](https://cli.github.com/manual/gh_auth_login). Do **not** publish the actual extraction one-liner here; the live recipe is in the maintainer's private notes. Pattern: short-lived token, env-var only (no persistent `gh` config write), narrow scopes (`repo` is sufficient for the PR-lifecycle commands the gate needs).
 
 **Twenty-first consecutive closing-note.** Session 2026-05-14 → 15 spans 2 distinct work windows (AFK push + resume merge). The bot-review gate caught real bugs in every wave — SSRF, format-mismatch, missing stage marker, gating bug, bool coercion, fan-out quota leak. Worth the latency. Tool count: 102. Standing rules: 5 (unchanged). Cadence intact.
+
+---
+
+## Session 2026-05-15 (PR #187 — marketplace_import v2 AmbientCG zip-unpack)
+
+Resume off the 21st-note state. One bounded item: complete the v2 promise from PR #184 by wiring AmbientCG's zip-archive backend into `marketplace_import`. Polyhaven path already shipped; AmbientCG was punting with `source_unsupported`.
+
+**What landed (PR #187, merge commit `9da5835`):**
+
+- Bridge helpers: `_ambientcg_resolve_zip_url(slug, asset_type, resolution, fmt)` — walks `/api/v2/full_json?id=<slug>&include=downloadData` JSON, normalises `(2k, jpg)` → `2K-JPG`, format-swap fallback `JPG<->PNG` / `EXR<->HDR`. `_ambientcg_extract_primary_map(zip_path, asset_type, dest_dir)` — zipfile extraction; texture path picks `_Color.` then falls back to `_Diffuse.`; HDRI prefers `.exr` over `.hdr`. **Path-traversal-safe** via `os.path.basename()` flattening on every extracted name.
+- `synthetic_marketplace_import` branches per source; AmbientCG path downloads zip → extracts primary map → routes through the same `import_texture` call used by Polyhaven.
+- Schema/manifest/docs/TOOLS.md kept in sync with the new `source` enum.
+- 12 new tests + 1 e2e wiring test → pytest **400 → 413**.
+
+**Bot-review gate (rule #5 honored):**
+
+- Greptile P2 inline: zip_tmp orphan leak → applied `os.remove(zip_tmp)` after successful extract, OSError-swallowed best-effort cleanup.
+- Greptile P2 outside-diff: missing e2e wiring test → added `test_marketplace_import_ambientcg_end_to_end` mocking all three I/O seams + `call_ue`, asserts response shape + call chain.
+- CodeRabbit Minor: `empty_zip` error code → collapsed to `bad_zip` for namespace consistency with the documented error set.
+- CodeRabbit Minor: response `format` field reported the *requested* format even after AmbientCG fell back → now echoes `chosen_fmt or fmt`.
+- CodeRabbit Minor: README pytest badge said `400_passing` — bumped to `413_passing`.
+- CodeRabbit outside-diff Major (manifest vs TOOLS.md format-default drift): resolved by aligning TOOLS.md (the inconsistent artifact) instead of the manifest — bridge actual default is `png` for both sources, with AmbientCG fallback to `jpg`. All three catalog mirrors now agree.
+- CodeRabbit Nitpick (Ruff RUF059): unused tuple unpacks renamed to `_`-prefix placeholders.
+
+Follow-up commit `f1d60f3` bundled all bot-directed fixes. Mechanical-fix exception (CLAUDE.md rule #5) honored — same-branch surgical follow-up, no new logic, self-merge allowed without second-pass bot review since the bots' first pass directed every change.
+
+**Tool/test totals:**
+
+- 102 tools (unchanged — no new tool added; this PR completes an existing tool's v2 promise).
+- pytest: 400 → **413** (+13: 12 unit + 1 e2e).
+- Bridge coverage unchanged (~99%).
+- 24 PRs in cumulative lineage (#161 → #187).
+
+**Open follow-ups (carried forward from 21st note, still parked):**
+
+- HDRI cubemap conversion (longlat → cubemap; no Python wrapper found in 5.7).
+- Multi-map PBR import (Normal/Roughness/AO/Disp in a single call instead of diffuse-only).
+- Sequencer keyframe authoring + Movie Render Queue (attended-Codex C++ work).
+- Host UE cold-rebuild for the 7 Wave A/A.5 C++ handlers (still pending).
+- Local OSS LLM daemon empty-list bug (admin shell needed; pre-commit local-ensemble unavailable until fixed).
+- `inspect_blueprint` `blueprint_status` field state-check — cheap grep, not yet done.
+
+**Twenty-second consecutive closing-note.** Session 2026-05-15 single-window resume — bounded v8 item landed clean through the full bot-review gate in one bot pass + one follow-up. Tool count: 102. Standing rules: 5 (unchanged). Cadence intact.

@@ -1,6 +1,6 @@
 # HANDOFF archive
 
-> Historical session log — chronological, append-only, do not edit. This file holds **consecutive closing notes 1 through 18** (sessions 2026-05-09 through 2026-05-13 autopilot-resume). The active [`HANDOFF.md`](HANDOFF.md) keeps only the latest three consecutive notes (19th-21st) for fast pickup; everything older lives here for grep-ability and audit trail. Chronological session indices in the TOC below run 1-24; entries 18-24 (7 chronological sessions) map to consecutive-notes 11-18 (8 notes) — the count mismatch is intentional, because the 2026-05-11 / 2026-05-12 stretch had one session window that produced two closing notes (a mid-session reset wrote the second). The mapping is many-to-many, not strict one-to-one.
+> Historical session log — chronological, append-only, do not edit. This file holds **consecutive closing notes 1 through 19** (sessions 2026-05-09 through 2026-05-13 community-roadmap + Wave A/A.5). The active [`HANDOFF.md`](HANDOFF.md) keeps only the latest three consecutive notes (20th-22nd) for fast pickup; everything older lives here for grep-ability and audit trail. Chronological session indices in the TOC below run 1-25; entries 18-25 (8 chronological sessions) map to consecutive-notes 11-19 (9 notes) — the count mismatch is intentional, because the 2026-05-11 / 2026-05-12 stretch had one session window that produced two closing notes (a mid-session reset wrote the second). The mapping is many-to-many, not strict one-to-one.
 
 ## Table of contents (chronological)
 
@@ -30,8 +30,9 @@
 | 22 | 2026-05-12 (autopilot — bulk_duplicate_assets; bulk_* family complete) | 80 tools |
 | 23 | 2026-05-12 (autopilot extension — multi-agent ensemble shipped, 12 PRs doc + test hardening) | 80 tools, 282 pytest |
 | 24 | 2026-05-13 (autopilot resume — three standing rules locked, live verification panel, scaffolding docs) | 80 tools, 284 pytest — 18th consecutive closing-note |
+| 25 | 2026-05-13 (community-roadmap research + Wave A + Wave A.5 — first WRITE-side wave) | 88 tools (71 C++ + 17 synthetic), 302 pytest — 19th consecutive closing-note |
 
-Note: TOC stops at chronological-session #24 because the 19th consecutive closing-note onward lives in the active [`HANDOFF.md`](HANDOFF.md). Cross-reference by consecutive-note number: archive holds 1-18, active holds 19-21.
+Note: TOC stops at chronological-session #25 because the 20th consecutive closing-note onward lives in the active [`HANDOFF.md`](HANDOFF.md). Cross-reference by consecutive-note number: archive holds 1-19, active holds 20-22.
 
 ---
 
@@ -1076,3 +1077,79 @@ The 22 stale bridge PRs that RESUME.md flagged as needing live verification are 
 - **Three standing rules are now load-bearing project knowledge.** Multi-agent ensemble / UE-launch / UE-close. Reinforce in every new session's resume reflex; the maintainer should not have to reiterate them.
 
 **Eighteenth consecutive closing-note.** Session 2026-05-12 → 13 now spans 9+ documented windows. Cadence intact.
+
+---
+
+**Session 2026-05-13 (community-roadmap research + Wave A + Wave A.5 — first WRITE-side wave of the autopilot extension):**
+
+After the 18th closing-note resume window (doc + test hardening only) the maintainer asked "how can we make this more useful for the community?" This window answered by running a multi-agent deep-research sweep, deriving a 10-tool priority roadmap, and shipping the first two batches (Wave A + Wave A.5 = 8 new tools).
+
+**Community-roadmap research (multi-agent deep-research):**
+
+Three parallel reviewers (general-purpose web-search agent reading Reddit r/unrealengine + UE forums + YouTube tutorial demand + competitor MCP open issues; Sonnet read-only codebase mapper; cloud reasoning model strategic synthesis) converged independently on the same TOP-10 priorities. Convergence across distinct retrieval surfaces is the strongest signal that the answer isn't an artifact of one reviewer's bias.
+
+The top-10 by impact-to-cost ratio:
+
+1. Blueprint graph authoring (`add_node`, `connect_pins`, `add_variable`, `create_blueprint`) — biggest competitive gap vs every other UE-MCP
+2. Sequencer keyframe authoring — cinematics #1 friction point
+3. PIE control loop (`start_pie/stop_pie`, `run_automation_tests`, `save_dirty_assets`) — closes the "did my edit work?" validation feedback loop
+4. Project settings get/set (`UDeveloperSettings` reflection)
+5. Asset hygiene (`find_unused_assets`, `get_reference_chain`)
+6. Movie Render Queue (already-deferred C++ item)
+7. Enhanced Input scaffolding
+8. Insights performance capture
+9. Build automation (`run_cook_commandlet`, `parse_cook_failure`)
+10. Quick-win cluster (`bulk_inspect_assets`, `inspect_input_mappings`, `get_engine_version`, `list_levels`, `get_selected_actors`, `set_actor_selection`)
+
+The MCP/MCP ecosystem skews heavily toward inspection (50%+ of competing surfaces are read-only); the underserved phase is graph mutation. That's where Wave B will go.
+
+**Wave A shipped (PR #161, MERGED) — 6 new tools, 7 atomic commits:**
+
+| Tool | Tier | Effect |
+|------|------|--------|
+| `get_engine_version` | C++ | Structured engine-version fields (major/minor/patch/changelist/branch + minor_dotted) — LLM branches on version without parsing get_project_summary's string |
+| `list_levels` | C++ | UWorld asset registry query with optional path_under + name_contains — closes the load_level_by_path gap (caller no longer needs pre-knowledge of paths) |
+| `save_dirty_assets` | C++ | UEditorLoadingAndSavingUtils::SaveDirtyPackages wrapper, mirrors editor 'Save All' — closes the persistence loop after every edit-side tool |
+| `get_selected_actors` | C++ | USelection iterator → per-actor name/label/class/transform — companion to apply_python_to_selection, lets LLM observe before acting |
+| `inspect_input_mappings` | C++ | UInputSettings CDO: action+axis mappings + uses_enhanced_input flag — #1 beginner Enhanced-Input migration blocker |
+| `bulk_inspect_assets` | Synthetic | inspect_asset composition over paths[] — pipeline-audit pattern (500 inspects in 1 call) |
+
+Wave A initially shipped solo (no multi-agent review) — the maintainer flagged it as a standing-rule violation. Retroactive ensemble review caught a real BLOCKER (Handler_SaveDirtyAssets included `FileHelpers.h` but called `UEditorLoadingAndSavingUtils::SaveDirtyPackages` which lives in `EditorLoadingAndSavingUtils.h`). Fixed mid-PR before merge. Lesson logged.
+
+**Wave A.5 shipped (PR #162, awaiting CI merge at this closing-note) — 2 new tools:**
+
+| Tool | Tier | Effect |
+|------|------|--------|
+| `pie_control` | C++ | Single tool with action=start\|stop\|query + optional mode=play\|simulate. Wraps GEditor->RequestPlaySession / RequestEndPlayMap / IsPlayingSessionInEditor. Closes the canonical "did my edit work?" feedback loop |
+| `inspect_project_setting` | C++ | Reflects any UDeveloperSettings subclass; bulk mode dumps every editable UPROPERTY, single mode returns one. Stringification mirrors inspect_data_asset's heuristic (ExportText / container sentinel / asset path) |
+
+Wave A.5 used the **pre-COMMIT** multi-agent ensemble pattern (not retroactive — the lesson from Wave A applied). One BLOCKER + two MAJOR findings caught at design phase, applied before any code was written:
+
+- BLOCKER → `GEditor->IsPlayingSessionInEditor()` chosen over the less-reliable older `GEditor->PlayWorld != nullptr` check
+- MAJOR → `FindObject<UClass>(nullptr, *ClassPath)` chosen over deprecated `ANY_PACKAGE` (deprecated in UE 5.1)
+- MAJOR → `GEditor->RequestPlaySession(FRequestPlaySessionParams)` chosen over `EditorInvokeCommand` / `EditorPlaySimulate` as the canonical 5.7 launch API
+
+The pattern paid off again in CI: `test_no_personal_leaks.py` caught a comment-leak — two handler files had credited the specific pre-flight reviewer by name. A follow-up scrub-commit fixed both. Local pytest had skipped the leak because `git ls-files` doesn't surface unstaged files — operational lesson recorded: **run pytest AFTER git add when adding new files**, not before.
+
+**Tool / test totals at the end of this window:**
+
+- 86 → **88 tools** (+8 from session start; +6 Wave A merged, +2 Wave A.5 in flight). Split: 69 → **71 C++ handlers**; synthetic count holds at **17** (one new synthetic landed in Wave A).
+- pytest: 243 → **302** (+59 across the autopilot-extension + Wave A + Wave A.5 windows combined).
+- 8 → **12 files** under drift_sweep coverage (extension from the previous window holds; no new scan targets added).
+- 23 PRs in the cumulative session (#141 → #162).
+
+**The three standing rules remain load-bearing project knowledge:**
+
+1. Multi-agent ensemble review on every substantive change. **Pre-COMMIT, not post-PR-push.** Wave A's retroactive review caught a real BLOCKER but added the cost of one round-trip + fix-up commit; Wave A.5's pre-commit review caught comparable findings with zero rework. The pre-commit cadence is the canonical form going forward.
+2. UE 5.7 launch pre-authorized in every session — never ask, never skip live verification when it adds signal.
+3. UE close when verification work finishes — Editor mode reserves ~4 GB RAM, do not leave running idle.
+
+**What to watch in the next session:**
+
+- **First action: restart Claude Code.** Wave A's 5 new C++ handlers + Wave A.5's 2 new C++ handlers all need fresh-bridge load. 7 new handler.cpp files added; bridge cache is stale across all of them.
+- **Cold-compile in UE.** All 7 new C++ handlers need editor rebuild on the host project before live verification works. This is the maintainer's next build window; bridge-side schema is already correct so any MCP client will see all 88 tool entries on `tools/list` immediately — but calls to the new handlers will return JSON-RPC error -32601 (method not found) until UE rebuilds the plugin DLL with the new handler registrations.
+- **PR #162 awaits CI green + merge** (was failing on personal-leak guard at the start of this closing-note — scrub commit fixed). Re-check CI status, merge with `--admin --squash --delete-branch` when green.
+- **Wave B = Blueprint graph mutation** is the headline next priority. Per multi-agent partitioning rule, this is attended-Codex work. Do not auto-dispatch.
+- **Wave B prerequisites verified by this window's roadmap research:** existing `edit_widget_tree` is the architectural proof-of-concept for direct UObject mutation; the same `K2Node` mutation pattern extends naturally. `FBlueprintEditorUtils::AddMemberVariable` + `KismetEditorUtilities` + `UEdGraphSchema_K2::TryCreateConnection` are the canonical API surface.
+
+**Nineteenth consecutive closing-note.** Session 2026-05-12 → 13 now spans 11+ documented windows. The cadence is the project rhythm.
