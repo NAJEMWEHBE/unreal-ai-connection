@@ -37,6 +37,7 @@
 #include "Dom/JsonValue.h"
 #include "HAL/IConsoleManager.h"
 #include "Math/UnrealMathUtility.h"
+#include "UCMCPCompat.h"
 
 namespace
 {
@@ -202,8 +203,13 @@ public:
         Out->SetNumberField(TEXT("value_float"), static_cast<double>(CVar->GetFloat()));
         Out->SetBoolField(TEXT("value_bool"), CVar->GetBool());
 
-        const TCHAR* SetByName = GetConsoleVariableSetByName(CVar->GetFlags());
-        Out->SetStringField(TEXT("set_by"), SetByName ? SetByName : TEXT(""));
+        // Shared version-gated shim (UCMCPCompat.h): >=5.2 uses the exported
+        // GetConsoleVariableSetByName; 5.0/5.1 (where it is ABSENT) replicate
+        // the switch with named ECVF_SetBy* constants. The >=5.x exported
+        // function never returns null (it returns "<UNKNOWN>" for unmapped),
+        // so the prior `? :` null guard was dead and behavior is unchanged.
+        const FString SetByName = UCMCPCompat::ConsoleVariableSetByName(CVar->GetFlags());
+        Out->SetStringField(TEXT("set_by"), SetByName);
 
         if (PostString != ValueString)
         {

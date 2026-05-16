@@ -34,10 +34,16 @@
 #include "MCP/MCPHandler.h"
 #include "Dom/JsonObject.h"
 #include "HAL/IConsoleManager.h"
+#include "UCMCPCompat.h"
 
 namespace
 {
-    static FString CVarTypeToString(IConsoleVariable* CVar)
+    // Per-file unique name: UE 5.1 buckets unity builds differently than 5.7
+    // and merges these two handler TUs into one unity blob, causing an
+    // anonymous-namespace ODR clash with the identically-named helper in
+    // Handler_FindConsoleVariables.cpp. Unique names are version-agnostic and
+    // keep behavior identical.
+    static FString CVarTypeToString_GetCVar(IConsoleVariable* CVar)
     {
         if (CVar->IsVariableInt())    return TEXT("int");
         if (CVar->IsVariableFloat())  return TEXT("float");
@@ -45,6 +51,13 @@ namespace
         if (CVar->IsVariableString()) return TEXT("string");
         return TEXT("unknown");
     }
+
+    // get_console_variable "set_by" string is produced by the shared,
+    // version-gated UCMCPCompat::ConsoleVariableSetByName shim (defined in
+    // UCMCPCompat.h) so this handler and Handler_SetConsoleVariable.cpp share
+    // one definition. >=5.2 uses the exported GetConsoleVariableSetByName;
+    // 5.0/5.1 replicate the (absent-on-5.1) function's switch with named
+    // ECVF_SetBy* constants. See UCMCPCompat.h for the full on-disk citations.
 }
 
 class FHandler_GetConsoleVariable : public IUCMCPHandler
@@ -88,7 +101,7 @@ public:
 
         const EConsoleVariableFlags Flags = CVar->GetFlags();
         const bool bReadOnly = (Flags & ECVF_ReadOnly) != 0;
-        const TCHAR* SetByName = GetConsoleVariableSetByName(Flags);
+        const FString SetByName = UCMCPCompat::ConsoleVariableSetByName(Flags);
         const TCHAR* HelpText = CVar->GetHelp();
 
         // --- build response ------------------------------------------------
@@ -96,9 +109,9 @@ public:
         TSharedPtr<FJsonObject> Out = MakeShared<FJsonObject>();
         Out->SetBoolField(TEXT("ok"), true);
         Out->SetStringField(TEXT("name"), Name);
-        Out->SetStringField(TEXT("type"), CVarTypeToString(CVar));
+        Out->SetStringField(TEXT("type"), CVarTypeToString_GetCVar(CVar));
         Out->SetBoolField(TEXT("read_only"), bReadOnly);
-        Out->SetStringField(TEXT("set_by"), SetByName ? SetByName : TEXT(""));
+        Out->SetStringField(TEXT("set_by"), SetByName);
         Out->SetStringField(TEXT("value_string"), CVar->GetString());
         Out->SetNumberField(TEXT("value_int"), static_cast<double>(CVar->GetInt()));
         Out->SetNumberField(TEXT("value_float"), static_cast<double>(CVar->GetFloat()));
