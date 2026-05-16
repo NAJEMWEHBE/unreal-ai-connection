@@ -53,7 +53,11 @@ public class UnrealClaudeMCP : ModuleRules
             "LevelSequenceEditor",
             // Material instance authoring (v0.9.0)
             "Landscape",
-            "MaterialEditor"
+            "MaterialEditor",
+            // render_camera_to_png (Path A+B sync render)
+            "RenderCore",
+            "RHI",
+            "ImageWrapper"
         });
     }
 }

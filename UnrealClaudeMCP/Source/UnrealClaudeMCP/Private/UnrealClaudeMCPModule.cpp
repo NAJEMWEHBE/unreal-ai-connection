@@ -89,6 +89,7 @@ extern TSharedRef<IUCMCPHandler> Make_Handler_CancelTask();
 extern TSharedRef<IUCMCPHandler> Make_Handler_ListTasks();
 extern TSharedRef<IUCMCPHandler> Make_Handler_ExecPythonPersistent();
 extern TSharedRef<IUCMCPHandler> Make_Handler_ResetPythonState();
+extern TSharedRef<IUCMCPHandler> Make_Handler_RenderCameraToPng();
 extern TSharedRef<IUCMCPHandler> Make_Handler_FindConsoleVariables();
 extern TSharedRef<IUCMCPHandler> Make_Handler_InspectStaticMesh();
 extern TSharedRef<IUCMCPHandler> Make_Handler_InspectNiagaraSystem();
@@ -175,6 +176,7 @@ void FUnrealClaudeMCPModule::StartupModule()
     Reg.Register(Make_Handler_ListTasks());
     Reg.Register(Make_Handler_ExecPythonPersistent());
     Reg.Register(Make_Handler_ResetPythonState());
+    Reg.Register(Make_Handler_RenderCameraToPng());
     Reg.Register(Make_Handler_FindConsoleVariables());
     Reg.Register(Make_Handler_InspectStaticMesh());
     Reg.Register(Make_Handler_InspectNiagaraSystem());

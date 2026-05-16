@@ -1,7 +1,7 @@
 {
   "name": "UnrealClaudeMCP",
   "version": "0.9.1",
-  "description": "Drive Unreal Engine 5.7 from any MCP-compliant client over a local TCP socket. 104 tools total (71 native C++ handlers plus 33 bridge-side synthetic tools) that work with any UE 5.7 project.",
+  "description": "Drive Unreal Engine 5.7 from any MCP-compliant client over a local TCP socket. 105 tools total (72 native C++ handlers plus 33 bridge-side synthetic tools) that work with any UE 5.7 project.",
   "transport": {
     "type": "tcp",
     "host": "127.0.0.1",
@@ -104,6 +104,18 @@
       "description": "Capture the active editor viewport as base64 PNG.",
       "params": {},
       "returns": { "width": "int", "height": "int", "png_bytes": "int", "png_base64": "string" }
+    },
+    {
+      "name": "render_camera_to_png",
+      "description": "Force a synchronous render of the level-editor viewport (or an off-screen SceneCapture2D at arbitrary resolution) and write it to an absolute path as a PNG. Works headless/backgrounded where deferred screenshots fail.",
+      "params": {
+        "out_path": "string (required) - absolute filesystem path for the .png",
+        "width": "int (optional) - output width in pixels; with height (or camera_label) switches to off-screen SceneCapture2D",
+        "height": "int (optional) - output height in pixels",
+        "camera_label": "string (optional) - render from this level actor's transform",
+        "fov": "number (optional) - field of view in degrees"
+      },
+      "returns": { "ok": "bool", "path": "string", "width": "int", "height": "int" }
     },
     {
       "name": "list_tools",

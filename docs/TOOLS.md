@@ -1,6 +1,6 @@
 # MCP Tools Reference
 
-**104 tools total.** 71 are JSON-RPC 2.0 methods served on `127.0.0.1:18888` directly by the plugin's C++ handlers. The remaining 33 — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`, `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap`, `sequencer_add_transform_keyframe` — are bridge-side **synthetic tools** that are intercepted by `bridge/unreal_ai_connection_bridge.py` and served by composing existing handlers (or running Python via `execute_unreal_python`, or — for `compile_mod_pak` — shelling out to `RunUAT.bat` entirely outside the UE process). They are visible to MCP clients exactly like the C++ tools but cannot be reached by sending raw JSON-RPC to the TCP socket — only via the MCP bridge or by replicating their composition manually. The "Implementation" header on each entry below indicates whether a tool is C++ or bridge-side.
+**105 tools total.** 72 are JSON-RPC 2.0 methods served on `127.0.0.1:18888` directly by the plugin's C++ handlers. The remaining 33 — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`, `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap`, `sequencer_add_transform_keyframe` — are bridge-side **synthetic tools** that are intercepted by `bridge/unreal_ai_connection_bridge.py` and served by composing existing handlers (or running Python via `execute_unreal_python`, or — for `compile_mod_pak` — shelling out to `RunUAT.bat` entirely outside the UE process). They are visible to MCP clients exactly like the C++ tools but cannot be reached by sending raw JSON-RPC to the TCP socket — only via the MCP bridge or by replicating their composition manually. The "Implementation" header on each entry below indicates whether a tool is C++ or bridge-side.
 
 Each tool's params and result are documented with a working example.
 
@@ -117,6 +117,64 @@ Capture the active editor viewport as a PNG, return base64 inline.
 - `png_base64` (string) — the PNG bytes encoded as base64
 
 Beware: a 1920x1080 PNG can be 1-3 MB of base64. If you're proxying through Claude, the response may exceed Claude's context — for big captures use `take_high_res_screenshot` instead, which writes to disk.
+
+---
+
+## render_camera_to_png
+
+Force a **synchronous** render and write it to disk as a PNG. The handler runs on the game thread and drives the exact draw chain itself (`Invalidate` → `RedrawLevelEditingViewports(true)` → `Viewport->Draw(false)` → `FlushRenderingCommands` → `ReadPixels` → encode), so it succeeds in headless / backgrounded sessions where every *deferred* screenshot path (`HighResShot`, `FScreenshotRequest`, automation, Python `SceneCapture`) returns blank pixels or never resolves.
+
+Two render modes, selected automatically:
+
+- **Viewport mode** (default) — synchronously redraws the active level-editor viewport and reads its pixels. Used when neither `width`/`height` nor `camera_label` is supplied.
+- **Off-screen mode** — spawns a transient `ASceneCapture2D` into the editor world, points it at the requested transform, and captures into a `UTextureRenderTarget2D` at the requested resolution. Used when `width` and `height` are both > 0, or when `camera_label` is set.
+
+**Params**
+- `out_path` (string, required) — absolute filesystem path for the `.png` to write. Parent directory must exist and be writable.
+- `width` (int, optional) — output width in pixels. Supplying both `width` and `height` switches to off-screen mode (default 1920 if omitted in off-screen mode; clamped 1..8192).
+- `height` (int, optional) — output height in pixels (default 1080 in off-screen mode; clamped 1..8192).
+- `camera_label` (string, optional) — render from this level actor's world transform instead of the current viewport camera. Forces off-screen mode.
+- `fov` (number, optional) — horizontal field of view in degrees; overrides the viewport / capture FOV for this render only (the original FOV is restored afterward in viewport mode).
+
+**Result**
+- `ok` (bool)
+- `path` (string) — the absolute path that was written (echo of `out_path`)
+- `width`, `height` (int) — pixel dimensions of the written PNG
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"render_camera_to_png","params":{
+  "out_path": "C:/Captures/shot.png",
+  "width": 3840,
+  "height": 2160,
+  "camera_label": "CineCamera_Hero",
+  "fov": 50
+}}
+```
+```json
+{"jsonrpc":"2.0","id":1,"result":{
+  "ok": true,
+  "path": "C:/Captures/shot.png",
+  "width": 3840,
+  "height": 2160
+}}
+```
+
+**Errors:** Returned as JSON-RPC `error.message` strings in the format `render_camera_to_png: <error_code>: <human-readable detail>`. Stable codes:
+
+| Code | Trigger |
+|---|---|
+| `no_editor` | `GEditor` is null (editor build only). |
+| `bad_param` | `out_path` was missing or an empty string. |
+| `no_level_editor` | LevelEditor module unavailable (viewport mode). |
+| `no_viewport` | No active level viewport / could not obtain `FViewport*` (viewport mode). |
+| `no_world` | Editor world is null (off-screen mode). |
+| `actor_not_found` | `camera_label` did not match any actor's label. |
+| `rt_alloc_failed` | Could not create the `UTextureRenderTarget2D` (off-screen mode). |
+| `spawn_failed` | Could not spawn the transient `ASceneCapture2D` (off-screen mode). |
+| `read_failed` | `ReadPixels` returned false or an empty bitmap. |
+| `encode_failed` | PNG compression produced empty output. |
+| `write_failed` | Could not write the PNG to `out_path` (path/permissions). |
 
 ---
 
