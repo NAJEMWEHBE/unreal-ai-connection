@@ -624,7 +624,9 @@
       "name": "get_camera_transform",
       "description": "Read level-editor viewport camera transform. SYNTHETIC bridge-side handler -- composes execute_unreal_python + get_log_lines via marker pattern. Part of language-shim experiment (PR #46).",
       "params": {},
-      "returns": { "ok": "bool", "location": "{x, y, z}", "rotation": "{pitch, yaw, roll}" }
+      "returns": { "ok": "bool", "location": "{x, y, z}", "rotation": "{pitch, yaw, roll}" },
+      "min_engine_version": "5.0",
+      "max_engine_version": null
     },
     {
       "name": "set_camera_transform",
@@ -633,7 +635,9 @@
         "location": "object (optional) - {x, y, z}; missing fields default to 0",
         "rotation": "object (optional) - {pitch, yaw, roll}; missing fields default to 0"
       },
-      "returns": { "ok": "bool", "location": "{x, y, z}", "rotation": "{pitch, yaw, roll}" }
+      "returns": { "ok": "bool", "location": "{x, y, z}", "rotation": "{pitch, yaw, roll}" },
+      "min_engine_version": "5.0",
+      "max_engine_version": null
     },
     {
       "name": "screenshot_actor",
@@ -907,7 +911,9 @@
         "cube_size": "int (optional, default 1024) - square face size in pixels; range [16, 8192]; powers of two recommended",
         "compression": "string (optional, default 'TC_HDR') - one of TC_HDR | TC_HDR_COMPRESSED | TC_HDR_F32 | TC_DEFAULT"
       },
-      "returns": { "ok": "bool", "source_hdri": "string (echo)", "cube_asset_path": "string (final cube asset path)", "dest_path": "string (echo)", "dest_name": "string (echo)", "cube_size": "int (echo)", "compression": "string (echo)" }
+      "returns": { "ok": "bool", "source_hdri": "string (echo)", "cube_asset_path": "string (final cube asset path)", "dest_path": "string (echo)", "dest_name": "string (echo)", "cube_size": "int (echo)", "compression": "string (echo)" },
+      "min_engine_version": "5.0",
+      "max_engine_version": null
     },
     {
       "name": "sequencer_add_transform_keyframe",
@@ -922,7 +928,9 @@
         "interpolation": "string (optional, default 'linear') - one of linear | constant | auto | smart_auto | cubic (alias of smart_auto)",
         "auto_extend_section": "bool (optional, default true) - extend the section's seconds-range to cover time_seconds when needed"
       },
-      "returns": { "ok": "bool", "sequence_path": "string (echo)", "binding_id": "string (echo)", "time_seconds": "number (echo)", "keys_added": "int (total channel-keys created)", "channels_keyed": "array of string (e.g. Location.X / Rotation.Z)", "interpolation": "string (resolved enum member, e.g. LINEAR)", "track_path": "string (full path of the 3D Transform Track asset)" }
+      "returns": { "ok": "bool", "sequence_path": "string (echo)", "binding_id": "string (echo)", "time_seconds": "number (echo)", "keys_added": "int (total channel-keys created)", "channels_keyed": "array of string (e.g. Location.X / Rotation.Z)", "interpolation": "string (resolved enum member, e.g. LINEAR)", "track_path": "string (full path of the 3D Transform Track asset)" },
+      "min_engine_version": "5.0",
+      "max_engine_version": null
     }
   ]
 }

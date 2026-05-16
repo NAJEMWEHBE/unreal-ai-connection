@@ -93,6 +93,92 @@ def test_manifest_required_params_match_bridge_required():
         )
 
 
+# --- Phase H: engine-version gating metadata parity ----------------------
+# docs/PHASE-H-COMPAT.md "Bridge / Manifest Metadata Plan": the catalog now
+# carries optional min_engine_version / max_engine_version. The four
+# synthetic tools that call UE-5.0+ unreal.* Python APIs must declare
+# min_engine_version "5.0", and the bridge TOOLS list + mcp_manifest.json
+# must agree field-for-field. No other tool may carry the field.
+
+ENGINE_GATED_TOOLS = {
+    "convert_hdri_to_cubemap",
+    "sequencer_add_transform_keyframe",
+    "get_camera_transform",
+    "set_camera_transform",
+}
+
+
+def test_engine_gated_tools_declare_min_engine_version_in_bridge():
+    bridge_by_name = {t["name"]: t for t in bridge.TOOLS}
+    for name in ENGINE_GATED_TOOLS:
+        entry = bridge_by_name[name]
+        assert entry.get("min_engine_version") == "5.0", (
+            f"Bridge tool '{name}' must carry min_engine_version '5.0' "
+            f"(Phase H gating); got {entry.get('min_engine_version')!r}"
+        )
+        # max_engine_version is supported but unused -> must be present-as-None.
+        assert entry.get("max_engine_version", "MISSING") is None, (
+            f"Bridge tool '{name}' must carry max_engine_version null."
+        )
+
+
+def test_engine_gated_tools_declare_min_engine_version_in_manifest():
+    manifest = _load_manifest()
+    by_name = {t["name"]: t for t in manifest["tools"]}
+    for name in ENGINE_GATED_TOOLS:
+        entry = by_name[name]
+        assert entry.get("min_engine_version") == "5.0", (
+            f"Manifest tool '{name}' must carry min_engine_version '5.0'; "
+            f"got {entry.get('min_engine_version')!r}"
+        )
+        assert entry.get("max_engine_version", "MISSING") is None, (
+            f"Manifest tool '{name}' must carry max_engine_version null."
+        )
+
+
+def test_engine_version_metadata_parity_bridge_vs_manifest():
+    """min/max_engine_version must agree across both artefacts for every
+    tool -- catches drift in either direction (companion to the existing
+    name/required parity checks)."""
+    manifest = _load_manifest()
+    manifest_by_name = {t["name"]: t for t in manifest["tools"]}
+    bridge_by_name = {t["name"]: t for t in bridge.TOOLS}
+
+    for name in manifest_by_name:
+        m = manifest_by_name[name]
+        b = bridge_by_name[name]
+        assert m.get("min_engine_version") == b.get("min_engine_version"), (
+            f"Tool '{name}': min_engine_version drift -- "
+            f"manifest={m.get('min_engine_version')!r} "
+            f"bridge={b.get('min_engine_version')!r}"
+        )
+        assert m.get("max_engine_version") == b.get("max_engine_version"), (
+            f"Tool '{name}': max_engine_version drift -- "
+            f"manifest={m.get('max_engine_version')!r} "
+            f"bridge={b.get('max_engine_version')!r}"
+        )
+
+
+def test_no_other_tool_carries_min_engine_version():
+    """Exactly the four gated tools may declare min_engine_version. A stray
+    field elsewhere would silently block a tool that works on 4.27+."""
+    for t in bridge.TOOLS:
+        if t["name"] in ENGINE_GATED_TOOLS:
+            continue
+        assert "min_engine_version" not in t or t.get("min_engine_version") is None, (
+            f"Bridge tool '{t['name']}' unexpectedly carries "
+            f"min_engine_version={t.get('min_engine_version')!r}"
+        )
+    manifest = _load_manifest()
+    for t in manifest["tools"]:
+        if t["name"] in ENGINE_GATED_TOOLS:
+            continue
+        assert "min_engine_version" not in t or t.get("min_engine_version") is None, (
+            f"Manifest tool '{t['name']}' unexpectedly carries "
+            f"min_engine_version={t.get('min_engine_version')!r}"
+        )
+
+
 def test_bridge_required_params_documented_in_manifest():
     """Reverse-direction drift check. If the bridge's JSON Schema lists a
     param in `required[]`, the manifest must document it (either as a key

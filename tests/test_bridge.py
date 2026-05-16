@@ -19,6 +19,30 @@ import unreal_ai_connection_bridge as bridge
 from conftest import EXPECTED_TOOL_COUNT
 
 
+# Phase H: the four engine-gated synthetics (get/set_camera_transform,
+# convert_hdri_to_cubemap, sequencer_add_transform_keyframe) run a one-time
+# get_engine_version preflight before their UE round-trip. Happy-path tests
+# that drive these via side_effect lists must account for that extra call.
+# This helper is the response a UE 5.7 editor returns -> gate passes through
+# (behaviour identical to pre-gate). The module-side version cache is reset
+# by the autouse fixture below so the preflight fires on every test.
+def _engine_5_7_resp():
+    return {"jsonrpc": "2.0", "id": 1, "result": {
+        "major": 5, "minor": 7, "patch": 0, "changelist": 0,
+        "full": "5.7.0-0+++UE5+Release-5.7", "branch": "++UE5+Release-5.7",
+        "minor_dotted": "5.7", "is_licensee_version": False,
+    }}
+
+
+@pytest.fixture(autouse=True)
+def _reset_phase_h_engine_cache():
+    """Phase H gate memoises the discovered engine version module-side.
+    Reset around every test so a cached version never leaks across cases."""
+    bridge._ENGINE_VERSION_CACHE = None
+    yield
+    bridge._ENGINE_VERSION_CACHE = None
+
+
 # -------- TOOLS schema --------------------------------------------------------
 
 def test_tools_list_size():
@@ -1362,7 +1386,8 @@ def test_get_camera_transform_happy_path_omits_ok_true_wrapper():
     ]}}
     fake_uuid = MagicMock()
     fake_uuid.uuid4.return_value = MagicMock(hex=marker_hex)
-    with patch.object(bridge, "call_ue", side_effect=[exec_resp, log_resp]):
+    # +_engine_5_7_resp(): Phase H gate's one-time get_engine_version preflight.
+    with patch.object(bridge, "call_ue", side_effect=[_engine_5_7_resp(), exec_resp, log_resp]):
         with patch.object(bridge, "uuid", fake_uuid):
             resp = bridge.handle({
                 "jsonrpc": "2.0", "id": 60, "method": "tools/call",
@@ -1392,7 +1417,8 @@ def test_get_camera_transform_marker_not_found_returns_logical_error_envelope():
     ]}}
     fake_uuid = MagicMock()
     fake_uuid.uuid4.return_value = MagicMock(hex="deadbeefcaf1")
-    with patch.object(bridge, "call_ue", side_effect=[exec_resp, log_resp]):
+    # +_engine_5_7_resp(): Phase H gate's one-time get_engine_version preflight.
+    with patch.object(bridge, "call_ue", side_effect=[_engine_5_7_resp(), exec_resp, log_resp]):
         with patch.object(bridge, "uuid", fake_uuid):
             resp = bridge.handle({
                 "jsonrpc": "2.0", "id": 61, "method": "tools/call",
@@ -1438,7 +1464,10 @@ def test_set_camera_transform_rejects_partial_update_when_get_returns_logical_er
     # responses to call_ue in order.
     fake_uuid = MagicMock()
     fake_uuid.uuid4.return_value = MagicMock(hex="cafebabe1234")
-    with patch.object(bridge, "call_ue", side_effect=[exec_resp, log_resp]):
+    # +_engine_5_7_resp(): Phase H gate's one-time get_engine_version preflight
+    # (set_camera_transform gates; its inner get_camera_transform hits the
+    # now-populated version cache so it does NOT add a second preflight).
+    with patch.object(bridge, "call_ue", side_effect=[_engine_5_7_resp(), exec_resp, log_resp]):
         with patch.object(bridge, "uuid", fake_uuid):
             resp = bridge.handle({
                 "jsonrpc": "2.0", "id": 62, "method": "tools/call",
@@ -5975,7 +6004,9 @@ def test_convert_hdri_to_cubemap_end_to_end():
     handed off to execute_unreal_python, and that the response body echoes
     the inputs + reports the resolved cube asset path."""
     fake_result = {"result": {"ok": True, "output": "CUBE_PATH=/Game/HDRI/test_Cube.test_Cube"}}
-    with patch.object(bridge, "call_ue", return_value=fake_result) as m_ue:
+    # First call_ue == Phase H gate's get_engine_version preflight (UE 5.7 ->
+    # gate passes through); second == the synthetic's execute_unreal_python.
+    with patch.object(bridge, "call_ue", side_effect=[_engine_5_7_resp(), fake_result]) as m_ue:
         resp = bridge.handle({
             "jsonrpc": "2.0", "id": 905, "method": "tools/call",
             "params": {"name": "convert_hdri_to_cubemap", "arguments": {
@@ -5993,8 +6024,9 @@ def test_convert_hdri_to_cubemap_end_to_end():
     assert body["cube_size"] == 512
     assert body["compression"] == "TC_HDR_F32"
     assert body["cube_asset_path"] == "/Game/HDRI/test_Cube.test_Cube"
-    # call_ue called once with execute_unreal_python
-    assert m_ue.call_count == 1
+    # Two round-trips: get_engine_version preflight + execute_unreal_python.
+    assert m_ue.call_count == 2
+    assert m_ue.call_args_list[0][0][0] == "get_engine_version"
     call_args = m_ue.call_args[0]
     assert call_args[0] == "execute_unreal_python"
     code = call_args[1]["code"]
@@ -6072,7 +6104,17 @@ def test_convert_hdri_to_cubemap_generated_script_uses_unique_tag():
     tag). Prevents concurrent invocations from racing over fixed names."""
     fake_result = {"result": {"ok": True, "output": "CUBE_PATH=/Game/HDRI/test_Cube.test_Cube"}}
     seen_tags = set()
-    with patch.object(bridge, "call_ue", return_value=fake_result) as m_ue:
+
+    # First call_ue is the Phase H get_engine_version preflight (UE 5.7);
+    # the discovered version is cached module-side so only ONE preflight
+    # fires across all three loop iterations. Remaining calls are the
+    # synthetic's execute_unreal_python round-trips.
+    def _fake(method, params=None):
+        if method == "get_engine_version":
+            return _engine_5_7_resp()
+        return fake_result
+
+    with patch.object(bridge, "call_ue", side_effect=_fake) as m_ue:
         for i in range(3):
             bridge.handle({
                 "jsonrpc": "2.0", "id": 911 + i, "method": "tools/call",
@@ -6081,6 +6123,8 @@ def test_convert_hdri_to_cubemap_generated_script_uses_unique_tag():
                 }},
             })
     for call in m_ue.call_args_list:
+        if call[0][0] != "execute_unreal_python":
+            continue  # skip the one-time get_engine_version preflight
         code = call[0][1]["code"]
         # Extract the tag literal — it's on the TAG = ... line.
         for line in code.splitlines():

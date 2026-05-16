@@ -1360,6 +1360,8 @@ TOOLS = [
             "type": "object",
             "properties": {},
         },
+        "min_engine_version": "5.0",
+        "max_engine_version": None,
     },
     {
         "name": "set_camera_transform",
@@ -1371,6 +1373,8 @@ TOOLS = [
                 "rotation": {"type": "object", "description": "{pitch, yaw, roll} in degrees; missing fields default to 0."},
             },
         },
+        "min_engine_version": "5.0",
+        "max_engine_version": None,
     },
     {
         "name": "screenshot_actor",
@@ -1429,6 +1433,8 @@ TOOLS = [
             },
             "required": ["hdri_path"],
         },
+        "min_engine_version": "5.0",
+        "max_engine_version": None,
     },
     {
         "name": "sequencer_add_transform_keyframe",
@@ -1447,6 +1453,8 @@ TOOLS = [
             },
             "required": ["sequence_path", "binding_id", "time_seconds"],
         },
+        "min_engine_version": "5.0",
+        "max_engine_version": None,
     },
 ]
 
@@ -1809,6 +1817,11 @@ def synthetic_get_camera_transform(req_id, args: dict) -> dict:
             "message": "get_camera_transform: invalid_arguments: arguments must be an object",
         })
 
+    # Phase H engine gate: blocks on UE < 5.0 (get_editor_subsystem is 5.0+).
+    gate = check_engine_gate(req_id, "get_camera_transform")
+    if gate is not None:
+        return gate
+
     marker_prefix = f"__CAM_{uuid.uuid4().hex[:12]}__"
     py_code = (
         "import unreal, json\n"
@@ -1842,6 +1855,11 @@ def synthetic_set_camera_transform(req_id, args: dict) -> dict:
             "code": -32602,
             "message": "set_camera_transform: invalid_arguments: arguments must be an object",
         })
+
+    # Phase H engine gate: blocks on UE < 5.0 (get_editor_subsystem is 5.0+).
+    gate = check_engine_gate(req_id, "set_camera_transform")
+    if gate is not None:
+        return gate
 
     location = args.get("location")
     rotation = args.get("rotation")
@@ -6242,6 +6260,12 @@ def synthetic_convert_hdri_to_cubemap(req_id, args: dict) -> dict:
             "message": f"convert_hdri_to_cubemap: invalid_field: 'compression' must be one of {sorted(_HDRI_CUBE_COMPRESSION_ALLOWED)}",
         })
 
+    # Phase H engine gate: blocks on UE < 5.0 (EditorAssetLibrary subsystem
+    # + render-target cube APIs the inner script uses are 5.0+).
+    gate = check_engine_gate(req_id, "convert_hdri_to_cubemap")
+    if gate is not None:
+        return gate
+
     # Unique per-call suffix for temp asset names so concurrent invocations
     # don't race + the cleanup never targets pre-existing user content.
     import uuid as _uuid
@@ -6616,6 +6640,12 @@ def synthetic_sequencer_add_transform_keyframe(req_id, args: dict) -> dict:
             "message": "sequencer_add_transform_keyframe: invalid_field: 'auto_extend_section' must be a bool",
         })
 
+    # Phase H engine gate: blocks on UE < 5.0 (unreal.MovieSceneTimeUnit and
+    # the MovieScene scripting channel APIs the inner script uses are 5.0+).
+    gate = check_engine_gate(req_id, "sequencer_add_transform_keyframe")
+    if gate is not None:
+        return gate
+
     code = _render_sequencer_add_transform_keyframe_script(
         sequence_path,
         binding_id_stripped,
@@ -6709,6 +6739,141 @@ def synthetic_sequencer_add_transform_keyframe(req_id, args: dict) -> dict:
         "track_path": track_path,
     }
     return _wrap_tool_result(req_id, body)
+
+
+# ---------------------------------------------------------------------------
+# Phase H -- engine-version gating for synthetic tools (docs/PHASE-H-COMPAT.md)
+#
+# A handful of bridge-side synthetic tools call `unreal.*` Python APIs that
+# only exist on engine 5.0-and-newer (`unreal.get_editor_subsystem`,
+# `unreal.EditorActorSubsystem`, `unreal.MovieSceneTimeUnit`). On the 4.27
+# line the embedded interpreter raises a raw AttributeError deep inside the
+# marker pattern, surfacing as an opaque -32603. The catalog now carries
+# `min_engine_version` on those tools (mirrored in mcp_manifest.json); the
+# gate below converts "engine too old" into a structured, caller-actionable
+# error BEFORE the doomed UE round-trip.
+#
+# Fail-open contract: if the connected editor's version is genuinely
+# undeterminable (UE down, handler missing, unparseable), we PROCEED rather
+# than hard-block -- the underlying tool will fail for its own reason with
+# its own envelope. We only block when the version is known AND too low.
+# ---------------------------------------------------------------------------
+
+# Cached (major, minor) of the connected editor, discovered once via the
+# native `get_engine_version` handler. None until first lookup; a successful
+# lookup memoises the tuple so repeated gated calls cost one round-trip total.
+_ENGINE_VERSION_CACHE: tuple[int, int] | None = None
+
+
+def _parse_engine_minor(version: str) -> tuple[int, int] | None:
+    """Parse a 'MAJOR.MINOR[.PATCH]' string into an (int, int) tuple.
+
+    Returns None when the string is missing/garbled so callers can fail open.
+    """
+    if not isinstance(version, str):
+        return None
+    parts = version.strip().split(".")
+    if len(parts) < 2:
+        return None
+    try:
+        return (int(parts[0]), int(parts[1]))
+    except (ValueError, TypeError):
+        return None
+
+
+def _get_connected_engine_version() -> tuple[int, int] | None:
+    """Discover the connected editor's (major, minor) via the native
+    `get_engine_version` handler, memoised in `_ENGINE_VERSION_CACHE`.
+
+    Reuses the same `call_ue` plumbing every synthetic already uses -- the
+    handler emits `minor_dotted` (e.g. "5.7") plus separate major/minor
+    integer fields. We prefer the integer fields and fall back to parsing
+    `minor_dotted`. Any transport error / missing field -> None (fail open).
+    No new UE round-trip type is introduced; this is the existing
+    get_engine_version handler the catalog already documents.
+    """
+    global _ENGINE_VERSION_CACHE
+    if _ENGINE_VERSION_CACHE is not None:
+        return _ENGINE_VERSION_CACHE
+
+    resp = call_ue("get_engine_version", {})
+    if not isinstance(resp, dict) or "error" in resp:
+        return None
+    result = resp.get("result")
+    if not isinstance(result, dict):
+        return None
+
+    major = result.get("major")
+    minor = result.get("minor")
+    if isinstance(major, (int, float)) and isinstance(minor, (int, float)) \
+            and not isinstance(major, bool) and not isinstance(minor, bool):
+        _ENGINE_VERSION_CACHE = (int(major), int(minor))
+        return _ENGINE_VERSION_CACHE
+
+    parsed = _parse_engine_minor(result.get("minor_dotted") or result.get("full") or "")
+    if parsed is not None:
+        _ENGINE_VERSION_CACHE = parsed
+    return parsed
+
+
+def _tool_catalog_entry(tool_name: str) -> dict | None:
+    """Look up a tool's static catalog entry in TOOLS by name."""
+    for t in TOOLS:
+        if t.get("name") == tool_name:
+            return t
+    return None
+
+
+def check_engine_gate(req_id, tool_name: str) -> dict | None:
+    """Engine-version preflight for a synthetic tool.
+
+    Returns None when the tool is allowed to run (no min_engine_version,
+    version unknown -> fail open, or connected engine new enough). Returns a
+    fully-formed structured-error response envelope when the connected engine
+    is KNOWN and below the tool's declared `min_engine_version`.
+
+    Structured-error shape (carried inside the JSON-RPC `error` object so it
+    rides the bridge's existing error-envelope path verbatim):
+
+        {"code": "unsupported_on_engine_version",
+         "message": "<tool>: ...",
+         "tool": "<tool>",
+         "min_engine_version": "5.0",
+         "engine_version": "4.27"}
+    """
+    entry = _tool_catalog_entry(tool_name)
+    if entry is None:
+        return None
+    min_ver = entry.get("min_engine_version")
+    if not min_ver:
+        return None
+
+    required = _parse_engine_minor(min_ver)
+    if required is None:
+        # Catalog metadata itself unparseable -- don't punish the caller.
+        return None
+
+    actual = _get_connected_engine_version()
+    if actual is None:
+        # Version undeterminable -> fail OPEN (proceed). The underlying tool
+        # will surface its own error if the API genuinely isn't there.
+        return None
+
+    if actual >= required:
+        return None
+
+    actual_str = f"{actual[0]}.{actual[1]}"
+    return make_response(req_id, error={
+        "code": "unsupported_on_engine_version",
+        "message": (
+            f"{tool_name}: unsupported_on_engine_version: requires Unreal "
+            f"Engine {min_ver}+ (uses a 5.0+ unreal.* Python API); connected "
+            f"editor is {actual_str}. See docs/PHASE-H-COMPAT.md."
+        ),
+        "tool": tool_name,
+        "min_engine_version": min_ver,
+        "engine_version": actual_str,
+    })
 
 
 SYNTHETIC_TOOLS = {
