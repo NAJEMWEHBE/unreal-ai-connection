@@ -6760,9 +6760,13 @@ def synthetic_sequencer_add_transform_keyframe(req_id, args: dict) -> dict:
 # ---------------------------------------------------------------------------
 
 # Cached (major, minor) of the connected editor, discovered once via the
-# native `get_engine_version` handler. None until first lookup; a successful
-# lookup memoises the tuple so repeated gated calls cost one round-trip total.
-_ENGINE_VERSION_CACHE: tuple[int, int] | None = None
+# native `get_engine_version` handler. `_ENGINE_VERSION_UNSET` (a distinct
+# sentinel) means "not yet looked up"; a cached `None` means "lookup ran but
+# was undeterminable -> fail open". Both a successful tuple AND an
+# undeterminable `None` are memoised, so repeated gated calls cost exactly
+# one round-trip total regardless of outcome.
+_ENGINE_VERSION_UNSET = object()
+_ENGINE_VERSION_CACHE: tuple[int, int] | None | object = _ENGINE_VERSION_UNSET
 
 
 def _parse_engine_minor(version: str) -> tuple[int, int] | None:
@@ -6793,27 +6797,32 @@ def _get_connected_engine_version() -> tuple[int, int] | None:
     get_engine_version handler the catalog already documents.
     """
     global _ENGINE_VERSION_CACHE
-    if _ENGINE_VERSION_CACHE is not None:
+    if _ENGINE_VERSION_CACHE is not _ENGINE_VERSION_UNSET:
         return _ENGINE_VERSION_CACHE
+
+    def _memoise(value: tuple[int, int] | None) -> tuple[int, int] | None:
+        # Always write the looked-up result -- including `None`
+        # (undeterminable) -- so the lookup happens exactly once. A cached
+        # `None` still means "fail open / proceed".
+        global _ENGINE_VERSION_CACHE
+        _ENGINE_VERSION_CACHE = value
+        return value
 
     resp = call_ue("get_engine_version", {})
     if not isinstance(resp, dict) or "error" in resp:
-        return None
+        return _memoise(None)
     result = resp.get("result")
     if not isinstance(result, dict):
-        return None
+        return _memoise(None)
 
     major = result.get("major")
     minor = result.get("minor")
     if isinstance(major, (int, float)) and isinstance(minor, (int, float)) \
             and not isinstance(major, bool) and not isinstance(minor, bool):
-        _ENGINE_VERSION_CACHE = (int(major), int(minor))
-        return _ENGINE_VERSION_CACHE
+        return _memoise((int(major), int(minor)))
 
     parsed = _parse_engine_minor(result.get("minor_dotted") or result.get("full") or "")
-    if parsed is not None:
-        _ENGINE_VERSION_CACHE = parsed
-    return parsed
+    return _memoise(parsed)
 
 
 def _tool_catalog_entry(tool_name: str) -> dict | None:
@@ -6833,9 +6842,12 @@ def check_engine_gate(req_id, tool_name: str) -> dict | None:
     is KNOWN and below the tool's declared `min_engine_version`.
 
     Structured-error shape (carried inside the JSON-RPC `error` object so it
-    rides the bridge's existing error-envelope path verbatim):
+    rides the bridge's existing flat error-envelope path verbatim -- `code`
+    is an integer per JSON-RPC 2.0, with the string identifier in a sibling
+    `error_code` field):
 
-        {"code": "unsupported_on_engine_version",
+        {"code": -32001,
+         "error_code": "unsupported_on_engine_version",
          "message": "<tool>: ...",
          "tool": "<tool>",
          "min_engine_version": "5.0",
@@ -6864,11 +6876,12 @@ def check_engine_gate(req_id, tool_name: str) -> dict | None:
 
     actual_str = f"{actual[0]}.{actual[1]}"
     return make_response(req_id, error={
-        "code": "unsupported_on_engine_version",
+        "code": -32001,
+        "error_code": "unsupported_on_engine_version",
         "message": (
             f"{tool_name}: unsupported_on_engine_version: requires Unreal "
-            f"Engine {min_ver}+ (uses a 5.0+ unreal.* Python API); connected "
-            f"editor is {actual_str}. See docs/PHASE-H-COMPAT.md."
+            f"Engine {min_ver}+ (uses a {min_ver}+ unreal.* Python API); "
+            f"connected editor is {actual_str}. See docs/PHASE-H-COMPAT.md."
         ),
         "tool": tool_name,
         "min_engine_version": min_ver,

@@ -38,9 +38,9 @@ def _engine_5_7_resp():
 def _reset_phase_h_engine_cache():
     """Phase H gate memoises the discovered engine version module-side.
     Reset around every test so a cached version never leaks across cases."""
-    bridge._ENGINE_VERSION_CACHE = None
+    bridge._ENGINE_VERSION_CACHE = bridge._ENGINE_VERSION_UNSET
     yield
-    bridge._ENGINE_VERSION_CACHE = None
+    bridge._ENGINE_VERSION_CACHE = bridge._ENGINE_VERSION_UNSET
 
 
 # -------- TOOLS schema --------------------------------------------------------

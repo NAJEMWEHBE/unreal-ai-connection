@@ -53,9 +53,9 @@ def _engine_version_resp(major: int, minor: int) -> dict:
 def _reset_engine_cache():
     """The discovered (major, minor) is memoised module-side; reset it
     around every test so cases don't leak a cached version into each other."""
-    bridge._ENGINE_VERSION_CACHE = None
+    bridge._ENGINE_VERSION_CACHE = bridge._ENGINE_VERSION_UNSET
     yield
-    bridge._ENGINE_VERSION_CACHE = None
+    bridge._ENGINE_VERSION_CACHE = bridge._ENGINE_VERSION_UNSET
 
 
 # Minimal VALID arguments per gated tool, so the synthetic's own input
@@ -93,7 +93,10 @@ def test_gate_blocks_each_gated_tool_on_engine_4_27(tool_name):
 
     assert "error" in resp, f"expected structured error envelope, got {resp}"
     err = resp["error"]
-    assert err["code"] == "unsupported_on_engine_version"
+    # JSON-RPC 2.0: error.code is an INTEGER (application-defined range);
+    # the string identifier lives in the sibling `error_code` field.
+    assert err["code"] == -32001
+    assert err["error_code"] == "unsupported_on_engine_version"
     assert err["tool"] == tool_name
     assert err["min_engine_version"] == "5.0"
     assert err["engine_version"] == "4.27"
@@ -128,6 +131,27 @@ def test_gate_fails_open_when_engine_version_undeterminable():
     with patch.object(bridge, "call_ue", return_value=transport_err):
         gate = bridge.check_engine_gate(99, "convert_hdri_to_cubemap")
     assert gate is None, "undeterminable engine version must fail OPEN"
+
+
+def test_fail_open_result_is_memoised():
+    """An undeterminable engine version (fail-open `None`) must be cached
+    exactly like a resolved tuple -- repeated gated calls cost ONE
+    get_engine_version round-trip total, not one per call. Regression for
+    the cubic P2: the fail-open path previously returned without caching,
+    re-issuing the RPC on every subsequent gated invocation."""
+    transport_err = {
+        "jsonrpc": "2.0", "id": 1,
+        "error": {"code": -32099, "message": "UE server not reachable"},
+    }
+    with patch.object(bridge, "call_ue", return_value=transport_err) as m:
+        g1 = bridge.check_engine_gate(1, "convert_hdri_to_cubemap")
+        g2 = bridge.check_engine_gate(2, "sequencer_add_transform_keyframe")
+        g3 = bridge.check_engine_gate(3, "get_camera_transform")
+    assert g1 is None and g2 is None and g3 is None, "all must fail OPEN"
+    assert m.call_count == 1, (
+        f"undeterminable engine version must be memoised once; "
+        f"got {m.call_count} round-trips"
+    )
 
 
 def test_gate_ignores_non_gated_tool():
@@ -175,9 +199,14 @@ def test_structured_error_shape_matches_spec():
     assert resp["id"] == 12
     err = resp["error"]
     assert set(err.keys()) == {
-        "code", "message", "tool", "min_engine_version", "engine_version",
+        "code", "error_code", "message", "tool",
+        "min_engine_version", "engine_version",
     }
-    assert err["code"] == "unsupported_on_engine_version"
+    # JSON-RPC 2.0 mandates an integer error.code; the string identifier
+    # rides alongside it in `error_code`.
+    assert err["code"] == -32001
+    assert isinstance(err["code"], int)
+    assert err["error_code"] == "unsupported_on_engine_version"
     assert err["tool"] == "convert_hdri_to_cubemap"
     assert err["min_engine_version"] == "5.0"
     assert err["engine_version"] == "4.27"
