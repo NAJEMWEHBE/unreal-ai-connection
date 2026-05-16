@@ -117,7 +117,7 @@ private:
         if (FovDeg > 0.0) { VC.ViewFOV = static_cast<float>(FovDeg); }
         VC.Invalidate();
         GEditor->RedrawLevelEditingViewports(/*bInvalidateHitProxies=*/true);
-        Viewport->Draw(/*bSynchronous=*/false);
+        Viewport->Draw(/*bShouldPresent=*/false);
         FlushRenderingCommands();
         const FIntPoint Size = Viewport->GetSizeXY();
         TArray<FColor> Bitmap;
@@ -209,7 +209,7 @@ private:
         if (PngData.Num() == 0) { OutError = TEXT("render_camera_to_png: encode_failed: PNG compression produced empty output"); return nullptr; }
         if (!FFileHelper::SaveArrayToFile(PngData, *OutPath))
         {
-            OutError = FString::Printf(TEXT("render_camera_to_png: write_failed: could not write PNG"), *OutPath);
+            OutError = FString::Printf(TEXT("render_camera_to_png: write_failed: could not write PNG to %s"), *OutPath);
             return nullptr;
         }
         TSharedPtr<FJsonObject> Out = MakeShared<FJsonObject>();
