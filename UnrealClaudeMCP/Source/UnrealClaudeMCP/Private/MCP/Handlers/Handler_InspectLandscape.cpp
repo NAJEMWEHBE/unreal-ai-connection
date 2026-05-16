@@ -33,10 +33,16 @@
 #include "LandscapeProxy.h"
 #include "LandscapeStreamingProxy.h"
 #include "Materials/MaterialInterface.h"
+#include "UCMCPCompat.h"
 
 namespace
 {
-    static TSharedPtr<FJsonObject> VectorToJson(const FVector& V)
+    // Per-file unique names: UE 5.1 buckets unity builds differently than 5.7
+    // and merges this TU with the other Inspect* handlers that declare
+    // identically-named anon-namespace VectorToJson / BoxToJson helpers into
+    // one unity blob -> ODR clash. Unique per-file names are version-agnostic;
+    // behavior is unchanged.
+    static TSharedPtr<FJsonObject> VectorToJson_InspectLandscape(const FVector& V)
     {
         TSharedPtr<FJsonObject> Obj = MakeShared<FJsonObject>();
         Obj->SetNumberField(TEXT("x"), V.X);
@@ -45,17 +51,17 @@ namespace
         return Obj;
     }
 
-    static TSharedPtr<FJsonObject> BoxToJson(const FBox& Box)
+    static TSharedPtr<FJsonObject> BoxToJson_InspectLandscape(const FBox& Box)
     {
         // Mirror the bounds shape used by inspect_static_mesh and the
         // cleanup-updated inspect_niagara_system fixed_bounds: {min, max,
         // size, center}. Cross-handler consistency lets LLM consumers parse
         // bounds the same way regardless of which Inspect* they called.
         TSharedPtr<FJsonObject> Obj = MakeShared<FJsonObject>();
-        Obj->SetObjectField(TEXT("min"), VectorToJson(Box.Min));
-        Obj->SetObjectField(TEXT("max"), VectorToJson(Box.Max));
-        Obj->SetObjectField(TEXT("size"), VectorToJson(Box.GetSize()));
-        Obj->SetObjectField(TEXT("center"), VectorToJson(Box.GetCenter()));
+        Obj->SetObjectField(TEXT("min"), VectorToJson_InspectLandscape(Box.Min));
+        Obj->SetObjectField(TEXT("max"), VectorToJson_InspectLandscape(Box.Max));
+        Obj->SetObjectField(TEXT("size"), VectorToJson_InspectLandscape(Box.GetSize()));
+        Obj->SetObjectField(TEXT("center"), VectorToJson_InspectLandscape(Box.GetCenter()));
         return Obj;
     }
 }
@@ -121,12 +127,34 @@ public:
 
             if (bHasGuidFilter)
             {
+#if UCMCP_ENGINE_AT_LEAST(5, 2)
+                // >=5.x verified-correct path. GetOriginalLandscapeGuid()
+                // declared at
+                // F:\UE_5.7\Engine\Source\Runtime\Landscape\Classes\LandscapeProxy.h:1107
+                // (returns the OriginalLandscapeGuid member, LandscapeProxy.h:454).
                 if (!bGuidParsed
                     || (Landscape->GetLandscapeGuid() != FilterGuid
                         && Landscape->GetOriginalLandscapeGuid() != FilterGuid))
                 {
                     continue;
                 }
+#else
+                // UE 5.1: GetOriginalLandscapeGuid() AND the OriginalLandscapeGuid
+                // member are ABSENT (verified: no "OriginalLandscapeGuid" anywhere
+                // under F:\UE_5.1\Engine\Source\Runtime\Landscape\). 5.1 landscapes
+                // have a single GUID: GetLandscapeGuid() at
+                // F:\UE_5.1\Engine\Source\Runtime\Landscape\Classes\LandscapeProxy.h:825
+                // (returns the LandscapeGuid member, LandscapeProxy.h:375).
+                // Match against that sole GUID -- it is the semantic equivalent
+                // of "original" on pre-instancing engines.
+                // UNVERIFIED-COMPILE: the 5.2..5.6 GetOriginalLandscapeGuid
+                // presence boundary is not verifiable here; boundary set to 5.2
+                // so the verified-correct 5.7 path is unchanged.
+                if (!bGuidParsed || Landscape->GetLandscapeGuid() != FilterGuid)
+                {
+                    continue;
+                }
+#endif
             }
 
             Matches.Add(Landscape);
@@ -169,6 +197,12 @@ public:
         int32 ComponentCountTotal = 0;
         if (Info)
         {
+#if UCMCP_ENGINE_AT_LEAST(5, 2)
+            // >=5.x verified-correct path. GetSortedStreamingProxies() at
+            // F:\UE_5.7\Engine\Source\Runtime\Landscape\Classes\LandscapeInfo.h:388;
+            // ForEachLandscapeProxy() at LandscapeInfo.h:398 (impl iterates
+            // LandscapeActor + SortedStreamingProxies,
+            // F:\UE_5.7\Engine\Source\Runtime\Landscape\Private\Landscape.cpp:6050).
             StreamingProxyCount = Info->GetSortedStreamingProxies().Num();
             Info->ForEachLandscapeProxy(
                 [&ComponentCountTotal](ALandscapeProxy* Proxy) -> bool
@@ -179,6 +213,36 @@ public:
                     }
                     return true;
                 });
+#else
+            // UE 5.1: GetSortedStreamingProxies() and ForEachLandscapeProxy()
+            // are ABSENT (the StreamingProxies->StreamingProxies_DEPRECATED
+            // rename + the GetSortedStreamingProxies replacement are flagged
+            // UE_DEPRECATED(5.7,...) at
+            // F:\UE_5.7\Engine\Source\Runtime\Landscape\Classes\LandscapeInfo.h:156;
+            // neither symbol exists on 5.1). On 5.1:
+            //  - StreamingProxies (live array) at
+            //    F:\UE_5.1\Engine\Source\Runtime\Landscape\Classes\LandscapeInfo.h:164
+            //    -> .Num() is the same proxy count (sorting never changes Num()).
+            //  - ForAllLandscapeProxies(TFunctionRef<void(ALandscapeProxy*)>)
+            //    at F:\UE_5.1\...\LandscapeInfo.h:358, impl
+            //    F:\UE_5.1\Engine\Source\Runtime\Landscape\Private\Landscape.cpp:4106
+            //    iterates LandscapeActor + StreamingProxies -- the exact
+            //    semantic equivalent of 5.7 ForEachLandscapeProxy (the void
+            //    signature has no early-out, but the >=5.x lambda always
+            //    returns true so behavior is identical).
+            // UNVERIFIED-COMPILE: the 5.2..5.6 boundary for these APIs is not
+            // verifiable here; boundary set to 5.2 so the verified-correct 5.7
+            // path is unchanged.
+            StreamingProxyCount = Info->StreamingProxies.Num();
+            Info->ForAllLandscapeProxies(
+                [&ComponentCountTotal](ALandscapeProxy* Proxy)
+                {
+                    if (Proxy)
+                    {
+                        ComponentCountTotal += Proxy->LandscapeComponents.Num();
+                    }
+                });
+#endif
         }
 
         TSharedPtr<FJsonObject> Out = MakeShared<FJsonObject>();
@@ -186,7 +250,20 @@ public:
         Out->SetStringField(TEXT("name"), Landscape->GetActorLabel());
         Out->SetStringField(TEXT("actor_name"), Landscape->GetName());
         Out->SetStringField(TEXT("landscape_guid"), Landscape->GetLandscapeGuid().ToString());
+#if UCMCP_ENGINE_AT_LEAST(5, 2)
+        // >=5.x verified-correct path. GetOriginalLandscapeGuid() at
+        // F:\UE_5.7\Engine\Source\Runtime\Landscape\Classes\LandscapeProxy.h:1107.
         Out->SetStringField(TEXT("original_landscape_guid"), Landscape->GetOriginalLandscapeGuid().ToString());
+#else
+        // UE 5.1: no OriginalLandscapeGuid concept (verified absent under
+        // F:\UE_5.1\Engine\Source\Runtime\Landscape\). The sole GUID is
+        // GetLandscapeGuid() (F:\UE_5.1\...\LandscapeProxy.h:825). Emit it so
+        // the JSON field is preserved with identical key/shape on 5.1; on a
+        // non-instanced 5.1 landscape original==current by definition.
+        // UNVERIFIED-COMPILE: 5.2..5.6 boundary unverifiable here; 5.2 chosen
+        // to leave the verified-correct 5.7 path unchanged.
+        Out->SetStringField(TEXT("original_landscape_guid"), Landscape->GetLandscapeGuid().ToString());
+#endif
         Out->SetNumberField(TEXT("component_size_quads"), static_cast<double>(Landscape->ComponentSizeQuads));
         Out->SetNumberField(TEXT("subsection_size_quads"), static_cast<double>(Landscape->SubsectionSizeQuads));
         Out->SetNumberField(TEXT("num_subsections"), static_cast<double>(Landscape->NumSubsections));
@@ -196,7 +273,7 @@ public:
             Out->SetStringField(TEXT("landscape_material"), Material->GetPathName());
         }
 
-        Out->SetObjectField(TEXT("loaded_bounds"), BoxToJson(Landscape->GetLoadedBounds()));
+        Out->SetObjectField(TEXT("loaded_bounds"), BoxToJson_InspectLandscape(Landscape->GetLoadedBounds()));
         Out->SetNumberField(TEXT("streaming_proxy_count"), static_cast<double>(StreamingProxyCount));
         Out->SetNumberField(TEXT("component_count_total"), static_cast<double>(ComponentCountTotal));
         Out->SetBoolField(TEXT("has_landscape_info"), bHasLandscapeInfo);

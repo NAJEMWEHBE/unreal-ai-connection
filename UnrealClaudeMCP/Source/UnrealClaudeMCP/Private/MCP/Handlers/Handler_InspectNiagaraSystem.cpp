@@ -39,10 +39,17 @@
 #include "NiagaraSystem.h"
 #include "NiagaraTypes.h"
 #include "NiagaraUserRedirectionParameterStore.h"
+#include "UCMCPCompat.h"
 
 namespace
 {
-    static TSharedPtr<FJsonObject> VectorToJson(const FVector& V)
+    // Per-file unique name: UE 5.1 buckets unity builds differently than 5.7
+    // and merges this TU with the other Inspect* handlers (Landscape /
+    // StaticMesh / SkeletalMesh) that declare an identically-named anon-
+    // namespace VectorToJson into one unity blob -> ODR clash
+    // (round-1 C2084 at this line). Unique per-file names are
+    // version-agnostic; behavior is unchanged.
+    static TSharedPtr<FJsonObject> VectorToJson_InspectNiagara(const FVector& V)
     {
         TSharedPtr<FJsonObject> Obj = MakeShared<FJsonObject>();
         Obj->SetNumberField(TEXT("x"), V.X);
@@ -51,10 +58,27 @@ namespace
         return Obj;
     }
 
+#if UCMCP_ENGINE_AT_LEAST(5, 2)
+    // >=5.x verified-correct path. ENiagaraEmitterMode enum at
+    // F:\UE_5.7\Engine\Plugins\FX\Niagara\Source\Niagara\Classes\NiagaraEmitterHandle.h:16
+    // (Standard / Stateless); FNiagaraEmitterHandle::GetEmitterMode() at
+    // NiagaraEmitterHandle.h:95.
     static FString EmitterModeToString(ENiagaraEmitterMode Mode)
     {
         return Mode == ENiagaraEmitterMode::Stateless ? TEXT("Stateless") : TEXT("Standard");
     }
+#endif
+    // UE 5.1: ENiagaraEmitterMode and FNiagaraEmitterHandle::GetEmitterMode()
+    // are BOTH ABSENT (verified: F:\UE_5.1\Engine\Plugins\FX\Niagara\Source\Niagara\Classes\NiagaraEmitterHandle.h
+    // exposes only GetName():45, GetIsEnabled():51, GetInstance():62,
+    // GetEmitterData():65 -- no GetEmitterMode, no ENiagaraEmitterMode). The
+    // Stateless-emitter feature did not exist on 5.1; every 5.1 emitter is
+    // "Standard" by definition, so the JSON "mode" field is preserved with
+    // that constant value on 5.1 rather than dropped.
+    // UNVERIFIED-COMPILE: the 5.2..5.6 ENiagaraEmitterMode introduction
+    // boundary is not verifiable here (no 5.2..5.6 engine on disk); boundary
+    // set to 5.2 so every >=5.2 engine -- including the verified-correct
+    // 5.7 -- keeps the original GetEmitterMode() call unchanged.
 }
 
 class FHandler_InspectNiagaraSystem : public IUCMCPHandler
@@ -106,7 +130,15 @@ public:
             TSharedPtr<FJsonObject> EmitterObj = MakeShared<FJsonObject>();
             EmitterObj->SetStringField(TEXT("name"), EmitterHandle.GetName().ToString());
             EmitterObj->SetBoolField(TEXT("enabled"), EmitterHandle.GetIsEnabled());
+#if UCMCP_ENGINE_AT_LEAST(5, 2)
+            // >=5.x verified-correct path (NiagaraEmitterHandle.h:95).
             EmitterObj->SetStringField(TEXT("mode"), EmitterModeToString(EmitterHandle.GetEmitterMode()));
+#else
+            // UE 5.1: no emitter "mode" concept; all emitters are Standard.
+            // Field preserved with the only valid 5.1 value (see namespace
+            // comment above for the on-disk verification).
+            EmitterObj->SetStringField(TEXT("mode"), TEXT("Standard"));
+#endif
             EmitterArray.Add(MakeShared<FJsonValueObject>(EmitterObj));
         }
 
@@ -151,10 +183,10 @@ public:
             // for sibling consistency. PR #51 Gemini medium review.
             const FBox Bounds = System->GetFixedBounds();
             TSharedPtr<FJsonObject> BoundsObj = MakeShared<FJsonObject>();
-            BoundsObj->SetObjectField(TEXT("min"), VectorToJson(Bounds.Min));
-            BoundsObj->SetObjectField(TEXT("max"), VectorToJson(Bounds.Max));
-            BoundsObj->SetObjectField(TEXT("size"), VectorToJson(Bounds.GetSize()));
-            BoundsObj->SetObjectField(TEXT("center"), VectorToJson(Bounds.GetCenter()));
+            BoundsObj->SetObjectField(TEXT("min"), VectorToJson_InspectNiagara(Bounds.Min));
+            BoundsObj->SetObjectField(TEXT("max"), VectorToJson_InspectNiagara(Bounds.Max));
+            BoundsObj->SetObjectField(TEXT("size"), VectorToJson_InspectNiagara(Bounds.GetSize()));
+            BoundsObj->SetObjectField(TEXT("center"), VectorToJson_InspectNiagara(Bounds.GetCenter()));
             Out->SetObjectField(TEXT("fixed_bounds"), BoundsObj);
         }
 
