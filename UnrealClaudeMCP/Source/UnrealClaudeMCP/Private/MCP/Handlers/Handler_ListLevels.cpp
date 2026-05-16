@@ -22,6 +22,7 @@
 #include "AssetRegistry/AssetData.h"
 #include "Modules/ModuleManager.h"
 #include "Engine/World.h"
+#include "UCMCPCompat.h"
 
 class FHandler_ListLevels : public IUCMCPHandler
 {
@@ -62,7 +63,7 @@ public:
         FARFilter Filter;
         Filter.bRecursivePaths = true;
         Filter.PackagePaths.Add(FName(*PathUnder));
-        Filter.ClassPaths.Add(UWorld::StaticClass()->GetClassPathName());
+        UCMCPCompat::FilterAddClass(Filter, UWorld::StaticClass());
 
         TArray<FAssetData> Assets;
         Reg.GetAssets(Filter, Assets);
@@ -80,7 +81,7 @@ public:
             const TSharedRef<FJsonObject> Entry = MakeShared<FJsonObject>();
             Entry->SetStringField(TEXT("name"), AssetName);
             Entry->SetStringField(TEXT("package_path"), Asset.PackageName.ToString());
-            Entry->SetStringField(TEXT("object_path"), Asset.GetObjectPathString());
+            Entry->SetStringField(TEXT("object_path"), UCMCPCompat::AssetObjectPathString(Asset));
             LevelsArr.Add(MakeShared<FJsonValueObject>(Entry));
         }
 

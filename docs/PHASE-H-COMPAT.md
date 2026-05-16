@@ -17,6 +17,13 @@ UnrealClaudeMCP depends on subsystems introduced in 4.27 (UImportSubsystem, and 
 
 OK = no shim needed. SHIM = UCMCPCompat.h or handler guard required. N/A = feature unavailable.
 
+> **Asset-registry cluster status (2026-05-16): shim-wired (unverified-compile).**
+> The 5 call-sites in Handler_FindAssets.cpp, Handler_FixUpRedirectors.cpp, Handler_ListLevels.cpp,
+> Handler_InspectAsset.cpp, and UnrealClaudeMCPModule.cpp have been rewired to UCMCPCompat shims
+> on branch feat/phase-h-asset-registry-shims. This has NOT been verified by a host build against
+> any engine version other than UE 5.7. A build + smoke-test pass on each target engine (4.27, 5.0,
+> 5.1+) is required to certify correctness.
+
 | Engine | Load-gate | Asset-registry | FTSTicker | Save-delegate | UImportSubsystem | ULevelEditorSubsystem | FImageUtils | Mesh getters | LWC double |
 |--------|-----------|----------------|-----------|---------------|------------------|-----------------------|-------------|--------------|------------|
 | 4.27   | SHIM      | OK (ClassNames) | SHIM (FTicker) | SHIM (PostSaveWorld) | OK | N/A | OK (TArray) | OK | OK (float) |
@@ -79,6 +86,26 @@ Do NOT ship a single .uplugin without EngineVersion -- UE will load it on any ve
 
 Current state: UnrealClaudeMCP/UnrealClaudeMCP.uplugin line 5 has "EngineVersion": "5.7.0".
 This is correct for the active target. Update to 5.4.0 when T1 is formally widened.
+
+---
+
+---
+
+## Phase H Cluster Progress
+
+| Cluster | Status |
+|---------|--------|
+| Asset-registry (FilterAddClass, AssetClassName, AssetObjectPathString, GetAssetByObjectPath) | **shim-wired (unverified-compile)** -- branch feat/phase-h-asset-registry-shims |
+| FTSTicker / FTicker rename | PENDING -- not yet shimmed in handler call-sites |
+| Save-delegate (PostSaveWorldWithContext / PostSaveWorld) | PENDING -- UCMCP_POST_SAVE_WORLD_DELEGATE macro defined but 4.27 param list UNVERIFIED |
+| LWC (float/double UCMCP_REAL) | PENDING -- alias defined but mesh/transform handler call-sites not shimmed |
+| Mesh getters (GetStaticMaterials / GetMaterials) | PENDING |
+| FImageUtils PNGCompressImageArray (TArray vs TArrayView64) | PENDING |
+
+> **UNVERIFIED-COMPILE CAVEAT:** The asset-registry cluster edits compile on UE 5.7
+> (the active dev engine) but have not been tested against UE 4.27, 5.0, or 5.1.
+> Host builds against each bucket are required before certifying cross-engine correctness.
+> The SCAFFOLDING-ONLY banner at the top of this document remains in effect.
 
 ---
 

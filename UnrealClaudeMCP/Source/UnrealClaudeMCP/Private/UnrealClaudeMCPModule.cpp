@@ -13,6 +13,7 @@
 #include "AssetRegistry/IAssetRegistry.h"        // OnAssetAdded/Removed/Renamed (IAssetRegistry.h:923/930/936, all TS_)
 #include "AssetRegistry/AssetRegistryModule.h"   // FAssetRegistryModule loader
 #include "AssetRegistry/AssetData.h" // FAssetData fields read by the asset_* payload builders
+#include "UCMCPCompat.h"
 #include "Dom/JsonObject.h"
 #include "Dom/JsonValue.h"
 
@@ -243,10 +244,10 @@ void FUnrealClaudeMCPModule::StartupModule()
             {
                 TSharedPtr<FJsonObject> Data = MakeShared<FJsonObject>();
                 Data->SetStringField(TEXT("package_path"), AssetData.PackageName.ToString());
-                Data->SetStringField(TEXT("asset_path"), AssetData.GetObjectPathString());
+                Data->SetStringField(TEXT("asset_path"), UCMCPCompat::AssetObjectPathString(AssetData));
                 Data->SetStringField(TEXT("name"), AssetData.AssetName.ToString());
                 Data->SetStringField(TEXT("class"),
-                    AssetData.AssetClassPath.GetAssetName().ToString());
+                    UCMCPCompat::AssetClassName(AssetData).ToString());
                 Data->SetStringField(TEXT("class_path"),
                     AssetData.AssetClassPath.ToString());
                 FUCMCPEventBus::Get().Push(TEXT("asset_added"), Data);
@@ -258,10 +259,10 @@ void FUnrealClaudeMCPModule::StartupModule()
             {
                 TSharedPtr<FJsonObject> Data = MakeShared<FJsonObject>();
                 Data->SetStringField(TEXT("package_path"), AssetData.PackageName.ToString());
-                Data->SetStringField(TEXT("asset_path"), AssetData.GetObjectPathString());
+                Data->SetStringField(TEXT("asset_path"), UCMCPCompat::AssetObjectPathString(AssetData));
                 Data->SetStringField(TEXT("name"), AssetData.AssetName.ToString());
                 Data->SetStringField(TEXT("class"),
-                    AssetData.AssetClassPath.GetAssetName().ToString());
+                    UCMCPCompat::AssetClassName(AssetData).ToString());
                 Data->SetStringField(TEXT("class_path"),
                     AssetData.AssetClassPath.ToString());
                 FUCMCPEventBus::Get().Push(TEXT("asset_removed"), Data);
@@ -273,12 +274,12 @@ void FUnrealClaudeMCPModule::StartupModule()
             [](const FAssetData& AssetData, const FString& OldObjectPath)
             {
                 TSharedPtr<FJsonObject> Data = MakeShared<FJsonObject>();
-                Data->SetStringField(TEXT("new_asset_path"), AssetData.GetObjectPathString());
+                Data->SetStringField(TEXT("new_asset_path"), UCMCPCompat::AssetObjectPathString(AssetData));
                 Data->SetStringField(TEXT("old_asset_path"), OldObjectPath);
                 Data->SetStringField(TEXT("new_package_path"), AssetData.PackageName.ToString());
                 Data->SetStringField(TEXT("name"), AssetData.AssetName.ToString());
                 Data->SetStringField(TEXT("class"),
-                    AssetData.AssetClassPath.GetAssetName().ToString());
+                    UCMCPCompat::AssetClassName(AssetData).ToString());
                 Data->SetStringField(TEXT("class_path"),
                     AssetData.AssetClassPath.ToString());
                 FUCMCPEventBus::Get().Push(TEXT("asset_renamed"), Data);
