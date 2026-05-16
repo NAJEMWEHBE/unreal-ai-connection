@@ -32,6 +32,7 @@
 #include "IAssetTools.h"
 #include "UObject/ObjectRedirector.h"
 #include "Modules/ModuleManager.h"
+#include "UCMCPCompat.h"
 
 class FHandler_FixUpRedirectors : public IUCMCPHandler
 {
@@ -95,7 +96,7 @@ public:
         FARFilter Filter;
         Filter.PackagePaths.Add(FName(*PackagePath));
         Filter.bRecursivePaths = true;
-        Filter.ClassPaths.Add(UObjectRedirector::StaticClass()->GetClassPathName());
+        UCMCPCompat::FilterAddClass(Filter, UObjectRedirector::StaticClass());
 
         TArray<FAssetData> AssetDatas;
         AR.GetAssets(Filter, AssetDatas);

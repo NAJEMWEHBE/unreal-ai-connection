@@ -19,6 +19,7 @@
 #include "HAL/FileManager.h"
 #include "UObject/SoftObjectPath.h"
 #include "MCP/Handlers/AssetPathUtil.h"
+#include "UCMCPCompat.h"
 
 class FHandler_InspectAsset : public IUCMCPHandler
 {
@@ -56,7 +57,7 @@ public:
         FAssetRegistryModule& Module = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
         IAssetRegistry& Registry = Module.Get();
 
-        const FAssetData Data = Registry.GetAssetByObjectPath(FSoftObjectPath(ObjectPath));
+        const FAssetData Data = UCMCPCompat::GetAssetByObjectPath(Registry, ObjectPath);
         if (!Data.IsValid())
         {
             OutError = FString::Printf(
@@ -72,7 +73,7 @@ public:
         Out->SetStringField(TEXT("name"), Data.AssetName.ToString());
         Out->SetStringField(TEXT("package_path"), Data.PackageName.ToString());
         Out->SetStringField(TEXT("asset_path"), ObjectPath);
-        Out->SetStringField(TEXT("class"), Data.AssetClassPath.GetAssetName().ToString());
+        Out->SetStringField(TEXT("class"), UCMCPCompat::AssetClassName(Data).ToString());
         Out->SetStringField(TEXT("class_path"), Data.AssetClassPath.ToString());
 
         // tags: stringify every entry via FAssetTagValueRef::AsString().

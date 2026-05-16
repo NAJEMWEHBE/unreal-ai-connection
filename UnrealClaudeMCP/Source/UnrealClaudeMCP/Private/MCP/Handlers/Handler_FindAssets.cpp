@@ -22,6 +22,7 @@
 #include "AssetRegistry/ARFilter.h"
 #include "AssetRegistry/AssetData.h"
 #include "Modules/ModuleManager.h"
+#include "UCMCPCompat.h"
 
 class FHandler_FindAssets : public IUCMCPHandler
 {
@@ -68,8 +69,20 @@ public:
         FAssetRegistryModule& Module = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
         IAssetRegistry& Registry = Module.Get();
 
+        // Resolve class before filter so the compat shim can use the UClass* form.
+        // The post-query validation block below catches the invalid-class case.
+        UClass* FilterClass = LoadClass<UObject>(nullptr, *ClassPath);
         FARFilter Filter;
-        Filter.ClassPaths.Add(FTopLevelAssetPath(ClassPath));
+        if (FilterClass)
+        {
+            UCMCPCompat::FilterAddClass(Filter, FilterClass);
+        }
+        else
+        {
+            // Class not yet loaded -- pass path raw; post-query block will
+            // surface the invalid_class_path error when Found is empty.
+            Filter.ClassPaths.Add(FTopLevelAssetPath(ClassPath));
+        }
         Filter.PackagePaths.Add(FName(*PathUnder));
         Filter.bRecursivePaths = true;
 
@@ -157,7 +170,7 @@ public:
             TSharedRef<FJsonObject> A = MakeShared<FJsonObject>();
             A->SetStringField(TEXT("name"), Data.AssetName.ToString());
             A->SetStringField(TEXT("package_path"), Data.PackageName.ToString());
-            A->SetStringField(TEXT("class"), Data.AssetClassPath.GetAssetName().ToString());
+            A->SetStringField(TEXT("class"), UCMCPCompat::AssetClassName(Data).ToString());
 
             // v0.7.0: optionally include all registry tags as a string-keyed map.
             // FAssetTagValueRef::AsString() coerces FName / FString / int32 /
