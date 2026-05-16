@@ -74,7 +74,9 @@ for k, v in (("capture_every_frame", False),
 
 for name, loc, rot, fov in SHOTS:
     cap.set_actor_location_and_rotation(
-        unreal.Vector(*loc), unreal.Rotator(*rot), False, False)
+        unreal.Vector(*loc),
+        unreal.Rotator(pitch=rot[0], yaw=rot[1], roll=rot[2]),
+        False, False)
     try:
         cc.set_editor_property("fov_angle", fov)
     except Exception:

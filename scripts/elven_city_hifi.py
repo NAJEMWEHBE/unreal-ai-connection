@@ -67,6 +67,12 @@ if _missing:
         "missing engine BasicShapes (cannot build scene): %s" % _missing)
 
 
+def _rot(pitch=0.0, yaw=0.0, roll=0.0):
+    # unreal.Rotator positional arg order is a well-known footgun
+    # (yaw lands in the pitch slot). Always pass pitch/yaw/roll by name.
+    return unreal.Rotator(pitch=pitch, yaw=yaw, roll=roll)
+
+
 # ----------------------------------------------------------------------
 # 1. Cinematic Lumen / renderer cvars (HW Lumen + Nanite already on).
 # ----------------------------------------------------------------------
@@ -274,7 +280,7 @@ def wipe():
 def spawn(shape, label, loc, scale, mat=None, rot=(0, 0, 0)):
     eas = get_eas()
     a = eas.spawn_actor_from_object(
-        MESH[shape], unreal.Vector(*loc), unreal.Rotator(*rot))
+        MESH[shape], unreal.Vector(*loc), _rot(*rot))
     a.set_actor_label(PREFIX + label)
     a.set_actor_scale3d(unreal.Vector(*scale))
     if mat:
@@ -360,7 +366,7 @@ def scatter_foliage(grass):
         yaw = random.uniform(0, 360)
         a = eas.spawn_actor_from_object(
             MESH["cone"], unreal.Vector(x, y, 120 * s),
-            unreal.Rotator(0, yaw, 0))
+            _rot(yaw=yaw))
         a.set_actor_label(PREFIX + "Pine%d" % n)
         a.set_actor_scale3d(unreal.Vector(1.5 * s, 1.5 * s, 5.5 * s))
         try:
@@ -374,8 +380,9 @@ def scatter_foliage(grass):
         s = random.uniform(0.6, 1.8)
         a = eas.spawn_actor_from_object(
             MESH["sphere"], unreal.Vector(x, y, 30 * s),
-            unreal.Rotator(random.uniform(-20, 20), random.uniform(0, 360),
-                           random.uniform(-20, 20)))
+            _rot(pitch=random.uniform(-20, 20),
+                 yaw=random.uniform(0, 360),
+                 roll=random.uniform(-20, 20)))
         a.set_actor_label(PREFIX + "Rock%d" % n)
         a.set_actor_scale3d(unreal.Vector(2.4 * s, 1.9 * s, 1.5 * s))
         try:
@@ -394,7 +401,7 @@ def build_atmosphere():
 
     def sp(cls, loc=(0, 0, 0), rot=(0, 0, 0), tag=""):
         a = eas.spawn_actor_from_class(
-            cls, unreal.Vector(*loc), unreal.Rotator(*rot))
+            cls, unreal.Vector(*loc), _rot(*rot))
         a.set_actor_label(PREFIX + (tag or cls.get_name()))
         return a
 
@@ -553,7 +560,7 @@ def build_cinematic():
     try:
         cam = eas.spawn_actor_from_class(
             unreal.CineCameraActor, unreal.Vector(-2600, 250, 1700),
-            unreal.Rotator(-3, 0, 0))
+            _rot(-3, 0, 0))
         cam.set_actor_label(PREFIX + "CineCam")
         try:
             ccc = cam.get_cine_camera_component()
@@ -672,7 +679,7 @@ def main():
     try:
         ues = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem)
         ues.set_level_viewport_camera_info(
-            unreal.Vector(-2600, 250, 1700), unreal.Rotator(-3, 0, 0))
+            unreal.Vector(-2600, 250, 1700), _rot(-3, 0, 0))
         mark("viewcam", True)
     except Exception as e:
         mark("viewcam", False, e)

@@ -50,7 +50,7 @@ rt = unreal.RenderingLibrary.create_render_target2d(
 
 cap = eas.spawn_actor_from_class(
     unreal.SceneCapture2D, unreal.Vector(*LOC),
-    unreal.Rotator(ROT[0], ROT[1], ROT[2]))
+    unreal.Rotator(pitch=ROT[0], yaw=ROT[1], roll=ROT[2]))
 cap.set_actor_label("HFX_ExpSweep")
 cc = cap.get_component_by_class(unreal.SceneCaptureComponent2D)
 cc.set_editor_property("texture_target", rt)
