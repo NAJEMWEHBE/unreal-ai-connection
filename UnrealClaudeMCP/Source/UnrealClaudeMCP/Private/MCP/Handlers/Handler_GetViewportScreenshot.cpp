@@ -14,6 +14,11 @@
 #include "UnrealClient.h"
 #include "ImageUtils.h"
 #include "Misc/Base64.h"
+// UNVERIFIED-COMPILE (Phase H FImageUtils PNG cluster): PNG encode routed
+// through UCMCPCompat::EncodePngFColor -- PNGCompressImageArray/TArray64
+// (>=5.1) vs legacy CompressImageArray/TArray (<=5.0). Source-authored only;
+// no 5.0/5.1 host build this session.
+#include "UCMCPCompat.h"
 
 class FHandler_GetViewportScreenshot : public IUCMCPHandler
 {
@@ -54,11 +59,13 @@ public:
         // Force alpha to 255 (viewport often returns 0 alpha)
         for (FColor& C : Pixels) { C.A = 255; }
 
-        // UE 5.7 ground truth (verified in Engine/Source/Runtime/Engine/Public/ImageUtils.h):
-        //   ENGINE_API static void PNGCompressImageArray(int32 W, int32 H,
-        //       const TArrayView64<const FColor>& Src, TArray64<uint8>& Dst);
+        // UNVERIFIED-COMPILE: cross-engine PNG encode.
+        //   >=5.1 : FImageUtils::PNGCompressImageArray(W,H,TConstArrayView64<FColor>,TArray64<uint8>&)
+        //   <=5.0 : FImageUtils::CompressImageArray(W,H,const TArray<FColor>&,TArray<uint8>&)
+        // 5.7 ground truth (Engine/Source/Runtime/Engine/Public/ImageUtils.h)
+        // matches the >=5.1 branch. Shim lives in UCMCPCompat.h.
         TArray64<uint8> PngBytes;
-        FImageUtils::PNGCompressImageArray(Size.X, Size.Y, Pixels, PngBytes);
+        UCMCPCompat::EncodePngFColor(Size.X, Size.Y, Pixels, PngBytes);
 
         TSharedPtr<FJsonObject> Out = MakeShared<FJsonObject>();
         Out->SetNumberField(TEXT("width"), Size.X);

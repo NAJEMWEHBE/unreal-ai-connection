@@ -21,7 +21,15 @@
 #include "Editor.h"                  // FEditorDelegates (PostSaveWorldWithContext / MapChange)
 #include "Factories/Factory.h"       // UFactory* param of OnAssetPostImport (Subsystems/ImportSubsystem.h)
 #include "Subsystems/ImportSubsystem.h" // UImportSubsystem::OnAssetPostImport (UE 5.7 replacement for deprecated FEditorDelegates::OnAssetPostImport)
-#include "UObject/ObjectSaveContext.h"  // FObjectPostSaveContext value param of PostSaveWorldWithContext
+// UNVERIFIED-COMPILE (Phase H save-delegate cluster): FObjectPostSaveContext
+// and its header UObject/ObjectSaveContext.h are 5.0+. On 4.27 the delegate
+// is FEditorDelegates::PostSaveWorld and there is NO ObjectSaveContext.h, so
+// guard the include behind the engine gate. The pre-5.0 context type is a
+// flagged-UNVERIFIED placeholder (see UCMCP_POST_SAVE_CONTEXT_TYPE in
+// UCMCPCompat.h). Source-authored only; no 4.27/5.0 host build this session.
+#if UCMCP_ENGINE_AT_LEAST(5, 0)
+#include "UObject/ObjectSaveContext.h"  // FObjectPostSaveContext value param of PostSaveWorldWithContext (5.0+)
+#endif
 
 DEFINE_LOG_CATEGORY_STATIC(LogUnrealClaudeMCP, Log, All);
 
@@ -348,14 +356,40 @@ void FUnrealClaudeMCPModule::StartupModule()
         // FObjectPostSaveContext carries cook/save flags; we expose just the
         // world path for now (clients that need cook context can fall back to
         // explicit checks via execute_unreal_python).
-        PostSaveWorldHandle = FEditorDelegates::PostSaveWorldWithContext.AddLambda(
-            [](UWorld* World, FObjectPostSaveContext /*Context*/)
+        // UNVERIFIED-COMPILE (Phase H save-delegate cluster):
+        //   >=5.0 : FEditorDelegates::PostSaveWorldWithContext(UWorld*, FObjectPostSaveContext)
+        //   4.27  : FEditorDelegates::PostSaveWorld(uint32 SaveFlags, UWorld* World, bool bSuccess)
+        // UCMCP_POST_SAVE_WORLD_DELEGATE selects the delegate name and
+        // UCMCP_POST_SAVE_CONTEXT_TYPE the 5.0+ context param. The 4.27
+        // PostSaveWorld signature differs in arity/order from the 5.0+ one;
+        // its exact parameter list is UNVERIFIED without a 4.27 engine, so the
+        // 4.27 branch below is flagged and MUST be confirmed on a real 4.27
+        // build before "4.27 supported" can be claimed.
+#if UCMCP_ENGINE_AT_LEAST(5, 0)
+        PostSaveWorldHandle = FEditorDelegates::UCMCP_POST_SAVE_WORLD_DELEGATE.AddLambda(
+            [](UWorld* World, UCMCP_POST_SAVE_CONTEXT_TYPE /*Context*/)
             {
                 if (!World) { return; }
                 TSharedPtr<FJsonObject> Data = MakeShared<FJsonObject>();
                 Data->SetStringField(TEXT("level"), World->GetPathName());
                 FUCMCPEventBus::Get().Push(TEXT("level_post_save"), Data);
             });
+#else
+        // UNVERIFIED 4.27 -- FEditorDelegates::PostSaveWorld is believed to be
+        // (uint32 SaveFlags, UWorld* World, bool bSuccess) on 4.27. Confirm
+        // the exact param list on a real 4.27 host build; do NOT trust this
+        // lambda shape until then. UCMCP_POST_SAVE_CONTEXT_TYPE is a `bool`
+        // placeholder on pre-5.0 (see UCMCPCompat.h) and is intentionally
+        // unused here.
+        PostSaveWorldHandle = FEditorDelegates::UCMCP_POST_SAVE_WORLD_DELEGATE.AddLambda(
+            [](uint32 /*SaveFlags*/, UWorld* World, bool /*bSuccess*/)
+            {
+                if (!World) { return; }
+                TSharedPtr<FJsonObject> Data = MakeShared<FJsonObject>();
+                Data->SetStringField(TEXT("level"), World->GetPathName());
+                FUCMCPEventBus::Get().Push(TEXT("level_post_save"), Data);
+            });
+#endif
 
         // map_changed -- Editor.h:196/82. Single uint32 flag-bitmap param.
         // Test against the named MapChangeEventFlags constants (Editor.h:435+)
@@ -444,7 +478,9 @@ void FUnrealClaudeMCPModule::ShutdownModule()
     }
     if (PostSaveWorldHandle.IsValid())
     {
-        FEditorDelegates::PostSaveWorldWithContext.Remove(PostSaveWorldHandle);
+        // UNVERIFIED-COMPILE: UCMCP_POST_SAVE_WORLD_DELEGATE == PostSaveWorldWithContext
+        // (>=5.0) or PostSaveWorld (4.27). FDelegateHandle removal is uniform.
+        FEditorDelegates::UCMCP_POST_SAVE_WORLD_DELEGATE.Remove(PostSaveWorldHandle);
         PostSaveWorldHandle.Reset();
     }
     if (MapChangeHandle.IsValid())

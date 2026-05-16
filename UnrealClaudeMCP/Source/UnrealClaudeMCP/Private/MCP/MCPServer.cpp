@@ -202,7 +202,10 @@ void FUCMCPServer::Start(int32 InPort)
     Listener = MakeUnique<FTcpListener>(Endpoint);
     Listener->OnConnectionAccepted().BindRaw(this, &FUCMCPServer::OnConnectionAccepted);
 
-    TickerHandle = FTSTicker::GetCoreTicker().AddTicker(
+    // UNVERIFIED-COMPILE: FUCMCPTicker resolves to FTSTicker (>=5.0) or
+    // FTicker (4.27). FTickerDelegate is the spelling on both. Shim defined
+    // in UCMCPCompat.h (included via MCPServer.h). No host build this session.
+    TickerHandle = FUCMCPTicker::GetCoreTicker().AddTicker(
         FTickerDelegate::CreateRaw(this, &FUCMCPServer::TickClients),
         0.05f
     );
@@ -220,7 +223,8 @@ void FUCMCPServer::Stop()
 
     if (TickerHandle.IsValid())
     {
-        FTSTicker::GetCoreTicker().RemoveTicker(TickerHandle);
+        // UNVERIFIED-COMPILE: see AddTicker note above (FUCMCPTicker shim).
+        FUCMCPTicker::GetCoreTicker().RemoveTicker(TickerHandle);
         TickerHandle.Reset();
     }
 

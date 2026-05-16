@@ -41,6 +41,11 @@
 #include "ImageUtils.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
+// UNVERIFIED-COMPILE (Phase H FImageUtils PNG cluster): PNG encode routed
+// through UCMCPCompat::EncodePngFColor -- PNGCompressImageArray/TArray64
+// (>=5.1) vs legacy CompressImageArray/TArray (<=5.0). Source-authored only;
+// no 5.0/5.1 host build this session.
+#include "UCMCPCompat.h"
 #include "Modules/ModuleManager.h"
 #include "Engine/TextureRenderTarget2D.h"
 #include "Components/SceneCaptureComponent2D.h"
@@ -195,12 +200,13 @@ private:
     // Shared: encode TArray<FColor> to PNG and save to disk.
     TSharedPtr<FJsonObject> EncodeToPng(const TArray<FColor>& Bitmap, int32 W, int32 H, const FString& OutPath, FString& OutError)
     {
-        // UE 5.7 ground truth (verified in Engine/Source/Runtime/Engine/Public/ImageUtils.h,
-        // mirrors Handler_GetViewportScreenshot.cpp):
-        //   ENGINE_API static void PNGCompressImageArray(int32 W, int32 H,
-        //       const TArrayView64<const FColor>& Src, TArray64<uint8>& Dst);
+        // UNVERIFIED-COMPILE: cross-engine PNG encode.
+        //   >=5.1 : FImageUtils::PNGCompressImageArray(W,H,TConstArrayView64<FColor>,TArray64<uint8>&)
+        //   <=5.0 : FImageUtils::CompressImageArray(W,H,const TArray<FColor>&,TArray<uint8>&)
+        // 5.7 ground truth (Engine/Source/Runtime/Engine/Public/ImageUtils.h)
+        // matches the >=5.1 branch; mirrors Handler_GetViewportScreenshot.cpp.
         TArray64<uint8> PngData;
-        FImageUtils::PNGCompressImageArray(W, H, Bitmap, PngData);
+        UCMCPCompat::EncodePngFColor(W, H, Bitmap, PngData);
 
         if (PngData.Num() == 0) { OutError = TEXT("render_camera_to_png: encode_failed: PNG compression produced empty output"); return nullptr; }
         if (!FFileHelper::SaveArrayToFile(PngData, *OutPath))
