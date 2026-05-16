@@ -23,10 +23,13 @@
  */
 #define UCMCP_ENGINE_AT_LEAST(MAJ, MIN)     ((ENGINE_MAJOR_VERSION > (MAJ)) ||      (ENGINE_MAJOR_VERSION == (MAJ) && ENGINE_MINOR_VERSION >= (MIN)))
 
-// Forward declarations (callers must include relevant engine headers before using shims)
-struct FARFilter;
-struct FAssetData;
-class  IAssetRegistry;
+// The asset-registry inline shims below dereference members of these
+// types, so forward declarations are insufficient -- include the real
+// headers. Paths are stable across the supported range (4.27 -> 5.8;
+// the AssetRegistry module exists from 4.27, which is the floor).
+#include "AssetRegistry/ARFilter.h"
+#include "AssetRegistry/AssetData.h"
+#include "AssetRegistry/IAssetRegistry.h"
 
 // ============================================================
 // FUCMCPTicker -- ticker type alias
@@ -38,7 +41,7 @@ class  IAssetRegistry;
     #include "Containers/Ticker.h"
     using FUCMCPTicker = FTSTicker;
 #else
-    #include "Misc/CoreDelegates.h"
+    #include "Containers/Ticker.h"   // FTicker also lives in Containers/Ticker.h
     using FUCMCPTicker = FTicker;
 #endif
 
@@ -58,20 +61,28 @@ class  IAssetRegistry;
 // UCMCP_POST_SAVE_WORLD_DELEGATE / UCMCP_POST_SAVE_CONTEXT_TYPE
 // ============================================================
 // API boundary: UE 5.0
-//   <= 4.27 : FEditorDelegates::PostSaveWorld              (UWorld*, bool)
-//   >= 5.0  : FEditorDelegates::PostSaveWorldWithContext   (UWorld*, FObjectPostSaveContext)
+//   >= 5.0  : FEditorDelegates::PostSaveWorldWithContext (UWorld*, FObjectPostSaveContext)
+//   <= 4.27 : FEditorDelegates::PostSaveWorld -- the pre-5.0 delegate
+//             signature is NOT the same as the 5.0 one and is
+//             UNVERIFIED here (no 4.27 engine to compile against).
+//             The handler that wires this delegate MUST validate the
+//             exact 4.27 parameter list on a real 4.27 build before
+//             relying on UCMCP_POST_SAVE_CONTEXT_TYPE. Tracked as an
+//             unshimmed/uncertified site (see bottom of this header).
 #if UCMCP_ENGINE_AT_LEAST(5, 0)
     #define UCMCP_POST_SAVE_WORLD_DELEGATE  PostSaveWorldWithContext
     #define UCMCP_POST_SAVE_CONTEXT_TYPE    FObjectPostSaveContext
 #else
     #define UCMCP_POST_SAVE_WORLD_DELEGATE  PostSaveWorld
+    // UNVERIFIED on 4.27 -- placeholder; confirm on a real 4.27 build.
     #define UCMCP_POST_SAVE_CONTEXT_TYPE    bool
 #endif
 
 // ============================================================
 // UCMCPCompat namespace -- asset-registry inline shims
 // ============================================================
-// Include AssetRegistry/AssetRegistryModule.h + AssetRegistry/ARFilter.h in callers.
+// AssetRegistry headers are included at the top of this file, so these
+// inline shims are self-contained (no extra caller includes required).
 namespace UCMCPCompat
 {
     /**
@@ -154,3 +165,5 @@ namespace UCMCPCompat
 //  * UStaticMesh::GetStaticMaterials()  -- method >= 4.27; direct member pre-4.27 (OOS)
 //  * USkeletalMesh::GetMaterials()      -- same boundary
 //  * UImportSubsystem                   -- >= 4.27; 4.26 OOS
+//  * FEditorDelegates::PostSaveWorld    -- 4.27 param list UNVERIFIED
+//        (UCMCP_POST_SAVE_CONTEXT_TYPE pre-5.0 is a placeholder)
