@@ -125,11 +125,22 @@ Certification = build + smoke test both pass on that specific engine version.
 
 ## Bridge / Manifest Metadata Plan
 
-These fields are NOT yet implemented. This section specifies the intended schema.
+> **STATUS UPDATE (2026-05-16): this bridge slice is IMPLEMENTED and
+> pytest-verified.** The `min_engine_version` / `max_engine_version` catalog
+> fields, the bridge runtime gate, and the manifest-parity + gating
+> behaviour tests are real and green (`tests/test_manifest_sync.py` +
+> `tests/test_engine_gating.py`). This is the ONLY part of Phase H that is
+> verified — the SCAFFOLDING-ONLY banner at the top of this document still
+> holds for everything else (no engine other than UE 5.7 has been
+> build- or smoke-certified; the .uplugin bucketing and CI matrix remain
+> planning-only). Nothing here was tested against an actual UE 4.27 or
+> 5.0–5.6 editor; the gate is exercised entirely via mocked
+> `get_engine_version` round-trips.
 
-### Proposed schema
+### Schema (implemented)
 
-Add optional min_engine_version and max_engine_version to each tool entry in:
+Optional `min_engine_version` and `max_engine_version` are carried on each
+tool entry in:
 
 1. UnrealClaudeMCP/Resources/mcp_manifest.json (the tools array)
 2. bridge/unreal_ai_connection_bridge.py TOOLS list (each tool dict)
@@ -146,18 +157,44 @@ Example:
 null max_engine_version = no upper bound known.
 Absent min_engine_version = tool works on all supported engines (4.27+).
 
-### Enforcement via tests/test_manifest_sync.py
+### Enforcement via tests (implemented)
 
-tests/test_manifest_sync.py would be extended to:
-- Verify every tool in the manifest has a matching bridge TOOLS entry.
-- Verify min_engine_version / max_engine_version values match across both locations.
-- Fail the suite if either side has a field the other is missing.
+tests/test_manifest_sync.py was extended (plus a focused
+tests/test_engine_gating.py module) to:
+- Verify the four gated tools carry min_engine_version "5.0" in BOTH the
+  manifest and the bridge TOOLS list.
+- Verify min_engine_version / max_engine_version values match across both
+  locations for every tool (drift in either direction fails the suite).
+- Assert no other tool accidentally carries the field.
+- Unit-test the runtime gate: returns the structured error for engine 4.27
+  and passes through for 5.7 / exactly-5.0; fails open when the engine
+  version is undeterminable; memoises the discovered version.
 
-### Synthetic tools requiring engine-version gating
+### Runtime gate (implemented)
+
+The bridge discovers the connected editor's `(major, minor)` once via the
+native `get_engine_version` handler (reusing the existing `call_ue`
+plumbing — no new round-trip type), memoises it, and on invocation of a
+gated synthetic returns a structured error BEFORE the doomed UE call when
+the engine is known and too old:
+
+    {"error": {"code": "unsupported_on_engine_version",
+               "message": "<tool>: ...",
+               "tool": "<tool>",
+               "min_engine_version": "5.0",
+               "engine_version": "<actual, e.g. 4.27>"}}
+
+Fail-open contract: if the engine version is genuinely undeterminable (UE
+down / handler missing / unparseable) the gate proceeds rather than
+hard-blocking. The gate runs AFTER each synthetic's own argument
+validation, so genuinely-bad input still short-circuits with `-32602` and
+zero round-trips.
+
+### Synthetic tools requiring engine-version gating (implemented)
 
 The following synthetic tools use Python unreal module APIs available only on UE 5.0+
 (get_editor_subsystem, unreal.EditorActorSubsystem, MovieSceneTimeUnit).
-They should carry min_engine_version: 5.0 once the field is implemented.
+They now carry min_engine_version: 5.0 in both the manifest and bridge.
 
 | Tool | Reason for gating |
 |------|------------------|

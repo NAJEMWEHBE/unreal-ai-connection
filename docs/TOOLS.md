@@ -2430,6 +2430,8 @@ Clear all user-defined names from UE Python's public globals dict. Pairs with `e
 
 **Language-shim experiment, PR #46 (Python shim — bridge-side synthetic tool).** Read the level-editor viewport camera's location and rotation.
 
+> **Min engine: 5.0** — uses `unreal.get_editor_subsystem` (5.0+). On older engines the bridge returns a structured `unsupported_on_engine_version` error (Phase H gate, `docs/PHASE-H-COMPAT.md`).
+
 **Implementation:** the bridge composes `execute_unreal_python` + `get_log_lines` via the **marker pattern** — runs Python that calls `UnrealEditorSubsystem.get_level_viewport_camera_info()` and emits `unreal.log("__CAM_<uuid>__" + json + "__END__")`, then drains LogPython lines and parses the marker. Two UE round-trips per call.
 
 **Why a Python shim:** the underlying API is fully Python-reachable; the equivalent C++ handler would be ~150 LoC vs ~75 LoC for the shim. Trade-off: ~5× round-trip latency and marker-pattern fragility under high log volume. See `docs/LANGUAGE-CHOICE-RETROSPECTIVE.md`.
@@ -2451,6 +2453,8 @@ Clear all user-defined names from UE Python's public globals dict. Pairs with `e
 ## set_camera_transform
 
 **Language-shim experiment, PR #46 (Python shim — bridge-side synthetic tool).** Set the level-editor viewport camera's location and/or rotation. Single UE round-trip (write-only — no result to round-trip).
+
+> **Min engine: 5.0** — uses `unreal.get_editor_subsystem` (5.0+). On older engines the bridge returns a structured `unsupported_on_engine_version` error (Phase H gate, `docs/PHASE-H-COMPAT.md`).
 
 **Implementation:** validates location/rotation shape locally in the bridge (so a bad input fails before crossing the wire), then runs `unreal.UnrealEditorSubsystem.get_editor_subsystem(...).set_level_viewport_camera_info(unreal.Vector(...), unreal.Rotator(...))` via `execute_unreal_python`.
 
@@ -3920,6 +3924,8 @@ Result `maps` dict lists every imported map: `{"color": "/Game/Validation/Market
 
 Convert a longlat-projection HDRI (`UTexture2D`) into a `UTextureCube` so it can drive a `SkyLight`'s SpecifiedCubemap slot. Closes the longlat→cubemap parked item — UE 5.7 has no Python-exposed direct converter, but the canonical editor pipeline (`SceneCaptureCube` against an inside-out sphere with the HDRI as an unlit emissive material) is fully scriptable and that's what this tool wraps.
 
+> **Min engine: 5.0** — uses 5.0+ `unreal.*` editor-subsystem / render-target-cube APIs. On older engines the bridge returns a structured `unsupported_on_engine_version` error (Phase H gate, `docs/PHASE-H-COMPAT.md`).
+
 **Bridge-side synthetic tool.** Pipeline:
 
 1. Create a `TextureRenderTargetCube` asset under `dest_path`.
@@ -3966,6 +3972,8 @@ After this returns, assign the cube to `SkyLight.cubemap` and set `SkyLight.sour
 ## sequencer_add_transform_keyframe
 
 Add a single keyframe on a Level Sequence's 3D Transform Track for a previously-bound actor. Closes the keyframe-authoring half of the 21st HANDOFF note's Sequencer parked item — `create_sequence` and `bind_actor_to_sequence` already exist; this tool fills in the missing leg that writes keys on a binding's transform. Movie Render Queue remains parked.
+
+> **Min engine: 5.0** — uses `unreal.MovieSceneTimeUnit` and the 5.0+ MovieScene scripting channel APIs. On older engines the bridge returns a structured `unsupported_on_engine_version` error (Phase H gate, `docs/PHASE-H-COMPAT.md`).
 
 **Bridge-side synthetic tool.** Pipeline:
 
