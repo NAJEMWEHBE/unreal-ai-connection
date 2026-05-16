@@ -7,19 +7,44 @@ calls so GI/temporal history converges before export. Wide EV range so
 "scene over-lit" (gets darker as EV drops) in ONE pass.
 """
 import json
+import os
 
 import unreal
 
 LOC = (-2600, 250, 1700)
-ROT = (-3, 0, 0)
+ROT = (-3, 0, 0)            # (pitch, yaw, roll)
 FOV = 70.0
 BIASES = [-16.0, -12.0, -8.0, -4.0, 0.0]
 WARMUP = 16
-OUTDIR = "F:/UnrealClaudeMCP/docs/validation"
+OUTDIR = os.environ.get(
+    "UCMCP_VALIDATION_DIR",
+    os.path.join(unreal.Paths.project_dir(), "Saved", "ValidationShots"))
+os.makedirs(OUTDIR, exist_ok=True)
 out = {"shots": []}
 
 eas = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
-world = eas.get_all_level_actors()[0]
+
+
+def editor_world():
+    for getter in (
+        lambda: unreal.get_editor_subsystem(
+            unreal.UnrealEditorSubsystem).get_editor_world(),
+        lambda: unreal.EditorLevelLibrary.get_editor_world(),
+    ):
+        try:
+            w = getter()
+            if w:
+                return w
+        except Exception:
+            pass
+    actors = eas.get_all_level_actors()
+    if not actors:
+        raise RuntimeError(
+            "no editor world and empty level — cannot derive world context")
+    return actors[0]
+
+
+world = editor_world()
 rt = unreal.RenderingLibrary.create_render_target2d(
     world, 1280, 720, unreal.TextureRenderTargetFormat.RTF_RGBA8)
 

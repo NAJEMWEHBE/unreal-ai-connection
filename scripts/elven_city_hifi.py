@@ -61,6 +61,10 @@ SHAPES = {
     "sphere": "/Engine/BasicShapes/Sphere.Sphere",
 }
 MESH = {k: unreal.load_object(None, v) for k, v in SHAPES.items()}
+_missing = [SHAPES[k] for k, m in MESH.items() if m is None]
+if _missing:
+    raise RuntimeError(
+        "missing engine BasicShapes (cannot build scene): %s" % _missing)
 
 
 # ----------------------------------------------------------------------

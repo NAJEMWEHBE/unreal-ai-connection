@@ -7,31 +7,46 @@ viewport state and includes post-process (tonemap, exposure, grade), so
 the captured PNG matches the final look. Reusable for any hero framing.
 """
 import json
+import os
 
 import unreal
 
+# Rotators are (pitch, yaw, roll) — standard UE order, no index swap.
 SHOTS = [
-    ("hero", (-2600, 250, 1700), (0, -3, 0), 70.0),
-    ("vista", (-4200, 1400, 2400), (-30, 4, 0), 62.0),
-    ("spire", (1200, -1400, 2600), (-150, 6, 0), 55.0),
+    ("hero", (-2600, 250, 1700), (-3, 0, 0), 70.0),
+    ("vista", (-4200, 1400, 2400), (4, -30, 0), 62.0),
+    ("spire", (1200, -1400, 2600), (6, -150, 0), 55.0),
 ]
-OUTDIR = "F:/UnrealClaudeMCP/docs/validation"
+OUTDIR = os.environ.get(
+    "UCMCP_VALIDATION_DIR",
+    os.path.join(unreal.Paths.project_dir(), "Saved", "ValidationShots"))
+os.makedirs(OUTDIR, exist_ok=True)
 RES = (1600, 900)
 out = {"shots": []}
 
-eas = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
-world = None
-try:
-    ues = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem)
-    world = ues.get_editor_world()
-except Exception:
-    try:
-        world = unreal.EditorLevelLibrary.get_editor_world()
-    except Exception:
-        pass
 
-if world is None:
-    world = eas.get_all_level_actors()[0]  # any actor -> valid world ctx
+def editor_world():
+    for getter in (
+        lambda: unreal.get_editor_subsystem(
+            unreal.UnrealEditorSubsystem).get_editor_world(),
+        lambda: unreal.EditorLevelLibrary.get_editor_world(),
+    ):
+        try:
+            w = getter()
+            if w:
+                return w
+        except Exception:
+            pass
+    actors = eas.get_all_level_actors()
+    if not actors:
+        raise RuntimeError(
+            "no editor world and empty level — cannot derive world context")
+    return actors[0]
+
+
+eas = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
+world = editor_world()
+
 rt = unreal.RenderingLibrary.create_render_target2d(
     world, RES[0], RES[1], unreal.TextureRenderTargetFormat.RTF_RGBA8)
 try:
@@ -59,8 +74,7 @@ for k, v in (("capture_every_frame", False),
 
 for name, loc, rot, fov in SHOTS:
     cap.set_actor_location_and_rotation(
-        unreal.Vector(*loc), unreal.Rotator(rot[1], rot[0], rot[2]),
-        False, False)
+        unreal.Vector(*loc), unreal.Rotator(*rot), False, False)
     try:
         cc.set_editor_property("fov_angle", fov)
     except Exception:
