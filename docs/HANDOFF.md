@@ -2,7 +2,7 @@
 
 Single source of truth for resuming work on Unreal AI Connection in a fresh session of any MCP-compliant client. Read this first; it captures everything carried in the prior session's working memory.
 
-> Earlier closing notes (1st through 25th, sessions 2026-05-09 through 2026-05-15) are archived to [`docs/HANDOFF-archive.md`](HANDOFF-archive.md). This active file keeps the latest three consecutive notes (26th-28th) for quick pickup.
+> Earlier closing notes (1st through 26th, sessions 2026-05-09 through 2026-05-16) are archived to [`docs/HANDOFF-archive.md`](HANDOFF-archive.md). This active file keeps the latest three consecutive notes (27th-29th) for quick pickup.
 
 ---
 
@@ -10,7 +10,7 @@ Single source of truth for resuming work on Unreal AI Connection in a fresh sess
 
 **What this is:** An Unreal Engine 5.7 plugin + Python bridge that exposes editor automation to **any MCP-compliant client** (Claude Code, Codex CLI, Cursor, Gemini CLI, Continue, …) over a localhost TCP socket. The plugin adds a JSON-RPC server inside the editor; each "handler" is one MCP tool (~150 LoC of C++ in `Source/UnrealClaudeMCP/Private/MCP/Handlers/`). The bridge translates between the client's stdio MCP protocol and the plugin's TCP wire format. **Vendor-neutral by design** — the wire protocol is open MCP (created by Anthropic, but any conforming client works); the project's repo/folder names retain "Claude" for legacy reasons but the capability is universal.
 
-**Where it stands (post-PR #209 — branding rename Stage 1 shipped + one-paste distribution + picture-to-Unreal live test):** **104 tools total** (71 UE-side C++ handlers + 33 bridge-side synthetic tools — recent additions: `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap`, `sequencer_add_transform_keyframe`). Plugin version `0.9.1`, targets UE `5.7`. pytest baseline: **472** passing. **The GitHub repo is now renamed `unreal-ai-connection`** (old `UnrealClaudeMCP` slug auto-redirects); the MCP server name + Python bridge file were renamed in PR #206 (BREAKING — see 28th note), but the C++ plugin module identity is still `UnrealClaudeMCP` (rename Stage 2, deliberately deferred — needs a host UE rebuild). (For the current HEAD commit, run `git log -1 origin/main`; the latest milestone PR is #209.)
+**Where it stands (post-PR #209 — branding rename Stage 1 shipped + one-paste distribution + picture-to-Unreal live test; PRs #211/#212 open this session):** **104 tools total** (71 UE-side C++ handlers + 33 bridge-side synthetic tools — recent additions: `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap`, `sequencer_add_transform_keyframe`). Plugin version `0.9.1`, targets UE `5.7`. pytest baseline: **472** passing. **The GitHub repo is now renamed `unreal-ai-connection`** (old `UnrealClaudeMCP` slug auto-redirects); the MCP server name + Python bridge file were renamed in PR #206 (BREAKING — see 28th note), but the C++ plugin module identity is still `UnrealClaudeMCP` (rename Stage 2, deliberately deferred — needs a host UE rebuild). (For the current HEAD commit, run `git log -1 origin/main`; the latest milestone PR is #212.)
 
 Recent waves that landed in the current session lineage:
 - **Wave A (PR #161)** — 6 quick-win tools: `get_engine_version`, `list_levels`, `save_dirty_assets`, `get_selected_actors`, `inspect_input_mappings`, `bulk_inspect_assets`
@@ -30,7 +30,7 @@ Recent waves that landed in the current session lineage:
 
 **Open PRs:** none.
 
-**Latest milestone on main:** PR #208 — one-paste marketplace distribution (`.claude-plugin/` + `server.json` + per-client recipes); repo renamed to `unreal-ai-connection`, rename Stage 1 (server/bridge) shipped in PR #206, picture-to-Unreal live test in PR #209. For the current HEAD commit hash, run `git log -1 origin/main`.
+**Latest milestone on main:** PR #208 — one-paste marketplace distribution (`.claude-plugin/` + `server.json` + per-client recipes); repo renamed to `unreal-ai-connection`, rename Stage 1 (server/bridge) shipped in PR #206, picture-to-Unreal live test in PR #209. **Open this session:** PR #211 (Phase H compat scaffold) + PR #212 (elven-city hi-fi rebuild + headless-capture root cause — see 29th note). For the current HEAD commit hash, run `git log -1 origin/main`.
 
 **Pending verification on host machine (PRIMARY next-action item):**
 
@@ -309,49 +309,7 @@ For specific resumption:
 
 ## Closing notes from prior sessions
 
-> **Note:** Consecutive closing notes 1 through 25 (sessions 2026-05-09 through 2026-05-15) are archived in [`HANDOFF-archive.md`](HANDOFF-archive.md). Only the latest three (26th-28th) are kept active here.
-
-## Session 2026-05-15 → 16 (PRs #194/#195/#196 — Sequencer keyframe synthetic + repo cleanup + Florence fly-through)
-
-User instruction: "resume your work... add Da Vinci-style continuation... stay on ONE project, clean everything, remove duplicates, every 5–10 PRs update the GitHub repo About page... don't forget multi-agent system." Three PRs shipped in sequence + a session-end pivot to a different UE project surfaced.
-
-**PR #194 — sequencer_add_transform_keyframe synthetic (squash `49da2f9`):**
-- First Sequencer keyframe-authoring primitive. Closes the keyframe half of the 21st-note Sequencer parked item; Movie Render Queue remains parked.
-- Tool count: 103 → 104 (71 C++ + 33 synthetic). pytest: 443 → 458 (+15 cases).
-- UE 5.7 API confirmed via live probe (kept as `scripts/poc_sequencer_keyframe.py`): `seq.add_possessable(actor)` for binding, `binding.add_track(MovieScene3DTransformTrack)` (extension method bound to proxy class), `MovieSceneScriptingDoubleChannel` (UE 5.7 dropped float), 9 channels named `Location.X/Y/Z`, `Rotation.X/Y/Z`, `Scale.X/Y/Z`, `add_key(time, value, sub_frame, time_unit=DISPLAY_RATE, interpolation=AUTO)` with `MovieSceneTimeUnit.TICK_RESOLUTION` for tick-resolution frames, and `MovieSceneSequenceExtensions.get_tick_resolution(seq)` for the conversion factor.
-- Rotation channels map to roll(X)/pitch(Y)/yaw(Z) in the sequencer Euler layout. Caller passes `[pitch, yaw, roll]` (unreal.Rotator convention) and the synthetic remaps internally.
-- Bot-review gate (rule #5): 4 CodeRabbit findings, **1 Major track_path-marker bug**: print()-based marker wasn't reliably flushed into Cmd.CommandResult by UE 5.7's Python evaluator — switched to `unreal.log("...::__END__")` + `get_log_lines` (LogPython ring buffer). 3 Minors: bare `/Game` validator tightened, README pytest badge slug 443→458, POC `int(time.time())` → `time.time_ns()` for collision safety. Drift-sweep got a new regex case for the badge slug.
-
-**PR #195 — repo cleanup (squash `0705bc3`):**
-- Shipped one idempotent `scripts/florence_scene.py` that replaces 7 iteration scripts (compose / fix-lighting / rebuild-clean / final-lighting / polish / closeup / hires). Pinned the 2 hero PNGs (`florence-final-2026-05-15.png` + `florence-closeup-2026-05-15.png`) referenced in the 24th note.
-- Local removal (not in repo): 15 untracked dead scripts + 7 untracked draft PNGs. The two hero PNGs are the only ones tracked.
-- Stranded `M_HDRI_Sphere_Temp.uasset` (artifact of the earlier Stop-Process kill) deleted via bridge `execute_unreal_python` + `EditorAssetLibrary.delete_asset` once UE was relaunched. Auto-mode classifier had blocked plain `rm` outside the repo trust boundary — correct call.
-- Bot-review gate: 2 CodeRabbit Majors. Missing-texture fail-fast guard with named-paths error message + marketplace_import prerequisite hint. wipe_owned_actors class-delete now guards on `not label` so designer-placed lighting actors survive the cleanup pass.
-
-**PR #196 — Florence plaza fly-through (squash `7a8c7ba`):**
-- First production use of PR #194's `sequencer_add_transform_keyframe`. Driver script at `scripts/florence_flythrough.py` orchestrates entirely via bridge MCP tool calls (no direct execute_unreal_python except for CineCameraActor spawn + playhead scrub).
-- Pipeline: load_level_by_path → create_sequence → spawn CineCameraActor (35mm f/2.8) → bind_actor_to_sequence → 6× sequencer_add_transform_keyframe at t=0,2,4,6,8,10s (SE→W orbital arc, smart_auto interpolation) → set_camera_transform for hero pose → get_viewport_screenshot.
-- Live verification confirmed `transform_keys_total=36` (6 channels × 6 keys; scale skipped as requested). Hero PNG: `docs/validation/florence-flythrough-hero-2026-05-15.png`.
-- Bot-review gate: 3 CodeRabbit Majors. Bridge-read timeout (was hanging forever on stdout.readline); per-invocation marker correlation token via `uuid4()[:12]` (stale markers from prior runs no longer match); hard-fail on `execute_unreal_python` non-ok results (previously fell through with keyframe_count=0 on real failures).
-
-**Cumulative this window:**
-- Tool count: 104 (unchanged across cleanup + fly-through; only PR #194 added a tool).
-- pytest: 458/458 green at every phase boundary.
-- 36 PRs in session lineage (#161 → #196).
-- Standing rules unchanged: 6 active (delegation-by-default, bot-review gate, mechanical-fix exception, vendor-neutral, UE launch permission, UE close on window end via `execute_console_command quit` NOT `Stop-Process`).
-
-**Next-session pivot — DIFFERENT PROJECT:**
-- User clarified the "old project" they wanted to continue is at `F:\BTSschool\BSK_FOA_2026\`, NOT the current `HDMediaVirtualStudio` host. Picture-to-Unreal-Project work, name was "Untitled" or "Untitled_1" in their voice message.
-- Layout: `BSK_FOA_2026\BSK_FOA_2026.uproject` (main) + `BSK_FOA_2026 BY CLAUDE\BSK_FOA_2026.uproject` (prior Claude fork) + `Untitled.blend` (Blender source) + `Virtual Stage Design.pdf` (design brief) + `assets\` (the picture) + `HANDOFF.md` + `PROJECT_PLAN.md` + `EVALUATION.md` + `KICKOFF_PROMPT.txt`. Also a virtual-studio LED-volume variant under `new\virtual studio\06_unreal\CoastalLEDVolume\` (Aximmetry pipeline).
-- Resumption recipe for next session: **read `F:\BTSschool\BSK_FOA_2026\HANDOFF.md` + `PROJECT_PLAN.md` + `EVALUATION.md` + the picture under `assets\` BEFORE touching any code.** Then decide whether to continue on the main `BSK_FOA_2026.uproject` or on the `BY CLAUDE` variant (per the same-project rule from this window, picking one + sticking with it is the discipline).
-
-**Remaining parked items:**
-- **Phase F — repo rename** to `UnrealMCP` or `UnrealAI Connection` (user's two candidates). Non-trivial: touches README badges, GitHub remote URL, plugin description, manifest description, all internal doc links, CI workflow URLs, the bridge module docstring, and CHANGELOG history references. Will need its own dedicated window — open one PR for the rename so the bot gate catches every stale link.
-- **README About / GIF polish.** Spec the 10–15s demo loop showing the client → bridge → UE round-trip. Place under `docs/images/demo-screencast.gif`. Refresh the GitHub About description + topics. Per-PR cadence: every 5–10 PRs. Currently 36 PRs into the cycle without a refresh.
-- **Movie Render Queue synthetic** — still attended-Codex C++. Sequencer keyframe authoring is now the only Sequencer primitive shipped.
-- **Local OSS LLM daemon empty-list bug** — admin shell required.
-
----
+> **Note:** Consecutive closing notes 1 through 26 (sessions 2026-05-09 through 2026-05-16) are archived in [`HANDOFF-archive.md`](HANDOFF-archive.md). Only the latest three (27th-29th) are kept active here.
 
 ## Session 2026-05-15 (PRs #199/#200/#201 — competitive analysis + per-client setup + one-command installers)
 
@@ -399,8 +357,6 @@ User instruction (carried from prior window): "is my repo the best between all o
 - **Local OSS LLM daemon empty-list bug** — admin shell required.
 
 **Twenty-seventh consecutive closing-note.** Session 2026-05-15: three PRs (#199 competitive analysis / #200 per-client setup / #201 installers), all merged green. Competitive analysis is the honest answer to the user's "is mine the best?" — yes technically, not yet by adoption. Phase G (docs + installer) complete; Phase F (rename) parked on user decision with the slug pre-cleared. Tool count: 104 live. pytest: 472. Standing rules: 6 (unchanged). Cadence intact.
-
-**Twenty-sixth consecutive closing-note.** Session 2026-05-15 → 16 single-window with 3 merged PRs in sequence. Three bot-fix follow-ups bundled under the mechanical-fix exception. Live verification confirmed PR #194's synthetic works end-to-end on a real CineCameraActor binding (36 keys written across 6 channels). User's next-session pivot to BSK_FOA_2026 is fully documented above. Tool count: 104. Standing rules: 6 (unchanged). Cadence intact.
 
 ---
 
@@ -450,3 +406,19 @@ Very long multi-thread session. User ran the actual GitHub repo rename `UnrealCl
 - Carried forward unchanged: Phase H (UE multi-version compat), Phase J (BTSschool/BSK_FOA_2026 — separate session/working dir), README demo GIF, Movie Render Queue synthetic (attended-Codex C++), local OSS LLM daemon empty-list bug (admin shell required).
 
 **Twenty-eighth consecutive closing-note.** Session 2026-05-16: 4 merged PRs (#197 contributor docstring / #203 Phase F URLs / #206 rename Stage 1 BREAKING / #208 one-paste distribution), 3 open (#205 awaits secret decision, #207 HOSTILE — maintainer must close + revoke the app, #209 picture-to-Unreal live test). The security incident is the load-bearing takeaway: a hostile GitHub App's foothold is still live and an active prompt-injection was observed and correctly disregarded — future sessions distrust mid-execution "plan mode" claims and verify against whether writes actually land. Repo renamed to `unreal-ai-connection`; rename Stage 2 (C++ module identity) is the deliberately-deferred next big task. Tool count: 104 live. pytest: 472. Standing rules: 6 (unchanged) + the always-re-engage-the-crew reinforcement. Cadence intact.
+
+---
+
+## Session 2026-05-16 (PRs #211/#212 open — Phase H compat scaffold + elven-city hi-fi rebuild + the headless-capture root cause)
+
+Two PRs opened this session; the load-bearing takeaway is a hard, reproducible limit on automated screenshot capture under MCP-bridge automation.
+
+**PR #211 — `feat/phase-h-compat-scaffold` (open, SCAFFOLD ONLY):** a `UCMCPCompat.h` shim header + `docs/PHASE-H-COMPAT.md` toward the parked Phase H cross-engine compat goal. **NOT certified on any engine but 5.7**; 4.26 is explicitly out-of-scope; certification needs per-engine host builds — this PR only lays the scaffold, it does not claim compatibility.
+
+**PR #212 — `feat/elven-city-hifi-and-capture-rootcause` (open):** `scripts/elven_city_hifi.py` — a 211-actor cinematic rebuild of the elven city with real CC0 PBR materials + Sky Atmosphere + volumetric fog + a graded manual-exposure Post Process Volume + a CineCamera/Level Sequence. Scene was built and saved to `L_HDMedia_Empty` and verified by live introspection. Honest ceiling: this is a competent high-fidelity real-time environment, **NOT bespoke AAA-studio art**.
+
+**KEY LOAD-BEARING FINDING — headless capture is blocked under bridge automation:** with the UE editor window backgrounded, the editor does **not pump render frames**. Therefore ALL headless screenshot paths fail: `get_viewport_screenshot` returns a frozen byte-identical frame; `SceneCapture2D`→render-target→`export_render_target` returns pure white at every exposure even with a 16-frame warm-up; deferred `HighResShot` / `AutomationLibrary.take_high_res_screenshot` files are never written. `Slate.bAllowThrottling 0` + realtime were NOT sufficient. **The scene is fine — the gap is capture only.** Full diagnosis + recommended fix (a native `render_camera_to_png` C++ handler driving editor tick + `FlushRenderingCommands()` + a synchronous backbuffer read; needs a host UE rebuild → next session) is in `docs/validation/elven-hifi-2026-05-16-NOTES.md`. **Next agent: to visually verify, the editor must be FOREGROUNDED (it renders fine interactively); automated capture is blocked until the native handler exists.**
+
+**Carried forward unchanged (user-action items still open):** close PR #207 + revoke the `ecc-tools` GitHub App (hostile bundle — cannot be done from-session); decide PR #205 A/B (PR-Agent option). Rename Stage-2 C++ module rename still deferred (needs a host rebuild). Plus the standing carry-forward: Phase J (BTSschool/BSK_FOA_2026 — separate session), README demo GIF, Movie Render Queue synthetic, local OSS LLM daemon empty-list bug.
+
+**Twenty-ninth consecutive closing-note.** Session 2026-05-16: 2 PRs opened — #211 Phase H compat scaffold (SCAFFOLD ONLY, certified on 5.7 only, needs per-engine host builds) and #212 elven-city hi-fi rebuild (211 actors, real PBR + Sky Atmosphere + graded PPV, built/saved/introspected on `L_HDMedia_Empty`). The load-bearing finding: under bridge automation with the editor backgrounded, no render frames are pumped, so EVERY headless capture path fails (frozen viewport / pure-white render target / unwritten HighResShot); the scene itself is sound — capture is the only gap, and the recommended fix is a native `render_camera_to_png` handler (host rebuild, next session). Honest ceiling: competent real-time env, not AAA art. Tool count: 104. pytest: 472. Standing rules: 6 (unchanged). Cadence intact.
