@@ -41,10 +41,15 @@
 #include "MCP/Handlers/AssetPathUtil.h"
 #include "Dom/JsonObject.h"
 #include "Dom/JsonValue.h"
+#include "UCMCPCompat.h"
 
 namespace
 {
-    static FString BlueprintStatusToString(EBlueprintStatus Status)
+    // Per-file unique name: UE 5.1 buckets unity builds differently than 5.7
+    // and merges the three Inspect*Blueprint TUs into one unity blob, causing
+    // an anonymous-namespace ODR clash among the identically-named helpers.
+    // Unique per-file names are version-agnostic; behavior is unchanged.
+    static FString BlueprintStatusToString_InspectWidgetBP(EBlueprintStatus Status)
     {
         switch (Status)
         {
@@ -114,7 +119,7 @@ public:
         // --- parent class + compile status (inherited from UBlueprint) ---
 
         const FString ParentClassName = WBP->ParentClass ? WBP->ParentClass->GetName() : TEXT("");
-        const FString StatusString    = BlueprintStatusToString(static_cast<EBlueprintStatus>(WBP->Status));
+        const FString StatusString    = BlueprintStatusToString_InspectWidgetBP(static_cast<EBlueprintStatus>(WBP->Status));
 
         // --- public (non-editor-only) surface ---
 
@@ -130,6 +135,11 @@ public:
             InheritedSlotsArray.Add(MakeShared<FJsonValueString>(SlotName.ToString()));
         }
 
+        TArray<TSharedPtr<FJsonValue>> SlotsWithContentArray;
+#if UCMCP_ENGINE_AT_LEAST(5, 2)
+        // >=5.x verified-correct path. UWidgetBlueprint::
+        // GetInheritedNamedSlotsWithContentInSameTree() at
+        // F:\UE_5.7\Engine\Source\Editor\UMGEditor\Public\WidgetBlueprint.h:331.
         TSet<FName> SlotsWithContentSet = WBP->GetInheritedNamedSlotsWithContentInSameTree();
         // Sort for stable output -- TSet iteration order is unspecified.
         TArray<FString> SlotsWithContentSorted;
@@ -139,12 +149,21 @@ public:
             SlotsWithContentSorted.Add(SlotName.ToString());
         }
         SlotsWithContentSorted.Sort();
-        TArray<TSharedPtr<FJsonValue>> SlotsWithContentArray;
         SlotsWithContentArray.Reserve(SlotsWithContentSorted.Num());
         for (const FString& S : SlotsWithContentSorted)
         {
             SlotsWithContentArray.Add(MakeShared<FJsonValueString>(S));
         }
+#else
+        // UE 5.1: UWidgetBlueprint::GetInheritedNamedSlotsWithContentInSameTree()
+        // is ABSENT (verified: only GetInheritedAvailableNamedSlots() at
+        // F:\UE_5.1\Engine\Source\Editor\UMGEditor\Public\WidgetBlueprint.h:326
+        // exists; no ...WithContentInSameTree variant). No 5.1 equivalent ->
+        // the "named_slots_with_content" JSON array is emitted EMPTY on 5.1
+        // (key preserved for shape consistency; content has no 5.1 source).
+        // UNVERIFIED-COMPILE: 5.2..5.6 boundary not verifiable here; 5.2
+        // chosen so the verified-correct 5.7 path is unchanged.
+#endif
 
         // --- editor-only surface (Bindings, Animations, PaletteCategory, bCanCallInitializedWithoutPlayerContext) ---
 
@@ -191,7 +210,19 @@ public:
             AnimationsArray.Add(MakeShared<FJsonValueObject>(AnimObj));
         }
 
+#if UCMCP_ENGINE_AT_LEAST(5, 2)
+        // >=5.x verified-correct path. UWidgetBlueprint::
+        // bCanCallInitializedWithoutPlayerContext at
+        // F:\UE_5.7\Engine\Source\Editor\UMGEditor\Public\WidgetBlueprint.h:257.
         const bool    bCanInitWithoutPlayer = WBP->bCanCallInitializedWithoutPlayerContext;
+#endif
+        // UE 5.1: bCanCallInitializedWithoutPlayerContext is ABSENT -- it does
+        // not exist ANYWHERE in UE 5.1 source (verified: zero hits under
+        // F:\UE_5.1\Engine\Source\ for the symbol). No 5.1 equivalent -> the
+        // "can_init_without_player_context" JSON field is gated out entirely
+        // on 5.1 per the directive.
+        // UNVERIFIED-COMPILE: 5.2..5.6 boundary not verifiable here; 5.2 chosen
+        // so the verified-correct 5.7 path is unchanged.
         const FString PaletteCategory       = WBP->PaletteCategory;
 
 #endif // WITH_EDITORONLY_DATA
@@ -210,7 +241,10 @@ public:
         {
             Out->SetStringField(TEXT("palette_category"), PaletteCategory);
         }
+#if UCMCP_ENGINE_AT_LEAST(5, 2)
+        // 5.1: field gated out (source symbol absent -- see decl site above).
         Out->SetBoolField(TEXT("can_init_without_player_context"), bCanInitWithoutPlayer);
+#endif
 #endif
 
         Out->SetBoolField(TEXT("property_bindings_allowed"), bPropertyBindingsAllowed);
