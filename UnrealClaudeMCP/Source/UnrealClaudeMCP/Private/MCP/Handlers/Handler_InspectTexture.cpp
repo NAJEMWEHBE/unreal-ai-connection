@@ -42,6 +42,7 @@
 #include "PixelFormat.h"
 #include "EditorAssetLibrary.h"
 #include "MCP/MCPHandler.h"
+#include "UCMCPCompat.h"
 #include "MCP/Handlers/AssetPathUtil.h"
 #include "Dom/JsonObject.h"
 #include "Dom/JsonValue.h"
@@ -170,10 +171,27 @@ public:
         Out->SetBoolField(TEXT("never_stream"), Texture->NeverStream != 0);
 
         // Composite texture cross-link (asset path) -- conditional on non-null.
-        // GetCompositeTexture() is the UE 5.7 deprecation-clean accessor; the
-        // direct `CompositeTexture` field emits a C4996 warning that fails
-        // build under -Werror. (Build log on cold compile flagged this.)
+#if UCMCP_ENGINE_AT_LEAST(5, 3)
+        // >=5.x verified-correct path. GetCompositeTexture() is the
+        // deprecation-clean accessor; on >=5.3 the direct `CompositeTexture`
+        // field is UE_DEPRECATED(5.3,...) and emits C4996 that fails -Werror.
+        // Accessor at
+        // F:\UE_5.7\Engine\Source\Runtime\Engine\Classes\Engine\Texture.h:1415;
+        // the field's deprecation tag is at Texture.h:1392.
         if (UTexture* Composite = Texture->GetCompositeTexture())
+#else
+        // UE 5.1/5.2: GetCompositeTexture()/SetCompositeTexture() do NOT exist
+        // -- they were introduced at UE 5.3 (the field's deprecation is
+        // explicitly UE_DEPRECATED(5.3, "Use GetCompositeTexture()...") on
+        // 5.7 Texture.h:1392, so the accessor is the 5.3+ surface). On 5.1
+        // the PUBLIC direct field is the only API:
+        //   F:\UE_5.1\Engine\Source\Runtime\Engine\Classes\Engine\Texture.h:1255
+        //   (TObjectPtr<UTexture> CompositeTexture, governed by `public:` at
+        //   Texture.h:1124; NOT deprecated on 5.1 so no C4996). Boundary is
+        //   the precise verified 5.3 (NOT 5.2) -- this is an engine-source-
+        //   verified boundary, not UNVERIFIED.
+        if (UTexture* Composite = Texture->CompositeTexture)
+#endif
         {
             Out->SetStringField(TEXT("composite_texture"), Composite->GetPathName());
         }

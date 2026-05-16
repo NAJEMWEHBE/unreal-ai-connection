@@ -34,7 +34,11 @@ namespace
     static constexpr int32 kDefaultLimit = 100;
     static constexpr int32 kHardMaxLimit = 1000;
 
-    static FString CVarTypeToString(IConsoleVariable* CVar)
+    // Per-file unique name: UE 5.1 buckets unity builds differently than 5.7
+    // and merges this TU with Handler_GetConsoleVariable.cpp into one unity
+    // blob, causing an anonymous-namespace ODR clash with the identically-
+    // named helper there. Unique names are version-agnostic; behavior unchanged.
+    static FString CVarTypeToString_FindCVars(IConsoleVariable* CVar)
     {
         if (CVar->IsVariableInt())    return TEXT("int");
         if (CVar->IsVariableFloat())  return TEXT("float");
@@ -111,7 +115,7 @@ public:
 
                     FRow Row;
                     Row.Name = Name;
-                    Row.Type = CVarTypeToString(CV);
+                    Row.Type = CVarTypeToString_FindCVars(CV);
                     Row.bReadOnly = (CV->GetFlags() & ECVF_ReadOnly) != 0;
                     Rows.Add(MoveTemp(Row));
                 }),

@@ -38,12 +38,28 @@
 // Stable error codes: missing_required_field, asset_not_found, not_a_physics_asset
 
 #include "PhysicsEngine/PhysicsAsset.h"
+#include "MCP/MCPHandler.h"
+#include "UCMCPCompat.h"      // UCMCP_ENGINE_AT_LEAST gate below
+#if UCMCP_ENGINE_AT_LEAST(5, 2)
+// >=5.x verified-correct path. On UE 5.7 USkeletalBodySetup's definition was
+// split out into its own header (PhysicsAsset.h:21 only forward-declares it;
+// the class body lives at
+// F:\UE_5.7\Engine\Source\Runtime\Engine\Classes\PhysicsEngine\SkeletalBodySetup.h:25).
 #include "PhysicsEngine/SkeletalBodySetup.h"
+#else
+// UE 5.1: PhysicsEngine/SkeletalBodySetup.h does NOT exist (verified absent).
+// On 5.1 the full USkeletalBodySetup class is defined inline in
+// F:\UE_5.1\Engine\Source\Runtime\Engine\Classes\PhysicsEngine\PhysicsAsset.h:421
+// (PhysicsAsset.h is already included above), so no extra include is needed.
+// UNVERIFIED-COMPILE: the exact version SkeletalBodySetup.h was split out is
+// not verifiable here (no 5.2..5.6 engine on disk); boundary set to 5.2 so
+// every >=5.2 engine -- including the verified-correct 5.7 -- keeps the
+// original dedicated-header include.
+#endif
 #include "PhysicsEngine/BodySetup.h"
 #include "PhysicsEngine/PhysicsConstraintTemplate.h"
 #include "PhysicsEngine/ConstraintInstance.h"
 #include "EditorAssetLibrary.h"
-#include "MCP/MCPHandler.h"
 #include "MCP/Handlers/AssetPathUtil.h"
 #include "Dom/JsonObject.h"
 #include "Dom/JsonValue.h"

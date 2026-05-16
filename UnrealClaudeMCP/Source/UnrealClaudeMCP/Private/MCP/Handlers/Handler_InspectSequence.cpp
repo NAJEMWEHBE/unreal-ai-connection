@@ -21,6 +21,7 @@
 #include "Misc/FrameRate.h"
 #include "Misc/FrameNumber.h"
 #include "MCP/Handlers/AssetPathUtil.h"
+#include "UCMCPCompat.h"
 
 class FHandler_InspectSequence : public IUCMCPHandler
 {
@@ -164,10 +165,25 @@ public:
 
         TArray<TSharedPtr<FJsonValue>> TracksArray;
 
-        // Master tracks: not attached to any binding. UE 5.7 spells this
-        // GetTracks() (returns the master-tracks array on UMovieScene),
-        // confirmed at MovieScene.h:702.
+        // Master tracks: not attached to any binding.
+#if UCMCP_ENGINE_AT_LEAST(5, 2)
+        // >=5.x verified-correct path. UMovieScene::GetTracks() at
+        // F:\UE_5.7\Engine\Source\Runtime\MovieScene\Public\MovieScene.h:702
+        // (returns const TArray<UMovieSceneTrack*>&; backing MasterTracks_DEPRECATED
+        // at MovieScene.h:1412 -- the accessor was renamed from GetMasterTracks).
         for (UMovieSceneTrack* Track : Scene->GetTracks())
+#else
+        // UE 5.1: UMovieScene::GetTracks() is ABSENT. The pre-rename accessor
+        // GetMasterTracks() returns the SAME const TArray<UMovieSceneTrack*>&
+        // (verified at
+        // F:\UE_5.1\Engine\Source\Runtime\MovieScene\Public\MovieScene.h:686,
+        // backing member MasterTracks at MovieScene.h:1235). Identical
+        // semantics; iteration is unchanged.
+        // UNVERIFIED-COMPILE: exact GetMasterTracks->GetTracks rename version
+        // not verifiable here (no 5.2..5.6 engine on disk); 5.2 chosen so the
+        // verified-correct 5.7 path keeps the original GetTracks() call.
+        for (UMovieSceneTrack* Track : Scene->GetMasterTracks())
+#endif
         {
             if (!Track) { continue; }
             TSharedRef<FJsonObject> TrackJson = MakeShared<FJsonObject>();

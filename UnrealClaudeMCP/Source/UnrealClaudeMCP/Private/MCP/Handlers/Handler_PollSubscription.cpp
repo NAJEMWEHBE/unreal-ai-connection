@@ -23,8 +23,12 @@
 
 namespace
 {
-    static constexpr int32 kDefaultMaxCount = 100;
-    static constexpr int32 kHardMaxCount = FUCMCPEventBus::kRingSize;
+    // Per-file unique names: UE 5.1 buckets unity builds differently than 5.7
+    // and merges this TU with Handler_PollEvents.cpp (identically-named
+    // anon-namespace constants) into one unity blob -> C2374 redefinition.
+    // Unique per-file names are version-agnostic; values are unchanged.
+    static constexpr int32 kPollSubDefaultMaxCount = 100;
+    static constexpr int32 kPollSubHardMaxCount = FUCMCPEventBus::kRingSize;
 }
 
 class FHandler_PollSubscription : public IUCMCPHandler
@@ -47,7 +51,7 @@ public:
             return nullptr;
         }
 
-        int32 MaxCount = kDefaultMaxCount;
+        int32 MaxCount = kPollSubDefaultMaxCount;
         const TSharedPtr<FJsonValue> MaxCountVal = Params->TryGetField(TEXT("max_count"));
         if (MaxCountVal.IsValid())
         {
@@ -69,7 +73,7 @@ public:
                     TEXT("poll_subscription: invalid_value_shape: 'max_count' must be > 0 (got %g)"), Raw);
                 return nullptr;
             }
-            MaxCount = FMath::Min(static_cast<int32>(Raw), kHardMaxCount);
+            MaxCount = FMath::Min(static_cast<int32>(Raw), kPollSubHardMaxCount);
         }
 
         int64 NextSeq = 0;

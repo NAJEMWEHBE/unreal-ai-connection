@@ -68,11 +68,23 @@ public:
         }
         if (PackagePath.Len() > 1 && PackagePath.EndsWith(TEXT("/")))
         {
-            // EAllowShrinking::No keeps the original capacity (one-byte chop
-            // doesn't merit a realloc). UE 5.6 deprecated the bool overload
-            // (UE_ALLOWSHRINKING_BOOL_DEPRECATED in AllowShrinking.h:31);
+            // Keep the original capacity (one-byte chop doesn't merit a realloc).
+#if UCMCP_ENGINE_AT_LEAST(5, 5)
+            // UE 5.6 deprecated the bool overload
+            // (UE_ALLOWSHRINKING_BOOL_DEPRECATED in
+            // F:\UE_5.7\Engine\Source\Runtime\Core\Public\Containers\AllowShrinking.h:31);
             // EAllowShrinking::No is the supported spelling at AllowShrinking.h:11.
+            // 5.7 LeftChopInline(int32, EAllowShrinking) verified at
+            // F:\UE_5.7\Engine\Source\Runtime\Core\Public\Containers\UnrealString.h.inl:1010.
             PackagePath.LeftChopInline(1, EAllowShrinking::No);
+#else
+            // UE 5.1 has no EAllowShrinking enum (AllowShrinking.h absent).
+            // 5.1 signature: LeftChopInline(int32 Count, bool bAllowShrinking = true)
+            // verified at
+            // F:\UE_5.1\Engine\Source\Runtime\Core\Public\Containers\UnrealString.h:960.
+            // false == do not shrink (matches EAllowShrinking::No semantics).
+            PackagePath.LeftChopInline(1, false);
+#endif
         }
 
         // --- enumerate redirectors via the asset registry ------------------

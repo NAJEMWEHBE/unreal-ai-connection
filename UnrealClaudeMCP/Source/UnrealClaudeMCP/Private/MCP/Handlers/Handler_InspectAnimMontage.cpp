@@ -55,6 +55,8 @@
 #include "MCP/Handlers/AssetPathUtil.h"
 #include "Dom/JsonObject.h"
 #include "Dom/JsonValue.h"
+#include "UObject/Package.h"      // GetTransientPackage() (UE 5.1 fallback path)
+#include "UCMCPCompat.h"
 
 class FHandler_InspectAnimMontage : public IUCMCPHandler
 {
@@ -190,7 +192,29 @@ public:
         FrameRateObj->SetNumberField(TEXT("denominator"), static_cast<double>(FrameRate.Denominator));
         Out->SetObjectField(TEXT("frame_rate"), FrameRateObj);
 
+        // is_dynamic: a montage is "dynamic" iff it lives in the transient
+        // package (created at runtime, never saved as an asset).
+#if UCMCP_ENGINE_AT_LEAST(5, 2)
+        // >=5.x verified-correct path: UAnimMontage::IsDynamicMontage()
+        // declared at F:\UE_5.7\Engine\Source\Runtime\Engine\Classes\Animation\AnimMontage.h:733.
         Out->SetBoolField(TEXT("is_dynamic"), Montage->IsDynamicMontage());
+#else
+        // UE 5.1: IsDynamicMontage() is ABSENT (verified: only HasValidSlotSetup()
+        // exists at F:\UE_5.1\Engine\Source\Runtime\Engine\Classes\Animation\AnimMontage.h:844;
+        // no IsDynamicMontage in that header). Reproduce the >=5.x method's exact
+        // body inline -- 5.7 impl is `return GetPackage() == GetTransientPackage();`
+        // verified at F:\UE_5.7\Engine\Source\Runtime\Engine\Private\Animation\AnimMontage.cpp:105.
+        // Both primitives exist on 5.1:
+        //   UObjectBaseUtility::GetPackage() const -> F:\UE_5.1\Engine\Source\Runtime\CoreUObject\Public\UObject\UObjectBaseUtility.h:595
+        //   GetTransientPackage()                  -> F:\UE_5.1\Engine\Source\Runtime\CoreUObject\Public\UObject\UObjectGlobals.h:239
+        // Semantics identical to the >=5.x branch; the JSON field is preserved
+        // on 5.1 rather than dropped.
+        // UNVERIFIED-COMPILE: the 5.2..5.6 IsDynamicMontage presence boundary
+        // is not verifiable here (only 5.1 absence + 5.7 presence confirmed
+        // on disk). Boundary set to 5.2 so every >=5.2 engine -- including the
+        // verified-correct 5.7 -- keeps the original method call unchanged.
+        Out->SetBoolField(TEXT("is_dynamic"), Montage->GetPackage() == GetTransientPackage());
+#endif
 
         // Blend envelope. Use accessor methods rather than the deprecated
         // BlendInTime_DEPRECATED / BlendOutTime_DEPRECATED scalar fields

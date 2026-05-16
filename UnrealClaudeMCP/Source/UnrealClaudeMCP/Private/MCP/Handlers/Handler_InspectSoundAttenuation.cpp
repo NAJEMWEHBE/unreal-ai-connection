@@ -89,11 +89,17 @@
 #include "MCP/Handlers/AssetPathUtil.h"
 #include "Dom/JsonObject.h"
 #include "Dom/JsonValue.h"
+#include "UCMCPCompat.h"
 
 namespace
 {
+    // Per-file unique name: UE 5.1 buckets unity builds differently than 5.7
+    // and merges this TU with Handler_InspectSoundWave.cpp (identical
+    // anon-namespace function template) into one unity blob -> C2995
+    // "function template has already been defined". Unique per-file names are
+    // version-agnostic; behavior is unchanged.
     template <typename T>
-    static FString EnumToCleanString(T Value)
+    static FString EnumToCleanString_SoundAttenuation(T Value)
     {
         const FString Raw = UEnum::GetValueAsString(Value);
         int32 Idx = INDEX_NONE;
@@ -152,9 +158,9 @@ public:
 
         TSharedPtr<FJsonObject> DistanceObject = MakeShared<FJsonObject>();
         DistanceObject->SetBoolField(TEXT("enabled"), SoundAttenuation->Attenuation.bAttenuate != 0);
-        DistanceObject->SetStringField(TEXT("distance_algorithm"), EnumToCleanString(SoundAttenuation->Attenuation.DistanceAlgorithm));
-        DistanceObject->SetStringField(TEXT("attenuation_shape"), EnumToCleanString(SoundAttenuation->Attenuation.AttenuationShape.GetValue()));
-        DistanceObject->SetStringField(TEXT("falloff_mode"), EnumToCleanString(SoundAttenuation->Attenuation.FalloffMode));
+        DistanceObject->SetStringField(TEXT("distance_algorithm"), EnumToCleanString_SoundAttenuation(SoundAttenuation->Attenuation.DistanceAlgorithm));
+        DistanceObject->SetStringField(TEXT("attenuation_shape"), EnumToCleanString_SoundAttenuation(SoundAttenuation->Attenuation.AttenuationShape.GetValue()));
+        DistanceObject->SetStringField(TEXT("falloff_mode"), EnumToCleanString_SoundAttenuation(SoundAttenuation->Attenuation.FalloffMode));
         DistanceObject->SetNumberField(TEXT("db_attenuation_at_max"), SoundAttenuation->Attenuation.dBAttenuationAtMax);
         TSharedPtr<FJsonObject> AttenuationShapeExtentsObject = MakeShared<FJsonObject>();
         AttenuationShapeExtentsObject->SetNumberField(TEXT("x"), SoundAttenuation->Attenuation.AttenuationShapeExtents.X);
@@ -171,11 +177,32 @@ public:
         SpatializationObject->SetBoolField(TEXT("enabled"), SoundAttenuation->Attenuation.bSpatialize != 0);
         if (SoundAttenuation->Attenuation.bSpatialize != 0)
         {
-            SpatializationObject->SetStringField(TEXT("spatialization_algorithm"), EnumToCleanString(SoundAttenuation->Attenuation.SpatializationAlgorithm.GetValue()));
+            SpatializationObject->SetStringField(TEXT("spatialization_algorithm"), EnumToCleanString_SoundAttenuation(SoundAttenuation->Attenuation.SpatializationAlgorithm.GetValue()));
             SpatializationObject->SetNumberField(TEXT("binaural_radius"), SoundAttenuation->Attenuation.BinauralRadius);
+#if UCMCP_ENGINE_AT_LEAST(5, 2)
+            // >=5.x verified-correct path. NonSpatializedRadiusStart (header
+            // citation F:\UE_5.7\Engine\Source\Runtime\Engine\Classes\Sound\SoundAttenuation.h:244),
+            // NonSpatializedRadiusEnd (:248), NonSpatializedRadiusMode (:252,
+            // enum ENonSpatializedRadiusSpeakerMapMode at :114).
             SpatializationObject->SetNumberField(TEXT("non_spatialized_radius_start"), SoundAttenuation->Attenuation.NonSpatializedRadiusStart);
             SpatializationObject->SetNumberField(TEXT("non_spatialized_radius_end"), SoundAttenuation->Attenuation.NonSpatializedRadiusEnd);
-            SpatializationObject->SetStringField(TEXT("non_spatialized_radius_mode"), EnumToCleanString(SoundAttenuation->Attenuation.NonSpatializedRadiusMode));
+            SpatializationObject->SetStringField(TEXT("non_spatialized_radius_mode"), EnumToCleanString_SoundAttenuation(SoundAttenuation->Attenuation.NonSpatializedRadiusMode));
+#else
+            // UE 5.1: NonSpatializedRadiusStart / End / Mode (and the
+            // ENonSpatializedRadiusSpeakerMapMode enum) are ABSENT. 5.1's
+            // FSoundAttenuationSettings has the single predecessor field
+            // `float OmniRadius` at
+            // F:\UE_5.1\Engine\Source\Runtime\Engine\Classes\Sound\SoundAttenuation.h:254
+            // (the Start/End interpolation pair was introduced when OmniRadius
+            // was deprecated -> OmniRadius_DEPRECATED on 5.7 SoundAttenuation.h:239).
+            // OmniRadius is the semantic equivalent of the new
+            // "non_spatialized_radius_start", so that field is preserved on
+            // 5.1; "non_spatialized_radius_end" and "non_spatialized_radius_mode"
+            // have NO 5.1 equivalent and are gated out per the directive.
+            // UNVERIFIED-COMPILE: 5.2..5.6 boundary not verifiable here; 5.2
+            // chosen so the verified-correct 5.7 path is unchanged.
+            SpatializationObject->SetNumberField(TEXT("non_spatialized_radius_start"), SoundAttenuation->Attenuation.OmniRadius);
+#endif
             SpatializationObject->SetNumberField(TEXT("stereo_spread"), SoundAttenuation->Attenuation.StereoSpread);
         }
         Out->SetObjectField(TEXT("spatialization"), SpatializationObject);
@@ -184,7 +211,7 @@ public:
         AirAbsorptionObject->SetBoolField(TEXT("enabled"), SoundAttenuation->Attenuation.bAttenuateWithLPF != 0);
         if (SoundAttenuation->Attenuation.bAttenuateWithLPF != 0)
         {
-            AirAbsorptionObject->SetStringField(TEXT("absorption_method"), EnumToCleanString(SoundAttenuation->Attenuation.AbsorptionMethod));
+            AirAbsorptionObject->SetStringField(TEXT("absorption_method"), EnumToCleanString_SoundAttenuation(SoundAttenuation->Attenuation.AbsorptionMethod));
             AirAbsorptionObject->SetNumberField(TEXT("lpf_radius_min"), SoundAttenuation->Attenuation.LPFRadiusMin);
             AirAbsorptionObject->SetNumberField(TEXT("lpf_radius_max"), SoundAttenuation->Attenuation.LPFRadiusMax);
             AirAbsorptionObject->SetNumberField(TEXT("lpf_frequency_at_min"), SoundAttenuation->Attenuation.LPFFrequencyAtMin);
@@ -218,7 +245,7 @@ public:
         OcclusionObject->SetBoolField(TEXT("enabled"), SoundAttenuation->Attenuation.bEnableOcclusion != 0);
         if (SoundAttenuation->Attenuation.bEnableOcclusion != 0)
         {
-            OcclusionObject->SetStringField(TEXT("occlusion_trace_channel"), EnumToCleanString(SoundAttenuation->Attenuation.OcclusionTraceChannel.GetValue()));
+            OcclusionObject->SetStringField(TEXT("occlusion_trace_channel"), EnumToCleanString_SoundAttenuation(SoundAttenuation->Attenuation.OcclusionTraceChannel.GetValue()));
             OcclusionObject->SetBoolField(TEXT("use_complex_collision_for_occlusion"), SoundAttenuation->Attenuation.bUseComplexCollisionForOcclusion != 0);
             OcclusionObject->SetNumberField(TEXT("occlusion_low_pass_filter_frequency"), SoundAttenuation->Attenuation.OcclusionLowPassFilterFrequency);
             OcclusionObject->SetNumberField(TEXT("occlusion_volume_attenuation"), SoundAttenuation->Attenuation.OcclusionVolumeAttenuation);
@@ -230,7 +257,7 @@ public:
         ReverbSendObject->SetBoolField(TEXT("enabled"), SoundAttenuation->Attenuation.bEnableReverbSend != 0);
         if (SoundAttenuation->Attenuation.bEnableReverbSend != 0)
         {
-            ReverbSendObject->SetStringField(TEXT("reverb_send_method"), EnumToCleanString(SoundAttenuation->Attenuation.ReverbSendMethod));
+            ReverbSendObject->SetStringField(TEXT("reverb_send_method"), EnumToCleanString_SoundAttenuation(SoundAttenuation->Attenuation.ReverbSendMethod));
             ReverbSendObject->SetNumberField(TEXT("reverb_wet_level_min"), SoundAttenuation->Attenuation.ReverbWetLevelMin);
             ReverbSendObject->SetNumberField(TEXT("reverb_wet_level_max"), SoundAttenuation->Attenuation.ReverbWetLevelMax);
             ReverbSendObject->SetNumberField(TEXT("reverb_distance_min"), SoundAttenuation->Attenuation.ReverbDistanceMin);
@@ -243,7 +270,7 @@ public:
         PriorityAttenuationObject->SetBoolField(TEXT("enabled"), SoundAttenuation->Attenuation.bEnablePriorityAttenuation != 0);
         if (SoundAttenuation->Attenuation.bEnablePriorityAttenuation != 0)
         {
-            PriorityAttenuationObject->SetStringField(TEXT("priority_attenuation_method"), EnumToCleanString(SoundAttenuation->Attenuation.PriorityAttenuationMethod));
+            PriorityAttenuationObject->SetStringField(TEXT("priority_attenuation_method"), EnumToCleanString_SoundAttenuation(SoundAttenuation->Attenuation.PriorityAttenuationMethod));
             PriorityAttenuationObject->SetNumberField(TEXT("priority_attenuation_min"), SoundAttenuation->Attenuation.PriorityAttenuationMin);
             PriorityAttenuationObject->SetNumberField(TEXT("priority_attenuation_max"), SoundAttenuation->Attenuation.PriorityAttenuationMax);
             PriorityAttenuationObject->SetNumberField(TEXT("priority_attenuation_distance_min"), SoundAttenuation->Attenuation.PriorityAttenuationDistanceMin);

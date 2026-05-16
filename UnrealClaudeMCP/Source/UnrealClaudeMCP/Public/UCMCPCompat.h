@@ -109,6 +109,12 @@
 // ImageUtils.h is stable across 4.27 -> 5.8; only the function differs.
 #include "ImageUtils.h"
 
+// IConsoleManager.h is stable across 4.27 -> 5.8 (only the
+// GetConsoleVariableSetByName free function is version-gated, handled in the
+// UCMCPCompat::ConsoleVariableSetByName shim below). Included here so the
+// shim is self-contained for callers.
+#include "HAL/IConsoleManager.h"
+
 // ============================================================
 // UCMCPCompat namespace -- asset-registry inline shims
 // ============================================================
@@ -298,6 +304,64 @@ namespace UCMCPCompat
         TArray<uint8> Tmp;
         FImageUtils::CompressImageArray(W, H, Src, Tmp);
         Out.Append(Tmp.GetData(), Tmp.Num());
+#endif
+    }
+
+    // --------------------------------------------------------
+    // ConsoleVariableSetByName -- EConsoleVariableFlags -> "set by" string
+    // --------------------------------------------------------
+    // API boundary: UE 5.2 (function ABSENT on 5.0/5.1).
+    //   >= 5.2 : extern CORE_API GetConsoleVariableSetByName(EConsoleVariableFlags)
+    //            present + exported on UE 5.7
+    //            (decl: F:\UE_5.7\Engine\Source\Runtime\Core\Public\HAL\IConsoleManager.h:201;
+    //             impl: F:\UE_5.7\Engine\Source\Runtime\Core\Private\HAL\ConsoleManager.cpp:138
+    //             -> returns the bare ECVF_SetBy* suffix, e.g. "Code").
+    //   <= 5.1 : GetConsoleVariableSetByName is ABSENT (verified: not declared
+    //            in F:\UE_5.1\Engine\Source\Runtime\Core\Public\HAL\IConsoleManager.h;
+    //            the 5.1 equivalent is the file-local static GetSetByTCHAR at
+    //            F:\UE_5.1\Engine\Source\Runtime\Core\Private\HAL\ConsoleManager.cpp:52,
+    //            NOT exported). We replicate that exact switch using the NAMED
+    //            ECVF_SetBy* constants -- the numeric values differ between 5.1
+    //            and 5.7 (e.g. ECVF_SetByScalability 0x01000000 on 5.1 vs
+    //            0x02000000 on 5.7: F:\UE_5.1\...\IConsoleManager.h:123 vs
+    //            F:\UE_5.7\...\IConsoleManager.h:149) so raw values must NOT be
+    //            used. ECVF_SetByMask = 0xff000000 is stable on both
+    //            (F:\UE_5.1\...\IConsoleManager.h:116). Output strings match
+    //            5.7 one-for-one for every SetBy value 5.1 can produce.
+    //
+    // UNVERIFIED-COMPILE: the 5.2..5.6 GetConsoleVariableSetByName presence
+    // boundary is not verifiable here (no 5.2..5.6 engine on disk); 5.2 chosen
+    // so every >=5.2 engine -- including the verified-correct 5.7 -- keeps the
+    // original exported call unchanged.
+    /**
+     * @param Flags  Console variable flags (from IConsoleVariable::GetFlags()).
+     * @return The "set by" priority name (never empty; "<UNKNOWN>" if unmapped).
+     */
+    FORCEINLINE FString ConsoleVariableSetByName(EConsoleVariableFlags Flags)
+    {
+#if UCMCP_ENGINE_AT_LEAST(5, 2)
+        const TCHAR* Name = GetConsoleVariableSetByName(Flags);
+        return Name ? FString(Name) : FString(TEXT("<UNKNOWN>"));
+#else
+        const EConsoleVariableFlags SetBy =
+            (EConsoleVariableFlags)((uint32)Flags & ECVF_SetByMask);
+        switch (SetBy)
+        {
+            // Mirror of F:\UE_5.1\...\ConsoleManager.cpp:52 GetSetByTCHAR.
+            // ECVF_SetBy* names verified present in
+            // F:\UE_5.1\Engine\Source\Runtime\Core\Public\HAL\IConsoleManager.h:121-141.
+            case ECVF_SetByConstructor:        return TEXT("Constructor");
+            case ECVF_SetByScalability:        return TEXT("Scalability");
+            case ECVF_SetByGameSetting:        return TEXT("GameSetting");
+            case ECVF_SetByProjectSetting:     return TEXT("ProjectSetting");
+            case ECVF_SetByDeviceProfile:      return TEXT("DeviceProfile");
+            case ECVF_SetBySystemSettingsIni:  return TEXT("SystemSettingsIni");
+            case ECVF_SetByConsoleVariablesIni:return TEXT("ConsoleVariablesIni");
+            case ECVF_SetByCommandline:        return TEXT("Commandline");
+            case ECVF_SetByCode:               return TEXT("Code");
+            case ECVF_SetByConsole:            return TEXT("Console");
+            default:                           return TEXT("<UNKNOWN>");
+        }
 #endif
     }
 

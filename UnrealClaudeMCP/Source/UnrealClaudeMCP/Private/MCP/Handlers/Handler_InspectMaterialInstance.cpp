@@ -20,7 +20,28 @@
 #include "Materials/MaterialInstanceConstant.h"
 #include "Materials/MaterialInstance.h"
 #include "Materials/MaterialInterface.h"
+#include "UCMCPCompat.h"
+#if UCMCP_ENGINE_AT_LEAST(5, 2)
+// >=5.x verified-correct path. Materials/MaterialParameters.h is a 5.2+
+// header (ABSENT on 5.1: verified no such file under
+// F:\UE_5.1\Engine\Source\Runtime\Engine\Classes\Materials\). It pulls in
+// FMaterialParameterInfo / EMaterialParameterAssociation as used below.
 #include "Materials/MaterialParameters.h"
+#else
+// UE 5.1: Materials/MaterialParameters.h does not exist. The only symbols
+// this TU needs from it -- FMaterialParameterInfo and the
+// EMaterialParameterAssociation enumerators (LayerParameter / BlendParameter
+// / GlobalParameter) -- are defined on 5.1 in MaterialTypes.h:
+//   enum EMaterialParameterAssociation -> F:\UE_5.1\Engine\Source\Runtime\Engine\Public\MaterialTypes.h:20
+//   struct FMaterialParameterInfo      -> F:\UE_5.1\Engine\Source\Runtime\Engine\Public\MaterialTypes.h:49
+// MaterialTypes.h exists on both 5.1 and 5.7, so this include is the
+// correct minimal 5.1 substitute. Boundary is 5.2 to leave the
+// verified-correct 5.7 include untouched.
+// UNVERIFIED-COMPILE: the exact 5.2 introduction of MaterialParameters.h is
+// not verifiable here (no 5.2 engine on disk); 5.2 is the directive-stated
+// "header is 5.2+" boundary and keeps every >=5.2 engine on the original.
+#include "MaterialTypes.h"
+#endif
 #include "Engine/Texture.h"
 #include "MCP/Handlers/AssetPathUtil.h"
 
