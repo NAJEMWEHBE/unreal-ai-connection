@@ -215,12 +215,24 @@ namespace UCMCPCompat
         }
         return false;
 #else
-        // UNVERIFIED 4.27 -- confirm on host build. FEditorFileUtils::LoadMap
-        // is believed to be (const FString& Filename, bool LoadAsTemplate,
-        // bool bShowProgress) on 4.27 and to return void; treat a non-crash
-        // as success since there is no boolean result on the 4.27 overload.
+        // UNVERIFIED 4.27 -- confirm the FEditorFileUtils::LoadMap signature
+        // on a real 4.27 host build. LoadMap returns void on 4.27, so success
+        // CANNOT be assumed: detect it by checking the editor world's package
+        // name matches the requested map after the call. A failed load must
+        // propagate as false so load_level_by_path reports honestly rather
+        // than reporting a false success (bot-gate #217: gemini/CodeRabbit/
+        // cubic flagged the prior unconditional `return true`).
+        // GEditor->GetEditorWorldContext().World() / UObject::GetOutermost()
+        // / FName::GetName() are stable across UE4 -> UE5.
         FEditorFileUtils::LoadMap(MapName, /*LoadAsTemplate=*/false, /*bShowProgress=*/false);
-        return true;
+        if (GEditor)
+        {
+            if (UWorld* World = GEditor->GetEditorWorldContext().World())
+            {
+                return World->GetOutermost()->GetName() == MapName;
+            }
+        }
+        return false;
 #endif
     }
 
