@@ -69,20 +69,23 @@ public:
         FAssetRegistryModule& Module = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
         IAssetRegistry& Registry = Module.Get();
 
-        // Resolve class before filter so the compat shim can use the UClass* form.
-        // The post-query validation block below catches the invalid-class case.
+        // Resolve the class once, up front. If it does not resolve, the
+        // class path is invalid -- fail fast: the compat shim needs a
+        // UClass*, and a registry query with an unresolvable class is
+        // pointless. (This also avoids the version-fragile raw
+        // FTopLevelAssetPath/ClassPaths path and the 5.1-only
+        // Filter.ClassPaths.Num() post-query guard -- UCMCPCompat is the
+        // single cross-version entry point.)
         UClass* FilterClass = LoadClass<UObject>(nullptr, *ClassPath);
+        if (!FilterClass)
+        {
+            OutError = FString::Printf(
+                TEXT("find_assets: invalid_class_path: '%s' did not resolve to a UClass"),
+                *ClassPath);
+            return nullptr;
+        }
         FARFilter Filter;
-        if (FilterClass)
-        {
-            UCMCPCompat::FilterAddClass(Filter, FilterClass);
-        }
-        else
-        {
-            // Class not yet loaded -- pass path raw; post-query block will
-            // surface the invalid_class_path error when Found is empty.
-            Filter.ClassPaths.Add(FTopLevelAssetPath(ClassPath));
-        }
+        UCMCPCompat::FilterAddClass(Filter, FilterClass);
         Filter.PackagePaths.Add(FName(*PathUnder));
         Filter.bRecursivePaths = true;
 
@@ -122,20 +125,8 @@ public:
 
         TArray<FAssetData> Found;
         Registry.GetAssets(Filter, Found);
-
-        if (Found.Num() == 0 && Filter.ClassPaths.Num() == 1)
-        {
-            // Validate that the class path actually resolved (otherwise it's an
-            // invalid class, not "no matches").
-            UClass* Resolved = LoadClass<UObject>(nullptr, *ClassPath);
-            if (!Resolved)
-            {
-                OutError = FString::Printf(
-                    TEXT("find_assets: invalid_class_path: '%s' did not resolve to a UClass"),
-                    *ClassPath);
-                return nullptr;
-            }
-        }
+        // (invalid-class is handled fail-fast above; no version-fragile
+        // post-query Filter.ClassPaths.Num() guard needed.)
 
         // Apply the name_contains filter in-memory (case-insensitive)
         TArray<FAssetData> NameFiltered;
