@@ -63,3 +63,8 @@ HDMediaCamPlugin/
 # inputs, not source assets — keep them out of the public repo. Leading slash
 # scopes the pattern to root-level files only (we never expect these nested).
 /hf_*.png
+
+# Phase H release artifacts. scripts/gen_uplugin_variants.py emits per-engine
+# bucket .uplugin variants here at release time; they are derived from the
+# canonical UnrealClaudeMCP/UnrealClaudeMCP.uplugin and must not be committed.
+/dist/

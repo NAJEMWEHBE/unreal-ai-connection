@@ -11,7 +11,12 @@
 
 #include "Editor.h"
 #include "EditorAssetLibrary.h"
-#include "LevelEditorSubsystem.h"
+// UNVERIFIED-COMPILE (Phase H ULevelEditorSubsystem cluster): ULevelEditorSubsystem
+// is 5.0+; LevelEditorSubsystem.h does not exist on 4.27. The level-load call
+// is routed through UCMCPCompat::LoadLevel, which selects the subsystem (>=5.0)
+// or FEditorFileUtils::LoadMap (4.27) path and includes the right header per
+// engine. Source-authored only; no 4.27/5.0 host build this session.
+#include "UCMCPCompat.h"
 
 class FHandler_LoadLevel : public IUCMCPHandler
 {
@@ -42,14 +47,11 @@ public:
             MapName = MapName.Left(DotIdx);
         }
 
-        bool bResult = false;
-        if (GEditor)
-        {
-            if (ULevelEditorSubsystem* LES = GEditor->GetEditorSubsystem<ULevelEditorSubsystem>())
-            {
-                bResult = LES->LoadLevel(MapName);
-            }
-        }
+        // UNVERIFIED-COMPILE: UCMCPCompat::LoadLevel resolves to the 5.0+
+        // ULevelEditorSubsystem path (identical to the prior code on UE 5.7)
+        // or the 4.27 FEditorFileUtils::LoadMap path. GEditor-null is handled
+        // inside the shim (returns false), preserving the original behaviour.
+        const bool bResult = UCMCPCompat::LoadLevel(MapName);
 
         TSharedPtr<FJsonObject> Out = MakeShared<FJsonObject>();
         Out->SetStringField(TEXT("path"), Path);

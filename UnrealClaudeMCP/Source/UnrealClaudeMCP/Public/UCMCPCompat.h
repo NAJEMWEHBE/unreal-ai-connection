@@ -3,6 +3,11 @@
 //
 // STATUS: SCAFFOLDING ONLY -- NOT certified on any engine other than UE 5.7.
 // Certification requires each target engine installed and a real build+smoke pass.
+// UNVERIFIED-COMPILE (Phase H remaining clusters, 2026-05-17): the ticker,
+// save-delegate, level-editor-subsystem, and FImageUtils-PNG seams are now
+// wired through this header + their handlers, but ONLY the >=5.x branch has
+// been exercised (on UE 5.7). The 4.27 / 5.0 / 5.1 branches are source-only
+// and unbuilt. See the Phase H audit-site status block at the bottom.
 //
 // SUPPORT MATRIX
 //   Bucket T1 : 5.4 - 5.8  (uniform API, lowest migration cost)
@@ -79,6 +84,32 @@
 #endif
 
 // ============================================================
+// Level-editor-subsystem shim headers
+// ============================================================
+// API boundary: UE 5.0
+//   >= 5.0 : ULevelEditorSubsystem (LevelEditorSubsystem.h) -- the header
+//            itself does NOT exist before 5.0, so it MUST be guarded.
+//   4.27   : FEditorFileUtils (FileHelpers.h) -- LoadMap / SaveLevel.
+// FileHelpers.h (UnrealEd) is stable across the whole 4.27 -> 5.8 range, so
+// it is included unconditionally; the 5.0+ subsystem header is gated.
+#include "Editor.h"          // GEditor
+#include "FileHelpers.h"     // FEditorFileUtils (4.27 fallback path)
+#if UCMCP_ENGINE_AT_LEAST(5, 0)
+    #include "LevelEditorSubsystem.h"  // ULevelEditorSubsystem (5.0+ only)
+#endif
+
+// ============================================================
+// FImageUtils PNG-encode shim header
+// ============================================================
+// API boundary: UE 5.1
+//   >= 5.1 : FImageUtils::PNGCompressImageArray(int32,int32,
+//            TConstArrayView64<FColor>, TArray64<uint8>&)  -- 64-bit arrays
+//   <= 5.0 : FImageUtils::CompressImageArray(int32,int32,
+//            const TArray<FColor>&, TArray<uint8>&)        -- 32-bit arrays
+// ImageUtils.h is stable across 4.27 -> 5.8; only the function differs.
+#include "ImageUtils.h"
+
+// ============================================================
 // UCMCPCompat namespace -- asset-registry inline shims
 // ============================================================
 // AssetRegistry headers are included at the top of this file, so these
@@ -152,18 +183,171 @@ namespace UCMCPCompat
 #endif
     }
 
+    // --------------------------------------------------------
+    // Level-editor-subsystem shims
+    // --------------------------------------------------------
+    // API boundary: UE 5.0. ULevelEditorSubsystem is 5.0+. On 4.27 the
+    // editor-scripting level ops live on FEditorFileUtils (FileHelpers.h).
+    //
+    // UNVERIFIED-COMPILE: authored without a 4.27/5.0 host engine. The 4.27
+    // FEditorFileUtils branches below are flagged UNVERIFIED -- confirm the
+    // exact FEditorFileUtils signatures on a real 4.27 build before relying
+    // on them. The 5.0+ branch matches the surface already used in
+    // Handler_LoadLevel.cpp on UE 5.7.
+
+    /**
+     * LoadLevel -- load a map/level by package name.
+     *   >= 5.0 : GEditor->GetEditorSubsystem<ULevelEditorSubsystem>()->LoadLevel(MapName)
+     *   4.27   : FEditorFileUtils::LoadMap(Filename, bLoadAsTemplate=false, bShowProgress=false)
+     * @param MapName  Package path with the .ext already stripped, e.g.
+     *                  "/Game/Maps/MyMap".
+     * @return true on success.
+     */
+    FORCEINLINE bool LoadLevel(const FString& MapName)
+    {
+#if UCMCP_ENGINE_AT_LEAST(5, 0)
+        if (GEditor)
+        {
+            if (ULevelEditorSubsystem* LES = GEditor->GetEditorSubsystem<ULevelEditorSubsystem>())
+            {
+                return LES->LoadLevel(MapName);
+            }
+        }
+        return false;
+#else
+        // UNVERIFIED 4.27 -- confirm the FEditorFileUtils::LoadMap signature
+        // on a real 4.27 host build. LoadMap returns void on 4.27, so success
+        // CANNOT be assumed: detect it by checking the editor world's package
+        // name matches the requested map after the call. A failed load must
+        // propagate as false so load_level_by_path reports honestly rather
+        // than reporting a false success (bot-gate #217: gemini/CodeRabbit/
+        // cubic flagged the prior unconditional `return true`).
+        // GEditor->GetEditorWorldContext().World() / UObject::GetOutermost()
+        // / FName::GetName() are stable across UE4 -> UE5.
+        FEditorFileUtils::LoadMap(MapName, /*LoadAsTemplate=*/false, /*bShowProgress=*/false);
+        if (GEditor)
+        {
+            if (UWorld* World = GEditor->GetEditorWorldContext().World())
+            {
+                return World->GetOutermost()->GetName() == MapName;
+            }
+        }
+        return false;
+#endif
+    }
+
+    /**
+     * SaveCurrentLevel -- persist the currently-loaded level to disk.
+     *   >= 5.0 : GEditor->GetEditorSubsystem<ULevelEditorSubsystem>()->SaveCurrentLevel()
+     *   4.27   : FEditorFileUtils::SaveLevel(GWorld->GetCurrentLevel())
+     * @return true on success.
+     */
+    FORCEINLINE bool SaveCurrentLevel()
+    {
+#if UCMCP_ENGINE_AT_LEAST(5, 0)
+        if (GEditor)
+        {
+            if (ULevelEditorSubsystem* LES = GEditor->GetEditorSubsystem<ULevelEditorSubsystem>())
+            {
+                return LES->SaveCurrentLevel();
+            }
+        }
+        return false;
+#else
+        // UNVERIFIED 4.27 -- confirm on host build. FEditorFileUtils::SaveLevel
+        // is believed to be (ULevel* Level, const FString& DefaultFilename = "")
+        // returning bool on 4.27. GWorld->GetCurrentLevel() supplies the active
+        // level. Verify both the SaveLevel signature and that GWorld is the
+        // correct world handle in the editor on a real 4.27 build.
+        if (GWorld)
+        {
+            return FEditorFileUtils::SaveLevel(GWorld->GetCurrentLevel());
+        }
+        return false;
+#endif
+    }
+
+    // --------------------------------------------------------
+    // EncodePngFColor -- FColor framebuffer -> PNG bytes
+    // --------------------------------------------------------
+    // API boundary: UE 5.1
+    //   >= 5.1 : FImageUtils::PNGCompressImageArray(W, H,
+    //            TConstArrayView64<FColor>, TArray64<uint8>&)
+    //   <= 5.0 : FImageUtils::CompressImageArray(W, H,
+    //            const TArray<FColor>&, TArray<uint8>&)
+    // Both encode an RGBA8 FColor buffer to a PNG byte stream. On <=5.0 the
+    // legacy call fills a 32-bit TArray<uint8>; we copy it into the caller's
+    // TArray64<uint8> so the call-site type is uniform across all engines.
+    //
+    // UNVERIFIED-COMPILE: authored without a 5.0/5.1 host engine. The 5.1+
+    // PNGCompressImageArray surface matches what the screenshot handlers use
+    // on UE 5.7 today. The <=5.0 CompressImageArray overload is the documented
+    // legacy form but is UNVERIFIED here -- confirm on a real 5.0 build.
+    /**
+     * @param W,H  Image dimensions in pixels.
+     * @param Src  RGBA8 framebuffer, row-major, W*H entries.
+     * @param Out  Receives the PNG byte stream (cleared first).
+     */
+    FORCEINLINE void EncodePngFColor(int32 W, int32 H, const TArray<FColor>& Src, TArray64<uint8>& Out)
+    {
+        Out.Reset();
+#if UCMCP_ENGINE_AT_LEAST(5, 1)
+        FImageUtils::PNGCompressImageArray(W, H, TConstArrayView64<FColor>(Src.GetData(), Src.Num()), Out);
+#else
+        // UNVERIFIED <=5.0 -- confirm on host build. Legacy 32-bit overload.
+        TArray<uint8> Tmp;
+        FImageUtils::CompressImageArray(W, H, Src, Tmp);
+        Out.Append(Tmp.GetData(), Tmp.Num());
+#endif
+    }
+
 } // namespace UCMCPCompat
 
 // ============================================================
-// Unshimmed audit sites -- Phase H certification tracking
+// Phase H audit-site status -- certification tracking
 // ============================================================
-// These require handler-level context; NOT implemented in this header.
-// Implement only when per-engine builds are available.
+// UNVERIFIED-COMPILE: every status below is source-authored only. No
+// engine other than UE 5.7 has been build- or smoke-tested. "shim-wired"
+// means the compat seam is in place and compiles on 5.7; it does NOT mean
+// the 4.27 / 5.0 / 5.1 branch has been proven on a real engine.
 //
-//  * ULevelEditorSubsystem           -- >= 5.0 only; 4.27 needs FLevelEditorModule
-//  * FImageUtils::PNGCompressImageArray -- TArray<uint8>(<=5.0) vs TArrayView64(>=5.1)
-//  * UStaticMesh::GetStaticMaterials()  -- method >= 4.27; direct member pre-4.27 (OOS)
-//  * USkeletalMesh::GetMaterials()      -- same boundary
-//  * UImportSubsystem                   -- >= 4.27; 4.26 OOS
-//  * FEditorDelegates::PostSaveWorld    -- 4.27 param list UNVERIFIED
-//        (UCMCP_POST_SAVE_CONTEXT_TYPE pre-5.0 is a placeholder)
+// SHIM-WIRED (inline shim in this header + handler rewired):
+//  * FUCMCPTicker                       -- FTicker(4.27) / FTSTicker(>=5.0).
+//        Wired: MCPServer.cpp + MCPServer.h.
+//  * UCMCP_POST_SAVE_WORLD_DELEGATE     -- PostSaveWorld(4.27) /
+//        PostSaveWorldWithContext(>=5.0). Wired: UnrealClaudeMCPModule.cpp.
+//        UNVERIFIED: the 4.27 PostSaveWorld param list
+//        (uint32,UWorld*,bool) and UCMCP_POST_SAVE_CONTEXT_TYPE==bool
+//        placeholder are NOT confirmed without a 4.27 engine.
+//  * UCMCPCompat::LoadLevel             -- ULevelEditorSubsystem(>=5.0) /
+//        FEditorFileUtils::LoadMap(4.27). Wired: Handler_LoadLevel.cpp.
+//        UNVERIFIED: 4.27 FEditorFileUtils::LoadMap signature.
+//  * UCMCPCompat::SaveCurrentLevel      -- ULevelEditorSubsystem(>=5.0) /
+//        FEditorFileUtils::SaveLevel(4.27). Provided for future use; no
+//        current call-site. UNVERIFIED: 4.27 FEditorFileUtils::SaveLevel
+//        signature + GWorld-as-editor-world assumption.
+//  * UCMCPCompat::EncodePngFColor       -- PNGCompressImageArray/TArray64
+//        (>=5.1) / CompressImageArray/TArray(<=5.0). Wired:
+//        Handler_GetViewportScreenshot.cpp + Handler_RenderCameraToPng.cpp.
+//        UNVERIFIED: the <=5.0 CompressImageArray overload.
+//
+// UNIFORM 4.27+ (verified by inspection, NO shim needed):
+//  * UImportSubsystem / OnAssetPostImport(UFactory*,UObject*) -- subsystem
+//        + delegate uniform 4.27 -> 5.8. UnrealClaudeMCPModule.cpp.
+//  * UStaticMesh::GetBoundingBox() / GetStaticMaterials()     -- accessor
+//        form uniform 4.27 -> 5.8 (FBox LWC widens harmlessly into
+//        SetNumberField(double)). Handler_InspectStaticMesh.cpp.
+//  * USkeletalMesh::GetResourceForRendering() / GetImportedBounds() /
+//        GetMaterials() -- accessor form uniform 4.27 -> 5.8.
+//        Handler_InspectSkeletalMesh.cpp.
+//  * UNiagaraSystem::GetFixedBounds() / bFixedBounds          -- uniform
+//        4.27 -> 5.8 (Niagara public-accessor surface UNVERIFIED on a
+//        4.27 host but no API break across the range). Handler_InspectNiagaraSystem.cpp.
+//  * LWC narrowing -- audited Handler_SetActorTransform/FocusActor/
+//        InspectStaticMesh/InspectLandscape/InspectSkeletalMesh: NO
+//        fragile (float) casts on FVector/FRotator/FBox/FBoxSphereBounds.
+//        Code already declares intermediates as double and feeds
+//        SetNumberField(double) (widening on 4.27, identity on 5.0+), so
+//        5.x bWarningsAsErrors has nothing to reject. No edits made.
+//
+// 4.26 remains OUT OF SCOPE (no EditorSubsystem module pre-4.27).

@@ -12,6 +12,10 @@
 #include "CoreMinimal.h"
 #include "Containers/Ticker.h"
 #include "Interfaces/IPv4/IPv4Endpoint.h"
+// UNVERIFIED-COMPILE: cross-engine ticker alias. FUCMCPTicker == FTSTicker
+// (>=5.0) or FTicker (4.27). See UCMCPCompat.h. Source-authored only; no
+// host build performed this session.
+#include "UCMCPCompat.h"
 
 class FSocket;
 class FTcpListener;
@@ -102,7 +106,7 @@ private:
     TMap<FSocket*, FUCMCPClientReadState> ReadStates;
     TMap<FSocket*, FUCMCPClientWriteState> WriteStates;
 
-    FTSTicker::FDelegateHandle TickerHandle;
+    FUCMCPTicker::FDelegateHandle TickerHandle;
     int32 Port = 0;
     bool bRunning = false;
 };
