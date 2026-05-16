@@ -30,7 +30,7 @@ Recent waves that landed in the current session lineage:
 
 **Open PRs:** none.
 
-**Latest milestone on main:** PR #208 — one-paste marketplace distribution (`.claude-plugin/` + `server.json` + per-client recipes); repo renamed to `unreal-ai-connection`, rename Stage 1 (server/bridge) shipped in PR #206, picture-to-Unreal live test in PR #209. **Open this session:** PR #211 (Phase H compat scaffold) + PR #212 (elven-city hi-fi rebuild + headless-capture root cause — see 29th note). For the current HEAD commit hash, run `git log -1 origin/main`.
+**Latest milestone on main:** PR #215 — Phase H asset-registry compat shims wired (after #213 engine-gating + #214 `render_camera_to_png` native handler, all merged this session); earlier this milestone: #211 Phase H scaffold, #212 elven-city hi-fi + headless-capture root cause, #208 one-paste distribution, #206 rename Stage 1. **No open PRs.** For the current HEAD commit hash, run `git log -1 origin/main`.
 
 **Pending verification on host machine (PRIMARY next-action item):**
 
@@ -298,7 +298,7 @@ CONTRIBUTING.md                                Project conventions, 10-step new-
 2. Send: *"Read `docs/HANDOFF.md` and continue from there. The user is in autonomy mode — pick the next reasonable thing to do."*
 3. **Verify Codex tooling** (per directive #8): `ToolSearch query="codex"` and/or `Bash codex --help`. If reachable, the multi-agent collaboration model is live.
 4. **Verify the multi-agent fleet** (per directive #9 and standing rule #1): the explorer / reviewer subagents are usable in any session via the Agent tool. The `general-purpose` subagent works for research but **NOT for file writes** (sandbox isolation).
-5. The fresh session reads this doc, absorbs the directives, sees **104 tools shipped (71 C++ + 33 synthetic)**, and proceeds.
+5. The fresh session reads this doc, absorbs the directives, sees **105 tools shipped (72 C++ + 33 synthetic)**, and proceeds.
 
 For specific resumption:
 - *"Live-verify Waves A + A.5"* → host rebuild via the runbook above, then run the Wave A/A.5 verification panel
