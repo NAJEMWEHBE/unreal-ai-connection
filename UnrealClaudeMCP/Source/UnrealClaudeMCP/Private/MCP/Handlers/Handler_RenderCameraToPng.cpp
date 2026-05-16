@@ -15,8 +15,16 @@
 //
 // UNVERIFIED-COMPILE -- authored without a host UE 5.7 build available this
 // session.  Host must compile + smoke-test before trusting any output.
-// Three API signatures are flagged UNVERIFIED 5.7 in the code below;
-// search for UNVERIFIED 5.7 to locate them before the host-build pass.
+//
+// Hardened against UE 5.7 source since first authoring:
+//   - viewport acquisition now uses SLevelViewport::GetSharedActiveViewport()
+//     (TSharedPtr<FSceneViewport>, upcast to FViewport*) -- verified accessor.
+//   - PNG encode now uses FImageUtils::PNGCompressImageArray (TArray64), matching
+//     the 5.7-verified Handler_GetViewportScreenshot.cpp (CompressImageArray is
+//     UE_DEPRECATED(5.1)).
+// One residual point stays flagged UNVERIFIED 5.7 in the code below: the
+// FEditorViewportClient::ViewFOV member-vs-setter access -- search for
+// UNVERIFIED 5.7 to locate it before the host-build pass.
 
 #include "MCP/MCPHandler.h"
 
@@ -28,16 +36,16 @@
 #include "LevelEditorViewport.h"
 #include "EditorViewportClient.h"
 #include "UnrealClient.h"
+#include "Slate/SceneViewport.h"
 #include "RenderingThread.h"
 #include "ImageUtils.h"
 #include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
 #include "Modules/ModuleManager.h"
 #include "Engine/TextureRenderTarget2D.h"
 #include "Components/SceneCaptureComponent2D.h"
 #include "Engine/SceneCapture2D.h"
 #include "EngineUtils.h"
-#include "IImageWrapper.h"
-#include "IImageWrapperModule.h"
 
 class FHandler_RenderCameraToPng : public IUCMCPHandler
 {
@@ -56,6 +64,11 @@ public:
         if (!Params.IsValid() || !Params->TryGetStringField(TEXT("out_path"), OutPath) || OutPath.IsEmpty())
         {
             OutError = TEXT("render_camera_to_png: bad_param: out_path is required and must be a non-empty string");
+            return nullptr;
+        }
+        if (FPaths::IsRelative(OutPath))
+        {
+            OutError = TEXT("render_camera_to_png: bad_param: out_path must be an absolute filesystem path");
             return nullptr;
         }
 
@@ -78,7 +91,7 @@ public:
 
         if (!bUsePathB)
         {
-            return CaptureViewport(OutPath, FovDeg, CameraLabel, OutError);
+            return CaptureViewport(OutPath, FovDeg, OutError);
         }
         return CaptureOffscreen(OutPath, ReqWidth, ReqHeight, CameraLabel, FovDeg, OutError);
     }
@@ -86,21 +99,18 @@ public:
 private:
 
     // Path A: synchronous redraw of the active level-editor viewport.
+    // Only reached when no camera_label and no explicit size were requested
+    // (bUsePathB false), so camera-label handling lives solely in Path B.
     TSharedPtr<FJsonObject> CaptureViewport(
-        const FString& OutPath, double FovDeg, const FString& CameraLabel, FString& OutError)
+        const FString& OutPath, double FovDeg, FString& OutError)
     {
         check(IsInGameThread());
         FLevelEditorModule* LEModule = FModuleManager::GetModulePtr<FLevelEditorModule>("LevelEditor");
         if (!LEModule) { OutError = TEXT("render_camera_to_png: no_level_editor: LevelEditor module unavailable"); return nullptr; }
-        // UNVERIFIED 5.7 -- grep LevelEditor.h before host build:
-        //   GetFirstActiveLevelViewport() return type assumed TSharedPtr<SLevelViewport>.
         TSharedPtr<SLevelViewport> LV = LEModule->GetFirstActiveLevelViewport();
         if (!LV.IsValid()) { OutError = TEXT("render_camera_to_png: no_viewport: no active level viewport found"); return nullptr; }
-        // UNVERIFIED 5.7 -- grep SLevelViewport.h / UnrealClient.h before host build:
-        //   GetActiveViewport() return type.  In some UE versions it is TSharedPtr<FSceneViewport>.
-        //   If so, replace with: FViewport* Viewport = GEditor->GetActiveViewport();
-        FViewport* Viewport = LV->GetActiveViewport();
-        if (!Viewport) { Viewport = GEditor->GetActiveViewport(); }
+        TSharedPtr<FSceneViewport> SharedVP = LV->GetSharedActiveViewport();
+        FViewport* Viewport = SharedVP.IsValid() ? SharedVP.Get() : GEditor->GetActiveViewport();
         if (!Viewport) { OutError = TEXT("render_camera_to_png: no_viewport: could not obtain FViewport*"); return nullptr; }
         FLevelEditorViewportClient& VC = LV->GetLevelViewportClient();
         FVector  SavedLoc = VC.GetViewLocation();
@@ -108,12 +118,6 @@ private:
         // UNVERIFIED 5.7 -- grep EditorViewportClient.h before host build:
         //   Prefer public member ViewFOV over SetViewFOV(); setter name may differ.
         float SavedFov = VC.ViewFOV;
-        if (!CameraLabel.IsEmpty()) {
-            AActor* A = FindActorByLabel(CameraLabel);
-            if (!A) { OutError = FString::Printf(TEXT("render_camera_to_png: actor_not_found: no actor with label '%s'"), *CameraLabel); return nullptr; }
-            VC.SetViewLocation(A->GetActorLocation());
-            VC.SetViewRotation(A->GetActorRotation());
-        }
         if (FovDeg > 0.0) { VC.ViewFOV = static_cast<float>(FovDeg); }
         VC.Invalidate();
         GEditor->RedrawLevelEditingViewports(/*bInvalidateHitProxies=*/true);
@@ -123,7 +127,7 @@ private:
         TArray<FColor> Bitmap;
         FReadSurfaceDataFlags Flags; Flags.SetLinearToGamma(false);
         bool bReadOk = Viewport->ReadPixels(Bitmap, Flags);
-        if (!CameraLabel.IsEmpty() || FovDeg > 0.0) {
+        if (FovDeg > 0.0) {
             VC.SetViewLocation(SavedLoc); VC.SetViewRotation(SavedRot); VC.ViewFOV = SavedFov; VC.Invalidate();
         }
         if (!bReadOk || Bitmap.Num() == 0) { OutError = TEXT("render_camera_to_png: read_failed: ReadPixels returned false or empty bitmap"); return nullptr; }
@@ -149,18 +153,24 @@ private:
         ASceneCapture2D* CaptureActor = World->SpawnActor<ASceneCapture2D>(ASceneCapture2D::StaticClass(), FTransform::Identity, SpawnParams);
         if (!CaptureActor) { RT->RemoveFromRoot(); OutError = TEXT("render_camera_to_png: spawn_failed: could not spawn transient ASceneCapture2D"); return nullptr; }
         USceneCaptureComponent2D* Comp = CaptureActor->GetCaptureComponent2D();
-        if (!Comp) { CaptureActor->Destroy(); RT->RemoveFromRoot(); OutError = TEXT("render_camera_to_png: no_capture_comp: missing USceneCaptureComponent2D"); return nullptr; }
+        if (!Comp) { CaptureActor->Destroy(); RT->RemoveFromRoot(); RT->ReleaseResource(); OutError = TEXT("render_camera_to_png: no_capture_comp: missing USceneCaptureComponent2D"); return nullptr; }
+        // Single teardown for every path past this point (idempotent: nulls handles
+        // so the success path's final call cannot double-free).
+        auto Cleanup = [&]
+        {
+            if (CaptureActor) { CaptureActor->Destroy(); CaptureActor = nullptr; }
+            if (RT) { RT->RemoveFromRoot(); RT->ReleaseResource(); RT = nullptr; }
+        };
         Comp->TextureTarget = RT; Comp->CaptureSource = SCS_FinalColorLDR;
         Comp->bCaptureEveryFrame = false; Comp->bCaptureOnMovement = false; Comp->bAlwaysPersistRenderingState = true;
         if (FovDeg > 0.0) { Comp->FOVAngle = static_cast<float>(FovDeg); }
         if (!CameraLabel.IsEmpty()) {
             AActor* A = FindActorByLabel(CameraLabel);
-            if (!A) { CaptureActor->Destroy(); RT->RemoveFromRoot(); OutError = FString::Printf(TEXT("render_camera_to_png: actor_not_found: no actor with label '%s'"), *CameraLabel); return nullptr; }
+            if (!A) { Cleanup(); OutError = FString::Printf(TEXT("render_camera_to_png: actor_not_found: no actor with label '%s'"), *CameraLabel); return nullptr; }
             CaptureActor->SetActorTransform(A->GetActorTransform());
         } else if (GEditor) {
             FLevelEditorModule* LEModule = FModuleManager::GetModulePtr<FLevelEditorModule>("LevelEditor");
             if (LEModule) {
-                // UNVERIFIED 5.7 -- grep LevelEditor.h before host build (same as Path A)
                 TSharedPtr<SLevelViewport> LV = LEModule->GetFirstActiveLevelViewport();
                 if (LV.IsValid()) {
                     FLevelEditorViewportClient& VC = LV->GetLevelViewportClient();
@@ -174,9 +184,9 @@ private:
         Comp->CaptureScene(); FlushRenderingCommands();
         TArray<FColor> Bitmap;
         FRenderTarget* RTResource = RT->GameThread_GetRenderTargetResource();
-        if (!RTResource) { CaptureActor->Destroy(); RT->RemoveFromRoot(); OutError = TEXT("render_camera_to_png: no_rt_resource: GameThread_GetRenderTargetResource() returned null"); return nullptr; }
+        if (!RTResource) { Cleanup(); OutError = TEXT("render_camera_to_png: no_rt_resource: GameThread_GetRenderTargetResource() returned null"); return nullptr; }
         bool bReadOk = RTResource->ReadPixels(Bitmap);
-        CaptureActor->Destroy(); RT->RemoveFromRoot(); RT->ReleaseResource();
+        Cleanup();
         if (!bReadOk || Bitmap.Num() == 0) { OutError = TEXT("render_camera_to_png: read_failed: ReadPixels from render target returned false or empty"); return nullptr; }
         for (FColor& C : Bitmap) { C.A = 255; }
         return EncodeToPng(Bitmap, W, H, OutPath, OutError);
@@ -185,26 +195,12 @@ private:
     // Shared: encode TArray<FColor> to PNG and save to disk.
     TSharedPtr<FJsonObject> EncodeToPng(const TArray<FColor>& Bitmap, int32 W, int32 H, const FString& OutPath, FString& OutError)
     {
-        TArray<uint8> PngData;
-        // UNVERIFIED 5.7 -- grep Engine/Source/Runtime/Engine/Public/ImageUtils.h before host build:
-        //   FImageUtils::CompressImageArray(int32, int32, const TArray<FColor>&, TArray<uint8>&)
-        //   may be removed in 5.7.  Handler_GetViewportScreenshot.cpp (5.7 verified)
-        //   uses PNGCompressImageArray (TArray64).  If CompressImageArray absent, use fallback.
-        FImageUtils::CompressImageArray(W, H, Bitmap, PngData);
-
-        // ---- IImageWrapper fallback (uncomment if CompressImageArray removed in 5.7) ----
-        // IImageWrapperModule& IWM = FModuleManager::LoadModuleChecked<IImageWrapperModule>(TEXT("ImageWrapper"));
-        // TSharedPtr<IImageWrapper> IW = IWM.CreateImageWrapper(EImageFormat::PNG);
-        // if (!IW.IsValid()) { OutError = TEXT("render_camera_to_png: encode_failed: IImageWrapper creation failed"); return nullptr; }
-        // IW->SetRaw(Bitmap.GetData(), Bitmap.Num() * sizeof(FColor), W, H, ERGBFormat::BGRA, 8);
-        // PngData = IW->GetCompressed(0);
-        // ---- end IImageWrapper fallback ----
-
-        // ---- PNGCompressImageArray alternative (matches Handler_GetViewportScreenshot) ----
-        // TArray64<uint8> PngData64;
-        // FImageUtils::PNGCompressImageArray(W, H, TArrayView64<const FColor>(Bitmap), PngData64);
-        // PngData = TArray<uint8>(PngData64.GetData(), (int32)PngData64.Num());
-        // ---- end PNGCompressImageArray alternative ----
+        // UE 5.7 ground truth (verified in Engine/Source/Runtime/Engine/Public/ImageUtils.h,
+        // mirrors Handler_GetViewportScreenshot.cpp):
+        //   ENGINE_API static void PNGCompressImageArray(int32 W, int32 H,
+        //       const TArrayView64<const FColor>& Src, TArray64<uint8>& Dst);
+        TArray64<uint8> PngData;
+        FImageUtils::PNGCompressImageArray(W, H, Bitmap, PngData);
 
         if (PngData.Num() == 0) { OutError = TEXT("render_camera_to_png: encode_failed: PNG compression produced empty output"); return nullptr; }
         if (!FFileHelper::SaveArrayToFile(PngData, *OutPath))
