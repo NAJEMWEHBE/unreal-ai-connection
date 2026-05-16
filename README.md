@@ -20,10 +20,12 @@
 
 </div>
 
-<!-- TODO: drop a 10-15s demo screencast at docs/images/demo-screencast.gif and embed it here:
-     ![Demo screencast](docs/images/demo-screencast.gif)
-     Frame ideas: client types a tool call → bridge round-trip animates → UE viewport reframes /
-     spawns an actor / changes color. No audio needed; loop 5-10x with a clear before/after. -->
+<!-- TODO: no demo screencast GIF yet. An automated capture is gated on the same root
+     cause render_camera_to_png fixes: under bridge automation with the editor
+     backgrounded, UE does not pump render frames, so every headless capture path
+     returns a frozen or blank frame. A reliable client→bridge→UE loop recording is
+     unblocked once render_camera_to_png is host-built (host UE 5.7 cold rebuild) and
+     smoke-verified. Until then, do NOT embed a placeholder or fabricated GIF here. -->
 
 ---
 
@@ -272,7 +274,7 @@ The wire format is `stdio MCP` between client and bridge, then a tight `length-p
 
 </details>
 
-### Viewport / screenshots (2 tools)
+### Viewport / screenshots (3 tools)
 
 <details>
 <summary><b>Viewport / screenshots</b> — click to expand the tool table</summary>
@@ -281,6 +283,7 @@ The wire format is `stdio MCP` between client and bridge, then a tight `length-p
 |---|---|
 | `get_viewport_screenshot` | Active viewport as a base64 PNG, returned inline. |
 | `take_high_res_screenshot` | Trigger UE's `HighResShot` console command. |
+| `render_camera_to_png` | Force a synchronous render of the level-editor viewport (or an off-screen SceneCapture2D at arbitrary resolution) and write a PNG — works headless where deferred screenshots fail. |
 
 </details>
 
@@ -438,6 +441,13 @@ tests/                            Pytest suite for the bridge (no UE required)
 | **Bridge tests** | 489 pytest cases, ~99% coverage |
 | **CI** | GitHub Actions on every push and PR |
 | **Development workflow** | Multi-agent ensemble — Opus orchestrates, Codex authors C++, Sonnet handles Python + recon, NVIDIA cloud + local OSS LLMs run pre-PR diff review, Copilot CLI gives a second opinion, Gemini auto-review fires on every PR open. No single model gates a merge. |
+
+### Roadmap / status honesty
+
+Two in-flight items are stated plainly here so nothing is oversold:
+
+- **`render_camera_to_png` — merged and discoverable; needs a host UE 5.7 rebuild to execute.** This native C++ handler forces a synchronous game-thread render so screenshot capture works headless, where deferred screenshot paths return a frozen or blank frame under bridge automation. It is wired and shows up in `tools/list`, but the C++ was authored and bot-hardened to 5.7-verified APIs *without* a host compile this session — until a host UE 5.7 cold rebuild registers the new handler, calling it returns a method-not-found error. Bridge-side behavior is unaffected.
+- **Multi-version support (Phase H) is incremental scaffolding, certified on UE 5.7 only.** Two real increments have landed: engine-version gating for the UE-5.0+ synthetic tools (bridge-side, verified) and the asset-registry compatibility shims wired into 6 handler sites (native, unverified-compile). It is **not** certified on any engine other than 5.7; per-engine host builds are required, and the remaining shim clusters (ticker, save-delegate, LWC, mesh getters, FImageUtils) are still pending. Tracking and the full strategy live in [`docs/PHASE-H-COMPAT.md`](docs/PHASE-H-COMPAT.md).
 
 ---
 
