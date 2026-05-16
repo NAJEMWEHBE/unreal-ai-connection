@@ -45,7 +45,12 @@
 
 namespace
 {
-    static TSharedPtr<FJsonObject> VectorToJson(const FVector& V)
+    // Per-file unique names: UE 5.1 buckets unity builds differently than 5.7
+    // and merges this TU with the sibling Inspect* handlers that declare
+    // identically-named anon-namespace VectorToJson / BoxToJson helpers into
+    // one unity blob -> ODR clash. Unique per-file names are version-agnostic;
+    // behavior is unchanged.
+    static TSharedPtr<FJsonObject> VectorToJson_InspectSkeletalMesh(const FVector& V)
     {
         TSharedPtr<FJsonObject> Obj = MakeShared<FJsonObject>();
         Obj->SetNumberField(TEXT("x"), V.X);
@@ -54,13 +59,13 @@ namespace
         return Obj;
     }
 
-    static TSharedPtr<FJsonObject> BoxToJson(const FBox& Box)
+    static TSharedPtr<FJsonObject> BoxToJson_InspectSkeletalMesh(const FBox& Box)
     {
         TSharedPtr<FJsonObject> Obj = MakeShared<FJsonObject>();
-        Obj->SetObjectField(TEXT("min"), VectorToJson(Box.Min));
-        Obj->SetObjectField(TEXT("max"), VectorToJson(Box.Max));
-        Obj->SetObjectField(TEXT("size"), VectorToJson(Box.GetSize()));
-        Obj->SetObjectField(TEXT("center"), VectorToJson(Box.GetCenter()));
+        Obj->SetObjectField(TEXT("min"), VectorToJson_InspectSkeletalMesh(Box.Min));
+        Obj->SetObjectField(TEXT("max"), VectorToJson_InspectSkeletalMesh(Box.Max));
+        Obj->SetObjectField(TEXT("size"), VectorToJson_InspectSkeletalMesh(Box.GetSize()));
+        Obj->SetObjectField(TEXT("center"), VectorToJson_InspectSkeletalMesh(Box.GetCenter()));
         return Obj;
     }
 }
@@ -197,7 +202,7 @@ public:
         Out->SetNumberField(TEXT("total_vertices"), static_cast<double>(TotalVertices));
         Out->SetNumberField(TEXT("total_triangles"), static_cast<double>(TotalTriangles));
         Out->SetArrayField(TEXT("lods"), LodArray);
-        Out->SetObjectField(TEXT("bounds"), BoxToJson(Bounds));
+        Out->SetObjectField(TEXT("bounds"), BoxToJson_InspectSkeletalMesh(Bounds));
         Out->SetNumberField(TEXT("sphere_radius"), ImportedBounds.SphereRadius);
 
         if (const USkeleton* Skeleton = Mesh->GetSkeleton()) // SkeletalMesh.h:750

@@ -19,8 +19,8 @@
 
 namespace
 {
-    // Mirrors Handler_InspectWidgetBlueprint.cpp's BlueprintStatusToString
-    // helper (UE 5.7, Blueprint.h:504). Enumerates the full EBlueprintStatus
+    // Mirrors Handler_InspectWidgetBlueprint.cpp's status->string helper
+    // (UE 5.7, Blueprint.h:504). Enumerates the full EBlueprintStatus
     // value set explicitly — BS_MAX is a sentinel, not a state, so the default
     // arm is reserved for genuinely unknown values (forward-compatibility with
     // future engine enum additions).
@@ -30,7 +30,12 @@ namespace
     // this handler and buckets by status. Until this field landed, every
     // scanned BP fell into the "Unknown" bucket regardless of its real
     // compile state.
-    static FString BlueprintStatusToString(EBlueprintStatus Status)
+    //
+    // Per-file unique name: UE 5.1 buckets unity builds differently than 5.7
+    // and merges the three Inspect*Blueprint TUs into one unity blob, causing
+    // an anonymous-namespace ODR clash among the identically-named helpers.
+    // Unique per-file names are version-agnostic; behavior is unchanged.
+    static FString BlueprintStatusToString_InspectBP(EBlueprintStatus Status)
     {
         switch (Status)
         {
@@ -76,7 +81,7 @@ public:
         Out->SetStringField(TEXT("path"), Path);
         Out->SetStringField(TEXT("parent_class"), BP->ParentClass ? BP->ParentClass->GetName() : TEXT(""));
         Out->SetStringField(TEXT("blueprint_class"), BP->GetClass()->GetName());
-        Out->SetStringField(TEXT("blueprint_status"), BlueprintStatusToString(static_cast<EBlueprintStatus>(BP->Status.GetValue())));
+        Out->SetStringField(TEXT("blueprint_status"), BlueprintStatusToString_InspectBP(static_cast<EBlueprintStatus>(BP->Status.GetValue())));
 
         TArray<TSharedPtr<FJsonValue>> Vars;
         for (const FBPVariableDescription& V : BP->NewVariables)

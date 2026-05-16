@@ -31,7 +31,11 @@
 
 namespace
 {
-    static TSharedPtr<FJsonObject> VectorToJson(const FVector& V)
+    // Per-file unique name: UE 5.1 buckets unity builds differently than 5.7
+    // and merges this TU with the sibling Inspect* handlers that declare an
+    // identically-named anon-namespace VectorToJson into one unity blob ->
+    // ODR clash. Unique per-file names are version-agnostic; behavior unchanged.
+    static TSharedPtr<FJsonObject> VectorToJson_InspectStaticMesh(const FVector& V)
     {
         TSharedPtr<FJsonObject> Obj = MakeShared<FJsonObject>();
         Obj->SetNumberField(TEXT("x"), V.X);
@@ -108,10 +112,10 @@ public:
 
         const FBox Bounds = Mesh->GetBoundingBox();
         TSharedPtr<FJsonObject> BoundsObj = MakeShared<FJsonObject>();
-        BoundsObj->SetObjectField(TEXT("min"), VectorToJson(Bounds.Min));
-        BoundsObj->SetObjectField(TEXT("max"), VectorToJson(Bounds.Max));
-        BoundsObj->SetObjectField(TEXT("size"), VectorToJson(Bounds.GetSize()));
-        BoundsObj->SetObjectField(TEXT("center"), VectorToJson(Bounds.GetCenter()));
+        BoundsObj->SetObjectField(TEXT("min"), VectorToJson_InspectStaticMesh(Bounds.Min));
+        BoundsObj->SetObjectField(TEXT("max"), VectorToJson_InspectStaticMesh(Bounds.Max));
+        BoundsObj->SetObjectField(TEXT("size"), VectorToJson_InspectStaticMesh(Bounds.GetSize()));
+        BoundsObj->SetObjectField(TEXT("center"), VectorToJson_InspectStaticMesh(Bounds.GetCenter()));
 
         // --- material slots ----------------------------------------------
 

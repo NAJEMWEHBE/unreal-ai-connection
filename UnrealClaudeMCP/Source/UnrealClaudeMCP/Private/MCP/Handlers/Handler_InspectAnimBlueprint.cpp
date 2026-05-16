@@ -40,7 +40,11 @@
 
 namespace
 {
-    static FString BlueprintStatusToString(EBlueprintStatus Status)
+    // Per-file unique name: UE 5.1 buckets unity builds differently than 5.7
+    // and merges the three Inspect*Blueprint TUs into one unity blob, causing
+    // an anonymous-namespace ODR clash among the identically-named helpers.
+    // Unique per-file names are version-agnostic; behavior is unchanged.
+    static FString BlueprintStatusToString_InspectAnimBP(EBlueprintStatus Status)
     {
         switch (Status)
         {
@@ -109,7 +113,7 @@ public:
 
         const FString ParentClassName = AnimBP->ParentClass ? AnimBP->ParentClass->GetName() : TEXT("");
         const bool bIsTemplate = AnimBP->bIsTemplate;
-        const FString StatusString = BlueprintStatusToString(static_cast<EBlueprintStatus>(AnimBP->Status));
+        const FString StatusString = BlueprintStatusToString_InspectAnimBP(static_cast<EBlueprintStatus>(AnimBP->Status));
         USkeleton* TargetSkeleton = bIsTemplate ? nullptr : AnimBP->TargetSkeleton.Get();
         UAnimBlueprint* ParentAnimBP = UAnimBlueprint::GetParentAnimBlueprint(AnimBP);
 
