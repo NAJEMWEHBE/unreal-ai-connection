@@ -2,7 +2,7 @@
 
 Single source of truth for resuming work on Unreal AI Connection in a fresh session of any MCP-compliant client. Read this first; it captures everything carried in the prior session's working memory.
 
-> Earlier closing notes (1st through 26th, sessions 2026-05-09 through 2026-05-16) are archived to [`docs/HANDOFF-archive.md`](HANDOFF-archive.md). This active file keeps the latest three consecutive notes (27th-29th) for quick pickup.
+> Earlier closing notes (1st through 27th, sessions 2026-05-09 through 2026-05-16) are archived to [`docs/HANDOFF-archive.md`](HANDOFF-archive.md). This active file keeps the latest three consecutive notes (28th-30th) for quick pickup.
 
 ---
 
@@ -10,7 +10,7 @@ Single source of truth for resuming work on Unreal AI Connection in a fresh sess
 
 **What this is:** An Unreal Engine 5.7 plugin + Python bridge that exposes editor automation to **any MCP-compliant client** (Claude Code, Codex CLI, Cursor, Gemini CLI, Continue, …) over a localhost TCP socket. The plugin adds a JSON-RPC server inside the editor; each "handler" is one MCP tool (~150 LoC of C++ in `Source/UnrealClaudeMCP/Private/MCP/Handlers/`). The bridge translates between the client's stdio MCP protocol and the plugin's TCP wire format. **Vendor-neutral by design** — the wire protocol is open MCP (created by Anthropic, but any conforming client works); the project's repo/folder names retain "Claude" for legacy reasons but the capability is universal.
 
-**Where it stands (post-PR #209 — branding rename Stage 1 shipped + one-paste distribution + picture-to-Unreal live test; PRs #211/#212 open this session):** **104 tools total** (71 UE-side C++ handlers + 33 bridge-side synthetic tools — recent additions: `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap`, `sequencer_add_transform_keyframe`). Plugin version `0.9.1`, targets UE `5.7`. pytest baseline: **472** passing. **The GitHub repo is now renamed `unreal-ai-connection`** (old `UnrealClaudeMCP` slug auto-redirects); the MCP server name + Python bridge file were renamed in PR #206 (BREAKING — see 28th note), but the C++ plugin module identity is still `UnrealClaudeMCP` (rename Stage 2, deliberately deferred — needs a host UE rebuild). (For the current HEAD commit, run `git log -1 origin/main`; the latest milestone PR is #212.)
+**Where it stands (post-PR #215 — #213 engine-version gating + #214 `render_camera_to_png` native handler + #215 asset-registry compat shims wired; all merged this session):** **105 tools total** (72 UE-side C++ handlers + 33 bridge-side synthetic tools — recent additions: `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap`, `sequencer_add_transform_keyframe`, `render_camera_to_png`). Plugin version `0.9.1`, targets UE `5.7`. pytest baseline: **489** passing. **The GitHub repo is now renamed `unreal-ai-connection`** (old `UnrealClaudeMCP` slug auto-redirects); the MCP server name + Python bridge file were renamed in PR #206 (BREAKING — see 28th note), but the C++ plugin module identity is still `UnrealClaudeMCP` (rename Stage 2, deliberately deferred — needs a host UE rebuild). (For the current HEAD commit, run `git log -1 origin/main`; the latest milestone PR is #215.)
 
 Recent waves that landed in the current session lineage:
 - **Wave A (PR #161)** — 6 quick-win tools: `get_engine_version`, `list_levels`, `save_dirty_assets`, `get_selected_actors`, `inspect_input_mappings`, `bulk_inspect_assets`
@@ -30,7 +30,7 @@ Recent waves that landed in the current session lineage:
 
 **Open PRs:** none.
 
-**Latest milestone on main:** PR #208 — one-paste marketplace distribution (`.claude-plugin/` + `server.json` + per-client recipes); repo renamed to `unreal-ai-connection`, rename Stage 1 (server/bridge) shipped in PR #206, picture-to-Unreal live test in PR #209. **Open this session:** PR #211 (Phase H compat scaffold) + PR #212 (elven-city hi-fi rebuild + headless-capture root cause — see 29th note). For the current HEAD commit hash, run `git log -1 origin/main`.
+**Latest milestone on main:** PR #215 — Phase H asset-registry compat shims wired (after #213 engine-gating + #214 `render_camera_to_png` native handler, all merged this session); earlier this milestone: #211 Phase H scaffold, #212 elven-city hi-fi + headless-capture root cause, #208 one-paste distribution, #206 rename Stage 1. **No open PRs.** For the current HEAD commit hash, run `git log -1 origin/main`.
 
 **Pending verification on host machine (PRIMARY next-action item):**
 
@@ -277,7 +277,7 @@ docs/
   ARCHITECTURE.md                              How pieces fit; UE 5.7 API gotchas
   INSTALLATION.md                              Step-by-step install
   HANDOFF.md                                   This file (latest 3 closing notes only)
-  HANDOFF-archive.md                           Closing notes 1-23 (chronological, append-only)
+  HANDOFF-archive.md                           Closing notes 1-27 (chronological, append-only)
   RESTART-RECOVERY.md                          Post-format recovery procedure
   session-memory-archive/                      Snapshot of session memory files
   LANGUAGE-CHOICE-RETROSPECTIVE.md             Per-tool language verdict + decision flow
@@ -298,7 +298,7 @@ CONTRIBUTING.md                                Project conventions, 10-step new-
 2. Send: *"Read `docs/HANDOFF.md` and continue from there. The user is in autonomy mode — pick the next reasonable thing to do."*
 3. **Verify Codex tooling** (per directive #8): `ToolSearch query="codex"` and/or `Bash codex --help`. If reachable, the multi-agent collaboration model is live.
 4. **Verify the multi-agent fleet** (per directive #9 and standing rule #1): the explorer / reviewer subagents are usable in any session via the Agent tool. The `general-purpose` subagent works for research but **NOT for file writes** (sandbox isolation).
-5. The fresh session reads this doc, absorbs the directives, sees **104 tools shipped (71 C++ + 33 synthetic)**, and proceeds.
+5. The fresh session reads this doc, absorbs the directives, sees **105 tools shipped (72 C++ + 33 synthetic)**, and proceeds.
 
 For specific resumption:
 - *"Live-verify Waves A + A.5"* → host rebuild via the runbook above, then run the Wave A/A.5 verification panel
@@ -309,56 +309,7 @@ For specific resumption:
 
 ## Closing notes from prior sessions
 
-> **Note:** Consecutive closing notes 1 through 26 (sessions 2026-05-09 through 2026-05-16) are archived in [`HANDOFF-archive.md`](HANDOFF-archive.md). Only the latest three (27th-29th) are kept active here.
-
-## Session 2026-05-15 (PRs #199/#200/#201 — competitive analysis + per-client setup + one-command installers)
-
-User instruction (carried from prior window): "is my repo the best between all of these [13 Unreal+MCP repos] ... make a deep search, deep learn" + "this MCP tool [must be] usable through ... not only for Claude, it's all for AI models, cursor, codecs, Claude code ... has to be a simple startup or installation setup." Three PRs shipped in sequence; all three merged green under standing auto-merge authorization. Phase E (PR #198 26th-HANDOFF) was already merged at window start.
-
-**PR #199 — `docs/COMPETITIVE-ANALYSIS.md` (squash, merged to `a5755f1`):**
-- 308-line honest scorecard: this repo vs 12 other Unreal+MCP repos + 3 marketplace listings, scored across 9 dimensions. Three Explore sub-agents fanned out (~4 repos each); main thread synthesized.
-- **Verdict:** technically leads on every production dimension (104 tools vs max ~68; 472 tests vs 0 published elsewhere; multi-map PBR + cubemap + sequencer authoring all unique), **adoption-behind** by 1–2 orders of magnitude (3 stars, 1 week old, no Docker/marketplace listing). The technical lead is real; the awareness gap is the next moat.
-- **Naming-collision check (informs Phase F):** `UnrealMCP` taken (kvick-games, 79★), `unreal-mcp` triply-claimed (chongdashu/runeape-sats + others), `UnrealClaude` taken (Natfii). `NAJEMWEHBE/unreal-ai-connection` confirmed **available** (gh api 404 on the slug + global search returns only one unrelated repo). Phase F should use `unreal-ai-connection` if the user still wants the rename.
-- Bot gate: 5 CodeRabbit (1 Major-credibility, 4 Minor) — all mechanical doc fixes applied same-branch (`f864d34`), mechanical-fix exception (rule #5).
-
-**PR #200 — `docs/setup/` per-client recipes (squash, merged to `687086b`):**
-- 10 copy-paste setup recipes (one file per client) + `docs/setup/README.md` index + shared prereqs/troubleshooting: claude-code, claude-desktop, cursor, codex-cli (TOML not JSON), windsurf, continue (YAML), cline, zed (`context_servers` shape), gemini-cli, vscode-copilot (`servers` + `type:stdio`).
-- Each recipe: 5-step (locate config → paste snippet → replace path → reload → first-call `get_engine_version`). Windows (`py`) + POSIX (`python3`) snippets both given.
-- Root README quick-start step 5 generalized from "Wire Claude Code" → "Wire your MCP client" + linked to `docs/setup/`.
-- Bot gate: 4 CodeRabbit Minors (fenced-block lang tag, soften "104 tools" ×2, cursor reload conflict) applied same-branch (`eeee392`). CodeRabbit "Review skipped" on the second pass.
-
-**PR #201 — `scripts/install.{ps1,sh}` one-command installers (squash, merged to `b7dae63`):**
-- Windows PowerShell + macOS/Linux bash installers. Validate `.uproject` present, check Python 3.11+, copy plugin into `<project>/Plugins/`, optionally write client config (`.mcp.json` / `.cursor/mcp.json` / `.vscode/mcp.json`), `--dry-run` flag, strict-mode failure. Does NOT build the editor (multi-min op needing user's toolchain — stays user-driven).
-- `tests/test_installer_scripts.py` (14 cases) — static structure: both scripts agree on 10-client allowlist, reference the bridge, have dry-run + Python gate + strict mode, no personal-path leaks.
-- pytest 458 → **472** (+14). Drift-sweep bumped 458→472 in README badge + Status + tests/README.
-- **CI-fail caught + fixed:** the new test asserts the installers DON'T contain the maintainer's Windows username / host-project path, which required those literal strings in the test source — which made the leak-guard scanner flag the test file itself. Fix: added `tests/test_installer_scripts.py` to `ALLOWED_FILES` in `tests/test_no_personal_leaks.py` (`a709e71`). Note for future notes: never quote the forbidden patterns verbatim in a tracked doc — describe them. Bot gate: CodeRabbit no review, Greptile rate-limited (trial 50-review cap reached) — 0 actionable findings, merged green.
-
-**PowerShell installer gotchas pinned down (saved for next time):**
-- Windows PowerShell **5.1** does NOT read UTF-8-without-BOM source reliably — non-ASCII chars (em-dash `—`) inside a script break the parser with misleading "missing terminator" / "missing closing }" errors far from the actual line. Keep installer scripts pure-ASCII or write a BOM.
-- Prefer `ConvertTo-Json` over `@"..."@` here-strings for emitting JSON config — here-string terminator-at-column-0 rules + variable-expansion interactions are fragile across PS versions.
-- `-ExecutionPolicy Bypass` is blocked by the auto-mode safety classifier (correctly — it's a safety-check bypass). Can't live-smoke a `.ps1` in this environment; rely on `[System.Management.Automation.Language.Parser]::ParseFile` for syntax validation + structural pytest instead.
-
-**GitHub About refreshed (user's "every 5–10 PRs" cadence rule — was 36+ PRs overdue):**
-- Description → "Drive Unreal Engine 5 from any MCP-compliant AI client — Claude Code/Desktop, Cursor, Codex CLI, Windsurf, Continue, Cline, Zed, Gemini CLI, VS Code Copilot. 104 editor-automation tools, 472 tests, ~50ms round-trip. One-command install. MIT."
-- Topics → 20 incl. `vendor-neutral`, `editor-automation`, `ai-agents`, all 10 client slugs. `gh api -X PATCH` + `-X PUT .../topics`.
-
-**Cumulative this window:**
-- Tool count: 104 (unchanged — this window was docs + installer + analysis, no new tools).
-- pytest: 472/472 green at merge of every PR.
-- 41 PRs in session lineage (#161 → #201).
-- Standing rules unchanged: 6 active.
-
-**Remaining parked items after this window:**
-- **Phase F — repo rename to `unreal-ai-connection`** (slug confirmed available this window). Decision is the user's; the rename itself is high-blast-radius (external bookmarks, badge URLs, CI workflow URLs, manifest/plugin/CHANGELOG references, GitHub remote). NOT done autonomously — needs user go-ahead + its own single PR so the bot gate catches every stale link. GitHub auto-redirects the old slug but absolute URLs in old issues still resolve.
-- **Phase H — UE multi-version compat (4.27 → 5.8 preview)** — 4–6 PR cycles, dedicated future sessions. Tiers: T1 (5.5/5.6/5.7), T2 (5.0–5.4 with `#if ENGINE_*` guards), T3 (4.27 read-side subset), 5.8-preview tracking. Manifest gains `min/max_engine_version` per tool.
-- **Phase J — BTSschool/BSK_FOA_2026** — separate fresh session, different working dir (`F:\BTSschool\BSK_FOA_2026\`). Read its own HANDOFF/PROJECT_PLAN/EVALUATION + the design picture before any code. Not for the MCP-plugin repo session.
-- **README demo GIF** — `docs/images/demo-screencast.gif`, 10–15s client→bridge→UE loop. Creative-recording work; schedule a dedicated window.
-- **Movie Render Queue synthetic** — still attended-Codex C++.
-- **Local OSS LLM daemon empty-list bug** — admin shell required.
-
-**Twenty-seventh consecutive closing-note.** Session 2026-05-15: three PRs (#199 competitive analysis / #200 per-client setup / #201 installers), all merged green. Competitive analysis is the honest answer to the user's "is mine the best?" — yes technically, not yet by adoption. Phase G (docs + installer) complete; Phase F (rename) parked on user decision with the slug pre-cleared. Tool count: 104 live. pytest: 472. Standing rules: 6 (unchanged). Cadence intact.
-
----
+> **Note:** Consecutive closing notes 1 through 27 (sessions 2026-05-09 through 2026-05-16) are archived in [`HANDOFF-archive.md`](HANDOFF-archive.md). Only the latest three (28th-30th) are kept active here.
 
 ## Session 2026-05-16 (PRs #197/#203/#206/#208 merged + #205/#207/#209 open — branding rename Stage 1, one-paste distribution, hostile-bot security incident, picture-to-Unreal live test)
 
@@ -422,3 +373,21 @@ Two PRs opened this session; the load-bearing takeaway is a hard, reproducible l
 **Carried forward unchanged (user-action items still open):** close PR #207 + revoke the `ecc-tools` GitHub App (hostile bundle — cannot be done from-session); decide PR #205 A/B (PR-Agent option). Rename Stage-2 C++ module rename still deferred (needs a host rebuild). Plus the standing carry-forward: Phase J (BTSschool/BSK_FOA_2026 — separate session), README demo GIF, Movie Render Queue synthetic, local OSS LLM daemon empty-list bug.
 
 **Twenty-ninth consecutive closing-note.** Session 2026-05-16: 2 PRs opened — #211 Phase H compat scaffold (SCAFFOLD ONLY, certified on 5.7 only, needs per-engine host builds) and #212 elven-city hi-fi rebuild (211 actors, real PBR + Sky Atmosphere + graded PPV, built/saved/introspected on `L_HDMedia_Empty`). The load-bearing finding: under bridge automation with the editor backgrounded, no render frames are pumped, so EVERY headless capture path fails (frozen viewport / pure-white render target / unwritten HighResShot); the scene itself is sound — capture is the only gap, and the recommended fix is a native `render_camera_to_png` handler (host rebuild, next session). Honest ceiling: competent real-time env, not AAA art. Tool count: 104. pytest: 472. Standing rules: 6 (unchanged). Cadence intact.
+
+---
+
+## Session 2026-05-16 (PRs #213/#214/#215 merged — engine-gating + `render_camera_to_png` native handler + asset-registry compat shims)
+
+The 29th note's headless-capture root cause is now addressed in code. Three PRs from the Phase H / capture arc landed on `main`.
+
+**PR #213 — engine-version gating for the 5.0+ synthetic tools (merged, bridge-side, VERIFIED):** the 4 UE-5.0+ synthetic tools are now engine-gated bridge-side. Bridge-only change, verified — no host rebuild needed; live the moment a client restarts and reloads the bridge module.
+
+**PR #214 — `render_camera_to_png` native C++ handler (merged, 104→105 tools, UNVERIFIED-COMPILE):** new native handler that forces a synchronous game-thread render so headless/backgrounded screenshot capture works where the deferred paths (frozen `get_viewport_screenshot`, pure-white SceneCapture2D, unwritten HighResShot) fail. Bot-hardened to 5.7-verified APIs (`GetSharedActiveViewport`, `PNGCompressImageArray`). **UNVERIFIED-COMPILE — the C++ was authored + bot-hardened but NOT host-compiled this session, so the handler is wired + discoverable in `tools/list` but inert until a host UE 5.7 cold rebuild registers it. Next agent MUST host-compile + smoke `render_camera_to_png` before trusting it; until then calling it returns method-not-found.** This is the fix for the 29th note's KEY LOAD-BEARING FINDING — the root cause is now addressed in code, pending the rebuild.
+
+**PR #215 — asset-registry UCMCPCompat shims wired into 6 handler sites (merged, Phase H, UNVERIFIED-COMPILE):** the asset-registry shim cluster from the Phase H scaffold (PR #211) is now wired into 6 handler sites. Phase H now has **2 real increments**: engine-gating (#213, verified) + asset-registry shims (#215, unverified-compile). **NOT certified on any engine other than 5.7**; per-engine host builds still required; remaining clusters (ticker, save-delegate, LWC, mesh getters, FImageUtils) tracked PENDING per `docs/PHASE-H-COMPAT.md`.
+
+**On-PC bridge state:** synced to `main` — bridge-side features (engine-gating, the new tool's schema/discovery) are live; the `render_camera_to_png` native C++ handler needs a host UE rebuild to actually execute.
+
+**Carried forward unchanged (still open):** host-compile + smoke `render_camera_to_png` (PRIMARY next-action — until then it's wired but inert); the parked Phase H remaining clusters; rename Stage 2 (C++ module identity — needs host rebuild); maintainer-only items — close PR #207 + revoke the `ecc-tools` GitHub App (hostile bundle, foothold still live), decide PR #205 A/B. Standing carry-forward: Phase J (BTSschool/BSK_FOA_2026 — separate session/working dir), README demo GIF (now explicitly gated on `render_camera_to_png` being host-built — same root cause it fixes), Movie Render Queue synthetic (attended-Codex C++), local OSS LLM daemon empty-list bug (admin shell required).
+
+**Thirtieth consecutive closing-note.** Session 2026-05-16: 3 PRs merged — #213 engine-gating (bridge-side, verified), #214 `render_camera_to_png` native handler (104→105 tools, UNVERIFIED-COMPILE — wired + discoverable but inert until a host UE 5.7 rebuild; next agent must host-compile + smoke before trusting), #215 asset-registry compat shims into 6 handler sites (Phase H, unverified-compile). The 29th note's headless-capture root cause is now addressed in code (the `render_camera_to_png` handler), pending only the host rebuild. Phase H now has 2 real increments (engine-gating verified + asset-registry shims unverified-compile), remaining clusters PENDING. Rotated the 27th consecutive closing-note to `HANDOFF-archive.md` (active file now keeps 28th-30th). Tool count: **105** (72 C++ + 33 synthetic). pytest: **489**. Standing rules: 6 (unchanged). Cadence intact.
