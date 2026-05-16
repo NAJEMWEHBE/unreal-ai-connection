@@ -72,6 +72,7 @@ def test_tool_names_are_unique_and_match_handlers():
         "inspect_widget_tree", "edit_widget_tree", "get_viewport_screenshot",
         "list_tools", "get_actors_in_level", "focus_actor",
         "load_level_by_path", "take_high_res_screenshot",
+        "render_camera_to_png",
         "import_texture", "configure_texture",
         "find_assets", "spawn_actor", "set_actor_transform", "delete_actor",
         "set_actor_property", "add_component",

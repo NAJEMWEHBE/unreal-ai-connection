@@ -13,7 +13,7 @@ plugin speaks raw JSON-RPC over a local TCP socket (default
 Behaviour:
   - "initialize"             returned synthetically (does NOT hit the UE server)
   - "notifications/*"        consumed silently
-  - "tools/list"             returns a static list of all 104 tools (71
+  - "tools/list"             returns a static list of all 105 tools (72
                              dispatched to the UE plugin's C++ handlers
                              plus 33 bridge-side synthetic tools served by
                              SYNTHETIC_TOOLS without crossing the wire as
@@ -453,6 +453,21 @@ TOOLS = [
         "name": "get_viewport_screenshot",
         "description": "Capture the active editor viewport as a PNG, return base64-encoded inline.",
         "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "render_camera_to_png",
+        "description": "Force a synchronous render of the level-editor viewport (or an off-screen SceneCapture2D at arbitrary resolution) and write it to an absolute path as a PNG. Works headless/backgrounded where deferred screenshots fail.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "out_path": {"type": "string", "description": "Absolute filesystem path for the .png to write."},
+                "width": {"type": "integer", "description": "Optional output width in pixels. When width and height are both > 0 (or camera_label is set), an off-screen SceneCapture2D is used instead of the live viewport."},
+                "height": {"type": "integer", "description": "Optional output height in pixels (see width)."},
+                "camera_label": {"type": "string", "description": "Optional level-actor label; render from that actor's world transform instead of the current viewport camera."},
+                "fov": {"type": "number", "description": "Optional horizontal field of view in degrees; overrides the viewport / capture FOV for this render only."},
+            },
+            "required": ["out_path"],
+        },
     },
     {
         "name": "compile_mod_pak",
