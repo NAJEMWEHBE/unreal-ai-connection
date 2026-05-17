@@ -161,6 +161,12 @@ class VerifyFailure(AssertionError):
     pass
 
 
+class SkipStep(Exception):
+    """Step intentionally not applicable on the raw plugin socket (e.g. a
+    bridge-side synthetic, reachable only via the MCP bridge). Recorded as
+    SKIP, not FAIL -- does not affect exit code."""
+
+
 def assert_no_transport_error(resp: dict, label: str) -> None:
     if "_error" in resp or "_decode_error" in resp:
         raise VerifyFailure(f"[{label}] transport-level failure: {resp}")
@@ -243,7 +249,6 @@ WAVE_A_TOOLS = [
     "inspect_input_mappings",
     "pie_control",
     "inspect_project_setting",
-    "bulk_inspect_assets",
 ]
 
 
@@ -302,6 +307,9 @@ def main() -> None:
             failures.append(str(e))
             record(step_no, label, "FAIL", str(e))
             print(f"\n!! FAIL: {e}")
+        except SkipStep as e:
+            record(step_no, label, "SKIP", str(e))
+            print(f"  -> SKIP  [{label}]: {e}")
         except Exception as e:  # noqa: BLE001 -- deliberate broad catch
             # Anything that is not a VerifyFailure (TypeError, KeyError,
             # ConnectionError, JSONDecodeError, ...) is an UNEXPECTED failure.
@@ -401,23 +409,19 @@ def main() -> None:
 
     def t3() -> None:
         resp = call(host, port, "list_levels",
-                    {"path_under": "/Game", "name_contains": "Map"},
+                    {"path_under": "/Game/", "name_contains": "Map"},
                     request_id=3)
         raw_dump["3.list_levels"] = resp
         show(resp)
         result = assert_handler_compiled(resp, "list_levels")
-        # Accept either a bare list or {"levels":[...]} / {"worlds":[...]}.
-        levels = result
-        if isinstance(result, dict):
-            levels = (result.get("levels")
-                      or result.get("worlds")
-                      or result.get("results"))
+        if not isinstance(result, dict) or result.get("ok") is not True:
+            raise VerifyFailure(f"[list_levels] expected ok=true object: {result}")
+        levels = result.get("levels")
         if not _is_list_like(levels):
-            raise VerifyFailure(
-                f"[list_levels] expected a list of UWorld entries "
-                f"(may be empty), got: {result}"
-            )
-        print(f"  levels returned: {len(levels)} (empty is acceptable)")
+            raise VerifyFailure(f"[list_levels] 'levels' not a list: {result}")
+        if not isinstance(result.get("count"), int) or result["count"] != len(levels):
+            raise VerifyFailure(f"[list_levels] count must equal len(levels): {result}")
+        print(f"  ok=true, count={result['count']} (empty is acceptable)")
 
     run(3, "list_levels", t3)
 
@@ -433,22 +437,17 @@ def main() -> None:
             raise VerifyFailure(
                 f"[save_dirty_assets] expected an object result: {result}"
             )
-        if result.get("ok") is not True:
+        if not isinstance(result.get("ok"), bool):
             raise VerifyFailure(
-                f"[save_dirty_assets] expected ok=true: {result}"
-            )
-        # Accept saved_count or a close analogue.
-        count = None
-        for k in ("saved_count", "count", "num_saved", "saved"):
-            if k in result:
-                count = result[k]
-                break
-        if not isinstance(count, int):
-            raise VerifyFailure(
-                f"[save_dirty_assets] expected an integer saved-count "
-                f"(saved_count/count/...): {result}"
-            )
-        print(f"  ok=true, saved_count={count}")
+                f"[save_dirty_assets] 'ok' must be a bool (false is a legitimate "
+                f"no-op when nothing is dirty): {result}")
+        if not isinstance(result.get("include_levels"), bool):
+            raise VerifyFailure(f"[save_dirty_assets] 'include_levels' not a bool: {result}")
+        if not isinstance(result.get("include_content"), bool):
+            raise VerifyFailure(f"[save_dirty_assets] 'include_content' not a bool: {result}")
+        if not isinstance(result.get("note"), str) or not result["note"]:
+            raise VerifyFailure(f"[save_dirty_assets] 'note' missing/empty: {result}")
+        print(f"  handler live; ok={result['ok']} (coarse-grained; false=no-op acceptable)")
 
     run(4, "save_dirty_assets", t4)
 
@@ -460,19 +459,14 @@ def main() -> None:
         raw_dump["5.get_selected_actors"] = resp
         show(resp)
         result = assert_handler_compiled(resp, "get_selected_actors")
-        actors = result
-        if isinstance(result, dict):
-            actors = (result.get("actors")
-                      or result.get("selected")
-                      or result.get("results"))
-            if actors is None and not result:
-                actors = []
+        if not isinstance(result, dict) or result.get("ok") is not True:
+            raise VerifyFailure(f"[get_selected_actors] expected ok=true object: {result}")
+        actors = result.get("actors")
         if not _is_list_like(actors):
-            raise VerifyFailure(
-                f"[get_selected_actors] expected a list (possibly empty) of "
-                f"per-actor records, got: {result}"
-            )
-        print(f"  selected actors: {len(actors)} (empty is acceptable)")
+            raise VerifyFailure(f"[get_selected_actors] 'actors' not a list: {result}")
+        if not isinstance(result.get("count"), int) or result["count"] != len(actors):
+            raise VerifyFailure(f"[get_selected_actors] count must equal len(actors): {result}")
+        print(f"  ok=true, count={result['count']} (empty selection is acceptable)")
 
     run(5, "get_selected_actors", t5)
 
@@ -604,38 +598,14 @@ def main() -> None:
            "{ paths:[/Engine/BasicShapes/Cube, ...BaseFlattenMaterial] }")
 
     def t9() -> None:
-        paths = [
-            "/Engine/BasicShapes/Cube",
-            "/Engine/EngineMaterials/BaseFlattenMaterial",
-        ]
-        resp = call(host, port, "bulk_inspect_assets", {"paths": paths},
-                    request_id=9)
-        raw_dump["9.bulk_inspect_assets"] = resp
-        show(resp)
-        result = assert_handler_compiled(resp, "bulk_inspect_assets")
-        # Synthetic bridge tool: expect per-path results. Accept a list keyed
-        # by path, or {"results": [...]} / {"results": {...}} / a path-keyed
-        # dict.
-        per = result
-        if isinstance(result, dict):
-            per = (result.get("results")
-                   or result.get("assets")
-                   or result.get("inspected"))
-            if per is None:
-                # Maybe the dict itself is path-keyed.
-                if any(p in result for p in paths):
-                    per = result
-        if not isinstance(per, (list, dict)):
-            raise VerifyFailure(
-                f"[bulk_inspect_assets] expected per-path results "
-                f"(list or dict), got: {result}"
-            )
-        n = len(per) if isinstance(per, (list, dict)) else 0
-        if n == 0:
-            raise VerifyFailure(
-                f"[bulk_inspect_assets] no per-path results returned: {result}"
-            )
-        print(f"  per-path results returned: {n} (requested {len(paths)})")
+        raise SkipStep(
+            "bulk_inspect_assets is a bridge-side synthetic (SYNTHETIC_TOOLS in "
+            "unreal_ai_connection_bridge.py; no C++ handler / no Reg.Register). "
+            "This panel is a raw-socket client and bypasses the bridge, so the "
+            "plugin dispatcher correctly returns -32601 (MCPDispatcher.cpp:72). "
+            "Synthetics are out of scope for raw-socket verification (smoke_test.py "
+            "sets the same precedent)."
+        )
 
     run(9, "bulk_inspect_assets", t9)
 
