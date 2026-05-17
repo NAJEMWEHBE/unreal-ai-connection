@@ -254,8 +254,9 @@ WAVE_A_TOOLS = [
 
 def main() -> None:
     env_host = os.environ.get("UCMCP_HOST", "127.0.0.1")
-    env_port = int(os.environ.get("UCMCP_PORT", "18888"))
-    default_out = r"F:\ax plug in\HDMediaVirtualStudio\Saved\verify_render.png"
+    env_port = os.environ.get("UCMCP_PORT", "18888")
+    default_out = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                               "verify_render.png")
     default_json = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "verify_wave_a_results.json")
 
@@ -265,7 +266,7 @@ def main() -> None:
     )
     ap.add_argument("--host", default=env_host,
                     help=f"UE MCP host (default {env_host}; env UCMCP_HOST)")
-    ap.add_argument("--port", type=int, default=env_port,
+    ap.add_argument("--port", default=env_port,
                     help=f"UE MCP port (default {env_port}; env UCMCP_PORT)")
     ap.add_argument("--out-path", dest="out_path", default=default_out,
                     help=("Absolute path render_camera_to_png writes to. "
@@ -279,7 +280,13 @@ def main() -> None:
     args = ap.parse_args()
 
     host = args.host
-    port = args.port
+    try:
+        port = int(args.port)
+    except (TypeError, ValueError) as exc:
+        raise SystemExit(
+            f"Invalid port {args.port!r}; expected an integer "
+            f"(via --port or UCMCP_PORT)."
+        ) from exc
 
     print("Wave A / Wave A.5 / PR #214 live-verification panel")
     print(f"  target : {host}:{port}")
