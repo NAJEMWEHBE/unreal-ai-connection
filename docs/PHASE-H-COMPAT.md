@@ -3,6 +3,8 @@
 > **STATUS: SCAFFOLDING ONLY -- NOT certified on any engine version other than UE 5.7.**
 > Certification requires each target engine installed and a real build + smoke-test pass.
 
+> **FROZEN (2026-05-18):** UE 5.7 is now the only supported version (ADR-0001). This scaffold remains in the codebase inert for historical reference and is no longer active or maintained.
+
 ---
 
 ## 4.26 is OUT OF SCOPE
