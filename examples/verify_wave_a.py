@@ -107,18 +107,19 @@ def call(host: str, port: int, method: str,
     s = socket.socket()
     s.settimeout(30)
     try:
-        s.connect((host, port))
-    except (ConnectionRefusedError, OSError) as e:
-        return {"_error": f"Cannot reach UE at {host}:{port}: {e}. "
-                          f"Is the editor open with the rebuilt UnrealClaudeMCP plugin?"}
+        try:
+            s.connect((host, port))
+        except (ConnectionRefusedError, OSError) as e:
+            return {"_error": f"Cannot reach UE at {host}:{port}: {e}. "
+                              f"Is the editor open with the rebuilt UnrealClaudeMCP plugin?"}
 
-    try:
-        _send_framed(s, raw)
-        payload_bytes = _recv_framed(s)
-    except (ConnectionError, ValueError, socket.timeout) as e:
+        try:
+            _send_framed(s, raw)
+            payload_bytes = _recv_framed(s)
+        except (ConnectionError, ValueError, socket.timeout) as e:
+            return {"_error": f"framing error: {e}"}
+    finally:
         s.close()
-        return {"_error": f"framing error: {e}"}
-    s.close()
 
     payload = payload_bytes.decode("utf-8", errors="replace")
     if not payload:
