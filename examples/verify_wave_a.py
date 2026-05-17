@@ -509,7 +509,7 @@ def main() -> None:
     run(6, "inspect_input_mappings", t6)
 
     # ----- 7. pie_control --------------------------------------------------
-    header("7. pie_control { action: query }  (idle editor => is_playing:false)")
+    header("7. pie_control { action: query }  (handler-live = bool is_playing)")
 
     def t7() -> None:
         resp = call(host, port, "pie_control", {"action": "query"},
@@ -525,47 +525,66 @@ def main() -> None:
             raise VerifyFailure(
                 f"[pie_control.query] missing 'is_playing': {result}"
             )
-        if result["is_playing"] is not False:
+        # Handler-live proof is that it answered with a bool 'is_playing'
+        # field -- NOT that the field is exactly False. An already-running
+        # PIE session is a valid editor state; treating True as a FAIL would
+        # turn a working, compiled handler into a false regression.
+        if not isinstance(result["is_playing"], bool):
             raise VerifyFailure(
-                f"[pie_control.query] idle editor should report "
-                f"is_playing=false, got: {result['is_playing']}"
+                f"[pie_control.query] 'is_playing' must be a bool "
+                f"(handler-live proof is the bool response, not its value), "
+                f"got {type(result['is_playing']).__name__}: "
+                f"{result['is_playing']}"
             )
-        print("  is_playing=false (idle editor, as expected)")
+        initially_playing = bool(result["is_playing"])
+        print(f"  pie_control query ok; is_playing={initially_playing}")
 
         # ---- OPT-IN intrusive start/stop -------------------------------
-        # WARNING: the following two calls LAUNCH Play-In-Editor on the live
+        # WARNING: the following calls LAUNCH Play-In-Editor on the live
         # editor and then stop it. They are GUARDED behind --pie and are OFF
         # by default. Do not enable on a session you cannot afford to have
         # enter/exit PIE. Left in-code (not commented out) but flag-gated so
         # the default run is non-intrusive while the path stays exercisable.
-        if args.pie:
+        #
+        # Ownership rule: this script only stops a PIE session it itself
+        # started. If PIE is ALREADY running when --pie is passed, we leave
+        # the pre-existing session completely untouched (no start, no stop)
+        # -- mutating a session the script did not create is not its job.
+        started_pie = False
+        if args.pie and not initially_playing:
             print("  --pie set: starting PIE (INTRUSIVE) ...")
             start = call(host, port, "pie_control", {"action": "start"},
                          request_id=701)
             raw_dump["7.pie_control.start"] = start
             show(start)
             start_res = assert_handler_compiled(start, "pie_control.start")
+            started_pie = True
             print(f"  pie start result: {start_res}")
 
-            print("  --pie set: stopping PIE ...")
-            stop = call(host, port, "pie_control", {"action": "stop"},
-                        request_id=702)
-            raw_dump["7.pie_control.stop"] = stop
-            show(stop)
-            stop_res = assert_handler_compiled(stop, "pie_control.stop")
-            print(f"  pie stop result: {stop_res}")
+            if started_pie:
+                print("  --pie set: stopping PIE (script-owned session) ...")
+                stop = call(host, port, "pie_control", {"action": "stop"},
+                            request_id=702)
+                raw_dump["7.pie_control.stop"] = stop
+                show(stop)
+                stop_res = assert_handler_compiled(stop, "pie_control.stop")
+                print(f"  pie stop result: {stop_res}")
 
-            # Re-query: editor should be idle again.
-            requery = call(host, port, "pie_control", {"action": "query"},
-                           request_id=703)
-            raw_dump["7.pie_control.requery"] = requery
-            rq = assert_handler_compiled(requery, "pie_control.requery")
-            if rq.get("is_playing") is not False:
-                raise VerifyFailure(
-                    f"[pie_control.requery] PIE did not return to idle after "
-                    f"stop: {rq}"
-                )
-            print("  PIE returned to idle (is_playing=false)")
+                # Re-query: editor should be idle again.
+                requery = call(host, port, "pie_control", {"action": "query"},
+                               request_id=703)
+                raw_dump["7.pie_control.requery"] = requery
+                rq = assert_handler_compiled(requery, "pie_control.requery")
+                if rq.get("is_playing") is not False:
+                    raise VerifyFailure(
+                        f"[pie_control.requery] PIE did not return to idle "
+                        f"after stop: {rq}"
+                    )
+                print("  PIE returned to idle (is_playing=false)")
+        elif args.pie and initially_playing:
+            print("  --pie set but PIE already running: leaving the "
+                  "pre-existing session UNTOUCHED (no start/stop -- this "
+                  "script only stops a session it itself started).")
 
     run(7, "pie_control", t7)
 
