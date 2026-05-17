@@ -36,7 +36,7 @@
 | 28 | 2026-05-15 (PR #187 — marketplace_import v2 AmbientCG zip-unpack) | 102 tools (71 C++ + 31 synthetic), 413 pytest — 22nd consecutive closing-note |
 | 29 | 2026-05-15 (PR #189 — marketplace_import multi-map PBR mode) | 102 tools (71 C++ + 31 synthetic), 430 pytest — 23rd consecutive closing-note |
 
-Note: TOC stops at chronological-session #29 because the 30th consecutive closing-note onward lives in the active [`HANDOFF.md`](HANDOFF.md). The 27th, 28th, and 29th consecutive closing-notes (Sessions 2026-05-15 PRs #199/#200/#201, 2026-05-16 the rename/distribution window, and 2026-05-16 PRs #211/#212) are later appends below the TOC, not indexed in the chronological 1-29 table. Cross-reference by consecutive-note number: archive holds 1-29, active holds 30-32.
+Note: TOC stops at chronological-session #29 because the 31st consecutive closing-note onward lives in the active [`HANDOFF.md`](HANDOFF.md). The 27th, 28th, 29th, and 30th consecutive closing-notes (Sessions 2026-05-15 PRs #199/#200/#201, 2026-05-16 the rename/distribution window, 2026-05-16 PRs #211/#212, and the 30th rotated in this cycle) are later appends below the TOC, not indexed in the chronological 1-29 table. Cross-reference by consecutive-note number: archive holds 1-30, active holds 31-33.
 
 ---
 
