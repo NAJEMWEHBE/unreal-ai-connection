@@ -68,3 +68,11 @@ HDMediaCamPlugin/
 # bucket .uplugin variants here at release time; they are derived from the
 # canonical UnrealClaudeMCP/UnrealClaudeMCP.uplugin and must not be committed.
 /dist/
+
+# External DCC asset scratch — Blender project files and exported meshes/textures
+# authored per docs/ASSET-PIPELINE-BLENDER.md. Generated inputs, never committed
+# (the plugin is self-contained; assets are user-side per ADR-0002).
+*.blend
+*.blend1
+/blender-exports/
+/asset-src/
