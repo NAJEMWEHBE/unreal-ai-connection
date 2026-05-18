@@ -27,7 +27,8 @@ below — they are the point of writing this down, not footnotes:
    This is a real import-pipeline gotcha worth recording.
 
 2. **The clean-exit core goal is empirically validated, but the
-   graceful quit itself crashed** via a *separate, pre-existing*
+   graceful-quit sequence crashed** (during its pre-quit step,
+   *before* `quit_editor()` itself ran) via a *separate, pre-existing*
    iterator-invalidation bug in the plugin's TCP server
    (`FUCMCPServer::TickClients()` — "Array has changed during
    ranged-for iteration", per the crash callstack). The crash is
@@ -211,13 +212,19 @@ After the editor process ended:
 - → **On the next UE launch there will be no "Restore Packages /
   Untitled_1" dialog.** The scratch-level discipline did its job.
 
-**Graceful quit itself — FAILED (honest).** The pre-quit step
-(`save_current_level()` → `save_dirty_packages` → load a blank
-`/Temp/CleanExitBlank` level → `unreal.SystemLibrary.quit_editor()`)
-**crashed the editor before `quit_editor()` was reached.** The crash is
-**not** in the clean-exit Python or the asset pipeline — it is a
-pre-existing concurrency bug in the plugin's TCP server, captured
-verbatim in `Saved/Logs/HDMediaVirtualStudio.log`:
+**Graceful quit itself — FAILED (honest).** The clean-exit driver
+issues two separate `execute_unreal_python` calls: first a **pre-quit
+snippet** (`save_current_level()` → `save_dirty_packages` → load a
+blank `/Temp/CleanExitBlank` level), then a **second snippet** that
+calls `unreal.SystemLibrary.quit_editor()`. The editor **crashed
+during that first pre-quit `execute_unreal_python` call — the driver's
+socket was reset mid-call and the second `quit_editor()` snippet was
+never sent**, so `unreal.SystemLibrary.quit_editor()` itself never
+ran. The crash is **not** in the clean-exit Python logic or the asset
+pipeline — it is a pre-existing concurrency bug in the plugin's TCP
+server, captured verbatim in `Saved/Logs/HDMediaVirtualStudio.log`
+(callstack frame `FHandler_ExecutePython::Handle()` → the server tick,
+i.e. it fired while servicing that pre-quit Python call):
 
 ```text
 LogOutputDevice: Error: Ensure condition failed: CurrentNum == InitialNum  [Array.h:276]
@@ -237,9 +244,12 @@ array is mutated mid-iteration — a client add/remove (e.g. an accepted
 connection on the listener side, or a disconnect cleanup) racing the
 iteration → "Array has changed during ranged-for iteration" →
 `StaticShutdownAfterError` (exit status 1, **not** a clean shutdown).
-It surfaced here when `quit_editor()` ran and the driver's socket
-dropped during the shutdown tick. This is a genuine, reproducible
-plugin defect and has been **flagged as a separate follow-up** (fix
+As stated above it surfaced **during the first pre-quit
+`execute_unreal_python` call** (the save / new-blank-level snippet),
+when the server serviced that call and the client array changed under
+the tick iteration — *before* the separate `quit_editor()` snippet was
+ever sent. This is a genuine, reproducible plugin defect and has been
+**flagged as a separate follow-up** (fix
 direction: make all client-array add/remove **deferred** so the
 container is never structurally modified while `TickClients()` is
 iterating it — the callstack shows the crash inside `TickClients()`;
@@ -276,7 +286,8 @@ State this the way `elven-hifi-2026-05-16-NOTES.md` does — this is not
   presented as first-try.
 - **The graceful-quit path needs the `TickClients()` fix** before it
   can be claimed as a clean process exit; today it is "no dirty
-  Untitled, but the quit crashed" — the follow-up is tracked.
+  Untitled, but the graceful-quit sequence crashed in its pre-quit
+  step before `quit_editor()` ran" — the follow-up is tracked.
 
 ## Reproduce
 
