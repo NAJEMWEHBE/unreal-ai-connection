@@ -14,6 +14,33 @@ committed. This document is the long-term, reproducible reference; it states
 the real ceiling plainly rather than implying the automated path produces
 bespoke AAA art.
 
+## Status / Proof state (read this — nothing here is fabricated)
+
+Be precise about what is *done* versus what is *documented but not yet
+executed*:
+
+- **Implemented and documented.** The Blender→Unreal pipeline, the import
+  tooling (`scripts/import_blender_assets.py`), and the capture clean-exit
+  fix (`scripts/capture_demo_gif.py`) are written and described here. The
+  decision to keep external authoring out of the plugin is recorded in
+  [`ADR-0002`](adr/ADR-0002-external-asset-authoring-not-bundled.md).
+- **The end-to-end HiFi asset proof has NOT yet been run.** It requires
+  Blender installed and launched with the Blender MCP addon — a separate,
+  user-side external automation server (per ADR-0002), which is **not present
+  on the build host**. **No HiFi render or screenshot exists yet, and none is
+  fabricated** anywhere in this repo. The "Reproduce" steps below are
+  accurate; they simply have not been executed here.
+- **The UE clean-exit / scratch-level code paths are not yet empirically
+  validated.** The new-level creation and graceful-quit calls in
+  `scripts/import_blender_assets.py` and `scripts/capture_demo_gif.py` are
+  written defensively (each call degrades to a fallback rather than aborting),
+  but they have **not** been run against a live editor. Empirical validation
+  is deferred to the first real run.
+- **What this line of work ships now:** the documented pipeline, the import
+  tooling, the decision record, and the shutdown-bug fix. The HiFi visual
+  proof and the live UE clean-exit validation are honest, tracked
+  follow-ups — not claimed as complete.
+
 ## The two-MCP separation principle (read this first)
 
 There are **two independent MCP servers** in this picture, and they never
@@ -149,10 +176,13 @@ quit (`unreal.get_editor_subsystem(unreal.LevelEditorSubsystem).new_level(...)`,
 `unreal.SystemLibrary.quit_editor()`, with `unreal.EditorLevelLibrary`
 fallbacks) are written **defensively / best-effort** — each call is wrapped
 so a failure degrades to the next fallback rather than aborting. They are
-**proof-pending**: validated end to end only in a live Stage-C run (UE is not
-running while this document is authored). They mirror the proven
+**proof-pending and NOT yet empirically validated**: they have not been run
+against a live editor (UE is not running while this document is authored), so
+end-to-end validation is deferred to the first real run — see "Status / Proof
+state" above. They mirror the
 `get_editor_subsystem(LevelEditorSubsystem)` → `EditorLevelLibrary` fallback
-pattern already used by `scripts/elven_city_hifi.py`.
+pattern already used by `scripts/elven_city_hifi.py`, but mirroring a known
+pattern is not a substitute for that live validation.
 
 ## Honest ceiling / limits
 
