@@ -3,6 +3,8 @@
 > **STATUS: SCAFFOLDING ONLY -- NOT certified on any engine version other than UE 5.7.**
 > Certification requires each target engine installed and a real build + smoke-test pass.
 
+> **STATUS (2026-05-18, ADR-0001):** UE 5.7 is the officially supported & tested version. This cross-engine scaffold is **kept and available as a best-effort / community path** for other UE versions — build from source, uncertified, not actively maintained, contributions welcome. It is NOT removed or abandoned.
+
 ---
 
 ## 4.26 is OUT OF SCOPE
