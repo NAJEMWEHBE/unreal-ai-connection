@@ -12,6 +12,8 @@
 #include "CoreMinimal.h"
 #include "Containers/Ticker.h"
 #include "Interfaces/IPv4/IPv4Endpoint.h"
+#include "HAL/CriticalSection.h"
+#include "Misc/ScopeLock.h"
 // UNVERIFIED-COMPILE: cross-engine ticker alias. FUCMCPTicker == FTSTicker
 // (>=5.0) or FTicker (4.27). See UCMCPCompat.h. Source-authored only; no
 // host build performed this session.
@@ -99,6 +101,15 @@ private:
 
     TUniquePtr<FTcpListener> Listener;
     TArray<FSocket*> ConnectedClients;
+
+    // D2 (PR #226 hardening layered on #225): FTcpListener runs its accept
+    // loop on its OWN FRunnable thread, so OnConnectionAccepted fires off the
+    // game thread. Accepted sockets are parked here under PendingClientsCS and
+    // adopted on the game thread at the top of TickClients — keeping
+    // ConnectedClients/ReadStates/WriteStates strictly game-thread so #225's
+    // snapshot copy and the ranged-for can never race the listener thread.
+    FCriticalSection PendingClientsCS;
+    TArray<FSocket*> PendingAccepted;
 
     // v0.9.1: per-client partial-frame state. Keys are FSocket* — same lifetime
     // as ConnectedClients. Cleanup happens in three places: TickClients drop

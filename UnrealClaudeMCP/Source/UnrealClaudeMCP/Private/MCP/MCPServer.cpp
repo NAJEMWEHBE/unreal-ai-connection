@@ -228,9 +228,29 @@ void FUCMCPServer::Stop()
         TickerHandle.Reset();
     }
 
+    // Reset the listener first: ~FTcpListener blocking-joins its accept thread,
+    // so no further OnConnectionAccepted can race PendingAccepted after this.
     Listener.Reset();
 
     ISocketSubsystem* Subsystem = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM);
+
+    // D2: destroy sockets accepted on the listener thread but never adopted.
+    {
+        FScopeLock Lock(&PendingClientsCS);
+        for (FSocket* Sock : PendingAccepted)
+        {
+            if (Sock)
+            {
+                Sock->Close();
+                if (Subsystem)
+                {
+                    Subsystem->DestroySocket(Sock);
+                }
+            }
+        }
+        PendingAccepted.Reset();
+    }
+
     for (FSocket* Sock : ConnectedClients)
     {
         if (Sock)
@@ -256,19 +276,43 @@ bool FUCMCPServer::OnConnectionAccepted(FSocket* InSocket, const FIPv4Endpoint& 
         return false;
     }
     InSocket->SetNonBlocking(true);
-    ConnectedClients.Add(InSocket);
-    // Explicit insertions so the per-client state lifetime is visible at the
-    // accept site rather than implicit via FindOrAdd later.
-    ReadStates.Add(InSocket, FUCMCPClientReadState{});
-    WriteStates.Add(InSocket, FUCMCPClientWriteState{});
-    UE_LOG(LogUCMCP, Log, TEXT("Client connected from %s (now %d clients)"),
-        *InEndpoint.ToString(), ConnectedClients.Num());
+    // D2: FTcpListener invokes this on its OWN thread. Park the socket under
+    // the lock; the game thread adopts it at the top of TickClients. Never
+    // touch ConnectedClients/ReadStates/WriteStates here — cross-thread
+    // mutation of those is exactly the D2 race #225 left open.
+    {
+        FScopeLock Lock(&PendingClientsCS);
+        PendingAccepted.Add(InSocket);
+    }
+    UE_LOG(LogUCMCP, Log, TEXT("Client connected from %s (pending adoption)"),
+        *InEndpoint.ToString());
     return true;
 }
 
 bool FUCMCPServer::TickClients(float /*DeltaTime*/)
 {
     ISocketSubsystem* Subsystem = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM);
+
+    // D2: adopt sockets accepted on the FTcpListener thread BEFORE #225's
+    // snapshot below, so every ConnectedClients/ReadStates/WriteStates
+    // mutation is game-thread-only and the snapshot copy can't race the
+    // listener thread.
+    {
+        TArray<FSocket*> NewlyAccepted;
+        {
+            FScopeLock Lock(&PendingClientsCS);
+            NewlyAccepted = MoveTemp(PendingAccepted);
+        }
+        for (FSocket* Sock : NewlyAccepted)
+        {
+            ConnectedClients.Add(Sock);
+            ReadStates.Add(Sock, FUCMCPClientReadState{});
+            WriteStates.Add(Sock, FUCMCPClientWriteState{});
+            UE_LOG(LogUCMCP, Log, TEXT("Client adopted (now %d clients)"),
+                ConnectedClients.Num());
+        }
+    }
+
     TArray<FSocket*> Dropped;
 
     // A handler dispatched below (e.g. execute_unreal_python running quit_editor,
