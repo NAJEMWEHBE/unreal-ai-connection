@@ -24,22 +24,36 @@ executed*:
   fix (`scripts/capture_demo_gif.py`) are written and described here. The
   decision to keep external authoring out of the plugin is recorded in
   [`ADR-0002`](adr/ADR-0002-external-asset-authoring-not-bundled.md).
-- **The end-to-end HiFi asset proof has NOT yet been run.** It requires
-  Blender installed and launched with the Blender MCP addon — a separate,
-  user-side external automation server (per ADR-0002), which is **not present
-  on the build host**. **No HiFi render or screenshot exists yet, and none is
-  fabricated** anywhere in this repo. The "Reproduce" steps below are
-  accurate; they simply have not been executed here.
-- **The UE clean-exit / scratch-level code paths are not yet empirically
-  validated.** The new-level creation and graceful-quit calls in
-  `scripts/import_blender_assets.py` and `scripts/capture_demo_gif.py` are
-  written defensively (each call degrades to a fallback rather than aborting),
-  but they have **not** been run against a live editor. Empirical validation
-  is deferred to the first real run.
-- **What this line of work ships now:** the documented pipeline, the import
-  tooling, the decision record, and the shutdown-bug fix. The HiFi visual
-  proof and the live UE clean-exit validation are honest, tracked
-  follow-ups — not claimed as complete.
+- **The end-to-end HiFi asset proof has been RUN — DONE (2026-05-18).**
+  Three Blender-authored assets (domed pavilion, brazier, obelisk; baked
+  2K PBR) were exported as embedded GLBs, imported into a **live UE 5.7
+  host editor through this exact seam** (`execute_unreal_python` +
+  `unreal.AssetImportTask`, no plugin code added), assembled + lit in a
+  dedicated scratch level, and **rendered to disk by the host-verified
+  `render_camera_to_png` handler** — three genuine, visually-verified
+  beauty stills. Full evidence + the import path actually used + two
+  honest root-caused findings (Interchange leaving the material's
+  texture params on white placeholders; a pre-existing
+  `MCPServer.cpp:274` `TickClients()` crash) are recorded in
+  [`docs/validation/blender-to-unreal-hifi-2026-05-18.md`](validation/blender-to-unreal-hifi-2026-05-18.md).
+- **The UE clean-exit / scratch-level core goal is EMPIRICALLY
+  VALIDATED (2026-05-18), with one honest caveat.** The
+  scratch-level discipline worked: after the run
+  `Saved/Autosaves/PackageRestoreData.json` was
+  `{"RestoreEnabled":true,"Packages":[]}` (empty) and **no new dirty
+  `Untitled` autosave existed**, so the "Restore Packages / Untitled_1"
+  dialog will **not** reappear. Caveat: the graceful
+  `unreal.SystemLibrary.quit_editor()` call itself **crashed** via a
+  *separate, pre-existing* iterator-invalidation bug in the plugin's
+  TCP server (`FUCMCPServer::TickClients()`), not the clean-exit Python
+  — flagged as a tracked follow-up. Verbatim log + analysis in the
+  validation doc above.
+- **What this line of work ships now:** the documented pipeline, the
+  import tooling, the decision record, the shutdown-scratch-level
+  discipline, **and the executed HiFi proof + empirical clean-exit
+  result** (validation doc linked above). Remaining honest follow-up:
+  the `TickClients()` server crash fix so the graceful quit is a clean
+  process exit, not just a no-dirty-Untitled outcome.
 
 ## The two-MCP separation principle (read this first)
 
