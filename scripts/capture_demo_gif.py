@@ -56,6 +56,26 @@ import sys
 import tempfile
 
 # ---------------------------------------------------------------------------
+# Console encoding hardening.
+#
+# This driver prints a few status lines that contain non-ASCII glyphs (e.g.
+# the "<-"/"->" arrows used in the progress banners). On Windows the default
+# console code page is cp1252, which cannot encode those characters, and
+# Python raises UnicodeEncodeError mid-run. Force the script's OWN stdout/
+# stderr to UTF-8 (with a safe fallback) so progress output never aborts the
+# capture. This does NOT touch the MCP wire framing, which already encodes
+# its JSON bodies as explicit UTF-8 bytes independently of this setting.
+# ---------------------------------------------------------------------------
+
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="backslashreplace")
+    except (AttributeError, ValueError):
+        # Non-reconfigurable stream (e.g. already wrapped / redirected to a
+        # pipe that doesn't support reconfigure): best-effort only.
+        pass
+
+# ---------------------------------------------------------------------------
 # Wire-framing helpers.
 #
 # SOURCE OF TRUTH: examples/smoke_test.py (its _send_framed / _recv_exact /
