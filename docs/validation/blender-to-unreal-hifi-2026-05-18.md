@@ -29,12 +29,13 @@ below — they are the point of writing this down, not footnotes:
 2. **The clean-exit core goal is empirically validated, but the
    graceful quit itself crashed** via a *separate, pre-existing*
    iterator-invalidation bug in the plugin's TCP server
-   (`MCPServer.cpp:274`, `FUCMCPServer::TickClients()` — "Array has
-   changed during ranged-for iteration"). The crash is **not** caused
-   by the asset pipeline or the clean-exit Python, and crucially it did
-   **not** dirty the editor: after the crash `PackageRestoreData.json`
-   is `{"RestoreEnabled":true,"Packages":[]}` (empty) and **no new
-   dirty `Untitled` autosave exists** — so the "Restore Packages /
+   (`FUCMCPServer::TickClients()` — "Array has changed during
+   ranged-for iteration", per the crash callstack). The crash is
+   **not** caused by the asset pipeline or the clean-exit Python, and
+   crucially it did **not** dirty the editor: after the crash
+   `PackageRestoreData.json` is
+   `{"RestoreEnabled":true,"Packages":[]}` (empty) and **no new dirty
+   `Untitled` autosave exists** — so the "Restore Packages /
    Untitled_1" dialog the user hit will **not** reappear. The
    `TickClients()` crash is flagged as a separate follow-up.
 
@@ -77,7 +78,7 @@ pure Unreal automation over the existing escape hatch).
 UE 5.7's Interchange glTF importer placed each asset in a **nested
 per-asset layout**, not flat:
 
-```
+```text
 /Game/BlenderImports/hero_pavilion/StaticMeshes/hero_pavilion.hero_pavilion
 /Game/BlenderImports/hero_pavilion/Materials/M_Hero_Baked.M_Hero_Baked
 /Game/BlenderImports/hero_pavilion/Textures/hero_basecolor(.hero_basecolor)
@@ -118,7 +119,7 @@ the material confirmed the cause: `M_Hero_Baked` is a
 its texture parameters resolved to Interchange's **white placeholder**
 textures:
 
-```
+```text
 BaseColorTexture        -> /InterchangeAssets/gltf/Textures/T_White_srgb
 NormalTexture           -> /InterchangeAssets/gltf/Textures/T_Generic_N
 MetallicRoughnessTexture-> /InterchangeAssets/gltf/Textures/T_White_Linear
@@ -218,7 +219,7 @@ After the editor process ended:
 pre-existing concurrency bug in the plugin's TCP server, captured
 verbatim in `Saved/Logs/HDMediaVirtualStudio.log`:
 
-```
+```text
 LogOutputDevice: Error: Ensure condition failed: CurrentNum == InitialNum  [Array.h:276]
 LogOutputDevice: Error: Array has changed during ranged-for iteration!
 [Callstack] TCheckedPointerIterator<FSocket *>::operator!= ...
@@ -228,17 +229,22 @@ LogExit: Executing StaticShutdownAfterError
 LogWindows: FPlatformMisc::RequestExitWithStatus(1, 3, LaunchWindowsStartup.ExceptionHandler)
 ```
 
-Root cause: `FUCMCPServer::TickClients()` ranged-iterates its
-connected-client (`FSocket*`) array while a client connect/disconnect
-mutates that same array mid-iteration → iterator invalidation →
+Root cause (from the crash callstack — the plugin source was not
+walked line-by-line here, so the exact mutation site is stated as the
+likely mechanism, not asserted): `FUCMCPServer::TickClients()`
+ranged-iterates its connected-client (`FSocket*`) array while that same
+array is mutated mid-iteration — a client add/remove (e.g. an accepted
+connection on the listener side, or a disconnect cleanup) racing the
+iteration → "Array has changed during ranged-for iteration" →
 `StaticShutdownAfterError` (exit status 1, **not** a clean shutdown).
-When `quit_editor()` ran and the driver's socket dropped during the
-shutdown tick, the client list changed under the ranged-for and UE
-died. This is a genuine, reproducible plugin defect and has been
-**flagged as a separate follow-up** (fix direction: defer client-list
-mutation outside the `TickClients()` iteration — both the ~line 274 and
-~line 327 loops appear in the callstack). It does not touch this
-proof's artifacts.
+It surfaced here when `quit_editor()` ran and the driver's socket
+dropped during the shutdown tick. This is a genuine, reproducible
+plugin defect and has been **flagged as a separate follow-up** (fix
+direction: make all client-array add/remove **deferred** so the
+container is never structurally modified while `TickClients()` is
+iterating it — the callstack shows the crash inside `TickClients()`;
+the precise loop/site is for the follow-up to pin against current
+source). It does not touch this proof's artifacts.
 
 **Net:** the editor ended **OFF** (process gone, port `18888`
 unbound) — via crash, not a graceful quit — but the user-facing
@@ -286,7 +292,39 @@ State this the way `elven-hifi-2026-05-16-NOTES.md` does — this is not
 4. Rewire each `M_*_Baked` MI's `BaseColorTexture` / `NormalTexture` /
    `MetallicRoughnessTexture` to the imported `*_basecolor` /
    `*_normal` / `*_Metallic-*_Roughness` (via `execute_unreal_python` +
-   `MaterialEditingLibrary`) — this is the step that makes the PBR show.
+   `MaterialEditingLibrary`) — **this is the step that makes the PBR
+   show.** Per asset (paths shown for `hero_pavilion`; repeat for
+   `prop_brazier` / `prop_obelisk` with their own subfolder + map
+   names):
+
+   ```python
+   import unreal
+   mi = unreal.load_asset(
+       "/Game/BlenderImports/hero_pavilion/Materials/M_Hero_Baked")
+   pairs = {
+       "BaseColorTexture":
+           "/Game/BlenderImports/hero_pavilion/Textures/hero_basecolor",
+       "NormalTexture":
+           "/Game/BlenderImports/hero_pavilion/Textures/hero_normal",
+       "MetallicRoughnessTexture":
+           "/Game/BlenderImports/hero_pavilion/Textures/"
+           "T_hero_Metallic-T_hero_Roughness",
+   }
+   for param, tpath in pairs.items():
+       tex = unreal.load_asset(tpath)
+       unreal.MaterialEditingLibrary.set_material_instance_texture_parameter_value(
+           mi, param, tex)
+   unreal.MaterialEditingLibrary.update_material_instance(mi)
+   unreal.EditorAssetLibrary.save_asset(
+       "/Game/BlenderImports/hero_pavilion/Materials/M_Hero_Baked",
+       only_if_is_dirty=False)
+   # Verify (set_*_parameter_value can return False yet still apply —
+   # trust this read, not its return):
+   for param in pairs:
+       print(param,
+             unreal.MaterialEditingLibrary.get_material_instance_texture_parameter_value(
+                 mi, param).get_path_name())
+   ```
 5. Assemble + light the scratch level, then `render_camera_to_png`
    per camera at ≥1920×1080. Visually verify each PNG is a real lit
    frame before treating it as evidence.

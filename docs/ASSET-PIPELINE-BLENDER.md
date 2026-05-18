@@ -189,14 +189,23 @@ The specific UE editor APIs used for the new-level creation and the graceful
 quit (`unreal.get_editor_subsystem(unreal.LevelEditorSubsystem).new_level(...)`,
 `unreal.SystemLibrary.quit_editor()`, with `unreal.EditorLevelLibrary`
 fallbacks) are written **defensively / best-effort** — each call is wrapped
-so a failure degrades to the next fallback rather than aborting. They are
-**proof-pending and NOT yet empirically validated**: they have not been run
-against a live editor (UE is not running while this document is authored), so
-end-to-end validation is deferred to the first real run — see "Status / Proof
-state" above. They mirror the
-`get_editor_subsystem(LevelEditorSubsystem)` → `EditorLevelLibrary` fallback
-pattern already used by `scripts/elven_city_hifi.py`, but mirroring a known
-pattern is not a substitute for that live validation.
+so a failure degrades to the next fallback rather than aborting.
+
+**Empirically run 2026-05-18 against a live UE 5.7 editor** (see
+[`docs/validation/blender-to-unreal-hifi-2026-05-18.md`](validation/blender-to-unreal-hifi-2026-05-18.md)
+and "Status / Proof state" above): the **scratch-level discipline is
+validated** — the run produced **no dirty `Untitled` autosave** and an
+empty `PackageRestoreData.json` `Packages` array, so the
+Restore-Packages dialog will not reappear. One honest caveat from that
+run: the graceful `quit_editor()` call itself **crashed** via a
+*separate, pre-existing* concurrency bug in the plugin's TCP server
+(`FUCMCPServer::TickClients()` — a client-array mutation racing its own
+iteration), **not** the clean-exit/new-level Python. That server crash
+is a tracked follow-up; until it is fixed the graceful quit is "no
+dirty Untitled, but the process exit is crash-driven, not clean". The
+fallback chain mirrors the
+`get_editor_subsystem(LevelEditorSubsystem)` → `EditorLevelLibrary`
+pattern already used by `scripts/elven_city_hifi.py`.
 
 ## Honest ceiling / limits
 
