@@ -22,7 +22,7 @@ This is an **honest** scorecard, not marketing. Where we lead is documented; whe
 | Where this repo lags | Evidence |
 |---|---|
 | **Adoption** | **3 stars, 1 fork, created 2026-05-07** (≈ 1 week old). Top rivals: 621 (ChiR24), 397 (VedantRGosavi, abandoned), 304 (chongdashu), 178 (flopperam). |
-| **UE version range** | UE 5.7 only by design (ADR-0001 — Phase H FROZEN, cross-engine compat retired, not maintained). ChiR24 supports 5.0–5.7 per its docs; flopperam claims 5.5–5.7. This is a deliberate scope choice, not a backlog item. |
+| **UE version range** | Officially 5.7; other versions best-effort/community via the (kept) cross-engine scaffold (ADR-0001 — uncertified, not actively maintained, PR-welcome). ChiR24 supports 5.0–5.7 per its docs; flopperam claims 5.5–5.7. Official scope is a deliberate choice; the open best-effort path keeps other versions reachable from source. |
 | **Distribution channels** | No Docker image (ChiR24 has `mcp/unreal-engine-mcp-server` on Docker Hub), no marketplace listing on mcpservers.org or mcpmarket.com. |
 | **One-command install** | Plugin install + `.mcp.json` editing is multi-step. Phase G in the roadmap addresses this. |
 
@@ -41,7 +41,7 @@ This is an **honest** scorecard, not marketing. Where we lead is documented; whe
 | Last commit | 2026-05-15 |
 | Primary language | Python (bridge) + C++ (plugin) |
 | License | MIT |
-| UE version range | **5.7 only** (ADR-0001 — Phase H FROZEN; cross-engine compat retired, not maintained) |
+| UE version range | **Officially 5.7**; other versions best-effort/community via the kept cross-engine scaffold (ADR-0001 — uncertified, not actively maintained) |
 | Tool count | **105** (72 native C++ handlers + 33 bridge-side synthetic) |
 | Clients explicitly named | Claude Code, Cursor, Codex CLI, VS Code Copilot, Windsurf, Cline, Zed |
 | Sequencer | **Yes** — `sequencer_add_transform_keyframe` (authored keyframes; 458 test cases exercise it) |
@@ -229,7 +229,7 @@ This is an **honest** scorecard, not marketing. Where we lead is documented; whe
 
 | Repo | Stars | Tool count | UE range | Sequencer | Cubemap/PBR | Tests | Clients | License |
 |---|---:|---:|---|---|---|---|---:|---|
-| **this repo** | **3** | **105** | 5.7 only (ADR-0001) | **Yes** (auth+kf) | **Yes (multi-map + cubemap)** | **458** | **7** | MIT |
+| **this repo** | **3** | **105** | 5.7 official; others best-effort (ADR-0001) | **Yes** (auth+kf) | **Yes (multi-map + cubemap)** | **458** | **7** | MIT |
 | ChiR24/Unreal_mcp | 621 | 36 | 5.0–5.7 | Yes | Partial | Unknown CI | 2 | MIT |
 | VedantRGosavi/UE5-MCP | 397 | ? | unspecified | Unclear | "AI-generated textures" | None | unknown | other |
 | chongdashu/unreal-mcp | 304 | ≈ 10 | 5.5+ | No | No | None | 3 | MIT |
@@ -289,7 +289,7 @@ Distinct slugs that **do NOT collide** (recommended ordered by clarity):
 | 1 | **Per-client setup recipes** at top of README (10 markdown files under `docs/setup/`) | Phase G2 | Closes the awareness gap. New users see "yes, my client works" immediately. |
 | 2 | **One-command installer** (`scripts/install.ps1` / `install.sh`) | Phase G3 | Drops install from 6 steps to 1. Highest conversion lever. |
 | 3 | **List on mcpservers.org + mcpmarket.com** + ship a **Docker image** | Phase G (later) | Matches ChiR24's distribution moat. Same install-conversion impact as G3 for a different audience. |
-| 4 | ~~UE 5.5 + 5.6 backport~~ — **REMOVED (ADR-0001).** Cross-engine support is FROZEN; UE 5.7-only is a deliberate scope choice, not a backlog item. | — (Phase H frozen) | n/a — scope decision, not a gap to close. |
+| 4 | **UE 5.5 + 5.6 (and other versions) — best-effort/community, not an official backlog item (ADR-0001).** The cross-engine scaffold is kept and available so users can build from source for their version (uncertified, not actively maintained, PR-welcome); newer-UE upgrades welcome on request. Official testing focuses on 5.7. | Phase H scaffold (kept, best-effort) | n/a as an official deliverable — open best-effort path already exists. |
 | 5 | **Movie Render Queue synthetic** | future bridge work | Closes the only sequencer gap vs. flopperam. We already lead on keyframe authoring. |
 | 6 | **Repo rename** to non-colliding slug (likely `unreal-ai-connection` per user preference) | Phase F | After Phase G so the rename comes with a hero refresh, not an empty new-name page. |
 
