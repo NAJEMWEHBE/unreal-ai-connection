@@ -284,10 +284,16 @@ def ensure_scratch_level(host: str, port: int, scratch_level: str,
     never dirty the user's open map. Fatal only if the editor explicitly
     reports it could not make/load the level; a merely-absent sentinel
     (handler output-shape variance) is downgraded to a warning."""
+    # Embed the caller-supplied level path as a JSON-encoded Python string
+    # literal (mirrors the filename_lit precedent in import_one, ~L351):
+    # json.dumps produces a properly-escaped double-quoted literal that a
+    # Windows path with backslashes / embedded quotes round-trips through
+    # unchanged and that cannot break out of the string to inject code.
+    level_lit = json.dumps(scratch_level)
     snippet = f'''
 import unreal
 _ok = False
-_path = "{scratch_level}"
+_path = {level_lit}
 try:
     _les = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
     try:
@@ -349,12 +355,18 @@ def import_one(host: str, port: int, src_path: str, dest_path: str,
     # 'r"..."' prefix here: combined with escaped backslashes it would
     # double them and corrupt Windows paths.)
     filename_lit = json.dumps(src_path)
+    # Same treatment for the other caller/derived strings embedded into the
+    # remote snippet: a JSON-encoded Python string literal round-trips a
+    # Windows-path / quote-bearing value unchanged and is injection-proof.
+    dest_lit = json.dumps(dest_path)
+    name_lit = json.dumps(asset_name)
+    asset_obj_lit = json.dumps(f"{dest_path}/{asset_name}")
     snippet = f'''
 import unreal
 _task = unreal.AssetImportTask()
 _task.filename = {filename_lit}
-_task.destination_path = "{dest_path}"
-_task.destination_name = "{asset_name}"
+_task.destination_path = {dest_lit}
+_task.destination_name = {name_lit}
 _task.automated = True
 _task.save = True
 _imported = []
@@ -364,7 +376,7 @@ try:
         _imported = list(_task.get_editor_property("imported_object_paths") or [])
     except Exception:
         _imported = list(getattr(_task, "imported_object_paths", []) or [])
-    unreal.log("{IMPORT_OK} 1 " + "{dest_path}/{asset_name}")
+    unreal.log("{IMPORT_OK} 1 " + {asset_obj_lit})
 except Exception as _e:
     unreal.log("{IMPORT_OK} 0 " + str(_e))
 '''
@@ -415,17 +427,22 @@ def verify_asset(host: str, port: int, dest_path: str, asset_name: str,
             pass  # fall through to the does_exist probe
 
     obj_path = f"{dest_path}/{asset_name}.{asset_name}"
+    # JSON-encoded Python string literals for every caller/derived path
+    # embedded below (mirrors the filename_lit precedent in import_one):
+    # backslash/quote-safe and injection-proof.
+    asset_pkg_lit = json.dumps(f"{dest_path}/{asset_name}")
+    obj_path_lit = json.dumps(obj_path)
     snippet = f'''
 import unreal
 _exists = False
 try:
-    _exists = unreal.EditorAssetLibrary.does_asset_exist("{dest_path}/{asset_name}")
+    _exists = unreal.EditorAssetLibrary.does_asset_exist({asset_pkg_lit})
 except Exception:
     try:
-        _exists = unreal.EditorAssetLibrary.does_asset_exist("{obj_path}")
+        _exists = unreal.EditorAssetLibrary.does_asset_exist({obj_path_lit})
     except Exception:
         _exists = False
-unreal.log("{ASSET_FOUND} " + ("1" if _exists else "0") + " {dest_path}/{asset_name}")
+unreal.log("{ASSET_FOUND} " + ("1" if _exists else "0") + " " + {asset_pkg_lit})
 '''
     resp = call(host, port, "execute_unreal_python",
                 {"code": snippet}, request_id=request_id + 1, timeout=60.0)
@@ -462,14 +479,20 @@ def spawn_and_frame(host: str, port: int, dest_path: str, asset_name: str,
     }, request_id=request_id, timeout=60.0)
     unwrap(spawn, f"spawn_actor[{actor_label}]")
 
+    # JSON-encoded Python string literals for the caller/derived strings
+    # embedded below (mirrors the filename_lit precedent in import_one):
+    # a Windows-path / quote-bearing value round-trips unchanged and the
+    # snippet cannot be broken out of for injection.
+    meshpath_lit = json.dumps(mesh_obj_path)
+    label_lit = json.dumps(actor_label)
     assign = f'''
 import unreal
 _eas = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
-_mesh = unreal.load_asset("{mesh_obj_path}")
+_mesh = unreal.load_asset({meshpath_lit})
 _done = False
 for _a in _eas.get_all_level_actors():
     try:
-        if _a.get_actor_label() == "{actor_label}":
+        if _a.get_actor_label() == {label_lit}:
             _smc = _a.get_component_by_class(unreal.StaticMeshComponent)
             if _smc and _mesh:
                 _smc.set_static_mesh(_mesh)
@@ -477,7 +500,7 @@ for _a in _eas.get_all_level_actors():
             break
     except Exception:
         pass
-unreal.log("UCMCP_MESH_ASSIGNED " + ("1" if _done else "0") + " {actor_label}")
+unreal.log("UCMCP_MESH_ASSIGNED " + ("1" if _done else "0") + " " + {label_lit})
 '''
     a_resp = call(host, port, "execute_unreal_python",
                   {"code": assign}, request_id=request_id + 1, timeout=120.0)
@@ -518,6 +541,22 @@ def discover_assets(src_dir: str) -> list[str]:
     return found
 
 
+def _env_port_default() -> int:
+    """Resolve the default port from $UCMCP_PORT with a clear error on a
+    malformed value. Without this a non-numeric UCMCP_PORT raised an
+    uncaught ValueError while *building* the arg parser (before --port
+    could even override it), aborting with an opaque traceback. The CLI
+    --port flag still wins — this only supplies argparse's default."""
+    raw = os.environ.get("UCMCP_PORT", "18888")
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        raise SystemExit(
+            f"!! FAIL: $UCMCP_PORT is not a valid integer: {raw!r}. "
+            f"Unset it or pass a numeric --port."
+        )
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(
         description=__doc__,
@@ -527,7 +566,7 @@ def main() -> None:
                     default=os.environ.get("UCMCP_HOST", "127.0.0.1"),
                     help="UE MCP host (default 127.0.0.1 / $UCMCP_HOST)")
     ap.add_argument("--port", type=int,
-                    default=int(os.environ.get("UCMCP_PORT", "18888")),
+                    default=_env_port_default(),
                     help="UE MCP port (default 18888 / $UCMCP_PORT)")
     ap.add_argument("--src-dir", dest="src_dir", default=DEFAULT_SRC_DIR,
                     help=(f"dir of exported .glb/.fbx assets to import "

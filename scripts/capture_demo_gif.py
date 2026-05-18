@@ -346,10 +346,18 @@ def _ensure_scratch_level(host: str, port: int, scratch_level: str,
     # if absent); if that throws (path exists / API shape differs) we fall
     # back to load_level(). Both go through LevelEditorSubsystem first, then
     # EditorLevelLibrary, mirroring elven_city_hifi.py's save fallback.
+    #
+    # Embed the caller-supplied scratch-level path as a JSON-encoded Python
+    # string literal (the same pattern import_blender_assets.py's
+    # filename_lit uses): json.dumps yields a properly-escaped double-quoted
+    # literal that a Windows path with backslashes / embedded quotes
+    # round-trips through unchanged and that cannot break out of the string
+    # to inject code.
+    level_lit = json.dumps(scratch_level)
     snippet = f'''
 import unreal
 _ok = False
-_path = "{scratch_level}"
+_path = {level_lit}
 try:
     _les = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
     try:
