@@ -2,7 +2,7 @@
 
 # Unreal AI Connection
 
-**Drive Unreal Engine 5 from any MCP-compliant client over a local TCP socket.**
+**Drive Unreal Engine 5.7 from any MCP-compliant client over a local TCP socket.**
 
 105 tools total. Zero pixel-clicking. ~50ms round-trip.
 
@@ -26,6 +26,8 @@
      returns a frozen or blank frame. A reliable client→bridge→UE loop recording is
      unblocked once render_camera_to_png is host-built (host UE 5.7 cold rebuild) and
      smoke-verified. Until then, do NOT embed a placeholder or fabricated GIF here. -->
+
+Authoring high-quality assets: see [docs/ASSET-PIPELINE-BLENDER.md](docs/ASSET-PIPELINE-BLENDER.md).
 
 ---
 
@@ -97,9 +99,9 @@ Also discoverable in the [official MCP Registry](https://github.com/modelcontext
 
 ```mermaid
 graph LR
-    A[Claude Code<br/>or any MCP client] -->|stdio MCP| B[Python Bridge]
+    A[Any MCP client] -->|stdio MCP| B[Python Bridge]
     B -->|TCP 127.0.0.1:18888| C[UnrealClaudeMCP plugin<br/>UE editor module]
-    C -->|native C++ API| D[Unreal Editor 5.7+]
+    C -->|native C++ API| D[Unreal Editor 5.7]
 ```
 
 <details>
@@ -447,7 +449,7 @@ tests/                            Pytest suite for the bridge (no UE required)
 Two in-flight items are stated plainly here so nothing is oversold:
 
 - **`render_camera_to_png` — merged and discoverable; needs a host UE 5.7 rebuild to execute.** This native C++ handler forces a synchronous game-thread render so screenshot capture works headless, where deferred screenshot paths return a frozen or blank frame under bridge automation. It is wired and shows up in `tools/list`, but the C++ was authored and bot-hardened to 5.7-verified APIs *without* a host compile this session — until a host UE 5.7 cold rebuild registers the new handler, calling it returns a method-not-found error. Bridge-side behavior is unaffected.
-- **Multi-version support (Phase H) is incremental scaffolding, certified on UE 5.7 only.** Two real increments have landed: engine-version gating for the UE-5.0+ synthetic tools (bridge-side, verified) and the asset-registry compatibility shims wired into 6 handler sites (native, unverified-compile). It is **not** certified on any engine other than 5.7; per-engine host builds are required, and the remaining shim clusters (ticker, save-delegate, LWC, mesh getters, FImageUtils) are still pending. Tracking and the full strategy live in [`docs/PHASE-H-COMPAT.md`](docs/PHASE-H-COMPAT.md).
+- **Officially built & tested on UE 5.7.** Other UE versions are community / best-effort: the cross-engine compatibility scaffold lets you build from source for your engine version (uncertified, not actively maintained, contributions welcome). See [ADR-0001](docs/adr/ADR-0001-ue57-only-freeze-cross-engine-compat.md) / [docs/PHASE-H-COMPAT.md](docs/PHASE-H-COMPAT.md).
 
 ---
 

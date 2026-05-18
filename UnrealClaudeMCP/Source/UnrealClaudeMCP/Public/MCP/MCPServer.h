@@ -10,10 +10,10 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "HAL/CriticalSection.h"
-#include "Misc/ScopeLock.h"
 #include "Containers/Ticker.h"
 #include "Interfaces/IPv4/IPv4Endpoint.h"
+#include "HAL/CriticalSection.h"
+#include "Misc/ScopeLock.h"
 // UNVERIFIED-COMPILE: cross-engine ticker alias. FUCMCPTicker == FTSTicker
 // (>=5.0) or FTicker (4.27). See UCMCPCompat.h. Source-authored only; no
 // host build performed this session.
@@ -102,26 +102,18 @@ private:
     TUniquePtr<FTcpListener> Listener;
     TArray<FSocket*> ConnectedClients;
 
-    /** Sockets accepted on the FTcpListener thread, awaiting adoption on the
-     *  game thread at the top of TickClients. Guarded by PendingClientsCS so
-     *  the listener thread never touches ConnectedClients/ReadStates/WriteStates
-     *  (those stay strictly game-thread). */
+    // D2 (PR #226 hardening layered on #225): FTcpListener runs its accept
+    // loop on its OWN FRunnable thread, so OnConnectionAccepted fires off the
+    // game thread. Accepted sockets are parked here under PendingClientsCS and
+    // adopted on the game thread at the top of TickClients — keeping
+    // ConnectedClients/ReadStates/WriteStates strictly game-thread so #225's
+    // snapshot copy and the ranged-for can never race the listener thread.
     FCriticalSection PendingClientsCS;
     TArray<FSocket*> PendingAccepted;
 
-    /** Reentrancy guard. True only while the TickClients ranged-for is live.
-     *  A handler dispatched mid-tick (e.g. quit_editor -> Stop()) checks this
-     *  and defers teardown instead of mutating ConnectedClients during
-     *  iteration. Game-thread only. */
-    bool bTicking = false;
-    bool bStopRequested = false;
-
     // v0.9.1: per-client partial-frame state. Keys are FSocket* — same lifetime
-    // as ConnectedClients. Accepted sockets are first parked in PendingAccepted
-    // (listener thread, guarded by PendingClientsCS) and adopted into
-    // ConnectedClients/ReadStates/WriteStates at the top of TickClients (game
-    // thread only). Cleanup happens in three places: TickClients drop path,
-    // Stop() iteration, destructor (via Stop).
+    // as ConnectedClients. Cleanup happens in three places: TickClients drop
+    // path, Stop() iteration, destructor (via Stop).
     TMap<FSocket*, FUCMCPClientReadState> ReadStates;
     TMap<FSocket*, FUCMCPClientWriteState> WriteStates;
 

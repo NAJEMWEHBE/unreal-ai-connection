@@ -13,8 +13,9 @@
 //     Invalidate -> RedrawLevelEditingViewports(true)
 //     -> Viewport->Draw(false) -> FlushRenderingCommands -> ReadPixels -> encode.
 //
-// UNVERIFIED-COMPILE -- authored without a host UE 5.7 build available this
-// session.  Host must compile + smoke-test before trusting any output.
+// UE 5.7: host-compiled + runtime-verified 2026-05-17 (Build.bat Result:
+// Succeeded, MSVC 14.44; live editor wrote a 2,059,202-byte PNG via this
+// handler -- the inert-handler state is cleared).
 //
 // Hardened against UE 5.7 source since first authoring:
 //   - viewport acquisition now uses SLevelViewport::GetSharedActiveViewport()
@@ -22,9 +23,8 @@
 //   - PNG encode now uses FImageUtils::PNGCompressImageArray (TArray64), matching
 //     the 5.7-verified Handler_GetViewportScreenshot.cpp (CompressImageArray is
 //     UE_DEPRECATED(5.1)).
-// One residual point stays flagged UNVERIFIED 5.7 in the code below: the
-// FEditorViewportClient::ViewFOV member-vs-setter access -- search for
-// UNVERIFIED 5.7 to locate it before the host-build pass.
+// The FEditorViewportClient::ViewFOV member access (used below) compiled
+// clean on the 2026-05-17 UE 5.7 host build -- no longer a residual risk.
 
 #include "MCP/MCPHandler.h"
 
@@ -41,10 +41,11 @@
 #include "ImageUtils.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
-// UNVERIFIED-COMPILE (Phase H FImageUtils PNG cluster): PNG encode routed
-// through UCMCPCompat::EncodePngFColor -- PNGCompressImageArray/TArray64
-// (>=5.1) vs legacy CompressImageArray/TArray (<=5.0). Source-authored only;
-// no 5.0/5.1 host build this session.
+// Phase H FImageUtils PNG cluster: PNG encode routed through
+// UCMCPCompat::EncodePngFColor -- PNGCompressImageArray/TArray64 (>=5.1) vs
+// legacy CompressImageArray/TArray (<=5.0). The >=5.1 path is host-verified
+// (5.7 build 2026-05-17; 5.1 T2 build in the 31st-note window); the <=5.0
+// path is still source-only (no 5.0 host build).
 #include "UCMCPCompat.h"
 #include "Modules/ModuleManager.h"
 #include "Engine/TextureRenderTarget2D.h"
@@ -120,8 +121,8 @@ private:
         FLevelEditorViewportClient& VC = LV->GetLevelViewportClient();
         FVector  SavedLoc = VC.GetViewLocation();
         FRotator SavedRot = VC.GetViewRotation();
-        // UNVERIFIED 5.7 -- grep EditorViewportClient.h before host build:
-        //   Prefer public member ViewFOV over SetViewFOV(); setter name may differ.
+        // UE 5.7 host-verified 2026-05-17: public member ViewFOV compiles
+        // clean (no SetViewFOV() needed).
         float SavedFov = VC.ViewFOV;
         if (FovDeg > 0.0) { VC.ViewFOV = static_cast<float>(FovDeg); }
         VC.Invalidate();
@@ -181,7 +182,7 @@ private:
                     FLevelEditorViewportClient& VC = LV->GetLevelViewportClient();
                     CaptureActor->SetActorLocation(VC.GetViewLocation());
                     CaptureActor->SetActorRotation(VC.GetViewRotation());
-                    if (FovDeg <= 0.0) { Comp->FOVAngle = VC.ViewFOV; }  // UNVERIFIED 5.7 -- prefer member, see Path A
+                    if (FovDeg <= 0.0) { Comp->FOVAngle = VC.ViewFOV; }  // UE 5.7 host-verified 2026-05-17 -- member access, see Path A
                 }
             }
         }
@@ -200,7 +201,8 @@ private:
     // Shared: encode TArray<FColor> to PNG and save to disk.
     TSharedPtr<FJsonObject> EncodeToPng(const TArray<FColor>& Bitmap, int32 W, int32 H, const FString& OutPath, FString& OutError)
     {
-        // UNVERIFIED-COMPILE: cross-engine PNG encode.
+        // Cross-engine PNG encode (>=5.1 path host-verified 2026-05-17 on
+        // 5.7; <=5.0 path source-only):
         //   >=5.1 : FImageUtils::PNGCompressImageArray(W,H,TConstArrayView64<FColor>,TArray64<uint8>&)
         //   <=5.0 : FImageUtils::CompressImageArray(W,H,const TArray<FColor>&,TArray<uint8>&)
         // 5.7 ground truth (Engine/Source/Runtime/Engine/Public/ImageUtils.h)
