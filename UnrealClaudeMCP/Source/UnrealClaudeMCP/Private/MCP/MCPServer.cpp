@@ -271,8 +271,16 @@ bool FUCMCPServer::TickClients(float /*DeltaTime*/)
     ISocketSubsystem* Subsystem = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM);
     TArray<FSocket*> Dropped;
 
-    for (FSocket* Sock : ConnectedClients)
+    // A handler dispatched below (e.g. execute_unreal_python running quit_editor,
+    // or execute_console_command "Exit") can reentrantly call FUCMCPServer::Stop()
+    // -> ConnectedClients.Empty() + socket destruction, and OnConnectionAccepted can
+    // Add() mid-tick. Iterate a snapshot so this ranged-for can't be invalidated;
+    // the bRunning bail-outs below prevent touching sockets Stop() already destroyed.
+    TArray<FSocket*> ClientsThisTick = ConnectedClients;
+    for (FSocket* Sock : ClientsThisTick)
     {
+        if (!bRunning) { return false; }
+
         if (!Sock || Sock->GetConnectionState() != SCS_Connected)
         {
             Dropped.Add(Sock);
@@ -325,6 +333,7 @@ bool FUCMCPServer::TickClients(float /*DeltaTime*/)
             R.Reset();
 
             const FString Resp = FUCMCPDispatcher::HandleMessage(Body);
+            if (!bRunning) { return false; }   // a handler tore the server down (quit/Exit); sockets already destroyed by Stop()
             if (Resp.IsEmpty())
             {
                 // Notification — per JSON-RPC spec, no response. Try next frame.
@@ -354,6 +363,7 @@ bool FUCMCPServer::TickClients(float /*DeltaTime*/)
         }
     }
 
+    if (!bRunning) { return false; }   // Stop() already closed/destroyed all sockets and emptied the maps
     for (FSocket* Sock : Dropped)
     {
         ConnectedClients.Remove(Sock);
