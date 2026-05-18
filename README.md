@@ -27,6 +27,8 @@
      unblocked once render_camera_to_png is host-built (host UE 5.7 cold rebuild) and
      smoke-verified. Until then, do NOT embed a placeholder or fabricated GIF here. -->
 
+Authoring high-quality assets: see [docs/ASSET-PIPELINE-BLENDER.md](docs/ASSET-PIPELINE-BLENDER.md).
+
 ---
 
 ## Install (one paste, any client)
