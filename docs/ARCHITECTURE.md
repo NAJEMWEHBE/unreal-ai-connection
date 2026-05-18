@@ -236,6 +236,8 @@ These are real bugs / surprises that cost hours to find. Documented here as a de
   unreal.log(f"__PROBE__ unreal.SomeStruct(1,2,3) -> {s.field_a} {s.field_b} {s.field_c} __END__")
   ```
 
+- Never structurally mutate `ConnectedClients` while `FUCMCPServer::TickClients()` ranged-iterates it. `FTcpListener` runs its accept loop on its own `FRunnable` thread, so `OnConnectionAccepted` must only park the socket into the lock-guarded `PendingAccepted` (an `FCriticalSection PendingClientsCS`); the game thread adopts those at the top of `TickClients` BEFORE the ranged-for, so all `ConnectedClients`/`ReadStates`/`WriteStates` `.Add`s are game-thread-only and outside the loop. A handler dispatched mid-tick (e.g. `execute_unreal_python` → `quit_editor` → `FUCMCPServer::Stop()`) must defer teardown via the `bTicking`/`bStopRequested` reentrancy guard and never call `ConnectedClients.Empty()` in-loop. Either mutation trips UE's `TARRAY_RANGED_FOR_CHECKS` ensure "Array has changed during ranged-for iteration!" (`Engine/Source/Runtime/Core/Public/Containers/Array.h`) in Development/Editor builds and crashes the editor on shutdown. Removal was already correctly deferred via the local `Dropped` array — a removal-only fix does NOT address either of these two paths.
+
 ## License
 
 MIT. © 2026 HD Media (Kuwait).

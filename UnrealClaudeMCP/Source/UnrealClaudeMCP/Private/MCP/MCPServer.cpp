@@ -216,11 +216,26 @@ void FUCMCPServer::Start(int32 InPort)
 
 void FUCMCPServer::Stop()
 {
+    if (bTicking)
+    {
+        // Reentrant: invoked from a handler dispatched inside the TickClients
+        // ranged-for (e.g. execute_unreal_python -> quit_editor). Mutating
+        // ConnectedClients now would invalidate the live iterator. Defer the
+        // real teardown to the end of the current tick.
+        bStopRequested = true;
+        return;
+    }
+
     if (!bRunning)
     {
         return;
     }
 
+    // (1) Destroy the listener first so no further OnConnectionAccepted can
+    //     fire on the listener thread. ~FTcpListener blocking-joins its thread.
+    Listener.Reset();
+
+    // (2) Remove the ticker. Safe now: we are not inside a tick.
     if (TickerHandle.IsValid())
     {
         // UNVERIFIED-COMPILE: see AddTicker note above (FUCMCPTicker shim).
@@ -228,8 +243,25 @@ void FUCMCPServer::Stop()
         TickerHandle.Reset();
     }
 
-    Listener.Reset();
+    // (3) Close any sockets that were accepted but never adopted.
+    {
+        FScopeLock Lock(&PendingClientsCS);
+        ISocketSubsystem* PendingSubsystem = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM);
+        for (FSocket* Sock : PendingAccepted)
+        {
+            if (Sock)
+            {
+                Sock->Close();
+                if (PendingSubsystem)
+                {
+                    PendingSubsystem->DestroySocket(Sock);
+                }
+            }
+        }
+        PendingAccepted.Reset();
+    }
 
+    // (4) Close and destroy all adopted clients.
     ISocketSubsystem* Subsystem = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM);
     for (FSocket* Sock : ConnectedClients)
     {
@@ -256,21 +288,41 @@ bool FUCMCPServer::OnConnectionAccepted(FSocket* InSocket, const FIPv4Endpoint& 
         return false;
     }
     InSocket->SetNonBlocking(true);
-    ConnectedClients.Add(InSocket);
-    // Explicit insertions so the per-client state lifetime is visible at the
-    // accept site rather than implicit via FindOrAdd later.
-    ReadStates.Add(InSocket, FUCMCPClientReadState{});
-    WriteStates.Add(InSocket, FUCMCPClientWriteState{});
-    UE_LOG(LogUCMCP, Log, TEXT("Client connected from %s (now %d clients)"),
-        *InEndpoint.ToString(), ConnectedClients.Num());
+    {
+        FScopeLock Lock(&PendingClientsCS);
+        PendingAccepted.Add(InSocket);
+    }
+    UE_LOG(LogUCMCP, Log, TEXT("Client connected from %s (pending adoption)"),
+        *InEndpoint.ToString());
     return true;
 }
 
 bool FUCMCPServer::TickClients(float /*DeltaTime*/)
 {
+    // Adopt sockets accepted on the FTcpListener thread. Done before the
+    // ranged-for so ConnectedClients is only ever structurally mutated on the
+    // game thread and never while its iterator is live (fixes D2 data race
+    // and the "Array changed during ranged-for" ensure).
+    {
+        TArray<FSocket*> NewlyAccepted;
+        {
+            FScopeLock Lock(&PendingClientsCS);
+            NewlyAccepted = MoveTemp(PendingAccepted);
+            PendingAccepted.Reset();
+        }
+        for (FSocket* Sock : NewlyAccepted)
+        {
+            ConnectedClients.Add(Sock);
+            ReadStates.Add(Sock, FUCMCPClientReadState{});
+            WriteStates.Add(Sock, FUCMCPClientWriteState{});
+            UE_LOG(LogUCMCP, Log, TEXT("Client adopted (now %d clients)"), ConnectedClients.Num());
+        }
+    }
+
     ISocketSubsystem* Subsystem = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM);
     TArray<FSocket*> Dropped;
 
+    bTicking = true;
     for (FSocket* Sock : ConnectedClients)
     {
         if (!Sock || Sock->GetConnectionState() != SCS_Connected)
@@ -364,6 +416,16 @@ bool FUCMCPServer::TickClients(float /*DeltaTime*/)
             Sock->Close();
             Subsystem->DestroySocket(Sock);
         }
+    }
+
+    bTicking = false;
+
+    if (bStopRequested)
+    {
+        bStopRequested = false;
+        // Teardown was deferred because a handler called Stop() mid-tick.
+        // bTicking is false now, so this performs the real teardown.
+        Stop();
     }
 
     return true;
