@@ -870,8 +870,8 @@ def main() -> None:
         # Keep the repo light (no LFS): if the first pass is > 20 MB, re-encode
         # once at a smaller width / fps and report the smaller artifact.
         if gif_bytes > 20 * 1024 * 1024:
-            print(f"  GIF > 20 MB — re-encoding once at scale-w=800 fps=15 "
-                  f"to keep the repo light ...")
+            print("  GIF > 20 MB — re-encoding once at scale-w=800 fps=15 "
+                  "to keep the repo light ...")
             run_ffmpeg(build_ffmpeg_cmd(frames_dir, out_gif, 15, 800))
             if not os.path.exists(out_gif):
                 die(f"re-encode reported success but {out_gif} is gone.")
