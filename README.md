@@ -20,12 +20,7 @@
 
 </div>
 
-<!-- TODO: no demo screencast GIF yet. An automated capture is gated on the same root
-     cause render_camera_to_png fixes: under bridge automation with the editor
-     backgrounded, UE does not pump render frames, so every headless capture path
-     returns a frozen or blank frame. A reliable client→bridge→UE loop recording is
-     unblocked once render_camera_to_png is host-built (host UE 5.7 cold rebuild) and
-     smoke-verified. Until then, do NOT embed a placeholder or fabricated GIF here. -->
+![Demo — an MCP client drives Unreal Engine 5.7 over a local socket: a procedural city blockout is built, then orbit-rendered, frames returned and assembled into this loop](docs/images/demo.gif)
 
 ---
 
