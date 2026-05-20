@@ -21,11 +21,11 @@
 #include "Materials/MaterialInstance.h"
 #include "Materials/MaterialInterface.h"
 #include "UCMCPCompat.h"
-#if UCMCP_ENGINE_AT_LEAST(5, 2)
-// >=5.x verified-correct path. Materials/MaterialParameters.h is a 5.2+
-// header (ABSENT on 5.1: verified no such file under
-// F:\UE_5.1\Engine\Source\Runtime\Engine\Classes\Materials\). It pulls in
-// FMaterialParameterInfo / EMaterialParameterAssociation as used below.
+#if UCMCP_ENGINE_AT_LEAST(5, 7)
+// 5.7+ verified-correct path. Materials/MaterialParameters.h is a 5.7+
+// header (ABSENT on 5.6: verified on Aximmetry UE 5.6 host build). Pulls
+// in FMaterialParameterInfo / EMaterialParameterAssociation. The earlier
+// 5.2 boundary was wrong — the standalone header lands at 5.7.
 #include "Materials/MaterialParameters.h"
 #else
 // UE 5.1: Materials/MaterialParameters.h does not exist. The only symbols

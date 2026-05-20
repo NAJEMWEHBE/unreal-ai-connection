@@ -197,8 +197,12 @@ public:
         int32 ComponentCountTotal = 0;
         if (Info)
         {
-#if UCMCP_ENGINE_AT_LEAST(5, 2)
-            // >=5.x verified-correct path. GetSortedStreamingProxies() at
+#if UCMCP_ENGINE_AT_LEAST(5, 7)
+            // 5.7+ verified-correct path (NOT 5.6 — verified absent on
+            // Aximmetry UE 5.6 host build; rename + replacement landed at
+            // 5.7 per UE_DEPRECATED(5.7,...) on the old StreamingProxies
+            // member). Earlier 5.2 boundary was incorrect.
+            // GetSortedStreamingProxies() at
             // F:\UE_5.7\Engine\Source\Runtime\Landscape\Classes\LandscapeInfo.h:388;
             // ForEachLandscapeProxy() at LandscapeInfo.h:398 (impl iterates
             // LandscapeActor + SortedStreamingProxies,
@@ -214,33 +218,27 @@ public:
                     return true;
                 });
 #else
-            // UE 5.1: GetSortedStreamingProxies() and ForEachLandscapeProxy()
-            // are ABSENT (the StreamingProxies->StreamingProxies_DEPRECATED
-            // rename + the GetSortedStreamingProxies replacement are flagged
-            // UE_DEPRECATED(5.7,...) at
-            // F:\UE_5.7\Engine\Source\Runtime\Landscape\Classes\LandscapeInfo.h:156;
-            // neither symbol exists on 5.1). On 5.1:
-            //  - StreamingProxies (live array) at
-            //    F:\UE_5.1\Engine\Source\Runtime\Landscape\Classes\LandscapeInfo.h:164
-            //    -> .Num() is the same proxy count (sorting never changes Num()).
-            //  - ForAllLandscapeProxies(TFunctionRef<void(ALandscapeProxy*)>)
-            //    at F:\UE_5.1\...\LandscapeInfo.h:358, impl
-            //    F:\UE_5.1\Engine\Source\Runtime\Landscape\Private\Landscape.cpp:4106
-            //    iterates LandscapeActor + StreamingProxies -- the exact
-            //    semantic equivalent of 5.7 ForEachLandscapeProxy (the void
-            //    signature has no early-out, but the >=5.x lambda always
-            //    returns true so behavior is identical).
-            // UNVERIFIED-COMPILE: the 5.2..5.6 boundary for these APIs is not
-            // verifiable here; boundary set to 5.2 so the verified-correct 5.7
-            // path is unchanged.
+            // UE 5.0 - 5.6: GetSortedStreamingProxies() is ABSENT (added 5.7
+            // alongside the StreamingProxies->StreamingProxies_DEPRECATED
+            // rename). Use the live `StreamingProxies` array directly for
+            // the proxy count (sorting never changes Num()).
+            //
+            // For iteration:
+            //  - UE 5.6 has ForEachLandscapeProxy(TFunctionRef<bool(...)>)
+            //    — verified present in
+            //    C:\Program Files\AXSceneEditor\2026.2.0\Engine\Source\Runtime\Landscape\Classes\LandscapeInfo.h:399.
+            //  - The old `ForAllLandscapeProxies` (void signature) was
+            //    removed by 5.6. Use ForEachLandscapeProxy on all 5.x
+            //    branches; behavior matches (lambda always returns true).
             StreamingProxyCount = Info->StreamingProxies.Num();
-            Info->ForAllLandscapeProxies(
-                [&ComponentCountTotal](ALandscapeProxy* Proxy)
+            Info->ForEachLandscapeProxy(
+                [&ComponentCountTotal](ALandscapeProxy* Proxy) -> bool
                 {
                     if (Proxy)
                     {
                         ComponentCountTotal += Proxy->LandscapeComponents.Num();
                     }
+                    return true;
                 });
 #endif
         }
