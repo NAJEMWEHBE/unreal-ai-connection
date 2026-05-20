@@ -28,18 +28,17 @@
 // 5.2 boundary was wrong — the standalone header lands at 5.7.
 #include "Materials/MaterialParameters.h"
 #else
-// UE 5.1: Materials/MaterialParameters.h does not exist. The only symbols
-// this TU needs from it -- FMaterialParameterInfo and the
-// EMaterialParameterAssociation enumerators (LayerParameter / BlendParameter
-// / GlobalParameter) -- are defined on 5.1 in MaterialTypes.h:
-//   enum EMaterialParameterAssociation -> F:\UE_5.1\Engine\Source\Runtime\Engine\Public\MaterialTypes.h:20
-//   struct FMaterialParameterInfo      -> F:\UE_5.1\Engine\Source\Runtime\Engine\Public\MaterialTypes.h:49
-// MaterialTypes.h exists on both 5.1 and 5.7, so this include is the
-// correct minimal 5.1 substitute. Boundary is 5.2 to leave the
-// verified-correct 5.7 include untouched.
-// UNVERIFIED-COMPILE: the exact 5.2 introduction of MaterialParameters.h is
-// not verifiable here (no 5.2 engine on disk); 5.2 is the directive-stated
-// "header is 5.2+" boundary and keeps every >=5.2 engine on the original.
+// UE 5.0 - 5.6: Materials/MaterialParameters.h does not exist (it is a
+// 5.7+ standalone header — verified absent on the Aximmetry UE 5.6 host
+// tree at Engine/Source/Runtime/Engine/Public/Materials/). The only
+// symbols this TU needs from it — FMaterialParameterInfo and the
+// EMaterialParameterAssociation enumerators (LayerParameter /
+// BlendParameter / GlobalParameter) — are defined in MaterialTypes.h
+// (Engine/Source/Runtime/Engine/Public/MaterialTypes.h, struct
+// FMaterialParameterInfo + enum EMaterialParameterAssociation).
+// MaterialTypes.h is stable across 5.0..5.7 so it is the correct
+// fallback for every pre-5.7 bucket. Verified on UE 5.6 Aximmetry
+// 2026.2.0 host build (ue-5.6-compat branch).
 #include "MaterialTypes.h"
 #endif
 #include "Engine/Texture.h"
