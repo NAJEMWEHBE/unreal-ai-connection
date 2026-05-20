@@ -1,6 +1,6 @@
 # MCP Tools Reference
 
-**104 tools total.** 71 are JSON-RPC 2.0 methods served on `127.0.0.1:18888` directly by the plugin's C++ handlers. The remaining 33 — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`, `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap`, `sequencer_add_transform_keyframe` — are bridge-side **synthetic tools** that are intercepted by `bridge/unreal_claude_mcp_bridge.py` and served by composing existing handlers (or running Python via `execute_unreal_python`, or — for `compile_mod_pak` — shelling out to `RunUAT.bat` entirely outside the UE process). They are visible to MCP clients exactly like the C++ tools but cannot be reached by sending raw JSON-RPC to the TCP socket — only via the MCP bridge or by replicating their composition manually. The "Implementation" header on each entry below indicates whether a tool is C++ or bridge-side.
+**105 tools total.** 71 are JSON-RPC 2.0 methods served on `127.0.0.1:18888` directly by the plugin's C++ handlers. The remaining 34 — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`, `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap`, `sequencer_add_transform_keyframe`, `bulk_spawn_actors` — are bridge-side **synthetic tools** that are intercepted by `bridge/unreal_claude_mcp_bridge.py` and served by composing existing handlers (or running Python via `execute_unreal_python`, or — for `compile_mod_pak` — shelling out to `RunUAT.bat` entirely outside the UE process). They are visible to MCP clients exactly like the C++ tools but cannot be reached by sending raw JSON-RPC to the TCP socket — only via the MCP bridge or by replicating their composition manually. The "Implementation" header on each entry below indicates whether a tool is C++ or bridge-side.
 
 Each tool's params and result are documented with a working example.
 
@@ -13,7 +13,7 @@ s.send(json.dumps({"jsonrpc":"2.0","id":1,"method":"<METHOD>","params":{...}}).e
 print(s.recv(65536).decode())
 ```
 
-Synthetic tools (all 33: `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`, `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap`, `sequencer_add_transform_keyframe`) must be reached through the MCP bridge.
+Synthetic tools (all 34: `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`, `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap`, `sequencer_add_transform_keyframe`, `bulk_spawn_actors`) must be reached through the MCP bridge.
 
 ---
 
@@ -3544,6 +3544,55 @@ Apply many UPROPERTY mutations across many actors in one MCP call. Composes [`se
   "assignments": [
     {"actor": "Crate_A", "property": "bHidden", "value": true},
     {"actor": "Crate_B", "property": "bHidden", "value": true}
+  ],
+  "continue_on_error": false
+}}
+```
+
+---
+
+## bulk_spawn_actors
+
+Spawn multiple actors in the editor world in a single MCP call. Composes [`spawn_actor`](#spawn_actor) per entry; mirrors the [`bulk_set_actor_property`](#bulk_set_actor_property) partial-failure semantics (`continue_on_error` default `true`).
+
+**Bridge-side synthetic tool.** Each spawn entry is independent — this is **NOT** "spawn N copies of the same class", it is "run N individual `spawn_actor` calls". Useful for AI scene-composition workflows that need to place props, lights, or spawn-points without N sequential round-trips.
+
+**Params**
+- `spawns` (array of object, required) — list of spawn specs, max 100 entries; each entry:
+  - `class_path` (string, required) — actor class path (e.g. `/Script/Engine.StaticMeshActor` or `/Game/Blueprints/BP_Torch.BP_Torch_C`)
+  - `location` (object, optional) — world-space `{x, y, z}`; defaults to `{0,0,0}`
+  - `rotation` (object, optional) — `{pitch, yaw, roll}` in degrees; defaults to `{0,0,0}`
+  - `label` (string, optional) — visible name in the World Outliner; defaults to UE auto-naming
+  - `properties` (object, optional) — map of `{PropertyName: value}` applied immediately after spawn via `PropertyCoercion`
+- `continue_on_error` (bool, optional, default `true`) — when `false`, halt at the first spawn failure and emit `halted_at_index`
+
+**Result**
+- `ok` (bool) — `true` only when `failed` is empty
+- `total` (int) — `spawns.length`
+- `spawned` (int) — count of successful spawns
+- `failed` (array) — `{class_path, label, error: {code, message}}` per failure, preserving the upstream `spawn_actor` error code
+- `halted_at_index` (int) — present **only** when `continue_on_error=false` stopped the loop early; the 0-based index of the failed spawn
+
+**Errors (envelope-level):** `-32602` (`missing_required_field` / `invalid_spawns_shape` / `spawn_must_be_object` / `spawn_missing_field` / `too_many_spawns` / `invalid_field` / non-bool `continue_on_error`).
+
+**Example — place a ring of torches**
+```json
+{"jsonrpc":"2.0","id":1,"method":"bulk_spawn_actors","params":{
+  "spawns": [
+    {"class_path":"/Game/Blueprints/BP_Torch.BP_Torch_C","location":{"x":0,"y":0,"z":0},"label":"Torch_N"},
+    {"class_path":"/Game/Blueprints/BP_Torch.BP_Torch_C","location":{"x":500,"y":0,"z":0},"label":"Torch_E"},
+    {"class_path":"/Game/Blueprints/BP_Torch.BP_Torch_C","location":{"x":0,"y":500,"z":0},"label":"Torch_S"},
+    {"class_path":"/Game/Blueprints/BP_Torch.BP_Torch_C","location":{"x":-500,"y":0,"z":0},"label":"Torch_W"}
+  ]
+}}
+```
+
+**Example — fail fast on first bad class**
+```json
+{"jsonrpc":"2.0","id":2,"method":"bulk_spawn_actors","params":{
+  "spawns": [
+    {"class_path":"/Script/Engine.StaticMeshActor","label":"Rock_0"},
+    {"class_path":"/Game/BP_NONEXISTENT.BP_NONEXISTENT_C","label":"BadActor"}
   ],
   "continue_on_error": false
 }}

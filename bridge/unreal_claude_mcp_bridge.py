@@ -13,9 +13,9 @@ plugin speaks raw JSON-RPC over a local TCP socket (default
 Behaviour:
   - "initialize"             returned synthetically (does NOT hit the UE server)
   - "notifications/*"        consumed silently
-  - "tools/list"             returns a static list of all 104 tools (71
+  - "tools/list"             returns a static list of all 105 tools (71
                              dispatched to the UE plugin's C++ handlers
-                             plus 33 bridge-side synthetic tools served by
+                             plus 34 bridge-side synthetic tools served by
                              SYNTHETIC_TOOLS without crossing the wire as
                              a single UE round-trip)
   - "tools/call"             unpacks {name, arguments} and forwards to the
@@ -319,6 +319,35 @@ TOOLS = [
                 },
             },
             "required": ["assignments"],
+        },
+    },
+    {
+        "name": "bulk_spawn_actors",
+        "description": "Spawn multiple actors in the editor world in a single MCP call. Composes spawn_actor bridge-side; mirrors the bulk_*_assets family shape (spawns list + continue_on_error). Each spawn entry specifies its own {class_path, location, rotation, label, properties} — this is NOT 'spawn N copies of the same class' — it's 'run N individual spawn_actor calls'. Useful for AI scene-composition workflows that need to place props, lights, or spawn-points without N sequential round-trips.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "spawns": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "class_path": {"type": "string", "description": "Actor class path (e.g. /Script/Engine.StaticMeshActor or /Game/Blueprints/BP_Torch.BP_Torch_C)."},
+                            "location": {"type": "object", "description": "World-space {x, y, z}. Defaults to {0,0,0}."},
+                            "rotation": {"type": "object", "description": "{pitch, yaw, roll} in degrees. Defaults to {0,0,0}."},
+                            "label": {"type": "string", "description": "Visible name in the World Outliner; defaults to UE auto-naming."},
+                            "properties": {"type": "object", "description": "Map of {PropertyName: value} applied immediately after spawn via PropertyCoercion."},
+                        },
+                        "required": ["class_path"],
+                    },
+                    "description": "List of spawn specs; each entry must include class_path; max 100 entries."
+                },
+                "continue_on_error": {
+                    "type": "boolean",
+                    "description": "Default true. When false, stop at the first spawn failure and return partial results plus halted_at_index."
+                },
+            },
+            "required": ["spawns"],
         },
     },
     {
@@ -4612,6 +4641,123 @@ def synthetic_bulk_set_actor_property(req_id, args: dict) -> dict:
     return _wrap_tool_result(req_id, body)
 
 
+def synthetic_bulk_spawn_actors(req_id, args: dict) -> dict:
+    """Bridge-side composition: spawn multiple actors in one MCP call by
+    dispatching `spawn_actor` per entry.
+
+    Composition:
+      For each {class_path, location?, rotation?, label?, properties?} in `spawns`:
+        1. spawn_actor {class_path, location, rotation, label, properties}
+        2. on failure: record + continue (continue_on_error=true, default)
+           OR halt and record halted_at_index (continue_on_error=false)
+
+    Useful for AI scene-composition workflows that need to place many actors
+    (props, lights, spawn-points) in a single round-trip instead of N
+    sequential spawn_actor calls. Mirrors bulk_set_actor_property semantics:
+    ok=true only when failed==0; halted_at_index appears only when
+    continue_on_error=false stopped the loop early.
+
+    Synthetic rather than C++ because the loop is pure protocol-level
+    composition over the existing spawn_actor handler.
+    """
+    if not isinstance(args, dict):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "bulk_spawn_actors: invalid_arguments: arguments must be an object",
+        })
+
+    if "spawns" not in args:
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "bulk_spawn_actors: missing_required_field: 'spawns' must be supplied as a list of {class_path, ...} objects",
+        })
+
+    spawns = args.get("spawns")
+    if not isinstance(spawns, list):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "bulk_spawn_actors: invalid_spawns_shape: 'spawns' must be a list of objects",
+        })
+
+    if len(spawns) > 100:
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": f"bulk_spawn_actors: too_many_spawns: at most 100 spawns per call (got {len(spawns)})",
+        })
+
+    for i, spawn in enumerate(spawns):
+        if not isinstance(spawn, dict):
+            return make_response(req_id, error={
+                "code": -32602,
+                "message": f"bulk_spawn_actors: spawn_must_be_object: spawns[{i}] must be an object",
+            })
+        class_path = spawn.get("class_path")
+        if not isinstance(class_path, str) or not class_path:
+            return make_response(req_id, error={
+                "code": -32602,
+                "message": f"bulk_spawn_actors: spawn_missing_field: spawns[{i}].'class_path' must be a non-empty string",
+            })
+        for opt_field, expected_type in (
+            ("location", dict), ("rotation", dict), ("properties", dict)
+        ):
+            val = spawn.get(opt_field)
+            if val is not None and not isinstance(val, expected_type):
+                return make_response(req_id, error={
+                    "code": -32602,
+                    "message": f"bulk_spawn_actors: invalid_field: spawns[{i}].'{opt_field}' must be an object if provided",
+                })
+        label = spawn.get("label")
+        if label is not None and not isinstance(label, str):
+            return make_response(req_id, error={
+                "code": -32602,
+                "message": f"bulk_spawn_actors: invalid_field: spawns[{i}].'label' must be a string if provided",
+            })
+
+    continue_on_error = args.get("continue_on_error", True)
+    if not isinstance(continue_on_error, bool):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "bulk_spawn_actors: invalid_field: 'continue_on_error' must be a boolean",
+        })
+
+    spawned = 0
+    failed: list[dict] = []
+    halted_at_index: int | None = None
+    for i, spawn in enumerate(spawns):
+        class_path = spawn["class_path"]
+        spawn_args: dict = {"class_path": class_path}
+        for opt in ("location", "rotation", "label", "properties"):
+            if opt in spawn:
+                spawn_args[opt] = spawn[opt]
+
+        spawn_resp = call_ue("spawn_actor", spawn_args)
+        if "error" in spawn_resp:
+            upstream = spawn_resp.get("error", {}) or {}
+            failed.append({
+                "class_path": class_path,
+                "label": spawn.get("label"),
+                "error": {
+                    "code": upstream.get("code", -32603) or -32603,
+                    "message": f"bulk_spawn_actors: spawn_failed: spawn_actor for '{class_path}' failed: {upstream.get('message') or ''}",
+                },
+            })
+            if not continue_on_error:
+                halted_at_index = i
+                break
+        else:
+            spawned += 1
+
+    body: dict = {
+        "ok": len(failed) == 0,
+        "total": len(spawns),
+        "spawned": spawned,
+        "failed": failed,
+    }
+    if halted_at_index is not None:
+        body["halted_at_index"] = halted_at_index
+    return _wrap_tool_result(req_id, body)
+
+
 def synthetic_compare_assets(req_id, args: dict) -> dict:
     """Bridge-side composition: symmetric diff between two assets' inspect_asset
     outputs.
@@ -6738,6 +6884,7 @@ SYNTHETIC_TOOLS = {
     "bulk_focus_actors": synthetic_bulk_focus_actors,
     "bulk_screenshot_actors": synthetic_bulk_screenshot_actors,
     "bulk_set_actor_property": synthetic_bulk_set_actor_property,
+    "bulk_spawn_actors": synthetic_bulk_spawn_actors,
     "compare_assets": synthetic_compare_assets,
     "bulk_set_console_variables": synthetic_bulk_set_console_variables,
     "inspect_dependency_graph": synthetic_inspect_dependency_graph,

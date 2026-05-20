@@ -127,6 +127,7 @@ def test_tool_names_are_unique_and_match_handlers():
         "marketplace_import",
         "convert_hdri_to_cubemap",
         "sequencer_add_transform_keyframe",
+        "bulk_spawn_actors",
     }
     assert set(names) == expected
 
@@ -6483,3 +6484,191 @@ def test_sequencer_add_transform_keyframe_propagates_call_ue_error():
         })
     assert "error" in resp
     assert "ue_exec_failed" in resp["error"]["message"]
+
+
+# ---- bulk_spawn_actors (Wave D) ----------------------------------------
+
+def test_bulk_spawn_actors_is_synthetic():
+    """Wave D: bulk_spawn_actors is a SYNTHETIC bridge-side composition
+    over spawn_actor. spawns REQUIRED; continue_on_error optional (default true)."""
+    tool = next((t for t in bridge.TOOLS if t["name"] == "bulk_spawn_actors"), None)
+    assert tool is not None
+    assert tool["inputSchema"]["required"] == ["spawns"]
+    props = tool["inputSchema"]["properties"]
+    assert props["spawns"]["type"] == "array"
+    assert props["continue_on_error"]["type"] == "boolean"
+    assert "bulk_spawn_actors" in bridge.SYNTHETIC_TOOLS
+    assert bridge.SYNTHETIC_TOOLS["bulk_spawn_actors"] is bridge.synthetic_bulk_spawn_actors
+
+
+def test_bulk_spawn_actors_happy_path():
+    """All spawns succeed -> ok=true, spawned==total, failed==[]."""
+    ok_resp = {"jsonrpc": "2.0", "id": 1, "result": {"ok": True, "label": "Torch"}}
+    with patch.object(bridge, "call_ue", side_effect=[ok_resp, ok_resp]) as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 940, "method": "tools/call",
+            "params": {"name": "bulk_spawn_actors", "arguments": {
+                "spawns": [
+                    {"class_path": "/Game/Blueprints/BP_Torch.BP_Torch_C",
+                     "location": {"x": 0, "y": 0, "z": 0}, "label": "Torch_0"},
+                    {"class_path": "/Game/Blueprints/BP_Torch.BP_Torch_C",
+                     "location": {"x": 200, "y": 0, "z": 0}, "label": "Torch_1"},
+                ],
+            }},
+        })
+    assert m.call_count == 2
+    assert m.call_args_list[0].args == (
+        "spawn_actor",
+        {"class_path": "/Game/Blueprints/BP_Torch.BP_Torch_C",
+         "location": {"x": 0, "y": 0, "z": 0}, "label": "Torch_0"},
+    )
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert body["ok"] is True
+    assert body["total"] == 2
+    assert body["spawned"] == 2
+    assert body["failed"] == []
+    assert "halted_at_index" not in body
+
+
+def test_bulk_spawn_actors_continue_on_error_true_records_failure():
+    """Second spawn fails; third still attempted. failed[] records class_path+label+error."""
+    ok_resp = {"jsonrpc": "2.0", "id": 1, "result": {"ok": True}}
+    err_resp = {"jsonrpc": "2.0", "id": 1, "error": {"code": -32000, "message": "class_not_found"}}
+    with patch.object(bridge, "call_ue", side_effect=[ok_resp, err_resp, ok_resp]) as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 941, "method": "tools/call",
+            "params": {"name": "bulk_spawn_actors", "arguments": {
+                "spawns": [
+                    {"class_path": "/Game/BP_A.BP_A_C"},
+                    {"class_path": "/Game/BP_BAD.BP_BAD_C", "label": "BadActor"},
+                    {"class_path": "/Game/BP_C.BP_C_C"},
+                ],
+            }},
+        })
+    assert m.call_count == 3
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert body["ok"] is False
+    assert body["spawned"] == 2
+    assert len(body["failed"]) == 1
+    assert body["failed"][0]["class_path"] == "/Game/BP_BAD.BP_BAD_C"
+    assert body["failed"][0]["label"] == "BadActor"
+    assert body["failed"][0]["error"]["code"] == -32000
+    assert "spawn_failed" in body["failed"][0]["error"]["message"]
+
+
+def test_bulk_spawn_actors_continue_on_error_false_halts():
+    """continue_on_error=false: first failure aborts; halted_at_index recorded;
+    third spawn never reached."""
+    err_resp = {"jsonrpc": "2.0", "id": 1, "error": {"code": -32000, "message": "boom"}}
+    with patch.object(bridge, "call_ue", side_effect=[err_resp]) as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 942, "method": "tools/call",
+            "params": {"name": "bulk_spawn_actors", "arguments": {
+                "spawns": [
+                    {"class_path": "/Game/BP_A.BP_A_C"},
+                    {"class_path": "/Game/BP_B.BP_B_C"},
+                    {"class_path": "/Game/BP_C.BP_C_C"},
+                ],
+                "continue_on_error": False,
+            }},
+        })
+    assert m.call_count == 1
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert body["ok"] is False
+    assert body["total"] == 3
+    assert body["spawned"] == 0
+    assert len(body["failed"]) == 1
+    assert body["halted_at_index"] == 0
+
+
+def test_bulk_spawn_actors_rejects_missing_spawns():
+    resp = bridge.handle({
+        "jsonrpc": "2.0", "id": 943, "method": "tools/call",
+        "params": {"name": "bulk_spawn_actors", "arguments": {}},
+    })
+    assert resp["error"]["code"] == -32602
+    assert "missing_required_field" in resp["error"]["message"]
+
+
+def test_bulk_spawn_actors_rejects_non_object_spawn():
+    """Each entry in spawns must be an object."""
+    with patch.object(bridge, "call_ue") as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 944, "method": "tools/call",
+            "params": {"name": "bulk_spawn_actors", "arguments": {
+                "spawns": [
+                    {"class_path": "/Game/BP_A.BP_A_C"},
+                    "not-an-object",
+                ],
+            }},
+        })
+    assert m.call_count == 0
+    assert resp["error"]["code"] == -32602
+    assert "spawn_must_be_object" in resp["error"]["message"]
+    assert "spawns[1]" in resp["error"]["message"]
+
+
+def test_bulk_spawn_actors_rejects_missing_class_path():
+    """class_path is required per spawn entry."""
+    with patch.object(bridge, "call_ue") as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 945, "method": "tools/call",
+            "params": {"name": "bulk_spawn_actors", "arguments": {
+                "spawns": [{"label": "OnlyLabel"}],
+            }},
+        })
+    assert m.call_count == 0
+    assert resp["error"]["code"] == -32602
+    assert "spawn_missing_field" in resp["error"]["message"]
+    assert "class_path" in resp["error"]["message"]
+
+
+def test_bulk_spawn_actors_rejects_too_many_spawns():
+    spawns = [{"class_path": f"/Game/BP_{i}.BP_{i}_C"} for i in range(101)]
+    with patch.object(bridge, "call_ue") as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 946, "method": "tools/call",
+            "params": {"name": "bulk_spawn_actors", "arguments": {"spawns": spawns}},
+        })
+    assert m.call_count == 0
+    assert resp["error"]["code"] == -32602
+    assert "too_many_spawns" in resp["error"]["message"]
+
+
+def test_bulk_spawn_actors_forwards_optional_fields():
+    """location, rotation, label, properties are forwarded to spawn_actor when present."""
+    ok_resp = {"jsonrpc": "2.0", "id": 1, "result": {"ok": True}}
+    with patch.object(bridge, "call_ue", return_value=ok_resp) as m:
+        bridge.handle({
+            "jsonrpc": "2.0", "id": 947, "method": "tools/call",
+            "params": {"name": "bulk_spawn_actors", "arguments": {
+                "spawns": [{
+                    "class_path": "/Script/Engine.StaticMeshActor",
+                    "location": {"x": 100, "y": 200, "z": 50},
+                    "rotation": {"pitch": 0, "yaw": 90, "roll": 0},
+                    "label": "MyProp",
+                    "properties": {"StaticMeshComponent.StaticMesh": "/Game/Meshes/Rock.Rock"},
+                }],
+            }},
+        })
+    assert m.call_count == 1
+    _, call_args = m.call_args.args
+    assert call_args["location"] == {"x": 100, "y": 200, "z": 50}
+    assert call_args["rotation"] == {"pitch": 0, "yaw": 90, "roll": 0}
+    assert call_args["label"] == "MyProp"
+    assert "properties" in call_args
+
+
+def test_bulk_spawn_actors_rejects_invalid_location_type():
+    """location must be an object (dict), not a list or string."""
+    with patch.object(bridge, "call_ue") as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 948, "method": "tools/call",
+            "params": {"name": "bulk_spawn_actors", "arguments": {
+                "spawns": [{"class_path": "/Game/BP_A.BP_A_C", "location": [0, 0, 0]}],
+            }},
+        })
+    assert m.call_count == 0
+    assert resp["error"]["code"] == -32602
+    assert "invalid_field" in resp["error"]["message"]
+    assert "location" in resp["error"]["message"]
