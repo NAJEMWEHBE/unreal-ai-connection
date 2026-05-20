@@ -10,7 +10,7 @@ The repo (this folder you're reading) is the **only thing that survives a format
 
 - **The repo source** — every PR through #85 is on `origin/main` at `github.com/NAJEMWEHBE/UnrealClaudeMCP`
 - **Session memory files** — preserved in [`docs/session-memory-archive/`](session-memory-archive/) (this is the safety net for the format)
-- **HANDOFF.md** — reflects the current state (104 tools, 71 C++ handlers + 34 bridge synthetic, all directives, all traps)
+- **HANDOFF.md** — reflects the current state (105 tools, 71 C++ handlers + 34 bridge synthetic, all directives, all traps)
 - **CLAUDE.md** at repo root — auto-loaded by Claude Code on session start; tells the agent to read HANDOFF.md
 - **The Unreal Engine install** — if it's on `F:\UE_5.7\` (different drive from the formatted C:), it survives. If you also wipe F:, follow step 7 below.
 

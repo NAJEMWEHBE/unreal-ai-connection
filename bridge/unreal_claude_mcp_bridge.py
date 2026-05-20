@@ -4700,14 +4700,12 @@ def synthetic_bulk_spawn_actors(req_id, args: dict) -> dict:
         for opt_field, expected_type in (
             ("location", dict), ("rotation", dict), ("properties", dict)
         ):
-            val = spawn.get(opt_field)
-            if val is not None and not isinstance(val, expected_type):
+            if opt_field in spawn and not isinstance(spawn[opt_field], expected_type):
                 return make_response(req_id, error={
                     "code": -32602,
                     "message": f"bulk_spawn_actors: invalid_field: spawns[{i}].'{opt_field}' must be an object if provided",
                 })
-        label = spawn.get("label")
-        if label is not None and not isinstance(label, str):
+        if "label" in spawn and not isinstance(spawn["label"], str):
             return make_response(req_id, error={
                 "code": -32602,
                 "message": f"bulk_spawn_actors: invalid_field: spawns[{i}].'label' must be a string if provided",
