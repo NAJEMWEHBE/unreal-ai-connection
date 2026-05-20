@@ -37,7 +37,9 @@ public class UnrealClaudeMCP : ModuleRules
             // Sequencer (v0.8.0)
             "LevelSequence",
             "MovieScene",
-            "MovieSceneTracks"
+            "MovieSceneTracks",
+            // DMX patch authoring (create_dmx_patch handler, v0.9.2)
+            "DMXRuntime"
         });
 
         PrivateDependencyModuleNames.AddRange(new string[]
