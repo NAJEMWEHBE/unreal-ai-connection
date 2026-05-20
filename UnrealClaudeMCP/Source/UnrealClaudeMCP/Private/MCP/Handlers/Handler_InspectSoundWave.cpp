@@ -163,11 +163,13 @@ public:
         }
 
 #if WITH_EDITORONLY_DATA
-#if UCMCP_ENGINE_AT_LEAST(5, 2)
-        // >=5.x verified-correct path. ImportedSampleRate is protected on
+#if UCMCP_ENGINE_AT_LEAST(5, 7)
+        // 5.7+ verified-correct path. ImportedSampleRate is protected on
         // USoundWave (header citation SoundWave.h:804); use the public
         // GetImportedSampleRate() accessor (SoundWave.h:1221). LUFS
-        // (SoundWave.h:787) and SamplePeakDB (SoundWave.h:791) are public.
+        // (SoundWave.h:787) and SamplePeakDB (SoundWave.h:791) are NEW
+        // in 5.7 — verified absent on UE 5.6 Aximmetry host build.
+        // Earlier 5.2 boundary was incorrect; gate raised to 5.7.
         const uint32 ImportedRate = Wave->GetImportedSampleRate();
         if (ImportedRate != 0)
         {

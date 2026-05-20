@@ -22,22 +22,20 @@
 #include "Materials/MaterialInstanceConstant.h"
 #include "Materials/MaterialInstance.h"      // FScalarParameterValue, FVectorParameterValue, FTextureParameterValue
 #include "UCMCPCompat.h"                     // UCMCP_ENGINE_AT_LEAST gate below
-#if UCMCP_ENGINE_AT_LEAST(5, 2)
-// >=5.x verified-correct path. Materials/MaterialParameters.h is a 5.2+
-// header (ABSENT on 5.1: verified no such file under
-// F:\UE_5.1\Engine\Source\Runtime\Engine\Classes\Materials\). Provides
-// FMaterialParameterInfo as used below (.GetName()).
+#if UCMCP_ENGINE_AT_LEAST(5, 7)
+// 5.7+ verified-correct path. Materials/MaterialParameters.h is a 5.7+
+// header (ABSENT on 5.6: verified no such file under
+// C:\Program Files\AXSceneEditor\2026.2.0\Engine\Source\Runtime\Engine\Public\Materials\).
+// Earlier boundary "5.2" was incorrect — the standalone header lands at
+// 5.7. Provides FMaterialParameterInfo as used below (.GetName()).
 #include "Materials/MaterialParameters.h"    // FMaterialParameterInfo::GetName()
 #else
-// UE 5.1: Materials/MaterialParameters.h does not exist. FMaterialParameterInfo
-// is defined on 5.1 in MaterialTypes.h (struct FMaterialParameterInfo ->
-// F:\UE_5.1\Engine\Source\Runtime\Engine\Public\MaterialTypes.h:49).
-// MaterialTypes.h exists on both 5.1 and 5.7 so this is the correct minimal
-// 5.1 substitute. Boundary 5.2 leaves the verified-correct 5.7 include
-// untouched.
-// UNVERIFIED-COMPILE: exact 5.2 introduction of MaterialParameters.h not
-// verifiable here (no 5.2 engine on disk); 5.2 is the directive-stated
-// "header is 5.2+" boundary.
+// UE 5.0 - 5.6: Materials/MaterialParameters.h does not exist.
+// FMaterialParameterInfo is defined in MaterialTypes.h
+// (Engine/Source/Runtime/Engine/Public/MaterialTypes.h, struct
+// FMaterialParameterInfo). MaterialTypes.h is stable across 5.0..5.7
+// so it is the correct fallback include for every pre-5.7 bucket.
+// Verified on UE 5.6 Aximmetry 2026.2.0 host build (ue-5.6-compat branch).
 #include "MaterialTypes.h"
 #endif
 #include "Engine/Texture.h"
