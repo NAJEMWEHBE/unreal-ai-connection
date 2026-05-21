@@ -39,7 +39,10 @@ public class UnrealClaudeMCP : ModuleRules
             "MovieScene",
             "MovieSceneTracks",
             // DMX patch authoring (create_dmx_patch handler, v0.9.2)
-            "DMXRuntime"
+            "DMXRuntime",
+            // DMX continuous output streamer (dmx_stream_* handlers, v0.9.3) —
+            // FDMXPortManager / FDMXOutputPort live in the DMXProtocol module.
+            "DMXProtocol"
         });
 
         PrivateDependencyModuleNames.AddRange(new string[]
