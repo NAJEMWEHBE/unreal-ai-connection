@@ -196,7 +196,7 @@ The wire format is `stdio MCP` between client and bridge, then a tight `length-p
 
 </details>
 
-### Level / actor authoring (16 tools)
+### Level / actor authoring (17 tools)
 
 <details>
 <summary><b>Level / actor authoring</b> — click to expand the tool table</summary>
@@ -219,6 +219,7 @@ The wire format is `stdio MCP` between client and bridge, then a tight `length-p
 | `bulk_set_console_variables` | Set many CVars in one call with optional atomic rollback. Composes `get_console_variable` + `set_console_variable`. Bridge-side synthetic. |
 | `inspect_dependency_graph` | BFS the asset dependency graph (down by default, optional bidirectional sweep). Composes `inspect_asset` recursively. Bridge-side synthetic. |
 | `bulk_fix_redirectors` | Resolve redirectors across many content folders in one call. Composes `fix_up_redirectors` per folder. Bridge-side synthetic. |
+| `bulk_spawn_actors` | Batch-spawn multiple actors in one call. Composes `spawn_actor` per entry. Bridge-side synthetic. |
 
 </details>
 
