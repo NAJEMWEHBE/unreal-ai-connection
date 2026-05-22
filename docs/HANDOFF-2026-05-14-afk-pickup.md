@@ -47,8 +47,8 @@ When you return, **bring the UE editor window to front** and re-try. If the moda
 ### 3. Local-LLM MCP runtime
 `mcp__local-llm__local_chat` still failing with `No module named 'openai.resources'`. Not used this session; flagged for fix on host side.
 
-### 4. NVIDIA NIM intermittent timeouts
-Both `deepseek-v4-pro` and `kimi-k2.6` timed out on the `marketplace-tools-design.md` drafting prompt (~6000 / ~4000 max-token requests respectively). Fell back to a `general-purpose` sub-agent (Sonnet) which is running in the background as of `~20:25` and will write to `docs/design/marketplace-tools-design.md` when done.
+### 4. External cloud reasoning models — intermittent timeouts
+Both external cloud reasoning models timed out on the `marketplace-tools-design.md` drafting prompt (~6000 / ~4000 max-token requests respectively). Fell back to a `general-purpose` sub-agent (Sonnet) which is running in the background as of `~20:25` and will write to `docs/design/marketplace-tools-design.md` when done.
 
 ## Known visual issues in T4-hero.png (flagged in commit message)
 
