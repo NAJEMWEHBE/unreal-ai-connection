@@ -30,7 +30,7 @@
 
 <div align="center">
 
-**Native C++ handlers — not Python Remote Execution.** ~50 ms round-trips across 105 tools · ~489 tests · MIT · works with Claude Code, Cursor, Cline, Codex, Gemini, Continue, Windsurf & Zed.
+**Native C++ handlers — not Python Remote Execution.** ~50 ms round-trips across 105 tools · 498 tests · MIT · works with Claude Code, Cursor, Cline, Codex, Gemini, Continue, Windsurf & Zed.
 
 ⭐ **If this saves you time, a star helps other devs find it.**
 
@@ -86,7 +86,7 @@ vscode:mcp/install?<URL-ENCODED {"name":"unreal-ai-connection","command":"python
 | Gemini CLI | `~/.gemini/settings.json` | [docs/setup/gemini-cli.md](docs/setup/gemini-cli.md) |
 | VS Code Copilot | `.vscode/mcp.json` | [docs/setup/vscode-copilot.md](docs/setup/vscode-copilot.md) |
 
-Also discoverable in the [official MCP Registry](https://github.com/modelcontextprotocol/registry) as `io.github.NAJEMWEHBE/unreal-ai-connection` (feeds the VS Code MCP gallery, mcp.so, PulseMCP) and submittable to the Cline marketplace via [`llms-install.md`](llms-install.md).
+Also discoverable in the [official MCP Registry](https://github.com/modelcontextprotocol/registry) as `io.github.najemwehbe/unreal-ai-connection` (feeds the VS Code MCP gallery, mcp.so, PulseMCP) and submittable to the Cline marketplace via [`llms-install.md`](llms-install.md).
 
 ---
 
