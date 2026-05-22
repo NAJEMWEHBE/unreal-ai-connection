@@ -20,12 +20,13 @@
 
 </div>
 
-<!-- TODO: no demo screencast GIF yet. An automated capture is gated on the same root
-     cause render_camera_to_png fixes: under bridge automation with the editor
-     backgrounded, UE does not pump render frames, so every headless capture path
-     returns a frozen or blank frame. A reliable client→bridge→UE loop recording is
-     unblocked once render_camera_to_png is host-built (host UE 5.7 cold rebuild) and
-     smoke-verified. Until then, do NOT embed a placeholder or fabricated GIF here. -->
+<div align="center">
+
+![Live demo — an MCP client drives UE 5.7 over the socket: builds a procedural elven-city blockout, spawns an orbit camera, and captures 48 frames via render_camera_to_png, no pixel-clicking](docs/images/demo.gif)
+
+*Live capture — an MCP client builds the scene and orbits the camera entirely over the local TCP socket. Reproduce with [`scripts/capture_demo_gif.py`](scripts/capture_demo_gif.py).*
+
+</div>
 
 Authoring high-quality assets: see [docs/ASSET-PIPELINE-BLENDER.md](docs/ASSET-PIPELINE-BLENDER.md).
 
