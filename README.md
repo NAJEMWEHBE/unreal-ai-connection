@@ -20,12 +20,13 @@
 
 </div>
 
-<!-- TODO: no demo screencast GIF yet. An automated capture is gated on the same root
-     cause render_camera_to_png fixes: under bridge automation with the editor
-     backgrounded, UE does not pump render frames, so every headless capture path
-     returns a frozen or blank frame. A reliable client→bridge→UE loop recording is
-     unblocked once render_camera_to_png is host-built (host UE 5.7 cold rebuild) and
-     smoke-verified. Until then, do NOT embed a placeholder or fabricated GIF here. -->
+<div align="center">
+
+![Live demo: an MCP client procedurally builds an elven city in Unreal Engine 5.7 and orbits a camera](docs/images/demo.gif)
+
+*Live capture — an MCP client builds the scene and orbits the camera entirely over the local TCP socket. Reproduce with [`scripts/capture_demo_gif.py`](scripts/capture_demo_gif.py).*
+
+</div>
 
 Authoring high-quality assets: see [docs/ASSET-PIPELINE-BLENDER.md](docs/ASSET-PIPELINE-BLENDER.md).
 
@@ -446,9 +447,8 @@ tests/                            Pytest suite for the bridge (no UE required)
 
 ### Roadmap / status honesty
 
-Two in-flight items are stated plainly here so nothing is oversold:
+One in-flight item is stated plainly here so nothing is oversold:
 
-- **`render_camera_to_png` — merged and discoverable; needs a host UE 5.7 rebuild to execute.** This native C++ handler forces a synchronous game-thread render so screenshot capture works headless, where deferred screenshot paths return a frozen or blank frame under bridge automation. It is wired and shows up in `tools/list`, but the C++ was authored and bot-hardened to 5.7-verified APIs *without* a host compile this session — until a host UE 5.7 cold rebuild registers the new handler, calling it returns a method-not-found error. Bridge-side behavior is unaffected.
 - **Officially built & tested on UE 5.7.** Other UE versions are community / best-effort: the cross-engine compatibility scaffold lets you build from source for your engine version (uncertified, not actively maintained, contributions welcome). See [ADR-0001](docs/adr/ADR-0001-ue57-only-freeze-cross-engine-compat.md) / [docs/PHASE-H-COMPAT.md](docs/PHASE-H-COMPAT.md).
 
 ---
