@@ -28,6 +28,14 @@
 
 </div>
 
+<div align="center">
+
+**Native C++ handlers — not Python Remote Execution.** ~50 ms round-trips across 105 tools · ~489 tests · MIT · works with Claude Code, Cursor, Cline, Codex, Gemini, Continue, Windsurf & Zed.
+
+⭐ **If this saves you time, a star helps other devs find it.**
+
+</div>
+
 Authoring high-quality assets: see [docs/ASSET-PIPELINE-BLENDER.md](docs/ASSET-PIPELINE-BLENDER.md).
 
 ---

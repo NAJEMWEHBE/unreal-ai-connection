@@ -1,8 +1,8 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
-  "name": "io.github.NAJEMWEHBE/unreal-ai-connection",
+  "name": "io.github.najemwehbe/unreal-ai-connection",
   "title": "Unreal AI Connection",
-  "description": "PREREQUISITE: install the Unreal AI Connection UE 5.7 plugin into your UE project and launch the editor (it binds 127.0.0.1:18888) before connecting — no registry can do this for you. Then this stdio bridge exposes 104 Unreal Engine editor-automation tools (actors, sequencer, materials, assets, live viewport) to any MCP client.",
+  "description": "PREREQUISITE: install the Unreal AI Connection UE 5.7 plugin into your UE project and launch the editor (it binds 127.0.0.1:18888) before connecting — no registry can do this for you. This stdio bridge then exposes 105 Unreal Engine editor-automation tools (actors, levels, materials, Blueprints, sequencer, rendering, asset import, editor Python) to any MCP client.",
   "version": "0.9.1",
   "repository": {
     "url": "https://github.com/NAJEMWEHBE/unreal-ai-connection",
@@ -15,7 +15,16 @@
       "identifier": "unreal-ai-connection",
       "version": "0.9.1",
       "runtimeHint": "uvx",
-      "transport": { "type": "stdio" }
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "PYTHONUNBUFFERED",
+          "description": "Set to 1 so the stdio bridge flushes JSON-RPC frames without buffering.",
+          "default": "1"
+        }
+      ]
     }
   ]
 }
