@@ -41,7 +41,7 @@ Anthropic's desktop chat app. Loads servers from `claude_desktop_config.json`.
 
 ## Verification
 
-In Claude Desktop, click the 🔌 (plug) icon in the message input bar. You should see `unreal-ai-connection` listed with 104 tools.
+In Claude Desktop, click the 🔌 (plug) icon in the message input bar. You should see `unreal-ai-connection` listed with all 105 tools.
 
 ## Notes
 

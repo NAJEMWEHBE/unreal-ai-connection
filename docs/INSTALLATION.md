@@ -51,11 +51,11 @@ The MCP server auto-starts when the editor module loads. Open Window → Output 
 [LogUnrealClaudeMCP] Editor module started
 [LogUnrealClaudeMCP] Registered handler 'edit_widget_tree'
 [LogUnrealClaudeMCP] Registered handler 'execute_unreal_python'
-... (71 lines of handler registrations) ...
+... (72 handler registration lines in total — two shown above) ...
 [LogUCMCP] Listening on 127.0.0.1:18888
 ```
 
-If you see all 71 handler registrations and the "Listening" line, you're done.
+If you see all 72 handler registrations and the "Listening" line, you're done.
 
 ## 5. Smoke test from any Python
 
