@@ -118,6 +118,36 @@ converts to tick-resolution internally. `inspect_sequence` surfaces that interna
 separately from the display fps. Possessable binding resolves at sequence-save time. The automated
 capture-from-sequence path shares the backgrounded-viewport limitation above.
 
+## 7. Widget / UMG authoring (MATURE)
+
+Goal: build or mutate a `UWidgetBlueprint` / `UEditorUtilityWidgetBlueprint` hierarchy — including
+the UE 5.7 EUW `WidgetTree` population that Python reflection can't reach.
+
+1. **Inspect first** — `inspect_widget_blueprint` for structural facts (parent class, compile status,
+   animations, delegate bindings, inherited named slots); `inspect_widget_tree` for the current
+   widget hierarchy. Cross-link both via the shared asset path. (`inspect_blueprint` covers the
+   variables + graphs side, inherited from `UBlueprint`.)
+2. **Set the root** — `edit_widget_tree` with `op=set_root`, a `class`, and a `name`. A multi-child
+   panel (`VerticalBox` / `HorizontalBox` / `CanvasPanel`) makes a useful root; leaf classes
+   (`TextBlock` / `Image` / `Spacer`) can't take children. Omitting `name` defaults it to the class
+   name.
+3. **Add children** — `op=add_child` with `parent` (an existing widget name), `class`, and `name`.
+   The parent must be a container: multi-child panels (VerticalBox / HorizontalBox / CanvasPanel) or
+   single-child content widgets (Border / Button). Adding to a leaf returns a "not a panel" error.
+   Build top-down: root first, then its children.
+4. **Set properties** — `op=set_property` with `widget`, `property`, and a string `value` (coerced to
+   the target type). Native support: `text` on TextBlock/EditableTextBox, plus any string / float /
+   int / bool `UProperty`. Other property types return "type not yet supported" — drop to
+   `execute_unreal_python` for those.
+5. **Compile once, at the end** — pass `compile: true` on the **final** op only. Compiling on every
+   edit in quick succession crashes the editor (see the gotcha table). For a standalone recompile
+   after external mutation, use `compile_blueprint`.
+
+Notes: `class` accepts the shorthand names above or a fully-qualified `UClass` path. Every
+`edit_widget_tree` call marks the asset dirty and **auto-saves** the widget tree — no separate
+`save_dirty_assets` is needed for the tree itself, but the `compile: true` final op is what bakes the
+generated class. After a batch, `inspect_widget_tree` to confirm the hierarchy before relying on it.
+
 ---
 
 ## UE 5.x behavior notes (caller-relevant)
