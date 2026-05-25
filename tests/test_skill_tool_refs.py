@@ -7,13 +7,16 @@ those by hand ("zero invented names", catching spec-era drift such as
 ``get_sequence_info`` -> ``inspect_sequence``). This test automates that
 check so future recipe edits cannot reintroduce a phantom tool name.
 
-Extraction: backtick-quoted snake_case tokens in ``skills/**/*.md``. Tokens
-that are documented vocabulary -- parameter names, error codes, response
-fields, or anti-example tool names the docs explicitly say do NOT exist --
-are listed in ``NON_TOOL_TOKENS`` and excluded. Everything else must resolve
-to a real tool.
+Extraction: backtick-quoted lowercase identifiers in ``skills/**/*.md``. A
+candidate that is not a real tool is flagged when it is *tool-shaped* --
+either multi-word snake_case (the shape of nearly every tool) or a close
+miss of a real tool name (so a single-word tool like ``unsubscribe`` is
+still covered even though it carries no underscore). Documented vocabulary
+-- parameter names, error codes, anti-example tool names the docs say do NOT
+exist -- is listed in ``NON_TOOL_TOKENS`` and excluded.
 """
 
+import difflib
 import glob
 import os
 import re
@@ -23,11 +26,17 @@ import unreal_ai_connection_bridge as bridge
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SKILL_GLOB = os.path.join(REPO_ROOT, "skills", "**", "*.md")
 
-# Backtick-quoted snake_case identifiers with at least one underscore -- the
-# shape of a tool name. Single-word lowercase tokens (text, force, compile,
-# path) and CamelCase class names (VerticalBox) are not tool-shaped and are
-# intentionally ignored.
-_CANDIDATE_RE = re.compile(r"`([a-z][a-z0-9]*(?:_[a-z0-9]+)+)`")
+# Backtick-quoted lowercase identifiers (>=2 chars). Captures both multi-word
+# (spawn_actor) and single-word (unsubscribe) names; CamelCase class names
+# (VerticalBox) are not matched. Plain English single words that slip through
+# are filtered below: they are only flagged if they near-miss a real tool.
+_CANDIDATE_RE = re.compile(r"`([a-z][a-z0-9_]+)`")
+
+# A non-catalog single word is only treated as a misspelled tool when its
+# similarity to a real tool name clears this bar -- high enough that ordinary
+# English words (text, force, compile) never trip it, low enough to catch a
+# one-character typo of a real single-word tool.
+_NEAR_MISS_CUTOFF = 0.85
 
 # Tokens that LOOK like tool names but are not callable tools. Kept explicit
 # (not a heuristic) so a genuinely misspelled tool name cannot hide here.
@@ -66,18 +75,32 @@ def _candidate_refs():
     return found
 
 
+def _flag_offending(candidate_refs, tool_names):
+    """Return {name: (files, suggestion)} for tool-shaped names that are not
+    real tools. ``suggestion`` is the closest real tool name, or None."""
+    offending = {}
+    for name, files in candidate_refs.items():
+        if name in tool_names or name in NON_TOOL_TOKENS:
+            continue
+        near = difflib.get_close_matches(name, tool_names, n=1, cutoff=_NEAR_MISS_CUTOFF)
+        # Multi-word snake_case is tool-shaped on its own; a single word is
+        # only suspect when it near-misses a real tool name.
+        if "_" in name or near:
+            offending[name] = (sorted(files), near[0] if near else None)
+    return offending
+
+
 def test_skill_tool_references_exist_in_catalog():
     tool_names = {t["name"] for t in bridge.TOOLS}
-    offending = {
-        name: sorted(files)
-        for name, files in _candidate_refs().items()
-        if name not in tool_names and name not in NON_TOOL_TOKENS
-    }
+    offending = _flag_offending(_candidate_refs(), tool_names)
     assert not offending, (
         "Skill docs reference tool-shaped names absent from the bridge TOOLS "
         "catalog. Either the name is misspelled (fix the skill) or it is "
         "documented vocabulary (add it to NON_TOOL_TOKENS with its category):\n"
-        + "\n".join(f"  {name} -> {files}" for name, files in sorted(offending.items()))
+        + "\n".join(
+            f"  {name} -> {files}" + (f" (did you mean '{hint}'?)" if hint else "")
+            for name, (files, hint) in sorted(offending.items())
+        )
     )
 
 
@@ -88,6 +111,25 @@ def test_skill_references_at_least_one_real_tool():
     tool_names = {t["name"] for t in bridge.TOOLS}
     referenced = set(_candidate_refs()) & tool_names
     assert referenced, "Extracted zero real tool references from skills/ -- regex likely broke"
+
+
+def test_guard_catches_single_word_tool_typo():
+    """Regression: a misspelled single-word tool (no underscore) must be
+    flagged via near-miss matching, not silently skipped because it lacks an
+    underscore."""
+    tool_names = {t["name"] for t in bridge.TOOLS}
+    assert "unsubscribe" in tool_names, "fixture assumes unsubscribe is a tool"
+    flagged = _flag_offending({"unsubscribel": {"skills/fake.md"}}, tool_names)
+    assert "unsubscribel" in flagged
+    assert flagged["unsubscribel"][1] == "unsubscribe"
+
+
+def test_guard_ignores_plain_english_single_words():
+    """Ordinary single words in backticks (op, text, force, compile) must not
+    be mistaken for tools."""
+    tool_names = {t["name"] for t in bridge.TOOLS}
+    refs = {word: {"skills/fake.md"} for word in ("op", "text", "force", "compile")}
+    assert not _flag_offending(refs, tool_names)
 
 
 def test_non_tool_denylist_has_no_real_tools():
