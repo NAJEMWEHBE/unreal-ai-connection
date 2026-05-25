@@ -45,6 +45,7 @@ SCAN_FILES = [
     "README.md",
     "CLAUDE.md",
     "AGENTS.md",
+    "CONTRIBUTING.md",
     "tests/README.md",
     "docs/INSTALLATION.md",
     "docs/RESTART-RECOVERY.md",

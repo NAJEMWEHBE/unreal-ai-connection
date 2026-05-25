@@ -8,9 +8,9 @@ The repo (this folder you're reading) is the **only thing that survives a format
 
 ## What survived (zero action needed)
 
-- **The repo source** — every PR through #85 is on `origin/main` at `github.com/NAJEMWEHBE/unreal-ai-connection`
+- **The repo source** — every merged PR is on `origin/main` at `github.com/NAJEMWEHBE/unreal-ai-connection`
 - **Session memory files** — preserved in [`docs/session-memory-archive/`](session-memory-archive/) (this is the safety net for the format)
-- **HANDOFF.md** — reflects the current state (104 tools, 71 C++ handlers + 33 bridge synthetic, all directives, all traps)
+- **HANDOFF.md** — reflects the current state (105 tools total — 72 native C++ handlers + 33 synthetic tools, all directives, all traps)
 - **CLAUDE.md** at repo root — auto-loaded by Claude Code on session start; tells the agent to read HANDOFF.md
 - **The Unreal Engine install** — if it's on `F:\UE_5.7\` (different drive from the formatted C:), it survives. If you also wipe F:, follow step 7 below.
 
@@ -146,7 +146,7 @@ py -3 -m pip install pytest   # if pytest isn't already installed
 py -3 -m pytest tests/ -q
 ```
 
-Expected: **162 passing** (matches the state at end of the 2026-05-09/05-10 sprint — verify against the count assertions in `tests/test_bridge.py:26` and `tests/test_manifest_sync.py:45`).
+Expected: **503 pytest cases** passing (verify against the live count assertion in `tests/conftest.py` and the manifest-parity check in `tests/test_manifest_sync.py`).
 
 ### 10. Open Claude Code in the repo
 

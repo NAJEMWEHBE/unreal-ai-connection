@@ -2,7 +2,7 @@
 
 Thanks for considering a contribution! This project is **vendor-neutral MCP** — the wire protocol is open and the bridge is intentionally framework-agnostic. Anything that improves the editor-automation surface, hardens the bridge, or polishes the docs is welcome.
 
-Please skim this file before opening a PR. Three of the rules are slightly unusual for a standard open-source project; they exist because the codebase has 80 tools and a non-trivial cross-language split between C++ (UE plugin) and Python (bridge).
+Please skim this file before opening a PR. Three of the rules are slightly unusual for a standard open-source project; they exist because the codebase has 105 tools total and a non-trivial cross-language split between C++ (UE plugin) and Python (bridge).
 
 ---
 
@@ -28,8 +28,9 @@ If you're only touching the bridge / tests / docs: no UE needed. The bridge test
 - `UnrealClaudeMCP/Source/UnrealClaudeMCP/Private/UnrealClaudeMCPModule.cpp` — handler registration. Every handler needs a forward `extern` and a `Reg.Register(...)` line here.
 - `UnrealClaudeMCP/Resources/mcp_manifest.json` — declarative MCP tool manifest. Mirrors `bridge/unreal_ai_connection_bridge.py`'s `TOOLS` list. Drift here is caught by `tests/test_manifest_sync.py`.
 - `bridge/unreal_ai_connection_bridge.py` — the Python stdio↔TCP bridge. Holds the static tool catalog (`TOOLS`), the synthetic-tool dispatch dict (`SYNTHETIC_TOOLS`), and the 33 `synthetic_*` functions that compose existing handlers bridge-side.
-- `tests/` — pytest suite for the bridge. **No UE required.** 280+ test cases.
-- `scripts/drift_sweep.py` — mechanical doc-drift guard. Scans 11 high-traffic files and rejects stale counts.
+- `tests/` — pytest suite for the bridge. **No UE required.** 503 pytest cases.
+- `scripts/drift_sweep.py` — mechanical doc-drift guard. Scans 12 high-traffic files and rejects stale counts.
+- `skills/driving-unreal/` — bundled know-how skill (`SKILL.md` + `reference.md`). Auto-discovered by MCP clients; teaches which tools to chain for common UE workflows. Tool names cited here are guarded by `tests/test_skill_tool_refs.py` against the bridge catalog.
 - `docs/TOOLS.md` — per-tool reference (params, returns, error codes, examples).
 - `docs/ARCHITECTURE.md` — how the pieces fit + UE 5.7 API gotchas + threading notes.
 - `docs/HANDOFF.md` — per-session chronology. Maintainer + agent context, not human-visitor reading material.
@@ -50,9 +51,9 @@ If you're only touching the bridge / tests / docs: no UE needed. The bridge test
 7. Run `pytest tests/` — full suite green.
 8. Open a PR; let the multi-agent ensemble + Gemini auto-review do their pass before requesting human review.
 
-**Fixing a bug?** Open an issue first if it isn't obvious. Tests-first when reasonable. The bridge has 280+ pytest cases — if the bug is in the bridge, write a failing test, then fix it.
+**Fixing a bug?** Open an issue first if it isn't obvious. Tests-first when reasonable. The bridge has 503 pytest cases — if the bug is in the bridge, write a failing test, then fix it.
 
-**Improving docs?** Welcome. Just keep the canonical-count phrasing in digit form (`80 tools`, not `Eighty tools`) — `scripts/drift_sweep.py` enforces digit counts, and English-word counts silently survive the sweep.
+**Improving docs?** Welcome. Just keep the canonical-count phrasing in digit form (`105 tools`, not `One hundred five tools`) — `scripts/drift_sweep.py` enforces digit counts, and English-word counts silently survive the sweep.
 
 **Polishing the C++ surface?** Be aware that several handlers carry an explicit `// Error format: free-form OutError strings (legacy surface)` annotation. That annotation is intentional — those handlers predate the canonical `<tool>: <error_code>: <detail>` convention used by later handlers. **Migrating them is a behaviour change**, not a doc fix; please open an issue first to discuss the migration path before sending a PR.
 
@@ -64,7 +65,7 @@ If you're only touching the bridge / tests / docs: no UE needed. The bridge test
 - **`req_id` is intentionally untyped** in `synthetic_*` signatures. JSON-RPC 2.0 / MCP allow string, int, or null IDs; coercing would break correlation for clients using non-integer IDs.
 - **Error envelopes use stable codes**: `-32602` (invalid_arguments / missing required field), `-32603` (internal — Python interpreter raised, etc), `-32099` (UE server unreachable), `-32000` (logical error propagated from a C++ handler).
 - **Logical errors return as `ok=False` success envelopes**, not as JSON-RPC errors, when the caller might reasonably want to retry or branch. Transport errors stay as JSON-RPC errors. See `inspect_data_asset` for the canonical pattern.
-- **Synthetic tools must validate `isinstance(args, dict)` early** and return a clean `-32602 invalid_arguments` envelope on mismatch. All 16 synthetics do this; the test `test_synthetic_returns_invalid_arguments_for_non_dict_args` locks it.
+- **Synthetic tools must validate `isinstance(args, dict)` early** and return a clean `-32602 invalid_arguments` envelope on mismatch. All 33 synthetic tools do this; the test `test_synthetic_returns_invalid_arguments_for_non_dict_args` locks it.
 - **Vendor-neutral language in user-facing copy.** The "Claude" in the repo name is decorative; the bridge speaks the open MCP protocol and works with any MCP-compliant client (Claude Code, Codex CLI, Cursor, Gemini CLI, Continue, ...). Don't bake "Claude Code" specifically into tool descriptions, the `.uplugin` Description, or new docs.
 - **Push to feature branches, never directly to `main`.** Open a PR. CI matrix + Gemini auto-review run on every PR.
 

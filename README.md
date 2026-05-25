@@ -394,7 +394,7 @@ Adding a 73rd C++ handler is one `.cpp` file plus one line of registration — s
    ```
    [LogUnrealClaudeMCP] Module started
    LogUCMCPHandler: Registered handler 'execute_unreal_python'
-     ... (64 lines)
+     ... (71 more handler lines)
    [LogUCMCP] Listening on 127.0.0.1:18888
    ```
 5. **Wire your MCP client.** Copy `examples/.mcp.json.example` to your project root as `.mcp.json`, edit the path to point at `bridge/unreal_ai_connection_bridge.py`, restart your client, and approve the new MCP server. Same bridge works with Claude Code, Claude Desktop, Cursor, Codex CLI, Windsurf, Continue, Cline, Zed, Gemini CLI, and VS Code Copilot — see [`docs/setup/`](docs/setup/) for per-client copy-paste recipes.
@@ -435,6 +435,9 @@ docs/
   TOOLS.md                        What each tool does + JSON examples
   ARCHITECTURE.md                 How the pieces fit + UE 5.7 API gotchas
 
+skills/
+  driving-unreal/                 Bundled know-how skill — which tools to chain for common UE workflows (auto-discovered by MCP clients)
+
 tests/                            Pytest suite for the bridge (no UE required)
 .github/workflows/                CI runs the bridge tests on every push & PR
 ```
@@ -445,7 +448,7 @@ tests/                            Pytest suite for the bridge (no UE required)
 
 | | |
 |---|---|
-| **Latest release** | v0.9.1 — 2026-05-08 |
+| **Latest release** | v0.9.1 — 2026-05-23 (plus [`v0.9.1-ue5.6`](https://github.com/NAJEMWEHBE/unreal-ai-connection/releases/tag/v0.9.1-ue5.6) prebuilt 5.6 binaries — 2026-05-25) |
 | **Tools** | **105 live** — 72 native C++ handlers (one MCP method per `Handler_*.cpp`) plus 33 bridge-side synthetic tools (Python-only composition over existing handlers; never crosses the TCP wire as a dedicated round-trip). See [`docs/TOOLS.md`](docs/TOOLS.md) for the per-tool reference. |
 | **Tested on** | UE 5.7.4 / Windows 11 / Visual Studio Build Tools 2022 / MSVC 14.44 / NETFXSDK 4.8.1 |
 | **Build status** | Plugin compiles + loads against UE 5.7.4 host on Windows 11; 72 handlers register, TCP server binds `127.0.0.1:18888`, bridge round-trip via `tools/call list_tools` returns full registry. |

@@ -44,7 +44,7 @@ High-performance code editor. MCP support via the `context_servers` block in `~/
 
 ## Verification
 
-Open the Agent panel → click the model name in the top-right → **Tools**. `unreal-ai-connection` should appear with all 104 tools.
+Open the Agent panel → click the model name in the top-right → **Tools**. `unreal-ai-connection` should appear with all 105 tools.
 
 ## Notes
 
