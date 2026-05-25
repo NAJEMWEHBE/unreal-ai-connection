@@ -5,7 +5,7 @@
     {
       "name": "unreal-ai-connection",
       "source": "./",
-      "description": "Drive Unreal Engine 5.7 from any MCP client — 104 editor-automation tools over a local bridge."
+      "description": "Drive Unreal Engine 5.7 from any MCP client — 105 editor-automation tools over a local bridge."
     }
   ]
 }
