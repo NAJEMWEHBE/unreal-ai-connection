@@ -8,7 +8,7 @@
 
 [![CI](https://github.com/NAJEMWEHBE/unreal-ai-connection/actions/workflows/tests.yml/badge.svg)](https://github.com/NAJEMWEHBE/unreal-ai-connection/actions/workflows/tests.yml)
 [![License](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
-[![Unreal Engine](https://img.shields.io/badge/Unreal_Engine-5.7_official_(5.4--5.8_best--effort)-313131?logo=unrealengine)](https://www.unrealengine.com/)
+[![Unreal Engine](https://img.shields.io/badge/Unreal_Engine-5.7_official_(5.4--5.8_best--effort)-313131?logo=unrealengine)](docs/PHASE-H-COMPAT.md)
 [![Python](https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![MCP](https://img.shields.io/badge/MCP-compatible-7c3aed)](https://modelcontextprotocol.io/)
 [![Tests](https://img.shields.io/badge/pytest-498_passing-success?logo=pytest&logoColor=white)](tests/)
