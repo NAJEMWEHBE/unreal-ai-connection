@@ -75,7 +75,7 @@ A single compiled binary cannot span 4.27-5.8. Breaking changes:
 > UE 5.6 pins MSVC `14.38.33130` (`Engine/Config/Windows/Windows_SDK.json`); a
 > user-level `BuildConfiguration.xml` `<CompilerVersion>` pin to anything below
 > 14.38 blocks the build. This is the first non-5.7 engine with a published
-> binary; the SCAFFOLDING-ONLY caveats still apply to 4.27 / 5.0–5.3 / 5.8.
+> binary; the SCAFFOLDING-ONLY caveats still apply to 4.27 / 5.0–5.5 / 5.8.
 
 ### Bucket T2 -- UE 5.0 through 5.3
 

@@ -458,7 +458,7 @@ tests/                            Pytest suite for the bridge (no UE required)
 One in-flight item is stated plainly here so nothing is oversold:
 
 - **Officially built & tested on UE 5.7.** Other UE versions are community / best-effort: the cross-engine compatibility scaffold lets you build from source for your engine version (uncertified, not actively maintained, contributions welcome). See [ADR-0001](docs/adr/ADR-0001-ue57-only-freeze-cross-engine-compat.md) / [docs/PHASE-H-COMPAT.md](docs/PHASE-H-COMPAT.md).
-- **Prebuilt 5.6 binaries available (Win64).** Host-verified build (MSVC 14.38) + live smoke pass (all suites green) on a real 5.6 editor. Skip the source build: download the packaged plugin from the [`v0.9.1-ue5.6`](https://github.com/NAJEMWEHBE/unreal-ai-connection/releases/tag/v0.9.1-ue5.6) release and drop it into `YourProject/Plugins/`. Load note: enable the engine's `DMXEngine` + `DMXProtocol` plugins (the DMX handlers link against them) or the module fails to load.
+- **Prebuilt 5.6 binaries available (Win64).** Host-verified build (MSVC 14.38) + live smoke pass (all suites green) on a real 5.6 editor. Skip the source build: download the packaged plugin from the [`v0.9.1-ue5.6`](https://github.com/NAJEMWEHBE/unreal-ai-connection/releases/tag/v0.9.1-ue5.6) release and drop it into `YourProject/Plugins/`. **Load note:** enable the engine's `DMXEngine` + `DMXProtocol` plugins (the DMX handlers link against them) or the module fails to load.
 
 ---
 
