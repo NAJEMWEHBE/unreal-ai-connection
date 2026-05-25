@@ -29,7 +29,7 @@ If you're only touching the bridge / tests / docs: no UE needed. The bridge test
 - `UnrealClaudeMCP/Resources/mcp_manifest.json` — declarative MCP tool manifest. Mirrors `bridge/unreal_ai_connection_bridge.py`'s `TOOLS` list. Drift here is caught by `tests/test_manifest_sync.py`.
 - `bridge/unreal_ai_connection_bridge.py` — the Python stdio↔TCP bridge. Holds the static tool catalog (`TOOLS`), the synthetic-tool dispatch dict (`SYNTHETIC_TOOLS`), and the 33 `synthetic_*` functions that compose existing handlers bridge-side.
 - `tests/` — pytest suite for the bridge. **No UE required.** 503 pytest cases.
-- `scripts/drift_sweep.py` — mechanical doc-drift guard. Scans 12 high-traffic files and rejects stale counts.
+- `scripts/drift_sweep.py` — mechanical doc-drift guard. Scans 16 high-traffic files and rejects stale counts.
 - `skills/driving-unreal/` — bundled know-how skill (`SKILL.md` + `reference.md`). Auto-discovered by MCP clients; teaches which tools to chain for common UE workflows. Tool names cited here are guarded by `tests/test_skill_tool_refs.py` against the bridge catalog.
 - `docs/TOOLS.md` — per-tool reference (params, returns, error codes, examples).
 - `docs/ARCHITECTURE.md` — how the pieces fit + UE 5.7 API gotchas + threading notes.

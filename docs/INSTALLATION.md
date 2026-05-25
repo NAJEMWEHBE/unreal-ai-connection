@@ -51,7 +51,7 @@ The MCP server auto-starts when the editor module loads. Open Window → Output 
 [LogUnrealClaudeMCP] Editor module started
 [LogUnrealClaudeMCP] Registered handler 'edit_widget_tree'
 [LogUnrealClaudeMCP] Registered handler 'execute_unreal_python'
-... (72 lines of handler registrations) ...
+... (72 handler registration lines in total — two shown above) ...
 [LogUCMCP] Listening on 127.0.0.1:18888
 ```
 
