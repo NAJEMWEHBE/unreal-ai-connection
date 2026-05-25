@@ -29,9 +29,10 @@ Goal: construct a scene from primitives, materials, lighting, and a camera.
 7. **Persist** — `save_dirty_assets`.
 
 Checkpoints: screenshot the silhouette after step 3 before adding detail; re-screenshot after
-lighting. **Trap:** assigning `OverrideMaterials` (a TArray) via `set_actor_property` fails type
-coercion — use `bulk_set_actor_property` for scalar/bool/string props and `execute_unreal_python` for
-the TArray assignment.
+lighting. **Materials on actors:** `set_actor_property` accepts JSON-**array** values for TArray/TSet
+props (e.g. `OverrideMaterials`) — pass the material asset paths as a JSON array; no
+`execute_unreal_python` fallback needed. `bulk_set_actor_property` covers scalar/bool/string props
+across many actors at once.
 
 ## 2. Material-instance customization (PROVEN)
 
@@ -43,8 +44,8 @@ Goal: derive parameter-overridden material instances and apply them.
 3. **Override** — `set_mi_parameter`: textures by **full asset path** (`/Game/Tex/T_X.T_X`), colors
    as `{r,g,b,a}`, scalars as floats.
 4. **Verify** — `inspect_material_instance` to confirm parent + overrides before applying to actors.
-5. **Apply** — assign to a spawned actor's mesh. If the typed path fails for a TArray slot, use
-   `execute_unreal_python`.
+5. **Apply** — assign to a spawned actor's mesh via `set_actor_property`; `OverrideMaterials` takes a
+   JSON array of material asset paths (no `execute_unreal_python` needed).
 
 Notes: an instance's parent may itself be another instance. Static-switch parameters may be
 inspectable but not settable — verify with `inspect_material_instance` rather than assuming a write
@@ -107,13 +108,15 @@ Goal: scaffold a Level Sequence and author camera motion.
 1. `create_sequence` (set fps + frame range) under e.g. `/Game/Cinematics/`.
 2. `bind_actor_to_sequence` — bind an actor (must already exist/loaded in the level) as a possessable.
 3. `inspect_sequence` — confirm fps, frame range, and bindings.
-4. **Keyframes** — `sequencer_add_transform_keyframe` for transform tracks. For other channels,
-   keyframe authoring is incomplete: use `execute_unreal_python` with `unreal.MovieSceneFloatChannel`
-   and `add_key()`, then `inspect_sequence` to confirm.
+4. **Keyframes** — `sequencer_add_transform_keyframe` for transform tracks: pass `time_seconds`
+   (seconds, display rate; converted internally to ticks) and optional location / rotation / scale
+   triples (rotation is `[pitch, yaw, roll]`). For non-transform channels use `execute_unreal_python`
+   then `inspect_sequence` to confirm.
 
-Notes: `inspect_sequence` reports an internal `tick_resolution` distinct from the display fps — frame
-params you pass are in display-frame space. Possessable binding resolves at sequence-save time. The
-automated capture-from-sequence path shares the backgrounded-viewport limitation above.
+Notes: keyframe times are passed in **seconds** (`time_seconds`), not frame indices — the bridge
+converts to tick-resolution internally. `inspect_sequence` surfaces that internal `tick_resolution`
+separately from the display fps. Possessable binding resolves at sequence-save time. The automated
+capture-from-sequence path shares the backgrounded-viewport limitation above.
 
 ---
 
@@ -129,8 +132,8 @@ These shape how you call the tools — not internal implementation you control.
 | `delete_asset` refuses referenced assets | Fails unless `force=true` | Inspect referencers; only force when intentional |
 | Widget-tree edits | Compiling on every edit in quick succession is unstable | `edit_widget_tree` with `compile: true` on the **final** edit only |
 | Viewport capture when backgrounded | Returns a frozen frame | Use `render_camera_to_png`, or keep the editor foreground |
-| TArray-typed properties (e.g. `OverrideMaterials`) | Fail typed `set_actor_property` coercion | Use `execute_unreal_python` for the assignment |
+| TArray/TSet properties (e.g. `OverrideMaterials`) | Supported — pass a JSON **array** value to `set_actor_property` | Send the array directly; no `execute_unreal_python` fallback |
 | `unreal.Rotator` / `unreal.Color` positional args | Rotator is (roll,pitch,yaw); Color is BGRA | Build empty struct, assign by property name |
-| Long ops (`compile_mod_pak`) | Register a task and return immediately | Poll with `poll_task` / `list_tasks`; `cancel_task` to abort |
+| `compile_mod_pak` | **Blocking** RunUAT call (up to ~30 min) — returns no task id, not pollable | Wait for the tool to return; tune `timeout_sec` (default 1800) |
 
 When any tool name here disagrees with live `list_tools`, the live catalog wins — update this file.

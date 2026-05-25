@@ -71,9 +71,10 @@ These rules matter more than any single recipe. Internalize them.
   restart. Run `save_dirty_assets` before pausing, restarting, or when verification depends on state
   surviving.
 
-- **`execute_unreal_python` is the escape hatch.** When a typed tool can't express something (e.g.
-  TArray fields like `OverrideMaterials`, sequencer keyframe channels), drop to
-  `execute_unreal_python`. To get a result back, emit a UUID-tagged marker via
+- **`execute_unreal_python` is the escape hatch.** When a typed tool genuinely can't express
+  something (e.g. non-transform sequencer channels), drop to `execute_unreal_python`. Note:
+  `set_actor_property` already accepts JSON-**array** values for TArray/TSet props (e.g.
+  `OverrideMaterials`), so those need no fallback. To get a result back, emit a UUID-tagged marker via
   `unreal.log("__UCMCP__<uuid>__<json>__END__")` and read it with `get_log_lines`. Two struct traps
   when building Python: `unreal.Rotator` positional args are **(roll, pitch, yaw)** and
   `unreal.Color` is **BGRA** — never construct positionally; build an empty struct and assign by
