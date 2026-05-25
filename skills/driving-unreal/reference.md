@@ -190,7 +190,8 @@ Goal: attach a component to an existing actor and configure it.
 
 Notes: actor targeting is the same hybrid label/FName lookup used across the actor tools. The handler
 runs `RerunConstructionScripts` after attaching, so construction-script-driven actors re-evaluate
-with the new component in place.
+with the new component in place. Supplying a duplicate `component_name` is not explicitly documented —
+UE auto-suffixes the FName to avoid collisions; use distinct names to avoid ambiguity.
 
 ---
 

@@ -54,8 +54,9 @@ NON_TOOL_TOKENS = {
     "relative_transform",
     "name_contains",
     "path_under",
-    # error codes
+    # error codes returned by actor-targeting tools
     "ambiguous_actor",
+    # error codes returned by pie_control action=start/stop
     "pie_already_active",
     "pie_not_active",
     # response / return fields
