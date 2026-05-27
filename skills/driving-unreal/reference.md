@@ -175,7 +175,7 @@ touching the editor's Output Log manually.
    read the original value with `get_console_variable` before writing, and restore it at the end of
    the automation run. For batch mutations with automatic rollback, `bulk_set_console_variables`
    composes the read / set / restore cycle internally — pass `assignments: {cvar: value, …}` and
-   `rollback_on_error: true` for atomic batch behaviour.
+   `rollback_on_error: true` for atomic batch behavior.
 
 Notes: `ECVF_SetByConsole` can override DeviceProfile and scalability buckets — this is intentional
 for automation but means changes may disappear if the engine re-applies scalability settings (e.g.
