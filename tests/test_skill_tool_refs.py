@@ -50,6 +50,8 @@ NON_TOOL_TOKENS = {
     # error codes / response fields
     "ambiguous_actor",
     "tick_resolution",
+    "set_by",
+    "value_string",
     # anti-example: the docs explicitly state this tool does NOT exist
     # (the real entry point is register_subscription)
     "start_event_subscription",

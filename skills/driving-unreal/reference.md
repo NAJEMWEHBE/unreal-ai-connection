@@ -148,6 +148,41 @@ Notes: `class` accepts the shorthand names above or a fully-qualified `UClass` p
 `save_dirty_assets` is needed for the tree itself, but the `compile: true` final op is what bakes the
 generated class. After a batch, `inspect_widget_tree` to confirm the hierarchy before relying on it.
 
+## 8. Console variable management (PROVEN)
+
+Goal: discover, read, tweak, and restore UE console variables (CVars) without leaving Python or
+touching the editor's Output Log manually.
+
+1. **Discover** — `find_console_variables` with a `prefix` (e.g. `r.Shadow`, `r.Screen`) to list
+   matching CVar names, their types (`int|float|bool|string`), and read-only flags. Omit `prefix` to
+   dump the full registry (default `limit=100`, hard max 1000; always pass a `prefix` or set `limit`
+   explicitly for practical use).
+2. **Read** — `get_console_variable` by exact name. Returns all four value representations
+   (string/int/float/bool), the detected type, and the `set_by` field (e.g. `Console`, `DeviceProfile`,
+   `Scalability`). Use `set_by` to understand whether a value was overridden from an ini/scalability
+   bucket — important before deciding to overwrite it.
+3. **Write** — `set_console_variable` with the exact name and a `value` (string, int, float, or bool).
+   The bridge sets at `ECVF_SetByConsole` priority (same as a user typing in the console) and
+   post-verifies the change landed. Read-only CVars (`read_only: true` in the discovery result) are
+   pre-rejected — do not attempt to write them. A mismatch between requested and landed value is
+   reported as a `note` field rather than an error; check `value_string` in the reply to confirm the
+   actual landed value.
+4. **Run a one-off command** — `execute_console_command` for commands that aren't CVar
+   assignments: `stat fps`, `r.ScreenPercentage 50`, `memreport`, etc. Returns captured output by
+   default. Use this for exec-only commands; prefer `set_console_variable` for persistent CVar state.
+5. **Restore on exit** — CVars set via `set_console_variable` survive until the editor session ends
+   (or another set overrides them); they are **not** persisted across restarts. If you need rollback,
+   read the original value with `get_console_variable` before writing, and restore it at the end of
+   the automation run. For batch mutations with automatic rollback, `bulk_set_console_variables`
+   composes the read / set / restore cycle internally — pass `assignments: {cvar: value, …}` and
+   `rollback_on_error: true` for atomic batch behaviour.
+
+Notes: `ECVF_SetByConsole` can override DeviceProfile and scalability buckets — this is intentional
+for automation but means changes may disappear if the engine re-applies scalability settings (e.g.
+on quality change). `find_console_variables` iterates the live `IConsoleManager` registry, so newly
+registered CVars from loaded plugins are included. The `set_by` field helps distinguish CVars you
+set from those owned by the engine scalability system.
+
 ---
 
 ## UE 5.x behavior notes (caller-relevant)
@@ -165,5 +200,7 @@ These shape how you call the tools — not internal implementation you control.
 | TArray/TSet properties (e.g. `OverrideMaterials`) | Supported — pass a JSON **array** value to `set_actor_property` | Send the array directly; no `execute_unreal_python` fallback |
 | `unreal.Rotator` / `unreal.Color` positional args | Rotator is (roll,pitch,yaw); Color is BGRA | Build empty struct, assign by property name |
 | `compile_mod_pak` | **Blocking** RunUAT call (up to ~30 min) — returns no task id, not pollable | Wait for the tool to return; tune `timeout_sec` (default 1800) |
+| `set_console_variable` priority | Sets at `ECVF_SetByConsole`; survives until session end but scalability re-apply can reset it | Read original with `get_console_variable` first; restore at end of run |
+| `find_console_variables` without prefix | Dumps up to 1000 CVars — very large response | Always pass a `prefix`; use `limit` to cap further |
 
 When any tool name here disagrees with live `list_tools`, the live catalog wins — update this file.
