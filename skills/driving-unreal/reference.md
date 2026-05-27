@@ -148,7 +148,7 @@ Notes: `class` accepts the shorthand names above or a fully-qualified `UClass` p
 `save_dirty_assets` is needed for the tree itself, but the `compile: true` final op is what bakes the
 generated class. After a batch, `inspect_widget_tree` to confirm the hierarchy before relying on it.
 
-## 8. PIE (Play-In-Editor) validation loop (MATURE)
+## 8. PIE (Play-In-Editor) validation loop (PROVEN)
 
 Goal: launch a Play-In-Editor session to validate live behavior, observe it, then tear it down — the
 "did my edit actually work?" loop, with no human keypress.
@@ -169,7 +169,7 @@ Notes: starting while a session is running or queued returns `pie_already_active
 nothing running or queued returns `pie_not_active`. Because both start and stop defer to the next
 editor tick, never infer state from the start/stop return — always read it back with `action=query`.
 
-## 9. Component authoring (MATURE)
+## 9. Component authoring (PROVEN)
 
 Goal: attach a component to an existing actor and configure it.
 
