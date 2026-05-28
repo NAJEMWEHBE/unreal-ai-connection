@@ -153,6 +153,7 @@ def test_tool_names_are_unique_and_match_handlers():
         "marketplace_import",
         "convert_hdri_to_cubemap",
         "sequencer_add_transform_keyframe",
+        "import_mesh",
     }
     assert set(names) == expected
 
@@ -6632,3 +6633,164 @@ def test_sequencer_add_transform_keyframe_propagates_call_ue_error():
         })
     assert "error" in resp
     assert "ue_exec_failed" in resp["error"]["message"]
+
+
+# ---------------------------------------------------------------------------
+# import_mesh (synthetic)
+# ---------------------------------------------------------------------------
+
+def test_import_mesh_schema_present():
+    names = [t["name"] for t in bridge.TOOLS]
+    assert "import_mesh" in names
+    t = next(t for t in bridge.TOOLS if t["name"] == "import_mesh")
+    assert t["inputSchema"]["required"] == ["source_path", "dest_path"]
+
+
+def test_import_mesh_rejects_missing_source():
+    with patch.object(bridge, "call_ue") as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 950, "method": "tools/call",
+            "params": {"name": "import_mesh", "arguments": {"dest_path": "/Game/X"}},
+        })
+    assert m.call_count == 0
+    assert resp["error"]["code"] == -32602
+    assert "source_path" in resp["error"]["message"]
+
+
+def test_import_mesh_rejects_bad_extension():
+    with patch.object(bridge, "call_ue") as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 951, "method": "tools/call",
+            "params": {"name": "import_mesh", "arguments": {
+                "source_path": "C:/x/model.blend", "dest_path": "/Game/X"}},
+        })
+    assert m.call_count == 0
+    assert resp["error"]["code"] == -32602
+    assert "source_path" in resp["error"]["message"]
+
+
+def test_import_mesh_rejects_missing_file():
+    # valid extension but file does not exist
+    with patch.object(bridge, "call_ue") as m, \
+         patch.object(bridge.os.path, "isfile", return_value=False):
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 952, "method": "tools/call",
+            "params": {"name": "import_mesh", "arguments": {
+                "source_path": "C:/x/model.glb", "dest_path": "/Game/X"}},
+        })
+    assert m.call_count == 0
+    assert resp["error"]["code"] == -32602
+    assert "file_not_found" in resp["error"]["message"]
+
+
+def test_import_mesh_rejects_non_game_dest():
+    with patch.object(bridge, "call_ue") as m, \
+         patch.object(bridge.os.path, "isfile", return_value=True):
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 953, "method": "tools/call",
+            "params": {"name": "import_mesh", "arguments": {
+                "source_path": "C:/x/model.glb", "dest_path": "/Engine/X"}},
+        })
+    assert m.call_count == 0
+    assert resp["error"]["code"] == -32602
+    assert "dest_path" in resp["error"]["message"]
+
+
+def test_import_mesh_happy_path_parses_created_paths():
+    marker = bridge._IMPORT_MESH_MARKER
+    created = ["/Game/X/Sub/Wall.Wall", "/Game/X/Sub/Wall_Mat.Wall_Mat"]
+    sms = ["/Game/X/Sub/Wall.Wall"]
+    out = "some log\n" + marker + json.dumps({"static_meshes": sms, "created": created}) + "\nmore log"
+    fake = {"result": {"ok": True, "output": out}}
+    with patch.object(bridge.os.path, "isfile", return_value=True), \
+         patch.object(bridge, "call_ue", side_effect=[_engine_5_7_resp(), fake]) as m_ue:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 954, "method": "tools/call",
+            "params": {"name": "import_mesh", "arguments": {
+                "source_path": "C:/x/Wall.glb", "dest_path": "/Game/X"}},
+        })
+    assert "error" not in resp, resp
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert body["ok"] is True
+    assert body["static_meshes"] == sms
+    assert body["created"] == created
+    assert body["count"] == 1
+    # engine preflight + execute_unreal_python
+    assert m_ue.call_count == 2
+    assert m_ue.call_args_list[0][0][0] == "get_engine_version"
+    code = m_ue.call_args[0][1]["code"]
+    assert repr("C:/x/Wall.glb") in code
+    assert repr("/Game/X") in code
+
+
+def test_import_mesh_reads_stdout_field():
+    """Parser also accepts the marker on the 'stdout' field (post-#246 capture)."""
+    marker = bridge._IMPORT_MESH_MARKER
+    payload = {"static_meshes": ["/Game/A/M.M"], "created": ["/Game/A/M.M"]}
+    fake = {"result": {"ok": True, "stdout": marker + json.dumps(payload)}}
+    with patch.object(bridge.os.path, "isfile", return_value=True), \
+         patch.object(bridge, "call_ue", side_effect=[_engine_5_7_resp(), fake]):
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 955, "method": "tools/call",
+            "params": {"name": "import_mesh", "arguments": {
+                "source_path": "C:/x/M.fbx", "dest_path": "/Game/A"}},
+        })
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert body["count"] == 1
+    assert body["static_meshes"] == ["/Game/A/M.M"]
+
+
+def test_import_mesh_propagates_ue_python_error():
+    fake = {"result": {"ok": False, "output": "RuntimeError: interchange_failed"}}
+    with patch.object(bridge.os.path, "isfile", return_value=True), \
+         patch.object(bridge, "call_ue", side_effect=[_engine_5_7_resp(), fake]):
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 956, "method": "tools/call",
+            "params": {"name": "import_mesh", "arguments": {
+                "source_path": "C:/x/M.obj", "dest_path": "/Game/A"}},
+        })
+    assert "error" in resp
+    assert resp["error"]["code"] == -32603
+    assert "ue_python_error" in resp["error"]["message"]
+
+
+def test_import_mesh_fails_closed_when_marker_missing():
+    """ok=True but no result marker -> error (don't return a hollow ok)."""
+    fake = {"result": {"ok": True, "output": "ran but printed nothing useful"}}
+    with patch.object(bridge.os.path, "isfile", return_value=True), \
+         patch.object(bridge, "call_ue", side_effect=[_engine_5_7_resp(), fake]):
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 957, "method": "tools/call",
+            "params": {"name": "import_mesh", "arguments": {
+                "source_path": "C:/x/M.glb", "dest_path": "/Game/A"}},
+        })
+    assert "error" in resp
+    assert resp["error"]["code"] == -32603
+    assert "missing_result_marker" in resp["error"]["message"]
+
+
+def test_import_mesh_no_materials_generates_delete_branch():
+    """import_materials=False bakes WANT_MATS False + a material-delete branch
+    into the generated script, and reports materials_imported False."""
+    marker = bridge._IMPORT_MESH_MARKER
+    payload = {"static_meshes": ["/Game/A/M.M"], "created": ["/Game/A/M.M"], "materials_imported": False}
+    fake = {"result": {"ok": True, "output": marker + json.dumps(payload)}}
+    with patch.object(bridge.os.path, "isfile", return_value=True), \
+         patch.object(bridge, "call_ue", side_effect=[_engine_5_7_resp(), fake]) as m_ue:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 958, "method": "tools/call",
+            "params": {"name": "import_mesh", "arguments": {
+                "source_path": "C:/x/M.glb", "dest_path": "/Game/A", "import_materials": False}},
+        })
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert body["materials_imported"] is False
+    code = m_ue.call_args[0][1]["code"]
+    assert "WANT_MATS = False" in code
+    assert "delete_asset" in code  # honors the flag by removing imported materials
+
+
+def test_import_mesh_uses_asset_registry_not_load_asset():
+    """Class check uses find_asset_data (registry), not load_asset (slow/heavy)."""
+    code = bridge._build_import_mesh_script("C:/x/M.glb", "/Game/A", True)
+    assert "find_asset_data" in code
+    assert "load_asset" not in code

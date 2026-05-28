@@ -1,6 +1,6 @@
 # MCP Tools Reference
 
-**105 tools total.** 72 are JSON-RPC 2.0 methods served on `127.0.0.1:18888` directly by the plugin's C++ handlers. The remaining 33 — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`, `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap`, `sequencer_add_transform_keyframe` — are bridge-side **synthetic tools** that are intercepted by `bridge/unreal_ai_connection_bridge.py` and served by composing existing handlers (or running Python via `execute_unreal_python`, or — for `compile_mod_pak` — shelling out to `RunUAT.bat` entirely outside the UE process). They are visible to MCP clients exactly like the C++ tools but cannot be reached by sending raw JSON-RPC to the TCP socket — only via the MCP bridge or by replicating their composition manually. The "Implementation" header on each entry below indicates whether a tool is C++ or bridge-side.
+**106 tools total.** 72 are JSON-RPC 2.0 methods served on `127.0.0.1:18888` directly by the plugin's C++ handlers. The remaining 34 — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`, `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap`, `sequencer_add_transform_keyframe`, `import_mesh` — are bridge-side **synthetic tools** that are intercepted by `bridge/unreal_ai_connection_bridge.py` and served by composing existing handlers (or running Python via `execute_unreal_python`, or — for `compile_mod_pak` — shelling out to `RunUAT.bat` entirely outside the UE process). They are visible to MCP clients exactly like the C++ tools but cannot be reached by sending raw JSON-RPC to the TCP socket — only via the MCP bridge or by replicating their composition manually. The "Implementation" header on each entry below indicates whether a tool is C++ or bridge-side.
 
 Each tool's params and result are documented with a working example.
 
@@ -4085,6 +4085,24 @@ At least one of `location` / `rotation` / `scale` must be present — callers pa
 ```
 
 The proven end-to-end pipeline (sequence load → GUID parse → binding lookup → track/section get-or-create → channel-wise `add_key` → save) lives in `scripts/poc_sequencer_keyframe.py` for offline inspection.
+
+---
+
+## import_mesh
+
+**Implementation:** bridge-side synthetic (`execute_unreal_python` via UE Interchange). **Min engine:** 5.0.
+
+Imports a 3D mesh file (`.glb` / `.gltf` / `.fbx` / `.obj`) from disk into the project as StaticMesh asset(s). Fills the gap left by `import_texture` (images only). Drives UE's Interchange import to a `/Game/` path and returns the **exact** created StaticMesh asset paths by diffing the destination folder before/after the import — so the caller never has to guess Interchange's sub-folder nesting before binding the mesh to an actor (a real friction point when iterating Blender → UE). Embedded materials (e.g. glTF PBR) import by default.
+
+**Params:** `source_path` (string, required — absolute filesystem path, extension `.glb`/`.gltf`/`.fbx`/`.obj`), `dest_path` (string, required — `/Game` or `/Game/...`), `import_materials` (bool, optional, default `true`).
+
+**Returns:** `ok`, `source_path` (echo), `dest_path` (echo), `import_materials` (echo), `static_meshes` (array of created StaticMesh asset paths), `created` (array of all created asset paths), `count` (number of StaticMesh assets).
+
+```json
+{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"import_mesh","arguments":{"source_path":"F:/exports/wall.glb","dest_path":"/Game/HDM/Imported"}}}
+```
+
+Pairs with `spawn_actor` + `set_actor_property` to place the imported mesh, and with `create_material_instance` / material tools to re-skin it.
 
 ---
 

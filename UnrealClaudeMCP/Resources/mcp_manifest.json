@@ -1,948 +1,1716 @@
 {
-  "name": "UnrealClaudeMCP",
-  "version": "0.9.1",
-  "description": "Drive Unreal Engine 5.7 from any MCP-compliant client over a local TCP socket. 105 tools total (72 native C++ handlers plus 33 bridge-side synthetic tools) that work with any UE 5.7 project.",
-  "transport": {
-    "type": "tcp",
-    "host": "127.0.0.1",
-    "port": 18888,
-    "framing": "length-prefixed-uint64-be-json"
+ "name": "UnrealClaudeMCP",
+ "version": "0.9.1",
+ "description": "Drive Unreal Engine 5.7 from any MCP-compliant client over a local TCP socket. 106 tools total (72 native C++ handlers plus 34 bridge-side synthetic tools) that work with any UE 5.7 project.",
+ "transport": {
+  "type": "tcp",
+  "host": "127.0.0.1",
+  "port": 18888,
+  "framing": "length-prefixed-uint64-be-json"
+ },
+ "tools": [
+  {
+   "name": "execute_unreal_python",
+   "description": "Run arbitrary unreal.* Python in the editor's embedded interpreter (universal escape hatch). Multi-line scripts work.",
+   "params": {
+    "code": "string (required) - Python source code to execute"
+   },
+   "returns": {
+    "ok": "bool",
+    "output": "string",
+    "temp_script": "string"
+   }
   },
-  "tools": [
-    {
-      "name": "execute_unreal_python",
-      "description": "Run arbitrary unreal.* Python in the editor's embedded interpreter (universal escape hatch). Multi-line scripts work.",
-      "params": { "code": "string (required) - Python source code to execute" },
-      "returns": { "ok": "bool", "output": "string", "temp_script": "string" }
-    },
-    {
-      "name": "get_engine_version",
-      "description": "Structured engine-version snapshot — major/minor/patch/changelist/branch as separate fields plus a 'minor_dotted' convenience like '5.7'.",
-      "params": {},
-      "returns": "see docs/TOOLS.md"
-    },
-    {
-      "name": "list_levels",
-      "description": "Enumerate every UWorld asset (level) in the project. Optional path_under (default /Game/) + name_contains filter.",
-      "params": {
-        "path_under": "string (optional, default /Game/) - recursive package-path filter; must start with /Game/ or /Engine/",
-        "name_contains": "string (optional) - case-insensitive substring filter on the level asset name"
-      },
-      "returns": "see docs/TOOLS.md"
-    },
-    {
-      "name": "save_dirty_assets",
-      "description": "Persist every in-memory-modified asset + map to disk. Same as editor 'Save All'.",
-      "params": {
-        "include_levels": "bool (optional, default true) - save dirty .umap level packages",
-        "include_content": "bool (optional, default true) - save dirty .uasset content packages"
-      },
-      "returns": "see docs/TOOLS.md"
-    },
-    {
-      "name": "get_selected_actors",
-      "description": "Return name/label/class/transform of every actor currently selected in the editor. Companion to apply_python_to_selection.",
-      "params": {},
-      "returns": "see docs/TOOLS.md"
-    },
-    {
-      "name": "inspect_input_mappings",
-      "description": "Dump the project's legacy UInputSettings (action + axis mappings) plus an Enhanced Input migration-status flag.",
-      "params": {},
-      "returns": "see docs/TOOLS.md"
-    },
-    {
-      "name": "pie_control",
-      "description": "Start / stop / query Play-In-Editor sessions. Closes the 'did my edit work?' validation loop for AI-driven workflows.",
-      "params": {
-        "action": "string (required) - one of: start, stop, query",
-        "mode": "string (optional, default 'play') - 'play' or 'simulate'; only used when action=start"
-      },
-      "returns": "see docs/TOOLS.md"
-    },
-    {
-      "name": "inspect_project_setting",
-      "description": "Reflect any UDeveloperSettings subclass (RendererSettings, PhysicsSettings, InputSettings, etc.) and dump its editable UPROPERTY values as JSON.",
-      "params": {
-        "settings_class": "string (required) - full class path like '/Script/Engine.RendererSettings'",
-        "property": "string (optional) - single property name to return instead of bulk dump"
-      },
-      "returns": "see docs/TOOLS.md"
-    },
-    {
-      "name": "bulk_inspect_assets",
-      "description": "Inspect multiple assets in one MCP call by composing inspect_asset bridge-side. Returns per-path inspection data plus aggregate counts; mirrors the bulk_*_assets family shape.",
-      "params": {
-        "paths": "array of string (required) - asset object paths to inspect",
-        "continue_on_error": "bool (optional, default true) - when false, stop at first failure"
-      },
-      "returns": "see docs/TOOLS.md"
-    },
-    {
-      "name": "get_project_summary",
-      "description": "Project name, engine version, enabled plugins, asset counts.",
-      "params": {},
-      "returns": "see docs/TOOLS.md"
-    },
-    {
-      "name": "inspect_blueprint",
-      "description": "Variables, function/event graph names, parent class of a Blueprint asset.",
-      "params": { "path": "string (required)" }
-    },
-    {
-      "name": "inspect_widget_tree",
-      "description": "Read the widget hierarchy of a UWidgetBlueprint or EUW. Bypasses UE 5.7 Python reflection limit on WidgetTree.",
-      "params": { "path": "string (required)" }
-    },
-    {
-      "name": "edit_widget_tree",
-      "description": "Mutate a widget tree. ops: set_root | add_child | set_property. Solves UE 5.7 EUW WidgetTree population.",
-      "params": { "path": "string (required)", "op": "string (required)", "compile": "bool (optional, default false)" }
-    },
-    {
-      "name": "get_viewport_screenshot",
-      "description": "Capture the active editor viewport as base64 PNG.",
-      "params": {},
-      "returns": { "width": "int", "height": "int", "png_bytes": "int", "png_base64": "string" }
-    },
-    {
-      "name": "render_camera_to_png",
-      "description": "Force a synchronous render of the level-editor viewport (or an off-screen SceneCapture2D at arbitrary resolution) and write it to an absolute path as a PNG. Works headless/backgrounded where deferred screenshots fail.",
-      "params": {
-        "out_path": "string (required) - absolute filesystem path for the .png",
-        "width": "int (optional) - output width in pixels; with height (or camera_label) switches to off-screen SceneCapture2D",
-        "height": "int (optional) - output height in pixels",
-        "camera_label": "string (optional) - render from this level actor's transform",
-        "fov": "number (optional) - field of view in degrees"
-      },
-      "returns": { "ok": "bool", "path": "string", "width": "int", "height": "int" }
-    },
-    {
-      "name": "list_tools",
-      "description": "Return the names of every registered MCP method on the server.",
-      "params": {}
-    },
-    {
-      "name": "get_actors_in_level",
-      "description": "Return name/class/transform of every actor in the active editor world.",
-      "params": { "name_contains": "string (optional)" }
-    },
-    {
-      "name": "focus_actor",
-      "description": "Select an actor by label/name and frame the viewport on it.",
-      "params": { "name": "string (required)" }
-    },
-    {
-      "name": "load_level_by_path",
-      "description": "Load a UE level by package path.",
-      "params": { "path": "string (required)" }
-    },
-    {
-      "name": "take_high_res_screenshot",
-      "description": "Trigger UE's HighResShot. Output to Saved/Screenshots/<Platform>Editor/.",
-      "params": { "multiplier": "number (optional, 1..8, default 1)" }
-    },
-    {
-      "name": "import_texture",
-      "description": "Import an image file (PNG/JPG/EXR/TGA/BMP/HDR) from disk into the project as a UTexture2D asset, using the canonical UE asset import pipeline.",
-      "params": {
-        "source_path": "string (required) - absolute filesystem path",
-        "dest_path": "string (required) - UE package path starting with /Game/",
-        "dest_name": "string (optional) - asset-name override",
-        "replace_existing": "bool (optional, default false)",
-        "automated": "bool (optional, default true)",
-        "save": "bool (optional, default true)"
-      },
-      "returns": { "ok": "bool", "asset_path": "string", "asset_name": "string", "source_path": "string", "width": "int", "height": "int", "format": "string", "message": "string" }
-    },
-    {
-      "name": "configure_texture",
-      "description": "Adjust SRGB/CompressionSettings/LODGroup/Filter on an existing UTexture asset and persist the change. Triggers UE's standard PreEditChange/PostEditChange flow and rebuilds the GPU resource.",
-      "params": {
-        "path": "string (required) - UE package path of an existing texture",
-        "srgb": "bool (optional)",
-        "compression": "string (optional) - TextureCompressionSettings enum name",
-        "lod_group": "string (optional) - TextureGroup enum name",
-        "filter": "string (optional) - Nearest | Bilinear | Trilinear | Default",
-        "compress": "bool (optional, default true)"
-      },
-      "returns": { "ok": "bool", "path": "string", "applied": "object", "message": "string" }
-    },
-    {
-      "name": "find_assets",
-      "description": "Query the asset registry by class + optional path + optional name substring + optional tag filters. Returns matching assets with structured records (name, package_path, class[, tags]).",
-      "params": {
-        "class_path": "string (required) - UE class path, e.g. /Script/Engine.StaticMesh",
-        "path_under": "string (optional, default /Game/) - recursive path filter",
-        "name_contains": "string (optional) - case-insensitive substring filter",
-        "limit": "int (optional, default 100, max 500)",
-        "tags": "object (optional) - map of tag-name -> exact-match string or null (any value); AND-combined",
-        "include_tags": "bool (optional, default false) - when true, each result asset includes a 'tags' map"
-      },
-      "returns": { "ok": "bool", "matched": "int", "returned": "int", "assets": "array of {name, package_path, class[, tags]}" }
-    },
-    {
-      "name": "spawn_actor",
-      "description": "Create an actor in the current editor world at a location with optional rotation, label, and initial properties. Class path can be built-in (/Script/Engine.StaticMeshActor) or Blueprint (/Game/Blueprints/BP_X.BP_X_C).",
-      "params": {
-        "class_path": "string (required) - actor class path",
-        "location": "object (optional, default {0,0,0}) - {x, y, z}",
-        "rotation": "object (optional, default {0,0,0}) - {pitch, yaw, roll}",
-        "label": "string (optional) - World Outliner label",
-        "properties": "object (optional) - {PropertyName: value} applied post-spawn"
-      },
-      "returns": { "ok": "bool", "name": "string", "label": "string", "class": "string", "location": "object", "rotation": "object" }
-    },
-    {
-      "name": "set_actor_transform",
-      "description": "Move / rotate / scale an existing actor by name (label or FName). Supports both absolute and relative modes.",
-      "params": {
-        "name": "string (required) - actor label OR FName",
-        "location": "object (optional)",
-        "rotation": "object (optional)",
-        "scale": "object (optional)",
-        "relative": "bool (optional, default false)"
-      },
-      "returns": { "ok": "bool", "name": "string", "applied": "object" }
-    },
-    {
-      "name": "delete_actor",
-      "description": "Remove an actor from the editor world by name (label or FName). Children are detached, not destroyed (UE's default behavior). Force flag overrides the children-attached safety check.",
-      "params": {
-        "name": "string (required) - actor label OR FName",
-        "force": "bool (optional, default false)"
-      },
-      "returns": { "ok": "bool", "name": "string", "deleted": "bool" }
-    },
-    {
-      "name": "set_actor_property",
-      "description": "Mutate any UPROPERTY on an actor. v0.4.0 supports primitives, all common UE structs, enums, TSoftObjectPtr, plus USTRUCT (recursive)/TArray/TMap (string-keyed)/TSet/FObjectProperty (hard UObject pointers via asset path). Property names accept dotted-path syntax for nested traversal (e.g. 'RootComponent.RelativeLocation'). FInstancedStruct deferred to v0.4.x.",
-      "params": {
-        "name": "string (required) - actor label OR FName",
-        "property": "string (required) - UPROPERTY name",
-        "value": "string | number | boolean | array | object | null (required) - polymorphic JSON; coerced to FProperty type. Use JSON arrays for TArray / TSet (e.g. OverrideMaterials), JSON objects for FVector / FRotator / FLinearColor / FInstancedStruct / TMap, and null for explicit clear on nullable properties. JSON Schema 'number' covers integers; the typed schema (instead of 'any') prevents strict MCP clients from stringifying array values before wire transport."
-      },
-      "returns": { "ok": "bool", "name": "string", "property": "string", "old_value": "any", "new_value": "any" }
-    },
-    {
-      "name": "add_component",
-      "description": "Attach a component (UActorComponent or USceneComponent subclass) to an existing actor at runtime, optionally socketed and transformed relative to a parent component.",
-      "params": {
-        "actor_name": "string (required) - host actor label or FName",
-        "class_path": "string (required) - component class path",
-        "component_name": "string (optional)",
-        "attach_to": "string (optional, default root)",
-        "socket": "string (optional)",
-        "relative_transform": "object (optional)"
-      },
-      "returns": { "ok": "bool", "actor": "string", "component": "string", "class": "string", "attached_to": "string" }
-    },
-    {
-      "name": "get_log_lines",
-      "description": "Read recent UE Output Log entries from the in-process ring buffer (last 1000 lines). Supports category substring filter and minimum verbosity filter.",
-      "params": {
-        "count": "int (optional, default 100, max 1000) - max lines to return",
-        "category_filter": "string (optional) - case-insensitive substring filter on log category",
-        "min_verbosity": "string (optional, default 'Log') - Fatal | Error | Warning | Display | Log | Verbose | VeryVerbose"
-      },
-      "returns": { "ok": "bool", "returned": "int", "lines": "array of {timestamp, category, verbosity, message}" }
-    },
-    {
-      "name": "execute_console_command",
-      "description": "Execute a UE console command (e.g. 'stat fps', 'r.ScreenPercentage 50') and capture its output.",
-      "params": {
-        "command": "string (required) - console command to execute",
-        "capture_output": "bool (optional, default true) - capture and return command output"
-      },
-      "returns": { "ok": "bool", "command": "string", "output": "string" }
-    },
-    {
-      "name": "inspect_asset",
-      "description": "Read everything the asset registry knows about a single asset: class, all registry tags, dependency packages, referencer packages, on-disk file size.",
-      "params": {
-        "path": "string (required) - asset path or package path"
-      },
-      "returns": { "ok": "bool", "name": "string", "package_path": "string", "asset_path": "string", "class": "string", "class_path": "string", "tags": "object", "dependencies": "array of string", "referencers": "array of string", "package_size_bytes": "int or null" }
-    },
-    {
-      "name": "move_asset",
-      "description": "Move an asset to a different folder; leaf name unchanged. UE auto-creates a redirector at the source path.",
-      "params": {
-        "path": "string (required) - source asset path",
-        "dest_folder": "string (required) - destination folder under /Game/ or /Engine/"
-      },
-      "returns": { "ok": "bool", "old_path": "string", "new_path": "string" }
-    },
-    {
-      "name": "rename_asset",
-      "description": "Rename an asset's leaf name; folder unchanged. UE auto-creates a redirector at the old name.",
-      "params": {
-        "path": "string (required) - source asset path",
-        "new_name": "string (required) - new leaf name (no '/' or '.')"
-      },
-      "returns": { "ok": "bool", "old_path": "string", "new_path": "string" }
-    },
-    {
-      "name": "duplicate_asset",
-      "description": "Copy an asset to a new path. Source asset is preserved; destination must not already exist. No redirector is created (callers reference the duplicate by its new path).",
-      "params": {
-        "path": "string (required) - source asset path",
-        "dest_path": "string (required) - destination asset path (must not exist)"
-      },
-      "returns": { "ok": "bool", "src_path": "string", "dest_path": "string" }
-    },
-    {
-      "name": "delete_asset",
-      "description": "Delete an asset. Refuses if referenced by other packages unless force=true. Force-delete cannot be recovered via Undo.",
-      "params": {
-        "path": "string (required) - asset path to delete",
-        "force": "bool (optional, default false) - delete even if referenced"
-      },
-      "returns": { "ok": "bool", "deleted_path": "string" }
-    },
-    {
-      "name": "inspect_sequence",
-      "description": "Read structure of a Level Sequence asset: tracks, sections, bindings, frame rate, playback range.",
-      "params": {
-        "path": "string (required) - Level Sequence asset path"
-      },
-      "returns": { "ok": "bool", "name": "string", "package_path": "string", "tick_resolution": "int", "display_rate_fps": "number", "playback_range": "object", "bindings": "array of object", "tracks": "array of object" }
-    },
-    {
-      "name": "create_sequence",
-      "description": "Create a new Level Sequence asset with display frame rate and playback range.",
-      "params": {
-        "path": "string (required) - destination folder under /Game/",
-        "name": "string (required) - leaf asset name (no '/' or '.')",
-        "display_rate_fps": "number (optional, default 30.0)",
-        "playback_end_frames": "int (optional, default 240)"
-      },
-      "returns": { "ok": "bool", "asset_path": "string", "package_path": "string", "display_rate_fps": "number", "playback_range": "object" }
-    },
-    {
-      "name": "bind_actor_to_sequence",
-      "description": "Add a level actor as a possessable binding to a Level Sequence.",
-      "params": {
-        "sequence_path": "string (required) - Level Sequence asset path",
-        "actor_name": "string (required) - actor label or FName"
-      },
-      "returns": { "ok": "bool", "sequence_path": "string", "binding_guid": "string", "actor_label": "string", "binding_type": "string" }
-    },
-    {
-      "name": "create_material_instance",
-      "description": "Create a UMaterialInstanceConstant asset and set its parent to an existing UMaterial or UMaterialInstance.",
-      "params": {
-        "parent_path": "string (required) - path of the parent UMaterial or UMaterialInstance",
-        "path": "string (required) - destination folder under /Game/",
-        "name": "string (required) - leaf asset name (no '/' or '.')"
-      },
-      "returns": { "ok": "bool", "asset_path": "string", "package_path": "string", "parent_path": "string" }
-    },
-    {
-      "name": "set_mi_parameter",
-      "description": "Override a scalar/vector/texture parameter on a UMaterialInstanceConstant.",
-      "params": {
-        "path": "string (required) - material instance asset path",
-        "parameter": "string (required) - parameter name as declared on the parent material",
-        "type": "string (required) - one of: scalar | vector | texture",
-        "value": "varies by type - scalar: number; vector: {r,g,b,a}; texture: string asset path"
-      },
-      "returns": { "ok": "bool", "path": "string", "parameter": "string", "type": "string", "applied_value": "varies by type" }
-    },
-    {
-      "name": "inspect_material",
-      "description": "List parameter names declared by a UMaterial or UMaterialInstance: scalar, vector, texture, and static-switch parameters.",
-      "params": {
-        "path": "string (required) - material asset path"
-      },
-      "returns": { "ok": "bool", "name": "string", "package_path": "string", "class": "string", "scalar_parameters": "array of string", "vector_parameters": "array of string", "texture_parameters": "array of string", "static_switch_parameters": "array of string" }
-    },
-    {
-      "name": "inspect_material_instance",
-      "description": "Read a UMaterialInstanceConstant's parent and currently-overridden parameter values (scalar/vector/texture).",
-      "params": {
-        "path": "string (required) - material instance asset path"
-      },
-      "returns": { "ok": "bool", "name": "string", "package_path": "string", "parent_path": "string", "scalar_overrides": "object", "vector_overrides": "object", "texture_overrides": "object" }
-    },
-    {
-      "name": "run_python_file",
-      "description": "Execute a .py file from disk via the editor's embedded Python. Complement to execute_unreal_python; avoids JSON escaping pain for non-trivial scripts.",
-      "params": {
-        "path": "string (required) - filesystem path to a .py file (absolute or relative to editor CWD, typically the project root)"
-      },
-      "returns": { "ok": "bool", "output": "string", "path": "string (resolved absolute path)" }
-    },
-    {
-      "name": "fix_up_redirectors",
-      "description": "Cascade-update consumers of UObjectRedirector assets under a folder, then delete the redirector stubs. Cleans up after move_asset / rename_asset.",
-      "params": {
-        "path": "string (required) - package path under which to recursively fix up, e.g. /Game/ or /Game/Materials"
-      },
-      "returns": { "ok": "bool", "path": "string", "redirectors_found": "int", "note": "string" }
-    },
-    {
-      "name": "apply_python_to_selection",
-      "description": "Run user Python with `selection` (selected level actors) and `selected_assets` (selected content-browser assets) pre-bound as locals. Convenience wrapper around execute_unreal_python.",
-      "params": {
-        "code": "string (required) - Python source. `selection` and `selected_assets` are pre-bound by the injected boilerplate."
-      },
-      "returns": { "ok": "bool", "output": "string", "temp_script": "string" }
-    },
-    {
-      "name": "compile_blueprint",
-      "description": "Explicit Blueprint recompile via FKismetEditorUtilities::CompileBlueprint. For BPs that were mutated externally (e.g. via execute_unreal_python) and need a recompile without further mutation.",
-      "params": {
-        "path": "string (required) - Blueprint asset path",
-        "skip_save": "bool (optional, default false) - suppress Save-On-Compile auto-save"
-      },
-      "returns": { "ok": "bool", "path": "string", "status": "string (up_to_date|up_to_date_with_warnings|error|dirty|unknown|being_created)", "saved": "bool", "note": "string (only on error)" }
-    },
-    {
-      "name": "get_console_variable",
-      "description": "Read a UE Console Variable by name; returns value in all four representations (string/int/float/bool) plus type, read-only flag, last-setter, and help text.",
-      "params": {
-        "name": "string (required) - exact CVar name, case-sensitive (e.g. r.ScreenPercentage)"
-      },
-      "returns": { "ok": "bool", "name": "string", "type": "string (int|float|bool|string|unknown)", "read_only": "bool", "set_by": "string", "value_string": "string", "value_int": "number", "value_float": "number", "value_bool": "bool", "help": "string" }
-    },
-    {
-      "name": "set_console_variable",
-      "description": "Mutate a UE Console Variable by name. Polymorphic value (string/number/bool) coerced to string and forwarded at ECVF_SetByConsole priority. Pre-rejects read-only CVars; post-verifies the change landed.",
-      "params": {
-        "name": "string (required) - exact CVar name, case-sensitive",
-        "value": "string | number | bool (required) - new value; coerced to string before Set"
-      },
-      "returns": { "ok": "bool", "name": "string", "type": "string", "requested_value": "string", "value_string": "string", "value_int": "number", "value_float": "number", "value_bool": "bool", "set_by": "string", "note": "string (only when post-set value differs from requested)" }
-    },
-    {
-      "name": "poll_events",
-      "description": "Tier 2 entrypoint: drain editor events fired since the caller's last poll. UE delegates (starter set: actor_spawned, actor_deleted, asset_added) push into a 1000-entry ring buffer (FUCMCPEventBus); this handler returns the slice with seq > since_seq, capped at max_count.",
-      "params": {
-        "since_seq": "int (optional, default -1) - return events with seq > since_seq",
-        "max_count": "int (optional, default 100, max 1000) - cap returned events",
-        "event_filter": "array of string (optional) - substring filters on event type; OR-combined"
-      },
-      "returns": { "ok": "bool", "next_seq": "int", "first_seq_in_buffer": "int", "returned": "int", "dropped": "bool", "events": "array of {seq, event, ts, data}", "note": "string (only when dropped=true)" }
-    },
-    {
-      "name": "wait_for_events",
-      "description": "Bridge-side composition: repeatedly polls UE's poll_events until matching events arrive or timeout_ms expires. Implemented in the bridge (Python) rather than UE C++ so the wait runs in a separate process, leaving UE's game thread free to actually fire game-thread events during the wait.",
-      "params": {
-        "timeout_ms": "int (optional, default 500, hard cap 30000) - max wait in ms",
-        "poll_interval_ms": "int (optional, default 100, range 25-1000) - bridge-side polling cadence",
-        "since_seq": "int (optional, default -1) - inclusive cursor",
-        "max_count": "int (optional, default 100, max 1000) - cap returned events",
-        "event_filter": "array of string (optional) - substring filters on event type"
-      },
-      "returns": { "ok": "bool", "next_seq": "int", "first_seq_in_buffer": "int", "returned": "int", "dropped": "bool", "timed_out": "bool", "events": "array of {seq, event, ts, data}", "note": "string (only when dropped=true)" }
-    },
-    {
-      "name": "register_subscription",
-      "description": "Create a server-side cursor + filter on FUCMCPEventBus. Returns a subscription_id pairs with poll_subscription / unsubscribe. Cursor starts at the bus's current next_seq (subscribers see events fired AFTER subscription).",
-      "params": {
-        "event_filter": "array of string (optional) - substring filters on event type; OR-combined"
-      },
-      "returns": { "ok": "bool", "subscription_id": "string", "initial_next_seq": "int", "event_filter": "array of string" }
-    },
-    {
-      "name": "unsubscribe",
-      "description": "Remove a subscription. Idempotent: unknown ids return ok=true with was_present=false, so blanket shutdown unsubscribes are safe.",
-      "params": {
-        "subscription_id": "string (required) - id from register_subscription"
-      },
-      "returns": { "ok": "bool", "subscription_id": "string", "was_present": "bool" }
-    },
-    {
-      "name": "poll_subscription",
-      "description": "Drain events for a subscription. Per-sub cursor advances atomically -- successful poll never returns the same events twice. No since_seq / event_filter params (both are server-side state).",
-      "params": {
-        "subscription_id": "string (required) - id from register_subscription",
-        "max_count": "int (optional, default 100, max 1000) - cap returned events"
-      },
-      "returns": { "ok": "bool", "subscription_id": "string", "next_seq": "int", "first_seq_in_buffer": "int", "returned": "int", "dropped": "bool", "events": "array of {seq, event, ts, data}", "note": "string (only when dropped=true)" }
-    },
-    {
-      "name": "start_sleep_task",
-      "description": "PR #44 task-framework tracer: background-sleeps for duration_ms then completes. Returns task_id; poll via poll_task. Hard cap 1 hour.",
-      "params": {
-        "duration_ms": "int (required, 1 to 3600000) - sleep duration"
-      },
-      "returns": { "ok": "bool", "task_id": "string", "type": "string (= 'sleep')", "status": "string (= 'pending')", "duration_ms": "int", "note": "string" }
-    },
-    {
-      "name": "poll_task",
-      "description": "Read current state of a task. Non-blocking. Status: pending | running | completed | cancelled | failed.",
-      "params": {
-        "task_id": "string (required) - id from start_*_task"
-      },
-      "returns": { "ok": "bool", "task_id": "string", "type": "string", "status": "string", "start_time": "string", "end_time": "string (empty if not terminal)", "cancel_requested": "bool", "result": "object (only if status=completed)", "error": "string (only if status=failed)" }
-    },
-    {
-      "name": "cancel_task",
-      "description": "Request cooperative cancellation. Sets atomic flag; worker observes within ~50ms and transitions to status='cancelled'. Idempotent.",
-      "params": {
-        "task_id": "string (required) - id from start_*_task"
-      },
-      "returns": { "ok": "bool", "task_id": "string", "accepted": "bool", "note": "string" }
-    },
-    {
-      "name": "list_tasks",
-      "description": "Enumerate tasks in the registry with optional status/type filters and a limit. Atomic snapshot. Mirrors find_assets's total/matched/returned convention.",
-      "params": {
-        "status_filter": "string (optional) - one of pending | running | completed | cancelled | failed",
-        "type_filter": "string (optional) - exact-match task type",
-        "limit": "int (optional, default 100, clamped 1..500)"
-      },
-      "returns": { "ok": "bool", "total": "int", "matched": "int", "returned": "int", "tasks": "array of {task_id, type, status, start_time, end_time, cancel_requested, result?, error?}" }
-    },
-    {
-      "name": "exec_python_persistent",
-      "description": "Like execute_unreal_python but state PERSISTS across calls. Implemented via FPythonCommandEx with FileExecutionScope=Public (shared globals dict with the editor's Python console). Pairs with reset_python_state.",
-      "params": {
-        "code": "string (required) - Python source to execute against the persistent globals dict"
-      },
-      "returns": { "ok": "bool", "output": "string", "temp_script": "string", "scope": "string (= 'public')" }
-    },
-    {
-      "name": "reset_python_state",
-      "description": "Clear all user-defined names from UE Python's public globals dict. Pairs with exec_python_persistent. Names starting with '_' (dunders + conventional private) are preserved.",
-      "params": {},
-      "returns": { "ok": "bool", "scope": "string (= 'public')", "note": "string" }
-    },
-    {
-      "name": "find_console_variables",
-      "description": "Prefix-search IConsoleManager registry; returns matching CVar names + types + read-only flags. C++ handler -- direct iteration of UE's internal registry. Part of language-shim experiment (PR #46).",
-      "params": {
-        "prefix": "string (optional, default empty) - case-sensitive prefix filter",
-        "limit": "int (optional, default 100, max 1000) - cap returned variables"
-      },
-      "returns": { "ok": "bool", "prefix": "string", "limit": "int", "returned": "int", "variables": "array of {name, type, read_only}", "note": "string (only when result count hit the cap)" }
-    },
-    {
-      "name": "inspect_static_mesh",
-      "description": "Read structural properties of a UStaticMesh: LOD count, per-LOD vertex/triangle counts, bounding box, material slots. C++ handler. Part of language-shim experiment (PR #46).",
-      "params": {
-        "path": "string (required) - UE asset path of a UStaticMesh"
-      },
-      "returns": { "ok": "bool", "name": "string", "package_path": "string", "num_lods": "int", "total_vertices": "int", "total_triangles": "int", "lods": "array of {index, vertices, triangles}", "bounds": "{min, max, size, center}", "material_slots": "array of {index, slot_name, material_path}" }
-    },
-    {
-      "name": "inspect_niagara_system",
-      "description": "Read structural properties of a UNiagaraSystem: emitters, user parameters, system-level settings. C++ handler. Calls EnsureFullyLoaded() before access (UNiagaraSystem uses LazyOnDemand load behavior).",
-      "params": {
-        "path": "string (required) - UE asset path of a UNiagaraSystem"
-      },
-      "returns": { "ok": "bool", "name": "string", "package_path": "string", "is_looping": "bool", "has_gpu_emitters": "bool", "needs_warmup": "bool", "warmup_tick_count": "int (conditional, when needs_warmup is true)", "warmup_time": "float (conditional, when needs_warmup is true)", "warmup_tick_delta": "float (conditional, when needs_warmup is true)", "emitter_count": "int", "emitters": "array of {name, enabled, mode}", "user_parameter_count": "int", "user_parameters": "array of {name, type}", "effect_type": "string (optional, when set; asset path of the UNiagaraEffectType instance)", "fixed_bounds": "object (optional, when bFixedBounds is true) - {min, max, size, center}" }
-    },
-    {
-      "name": "inspect_anim_blueprint",
-      "description": "Read structural properties of a UAnimBlueprint: parent class, target skeleton, template flag, compile status, baked state machines, anim functions (with implemented flag), sync groups, parent anim blueprint chain. C++ handler. Guards UAnimBlueprintGeneratedClass for null when blueprint hasn't been compiled.",
-      "params": {
-        "path": "string (required) - UE asset path of a UAnimBlueprint"
-      },
-      "returns": { "ok": "bool", "name": "string", "path": "string", "parent_class": "string", "is_template": "bool", "target_skeleton": "string (conditional, when bIsTemplate is false and TargetSkeleton is set; asset path)", "blueprint_status": "string enum: UpToDate | UpToDateWithWarnings | Dirty | Error | BeingCreated | Unknown", "is_compiled": "bool (true when GetAnimBlueprintGeneratedClass is non-null)", "parent_anim_blueprint": "string (conditional, when this blueprint subclasses another anim blueprint; asset path)", "state_machine_count": "int", "state_machines": "array of {name}", "anim_function_count": "int", "anim_functions": "array of {name, implemented}", "sync_group_count": "int", "sync_groups": "array of string" }
-    },
-    {
-      "name": "inspect_landscape",
-      "description": "Read structural properties of an ALandscape scene actor (not an asset). Component dimensions, total component count, landscape material asset path, world-space loaded bounds, GUID identity. Lookup by actor label and/or LandscapeGuid string.",
-      "params": {
-        "name": "string (optional) - actor label; when omitted with guid, returns the sole landscape if exactly one exists",
-        "guid": "string (optional) - LandscapeGuid OR OriginalLandscapeGuid string"
-      },
-      "returns": { "ok": "bool", "name": "string", "actor_name": "string", "landscape_guid": "string", "original_landscape_guid": "string", "component_size_quads": "int", "subsection_size_quads": "int", "num_subsections": "int", "landscape_material": "string (conditional, when LandscapeMaterial is set; asset path)", "loaded_bounds": "{min, max, size, center}", "streaming_proxy_count": "int", "component_count_total": "int", "has_landscape_info": "bool" }
-    },
-    {
-      "name": "inspect_skeletal_mesh",
-      "description": "Read structural properties of a USkeletalMesh: per-LOD vertex/triangle/section counts, bounds, target skeleton, bone counts, materials, morph targets, clothing, physics asset. C++ handler. No new Build.cs deps (Engine covers it).",
-      "params": {
-        "path": "string (required) - UE asset path of a USkeletalMesh"
-      },
-      "returns": { "ok": "bool", "name": "string", "package_path": "string", "num_lods": "int", "total_vertices": "int", "total_triangles": "int", "lods": "array of {index, vertices, triangles, section_count}", "bounds": "{min, max, size, center}", "sphere_radius": "float", "skeleton": "string (conditional, when GetSkeleton is non-null; asset path)", "bone_count": "int (includes virtual bones via FReferenceSkeleton::GetNum)", "raw_bone_count": "int (imported only via GetRawBoneNum)", "material_slots": "array of {index, slot_name, material_path}", "morph_target_count": "int", "morph_targets": "array of string", "has_clothing_assets": "bool", "clothing_asset_count": "int", "physics_asset": "string (conditional, when GetPhysicsAsset is non-null; asset path)" }
-    },
-    {
-      "name": "inspect_anim_montage",
-      "description": "Read structural properties of a UAnimMontage: skeleton, play length, frame rate, blend envelope, composite sections (with section ladder + start/end times), slot tracks, notify events. C++ handler. Completes the anim introspection trio (anim_blueprint + skeletal_mesh + anim_montage). No new Build.cs deps (Engine covers it).",
-      "params": {
-        "path": "string (required) - UE asset path of a UAnimMontage"
-      },
-      "returns": { "ok": "bool", "name": "string", "package_path": "string", "skeleton": "string (conditional, when GetSkeleton is non-null; asset path)", "play_length": "float (seconds)", "frame_rate": "{numerator, denominator}", "is_dynamic": "bool", "blend_in_time": "float", "blend_out_time": "float", "blend_out_trigger_time": "float (seconds, negative means at-end)", "auto_blend_out": "bool", "parent_asset": "string (conditional, when this montage is a child via asset remapping)", "section_count": "int", "sections": "array of {name, next, start_time, end_time}", "slot_count": "int", "slots": "array of {slot_name, segment_count}", "notify_count": "int", "notifies": "array of {name, time, duration, notify_class?, notify_state_class?}" }
-    },
-    {
-      "name": "inspect_widget_blueprint",
-      "description": "Read UWidgetBlueprint-specific structural properties: parent class, blueprint compile status, palette category, animations, delegate property bindings, inherited named slots from parent generated class. Complements inspect_blueprint (UBlueprint vars + graphs) and inspect_widget_tree (widget hierarchy); cross-link via shared asset path. C++ handler. No new Build.cs deps (UMG + UMGEditor already present). Null-skips TObjectPtr<UWidgetAnimation> entries (PR #55->#57 lesson).",
-      "params": {
-        "path": "string (required) - UE asset path of a UWidgetBlueprint"
-      },
-      "returns": { "ok": "bool", "name": "string", "path": "string", "parent_class": "string", "blueprint_status": "string enum: UpToDate | UpToDateWithWarnings | Dirty | Error | BeingCreated | Unknown", "palette_category": "string (conditional, when non-empty)", "can_init_without_player_context": "bool", "property_bindings_allowed": "bool (from ArePropertyBindingsAllowed())", "property_bindings_count": "int (from WBP::PropertyBindings; performance signal)", "binding_count": "int (Bindings.Num)", "bindings": "array of {object_name, property_name, function_name}", "animation_count": "int (valid TObjectPtr<UWidgetAnimation> entries only)", "animations": "array of {name, display_label, start_time, end_time, length_seconds, binding_count}", "inherited_named_slot_count": "int", "inherited_named_slots": "array of string", "inherited_slots_with_content": "array of string (sorted, stable across calls)" }
-    },
-    {
-      "name": "inspect_data_table",
-      "description": "Read structural properties of a UDataTable: RowStruct identity (asset path + name), row count, sorted row names, per-property name+type on the RowStruct (TFieldIterator skipping super fields), strip-from-client-builds flag, ignore-extra/missing-fields tolerance flags, optional ImportKeyField. C++ handler. No new Build.cs deps (Engine + CoreUObject cover UDataTable / UScriptStruct / FProperty). Null-guards RowStruct.",
-      "params": {
-        "path": "string (required) - UE asset path of a UDataTable"
-      },
-      "returns": { "ok": "bool", "name": "string", "path": "string", "row_struct": "string (conditional, when RowStruct is non-null; asset path of the UScriptStruct)", "row_struct_name": "string (conditional, when RowStruct is non-null)", "row_count": "int", "rows": "array of string (sorted, stable across calls)", "row_property_count": "int", "row_properties": "array of {name, type} where type is FProperty::GetCPPType (e.g. int32, FString, FVector)", "strip_from_client_builds": "bool", "ignore_extra_fields": "bool", "ignore_missing_fields": "bool", "import_key_field": "string (conditional, when non-empty)" }
-    },
-    {
-      "name": "inspect_texture",
-      "description": "Read structural properties of a UTexture asset: surface dimensions, sRGB, compression settings, filter, LOD group, LOD bias, mip-gen settings, virtual-texture streaming flag, never-stream flag, composite-texture link. UTexture2D-specific size/mips/pixel_format/imported_size emitted conditionally when the asset is a UTexture2D. Pairs with configure_texture (mutates) and import_texture (creates). C++ handler. No new Build.cs deps (Engine covers UTexture / UTexture2D / EPixelFormat).",
-      "params": {
-        "path": "string (required) - UE asset path of a UTexture (UTexture2D / UTextureCube / UTextureRenderTarget / UTexture2DArray / ...)"
-      },
-      "returns": { "ok": "bool", "name": "string", "path": "string", "texture_class": "string (e.g. Texture2D, TextureCube, TextureRenderTarget2D)", "compression_settings": "string enum (Default | Normalmap | Masks | Grayscale | Displacementmap | VectorDisplacementmap | HDR | UserInterface2D | BC7 | HalfFloat | SingleFloat | Alpha | DistanceFieldFont | HDR_Compressed | HDR_F32 | Unknown)", "filter": "string enum (Nearest | Bilinear | Trilinear | Default | Unknown)", "lod_group": "string (TextureGroup name from UTexture::GetTextureGroupString)", "mip_gen_settings": "string (TextureMipGenSettings name from UTexture::GetMipGenSettingsString)", "lod_bias": "int", "srgb": "bool", "virtual_texture_streaming": "bool", "never_stream": "bool", "composite_texture": "string (conditional, when CompositeTexture is non-null; asset path)", "surface_width": "float (UTexture::GetSurfaceWidth)", "surface_height": "float (UTexture::GetSurfaceHeight)", "surface_depth": "float (UTexture::GetSurfaceDepth)", "size_x": "int (conditional, UTexture2D-only via GetSizeX)", "size_y": "int (conditional, UTexture2D-only via GetSizeY)", "num_mips": "int (conditional, UTexture2D-only via GetNumMips)", "pixel_format": "string (conditional, UTexture2D-only; EPixelFormat name via GetPixelFormatEnum)", "imported_size_x": "int (conditional, UTexture2D-only via GetImportedSize().X)", "imported_size_y": "int (conditional, UTexture2D-only via GetImportedSize().Y)" }
-    },
-    {
-      "name": "inspect_curve",
-      "description": "Read structural properties of a UCurveBase asset: curve class, channel count, global time + value range, per-channel name + key count + per-channel ranges. Channel layout differs by subclass (UCurveFloat = 1, UCurveLinearColor = 4 RGBA, UCurveVector = 3 XYZ). C++ handler. No new Build.cs deps (Engine covers UCurveBase / FRichCurve / FRealCurve).",
-      "params": {
-        "path": "string (required) - UE asset path of a UCurveBase (UCurveFloat / UCurveLinearColor / UCurveVector / any subclass)"
-      },
-      "returns": { "ok": "bool", "name": "string", "path": "string", "curve_class": "string (e.g. CurveFloat, CurveLinearColor, CurveVector)", "channel_count": "int", "time_range": "{min, max}", "value_range": "{min, max}", "channels": "array of {name, key_count, time_range, value_range}; key_count is -1 when CurveToEdit is null (theoretical guard)" }
-    },
-    {
-      "name": "inspect_physics_asset",
-      "description": "Read structural properties of a UPhysicsAsset: preview skeletal mesh cross-link, body setups (one per simulated bone), constraint setups (joints between bodies), bounds-bodies subset, named physical-animation + constraint profiles. C++ handler. No new Build.cs deps (Engine + PhysicsCore cover UPhysicsAsset / USkeletalBodySetup / UPhysicsConstraintTemplate). Null-skips TObjectPtr entries.",
-      "params": {
-        "path": "string (required) - UE asset path of a UPhysicsAsset"
-      },
-      "returns": { "ok": "bool", "name": "string", "path": "string", "preview_skeletal_mesh": "string (conditional, when PreviewSkeletalMesh is set; soft-object asset path; cross-link to inspect_skeletal_mesh)", "body_count": "int (valid USkeletalBodySetup entries only)", "bodies": "array of {name, body_index, consider_for_bounds, is_in_bounds_subset}", "constraint_count": "int (valid UPhysicsConstraintTemplate entries only)", "constraints": "array of {joint_name, child_bone, parent_bone}", "bounds_body_count": "int (BoundsBodies.Num)", "physical_animation_profile_count": "int", "physical_animation_profiles": "array of string", "constraint_profile_count": "int", "constraint_profiles": "array of string" }
-    },
-    {
-      "name": "inspect_sound_cue",
-      "description": "Read structural properties of a USoundCue asset: duration, max distance, volume + pitch multipliers, subtitle priority, max audible distance, attenuation cross-link, root sound-node class, full graph node list (sorted by name with class taxonomy). C++ handler. No new Build.cs deps (Engine covers USoundCue / USoundBase / USoundNode / USoundAttenuation). Null-skips TObjectPtr<USoundNode> entries.",
-      "params": {
-        "path": "string (required) - UE asset path of a USoundCue"
-      },
-      "returns": { "ok": "bool", "name": "string", "path": "string", "duration": "float (USoundBase::Duration; total cue length in seconds)", "max_distance": "float (USoundBase::MaxDistance)", "volume_multiplier": "float", "pitch_multiplier": "float", "subtitle_priority": "float", "max_audible_distance": "float", "attenuation_settings": "string (conditional, when AttenuationSettings is non-null; asset path)", "first_node_class": "string (conditional, when FirstNode is non-null; class name of the root graph node)", "node_count": "int (valid USoundNode entries only)", "nodes": "array of {name, class} (sorted by name; null-skipped)" }
-    },
-    {
-      "name": "inspect_sound_wave",
-      "description": "Read structural properties of a USoundWave asset: sample rate, channel count, frame count, duration, compression type, runtime format, sound group, looping/streaming flags, loading behavior, subtitle + cue-point + loop-region counts. Editor-only fields (imported_sample_rate, lufs, sample_peak_db, comment) emit conditionally when non-default. C++ handler. No new Build.cs deps (Engine covers USoundWave + relatives). LazyOnDemand caveat: only declarative fields read (no transient runtime state).",
-      "params": {
-        "path": "string (required) - UE asset path of a USoundWave"
-      },
-      "returns": { "ok": "bool", "name": "string", "path": "string", "sound_wave_class": "string", "sample_rate": "int", "num_channels": "int", "num_frames": "int (USoundWave::GetNumFrames)", "duration": "float (USoundBase::GetDuration; seconds)", "compression_type": "string (ESoundAssetCompressionType, prefix-stripped)", "runtime_format": "string (FName from GetRuntimeFormat)", "sound_group": "string (ESoundGroup, prefix-stripped)", "loading_behavior": "string (ESoundWaveLoadingBehavior, prefix-stripped)", "is_looping": "bool (bLooping bitfield)", "is_streaming": "bool (IsStreaming() method, NOT deprecated bStreaming)", "resource_size": "int", "supports_subtitles": "bool", "subtitle_count": "int", "cue_point_count": "int (non-loop cue points only via GetCuePoints)", "loop_region_count": "int (via GetLoopRegions)", "compressed_data_size": "int (conditional; bytes for the runtime format)", "imported_sample_rate": "int (conditional, editor-only, when non-zero)", "lufs": "float (conditional, editor-only, when non-zero)", "sample_peak_db": "float (conditional, editor-only, when non-zero)", "comment": "string (conditional, editor-only, when non-empty)" }
-    },
-    {
-      "name": "inspect_sound_attenuation",
-      "description": "Read structural properties of a USoundAttenuation asset: distance algorithm + shape, spatialization, air-absorption LPF/HPF, listener focus, occlusion, reverb send, priority attenuation, plus assorted feature_flags. Each major feature is gated by its master bool; sub-objects collapse to {\"enabled\":false} when disabled, keeping default-asset JSON compact. Completes the audio introspection trio with inspect_sound_cue + inspect_sound_wave. C++ handler. No new Build.cs deps.",
-      "params": {
-        "path": "string (required) - UE asset path of a USoundAttenuation"
-      },
-      "returns": { "ok": "bool", "name": "string", "path": "string", "distance": "object {enabled, distance_algorithm, attenuation_shape, falloff_mode, db_attenuation_at_max, attenuation_shape_extents:{x,y,z}, cone_offset, falloff_distance, cone_sphere_radius, cone_sphere_falloff_distance}", "spatialization": "object {enabled, [spatialization_algorithm, binaural_radius, non_spatialized_radius_start, non_spatialized_radius_end, non_spatialized_radius_mode, stereo_spread]}", "air_absorption": "object {enabled, [absorption_method, lpf_radius_min, lpf_radius_max, lpf_frequency_at_min, lpf_frequency_at_max, hpf_frequency_at_min, hpf_frequency_at_max]}", "listener_focus": "object {enabled, [focus_azimuth, non_focus_azimuth, focus_distance_scale, non_focus_distance_scale, focus_priority_scale, non_focus_priority_scale, focus_volume_attenuation, non_focus_volume_attenuation, focus_attack_interp_speed?, focus_release_interp_speed?]}", "occlusion": "object {enabled, [occlusion_trace_channel, use_complex_collision_for_occlusion, occlusion_low_pass_filter_frequency, occlusion_volume_attenuation, occlusion_interpolation_time]}", "reverb_send": "object {enabled, [reverb_send_method, reverb_wet_level_min, reverb_wet_level_max, reverb_distance_min, reverb_distance_max, manual_reverb_send_level]}", "priority_attenuation": "object {enabled, [priority_attenuation_method, priority_attenuation_min, priority_attenuation_max, priority_attenuation_distance_min, priority_attenuation_distance_max, manual_priority_attenuation]}", "feature_flags": "object {apply_normalization_to_stereo_sounds, enable_log_frequency_scaling, enable_submix_sends, enable_source_data_override, enable_send_to_audio_link}" }
-    },
-    {
-      "name": "get_camera_transform",
-      "description": "Read level-editor viewport camera transform. SYNTHETIC bridge-side handler -- composes execute_unreal_python + get_log_lines via marker pattern. Part of language-shim experiment (PR #46).",
-      "params": {},
-      "returns": { "ok": "bool", "location": "{x, y, z}", "rotation": "{pitch, yaw, roll}" },
-      "min_engine_version": "5.0",
-      "max_engine_version": null
-    },
-    {
-      "name": "set_camera_transform",
-      "description": "Set level-editor viewport camera transform. SYNTHETIC bridge-side handler. Single execute_unreal_python round-trip. Part of language-shim experiment (PR #46).",
-      "params": {
-        "location": "object (optional) - {x, y, z}; missing fields default to 0",
-        "rotation": "object (optional) - {pitch, yaw, roll}; missing fields default to 0"
-      },
-      "returns": { "ok": "bool", "location": "{x, y, z}", "rotation": "{pitch, yaw, roll}" },
-      "min_engine_version": "5.0",
-      "max_engine_version": null
-    },
-    {
-      "name": "screenshot_actor",
-      "description": "Frame the editor viewport on an actor and capture a focused PNG screenshot. SYNTHETIC bridge-side handler that composes focus_actor + get_viewport_screenshot. Returns base64 PNG plus the focused actor's identity and world location.",
-      "params": {
-        "name": "string (required) - actor label or unique name to focus on"
-      },
-      "returns": { "ok": "bool", "focused": "string", "name": "string", "loc": "{x, y, z}", "width": "int", "height": "int", "png_bytes": "int", "png_base64": "string" }
-    },
-    {
-      "name": "compile_mod_pak",
-      "description": "Compile a UE mod plugin to a .pak file (BuildMod) or to a redistributable plugin package (BuildPlugin), headless via RunUAT.bat. No UE editor session required. SYNTHETIC bridge-side handler -- shells out to RunUAT, captures stdout/stderr tails, scans output_dir for the freshest .pak (optionally filtered by mod_name). Primary use case: game-specific UE5 Dev Kits in installed-build mode that block standard BuildPlugin (e.g. Conan Exiles Enhanced; Funcom ships a BuildMod UAT command as the only working path). Success criterion is per-command: BuildMod requires both exit_code==0 AND a .pak in output_dir; BuildPlugin requires exit_code==0 alone (this command produces a package directory, not a .pak).",
-      "params": {
-        "project_path": "string (required) - absolute path to .uproject",
-        "output_dir": "string (required) - directory for output .pak or package; created if missing; success verification scans this dir",
-        "mod_name": "string (conditional, needed when uat_command is BuildMod) - matches Content/Mods/<mod_name>/ folder; also used to disambiguate the freshest .pak when output_dir has multiple",
-        "plugin_path": "string (conditional, needed when uat_command is BuildPlugin) - absolute path to .uplugin",
-        "uat_command": "string enum (BuildMod | BuildPlugin) - default BuildMod",
-        "run_uat_path": "string (optional) - override path to RunUAT.bat; auto-discovered from project Engine sibling otherwise",
-        "extra_args": "array of string (optional) - additional CLI args appended to RunUAT",
-        "timeout_sec": "int (optional) - max wait time in seconds; default 1800 (30 min)"
-      },
-      "returns": { "ok": "bool", "pak_path": "string (null when no .pak found; non-null otherwise; for BuildPlugin path expect null since BuildPlugin produces a package dir not a .pak)", "exit_code": "int", "stdout_tail": "string (last 4KB of stdout)", "stderr_tail": "string (last 2KB of stderr)", "duration_sec": "float (seconds, 2-decimal precision)", "uat_command": "string (the command actually run)", "cmd": "array of string (the full subprocess argv for debugging)" }
-    },
-    {
-      "name": "compile_mod_pak_direct",
-      "description": "Compile a UE5 mod into a .pak by invoking UnrealPak.exe directly with a response file, bypassing RunUAT entirely. Use when the Dev Kit's RunUAT BuildMod is broken (Funcom Conan Exiles Enhanced UE5 ships a ScriptModules manifest invalid-record bug -- UAT deletes its own deps.json before BuildMod can run). Pre-condition: caller has already cooked the .uasset files (e.g. via execute_unreal_python on a running Editor, or a separate UnrealEditor-Cmd.exe -run=Cook pass). SYNTHETIC bridge-side handler. Complements compile_mod_pak (which uses RunUAT); use compile_mod_pak_direct when UAT is broken on your Dev Kit.",
-      "params": {
-        "unreal_pak_path": "string (required) - absolute path to UnrealPak.exe (e.g. <DevKit>/Engine/Binaries/Win64/UnrealPak.exe)",
-        "response_file": "string (required) - absolute path to UnrealPak response file (.txt) mapping absolute sources to mount points inside the pak",
-        "output_pak": "string (required) - absolute path where the .pak should be written; parent dir created if missing; success verification needs a known path",
-        "compression": "string enum (Zlib | Gzip | Oodle | None) - default Zlib; 'None' omits the -compress<Algo> flag entirely (uncompressed pak)",
-        "extra_args": "array of string (optional) - additional CLI args appended to UnrealPak.exe (e.g. -encryptionkey)",
-        "timeout_sec": "int (optional) - max wait in seconds; default 600 (10 min) -- UnrealPak is typically much faster than RunUAT"
-      },
-      "returns": { "ok": "bool (exit_code==0 AND output_pak exists with size > 0)", "pak_path": "string (null when no .pak written or zero-byte; non-null path otherwise)", "pak_size_bytes": "int (null when pak missing; size in bytes otherwise)", "exit_code": "int", "stdout_tail": "string (last 4KB of stdout)", "stderr_tail": "string (last 2KB of stderr)", "duration_sec": "float (seconds, 2-decimal precision)", "cmd": "array of string (the full subprocess argv for debugging)" }
-    },
-    {
-      "name": "bulk_delete_assets",
-      "description": "Delete multiple assets by composing the delete_asset C++ handler bridge-side. Returns per-path results plus aggregate counts. By default continues after individual failures (partial success is normal); set continue_on_error=false to stop on first failure. SYNTHETIC bridge-side handler.",
-      "params": {
-        "paths": "array of string (required) - asset object paths to delete; each must be a non-empty string; same normalisation rules as delete_asset apply",
-        "continue_on_error": "bool (optional, default true) - when true, keep deleting after an individual path fails and surface per-path errors in results; when false, stop on first failure and return partial results"
-      },
-      "returns": { "ok": "bool (true only when failed == 0)", "total": "int (paths.length)", "deleted": "int (count of per-path successes)", "failed": "int (count of per-path failures)", "results": "array of {path: string, ok: bool, error_code: int | null, error_message: string | null} - one entry per attempted path; preserves the upstream JSON-RPC error code per failure so callers can distinguish transport-level errors (-32099) from logical delete_asset failures" }
-    },
-    {
-      "name": "bulk_move_assets",
-      "description": "Move multiple assets into a single destination folder by composing the move_asset C++ handler bridge-side. Each move leaves a redirector at the source per UE's standard move semantics. Returns per-path results plus aggregate counts. By default continues after individual failures (partial success is normal); set continue_on_error=false to stop on first failure. SYNTHETIC bridge-side handler -- mirrors bulk_delete_assets's shape so client code can switch between the two with a one-tool-name change.",
-      "params": {
-        "paths": "array of string (required) - asset object paths to move; each must be a non-empty string; same path-shape rules as bulk_delete_assets (NUL and '..' segments rejected)",
-        "dest_folder": "string (required) - destination folder for ALL moved assets, e.g. '/Game/Archive'; for per-asset destinations call move_asset directly",
-        "continue_on_error": "bool (optional, default true) - when true, keep moving after an individual path fails and surface per-path errors in results; when false, stop on first failure and return partial results"
-      },
-      "returns": { "ok": "bool (true only when failed == 0)", "total": "int (paths.length)", "moved": "int (count of per-path successes)", "failed": "int (count of per-path failures)", "dest_folder": "string (echo of input for caller correlation)", "results": "array of {path: string, ok: bool, error_code: int | null, error_message: string | null} - one entry per attempted path; preserves the upstream JSON-RPC error code per failure" }
-    },
-    {
-      "name": "inspect_data_asset",
-      "description": "Shallow-reflect a UDataAsset by package path: returns leaf class name, parent class name, package path, and editable property list. SYNTHETIC bridge-side handler that composes execute_unreal_python + get_log_lines via the marker pattern.",
-      "params": {
-        "path": "string (required) - package path to a UDataAsset, e.g. /Game/Data/DA_PlayerStats; must be a non-empty string"
-      },
-      "returns": { "ok": "bool", "path": "string", "class": "string (leaf class name)", "parent_class": "string (super-class name, null when at UObject root)", "package_path": "string (full path with object name, from obj.get_path_name())", "properties": "array of {name: string, type: string (Python type-name from type(v).__name__), value: string (stringified for scalars; '<container:type>' for list/tuple/dict; '<unsupported>' otherwise)} - shallow reflection only, no recursion", "error_code": "string (only on ok=False; one of 'asset_not_found', 'marker_not_found', 'invalid_json')", "error_message": "string (only on ok=False; human-readable detail)" }
-    },
-    {
-      "name": "inspect_sound_class",
-      "description": "Inspect a USoundClass by package path: returns leaf class name, package path, parent and child USoundClass asset paths (for chaining), and the editable FSoundClassProperties values. SYNTHETIC bridge-side handler that composes execute_unreal_python + get_log_lines via the marker pattern. The JSON output remaps UE Python's snake_case property names back to the C++ PascalCase FSoundClassProperties layout.",
-      "params": {
-        "path": "string (required) - package path to a USoundClass asset, e.g. /Game/Audio/SC_Music; must be a non-empty string"
-      },
-      "returns": { "ok": "bool", "path": "string", "class": "string (leaf class name from cls.get_name())", "package_path": "string (from obj.get_path_name())", "parent_class": "string (parent USoundClass package path; null when no parent)", "child_classes": "array of string (child USoundClass package paths; may be empty)", "properties": "object with PascalCase keys: Volume (float), Pitch (float), LowPassFilterFrequency (float), AttenuationDistanceScale (float), VoiceCenterChannelVolume (float), RadioFilterVolume (float), bApplyAmbientVolumes (bool), bApplyEffects (bool), bAlwaysPlay (bool), bIsUISound (bool), bIsMusic (bool), bReverb (bool), bCenterChannelOnly (bool), bApplyDoppler (bool), bApplyMixerOverrides (bool), OutputTarget (string enum stringified, e.g. 'Master', 'Controller')", "error_code": "string (only on ok=False; one of 'asset_not_found', 'wrong_asset_type', 'marker_not_found', 'invalid_json')", "error_message": "string (only on ok=False; human-readable detail)", "actual_class": "string (only on wrong_asset_type; the leaf class name of the actually-loaded asset)" }
-    },
-    {
-      "name": "inspect_sound_submix",
-      "description": "Inspect a USoundSubmix by package path: returns leaf class name, package path, parent submix asset path (for chaining), child submix asset paths, and additional editor-accessible UPROPERTYs discovered via dir() permissive enumeration. SYNTHETIC bridge-side handler that composes execute_unreal_python + get_log_lines via the marker pattern.",
-      "params": {
-        "path": "string (required) - package path to a USoundSubmix asset, e.g. /Game/Audio/SX_Music; must be a non-empty string"
-      },
-      "returns": { "ok": "bool", "path": "string", "class": "string (leaf class name)", "package_path": "string (from obj.get_path_name())", "parent_submix": "string (parent USoundSubmix package path; null when no parent)", "child_submixes": "array of string (child submix package paths; may be empty)", "additional_properties": "array of {name: string, type: string (Python type-name), value: string (stringified for scalars; '<container:type>' for list/tuple/dict; '<unsupported>' otherwise)} - shallow reflection only, no recursion", "error_code": "string (only on ok=False; one of 'asset_not_found', 'wrong_asset_type', 'marker_not_found', 'invalid_json')", "error_message": "string (only on ok=False)", "actual_class": "string (only on wrong_asset_type)" }
-    },
-    {
-      "name": "inspect_audio_bus",
-      "description": "Inspect a UAudioBus by package path: returns leaf class name, package path, audio_bus_channels enum stringified (Mono/Stereo/Quad/FivePointOne/SevenPointOne), and additional editor-accessible UPROPERTYs discovered via dir() permissive enumeration. SYNTHETIC bridge-side handler that composes execute_unreal_python + get_log_lines via the marker pattern.",
-      "params": {
-        "path": "string (required) - package path to a UAudioBus asset, e.g. /Game/Audio/AB_Master; must be a non-empty string"
-      },
-      "returns": { "ok": "bool", "path": "string", "class": "string (leaf class name)", "package_path": "string (from obj.get_path_name())", "audio_bus_channels": "string (enum value stringified via .name; one of Mono | Stereo | Quad | FivePointOne | SevenPointOne)", "additional_properties": "array of {name: string, type: string (Python type-name), value: string (stringified for scalars; '<container:type>' for containers; '<unsupported>' otherwise)} - excludes audio_bus_channels (already curated above)", "error_code": "string (only on ok=False; one of 'asset_not_found', 'wrong_asset_type', 'marker_not_found', 'invalid_json')", "error_message": "string (only on ok=False)", "actual_class": "string (only on wrong_asset_type)" }
-    },
-    {
-      "name": "inspect_material_function",
-      "description": "Inspect a UMaterialFunction by package path: returns leaf class name, package path, description, expose_to_library flag, library_categories (stringified Text values), function inputs (name + input_type enum), function outputs (name), and additional editor-accessible UPROPERTYs discovered via dir() permissive enumeration. SYNTHETIC bridge-side handler that composes execute_unreal_python + get_log_lines via the marker pattern.",
-      "params": {
-        "path": "string (required) - package path to a UMaterialFunction asset, e.g. /Game/Materials/MF_PackedNormal; must be a non-empty string"
-      },
-      "returns": { "ok": "bool", "path": "string", "class": "string (leaf class name)", "package_path": "string (from obj.get_path_name())", "description": "string (asset description; empty when not set)", "exposed_to_library": "bool (whether the function appears in the material-function library)", "library_categories": "array of string (Text values stringified)", "inputs": "array of {name: string, type: string (always 'FunctionInput'), input_type: string (enum stringified)} - one entry per MaterialExpressionFunctionInput discovered in function_expressions", "outputs": "array of {name: string, type: string (always 'FunctionOutput')} - one entry per MaterialExpressionFunctionOutput", "additional_properties": "array of {name: string, type: string, value: string} - excludes the curated names", "error_code": "string (only on ok=False; one of 'asset_not_found', 'wrong_asset_type', 'marker_not_found', 'invalid_json')", "error_message": "string (only on ok=False)", "actual_class": "string (only on wrong_asset_type)" }
-    },
-    {
-      "name": "bulk_duplicate_assets",
-      "description": "Duplicate multiple assets by composing the duplicate_asset C++ handler bridge-side. Takes a `duplicates` list of {path, dest_path} pairs (each asset gets a per-entry full destination path). Unlike rename/move, duplicate does NOT leave a redirector at the source -- the source is preserved and a new copy is created at dest_path. Returns per-entry results plus aggregate counts. SYNTHETIC bridge-side handler -- fourth member of the bulk_*_assets family.",
-      "params": {
-        "duplicates": "array of {path: string, dest_path: string} (required) - per-entry duplicate pairs; both path and dest_path must be non-empty strings with no NUL byte and no '..' segment",
-        "continue_on_error": "bool (optional, default true) - when true, keep duplicating after an individual entry fails and surface per-entry errors in results; when false, stop on first failure and return partial results"
-      },
-      "returns": { "ok": "bool (true only when failed == 0)", "total": "int (duplicates.length)", "duplicated": "int (count of per-entry successes)", "failed": "int (count of per-entry failures)", "results": "array of {path: string, dest_path: string, ok: bool, error_code: int | null, error_message: string | null} - one entry per attempted duplicate; preserves the upstream JSON-RPC error code per failure" }
-    },
-    {
-      "name": "bulk_rename_assets",
-      "description": "Rename multiple assets by composing the rename_asset C++ handler bridge-side. Takes a `renames` list of {path, new_name} pairs (each asset gets a per-entry new leaf name; the folder is unchanged). Each successful rename leaves a redirector at the source per UE's standard semantics. Returns per-entry results plus aggregate counts. SYNTHETIC bridge-side handler -- third member of the bulk_*_assets family after delete + move.",
-      "params": {
-        "renames": "array of {path: string, new_name: string} (required) - per-entry rename pairs; path must be a non-empty string with no NUL byte and no '..' segment; new_name must be a non-empty leaf name with no '/' or '.'",
-        "continue_on_error": "bool (optional, default true) - when true, keep renaming after an individual entry fails and surface per-entry errors in results; when false, stop on first failure and return partial results"
-      },
-      "returns": { "ok": "bool (true only when failed == 0)", "total": "int (renames.length)", "renamed": "int (count of per-entry successes)", "failed": "int (count of per-entry failures)", "results": "array of {path: string, new_name: string, ok: bool, error_code: int | null, error_message: string | null} - one entry per attempted rename; preserves the upstream JSON-RPC error code per failure" }
-    },
-    {
-      "name": "inspect_metasound",
-      "description": "Inspect a MetaSoundSource or MetaSoundPatch asset by package path: returns leaf class name, package path, and additional editor-accessible UPROPERTYs via dir() permissive enumeration. Accepts either MetaSoundSource (emitter-attached) or MetaSoundPatch (reusable subgraph). Graph structure is NOT reflected here (deferred). SYNTHETIC bridge-side handler that composes execute_unreal_python + get_log_lines via the marker pattern.",
-      "params": {
-        "path": "string (required) - package path to a MetaSoundSource or MetaSoundPatch asset, e.g. /Game/Audio/MS_Music; must be a non-empty string"
-      },
-      "returns": { "ok": "bool", "path": "string", "class": "string (leaf class name -- MetaSoundSource or MetaSoundPatch)", "package_path": "string (from obj.get_path_name())", "additional_properties": "array of {name: string, type: string (Python type-name), value: string (stringified for scalars; '<container:type>' for list/tuple/dict; '<unsupported>' otherwise)} - shallow reflection only, no recursion", "error_code": "string (only on ok=False; one of 'asset_not_found', 'wrong_asset_type', 'metasound_unavailable', 'marker_not_found', 'invalid_json')", "error_message": "string (only on ok=False)", "actual_class": "string (only on wrong_asset_type)" }
-    },
-    {
-      "name": "find_unused_assets",
-      "description": "Enumerate assets under a content path and report which have ZERO referencers (nothing in the project links to them). SYNTHETIC bridge-side handler that composes find_assets + inspect_asset. Useful for content cleanup audits before shipping; returns the first `limit` unused assets plus a `truncated` flag.",
-      "params": {
-        "path_under": "string (optional, default /Game) - folder to scan recursively",
-        "class_filter": "string (optional) - UE class path filter, e.g. /Script/Engine.Texture2D, narrows scan to one asset type",
-        "limit": "int (optional, default 100, max 10000) - max unused assets to return; scan stops once this many are found"
-      },
-      "returns": { "ok": "bool", "scanned": "int (number of candidates inspected)", "unused_count": "int (length of unused array)", "unused": "array of {path: string, class: string} - assets with zero referencers", "truncated": "bool (true when more candidates existed beyond what was scanned)" }
-    },
-    {
-      "name": "get_reference_chain",
-      "description": "Walk the asset reference graph BFS from a root, returning every node and edge up to a depth bound. SYNTHETIC bridge-side handler that composes inspect_asset recursively. direction=up follows referencers (impact-of-change analysis); direction=down follows dependencies (packaging audits). De-duplicates visited nodes so cycles don't loop.",
-      "params": {
-        "path": "string (required) - root asset path to walk from",
-        "depth": "int (optional, default 3, max 8) - BFS depth bound; 8 hops is already a vast subgraph in any non-trivial project",
-        "direction": "string (optional, default 'up') - one of 'up' (referencers) or 'down' (dependencies)"
-      },
-      "returns": { "ok": "bool", "root": "string (echo of input)", "direction": "string ('up' or 'down')", "depth": "int (echo of input)", "node_count": "int (de-duplicated visited count, including root)", "edge_count": "int (length of edges array)", "edges": "array of {from: string, to: string} - asset path pairs; for direction=up edges flow neighbor->node, for direction=down edges flow node->neighbor", "truncated": "bool (true when the BFS hit depth and there were still neighbors to expand)" }
-    },
-    {
-      "name": "bulk_compile_blueprints",
-      "description": "Recompile multiple Blueprints in one MCP call by composing the compile_blueprint C++ handler bridge-side. Returns per-path results plus aggregate counts. Mirrors the bulk_*_assets family shape. SYNTHETIC bridge-side handler. Useful after batch-mutating BPs via execute_unreal_python or other tooling.",
-      "params": {
-        "paths": "array of string (required) - Blueprint asset paths to compile; each non-empty, NUL + '..' segments rejected, max 1000 entries",
-        "continue_on_error": "bool (optional, default true) - when true keep compiling after individual failures; when false stop at the first failed compile"
-      },
-      "returns": { "ok": "bool (true only when failed == 0)", "total": "int (paths.length)", "succeeded": "int (count of per-path successes)", "failed": "int (count of per-path failures)", "results": "array of {path: string, ok: bool, error?: {code: int, message: string}} - one entry per attempted compile; preserves the upstream JSON-RPC error code per failure" }
-    },
-    {
-      "name": "audit_blueprint_compile_status",
-      "description": "Enumerate every Blueprint under a content path and bucket each by compile-status (UpToDate/Dirty/Error/Unknown/BeingCreated). READ-ONLY -- no recompile triggered. SYNTHETIC bridge-side handler that composes find_assets + inspect_blueprint. Until the C++ inspect_blueprint handler surfaces blueprint_status, every scanned BP falls into the Unknown bucket; the audit shape stays stable across that future C++ enhancement.",
-      "params": {
-        "path_under": "string (optional, default /Game) - content path to scan recursively",
-        "compile_failures_only": "bool (optional, default true) - when true, problem_assets only lists Error/Unknown; when false, every scanned BP is listed"
-      },
-      "returns": { "ok": "bool", "scanned": "int (number of BPs inspected)", "by_status": "object with five integer keys: UpToDate, Dirty, Error, Unknown, BeingCreated", "problem_assets": "array of {path: string, status: string} - filtered per compile_failures_only" }
-    },
-    {
-      "name": "find_actors_by_class",
-      "description": "Filter the active level's actors by class. SYNTHETIC bridge-side handler that composes get_actors_in_level and matches each actor's short class name against the supplied class_name. Useful for narrowing a thousand-actor dump down to one class (every light, every spawn point, every static-mesh actor) in a single MCP call.",
-      "params": {
-        "class_name": "string (required) - short class name (e.g. 'StaticMeshActor') or full class path (e.g. '/Script/Engine.StaticMeshActor'); class-path inputs are stripped to the trailing short name then matched case-insensitively against the C++ handler's 'class' field",
-        "level": "string (optional) - UWorld package path; needed when the search target is not the active editor world; load_level_by_path runs first when supplied"
-      },
-      "returns": { "ok": "bool", "class_name": "string (echo of input)", "total_in_level": "int (total actors the C++ handler enumerated before filtering)", "count": "int (number of actors matching class_name)", "actors": "array of {name: string, label: string, class: string (short name), class_path: string|null (echoed from handler when present), transform: {loc: {x,y,z}, rot: {pitch,yaw,roll}}}" }
-    },
-    {
-      "name": "bulk_focus_actors",
-      "description": "Frame the viewport on each actor in a sequence, optionally capturing a screenshot after each focus settles. SYNTHETIC bridge-side handler that composes focus_actor (plus, when screenshot_each=true, get_viewport_screenshot) per name. Sleeps delay_ms between calls -- not after the last -- so LOD and viewport settling stays bounded.",
-      "params": {
-        "names": "array of string (required) - actor labels or unique names, each non-empty, max 100 entries",
-        "delay_ms": "int (optional, default 500) - settle delay between focus calls in milliseconds; clamped to 0..10000",
-        "screenshot_each": "bool (optional, default false) - when true, capture a viewport PNG after each focus and emit a parallel 'screenshots' array"
-      },
-      "returns": { "ok": "bool (true only when failed is empty)", "total": "int (names.length)", "focused": "int (number of successful focuses)", "failed": "array of {name: string, error: {code: int, message: string}}", "screenshots": "array of {name: string, png_base64: string} - present only when screenshot_each=true" }
-    },
-    {
-      "name": "bulk_screenshot_actors",
-      "description": "Frame and screenshot each actor in a sequence. SYNTHETIC bridge-side handler that composes screenshot_actor (itself a synthetic over focus_actor + get_viewport_screenshot) per name. Convenient for thumbnail-pipeline runs where every actor in a list needs a deterministic centered shot. Caps at 50 entries because each yields a PNG payload.",
-      "params": {
-        "names": "array of string (required) - actor labels or unique names, each non-empty, max 50 entries",
-        "delay_ms": "int (optional, default 500) - settle delay between actors in milliseconds; clamped to 0..10000"
-      },
-      "returns": { "ok": "bool (true only when every entry succeeded)", "total": "int (names.length)", "succeeded": "int (count of per-name successes)", "results": "array of {name: string, ok: bool, png_base64?: string, focused?: string, loc?: {x,y,z}, error?: {code: int, message: string}}" }
-    },
-    {
-      "name": "bulk_set_actor_property",
-      "description": "Apply many UPROPERTY mutations across many actors in one MCP call. SYNTHETIC bridge-side handler that composes set_actor_property per assignment. Mirrors the bulk_compile_blueprints partial-failure semantics. NOT 'set the same property on N actors' -- each assignment is independent.",
-      "params": {
-        "assignments": "array of {actor: string, property: string, value: any} (required) - each actor and property non-empty, value mandatory (use null for explicit-null intent), max 200 entries",
-        "continue_on_error": "bool (optional, default true) - when false, halt at the first per-assignment failure and emit halted_at_index"
-      },
-      "returns": { "ok": "bool (true only when failed is empty)", "total": "int (assignments.length)", "succeeded": "int (count of per-assignment successes)", "failed": "array of {actor: string, property: string, error: {code: int, message: string}}", "halted_at_index": "int - present only when continue_on_error=false stopped the loop early; the 0-based index of the failed assignment" }
-    },
-    {
-      "name": "compare_assets",
-      "description": "Symmetric diff between two assets' inspect_asset outputs. SYNTHETIC bridge-side handler that composes inspect_asset on both paths and returns the fields that differ. Useful for 'what changed between these two versions of the same blueprint?' walkthroughs and for cross-checking duplicated assets that should be identical. The 'path' field is excluded from comparison (trivially different between the two inputs).",
-      "params": {
-        "path_a": "string (required) - first asset path",
-        "path_b": "string (required) - second asset path",
-        "fields": "array of string (optional) - whitelist of inspect_asset field names to compare; when omitted, the synthetic diffs the union of both responses' keys (minus 'path')"
-      },
-      "returns": { "ok": "bool (always true on success)", "path_a": "string (echo of input)", "path_b": "string (echo of input)", "identical": "bool (true when differences is empty)", "fields_compared": "array of string (the fields actually diffed; 'path' is never included)", "differences": "array of {field: string, value_a: any, value_b: any} - one entry per differing field" }
-    },
-    {
-      "name": "bulk_set_console_variables",
-      "description": "Set multiple Console Variables in one MCP call with optional atomic rollback. SYNTHETIC bridge-side handler that composes get_console_variable (to capture each pre-value) plus set_console_variable (to apply each new value). On any per-cvar failure when rollback_on_error=true, the synthetic walks back every applied change to its captured pre-value, with rollback_failures listing any restore attempts that themselves failed.",
-      "params": {
-        "assignments": "object (required) - mapping of {cvar_name: new_value}; each name a non-empty string; each value a string, number, or boolean; max 50 entries",
-        "rollback_on_error": "bool (optional, default true) - when true, halt at first failure and restore every applied change to its captured pre-value; when false, record failures but keep applied changes"
-      },
-      "returns": { "ok": "bool (true only when failed is empty)", "total": "int (assignments size)", "applied": "array of {name: string, old_value: string, new_value: any} - one entry per successfully applied cvar; old_value comes from get_console_variable's value_string", "failed": "array of {name: string, error: {code: int, message: string}}", "rolled_back": "bool (true when a rollback pass was performed)", "rollback_failures": "array of {name: string, error: {code: int, message: string}} - present only when rollback was attempted AND some restore failed" }
-    },
-    {
-      "name": "inspect_dependency_graph",
-      "description": "Walk the asset dependency graph BFS from a root (dependencies, downward by default). SYNTHETIC bridge-side handler that composes inspect_asset recursively. Optionally also follows referencers (upward) for a single bidirectional sweep. Distinct from get_reference_chain in that it defaults to direction=down (packaging-audit framing) and supports a bidirectional pass instead of two separate calls. De-duplicates visited nodes across both directions.",
-      "params": {
-        "path": "string (required) - root asset path to walk from",
-        "depth": "int (optional, default 2, range 1..8) - BFS depth bound",
-        "include_referencers": "bool (optional, default false) - when true, also follow referencers upward in the same BFS"
-      },
-      "returns": { "ok": "bool", "root": "string (echo of input)", "depth": "int (echo of input)", "include_referencers": "bool (echo of input)", "node_count": "int (de-duplicated visited count, including root)", "edge_count": "int (length of edges array)", "nodes": "array of string (sorted asset paths visited)", "edges": "array of {from: string, to: string, direction: string ('down' for dependency edges, 'up' for referencer edges)}", "truncated": "bool (true when the BFS hit depth and there were still neighbors to expand)" }
-    },
-    {
-      "name": "bulk_fix_redirectors",
-      "description": "Resolve UObjectRedirector stubs across multiple content folders in one MCP call. SYNTHETIC bridge-side handler that composes fix_up_redirectors per folder. Useful as a follow-up to sweeps of bulk_move_assets / bulk_rename_assets calls (each of which leaves redirectors at source paths) so the LLM does not have to issue one fix_up_redirectors per touched folder.",
-      "params": {
-        "folders": "array of string (required) - content folder paths under which to fix up redirectors; each non-empty, NUL + '..' segments rejected, max 100 entries",
-        "recursive": "bool (optional, default true) - echoed back in the response for clarity; fix_up_redirectors itself always operates recursively under the supplied path",
-        "continue_on_error": "bool (optional, default true) - when false, halt at the first per-folder fix-up failure and emit halted_at_index"
-      },
-      "returns": { "ok": "bool (true only when failed is empty)", "total": "int (folders.length)", "succeeded": "int (count of per-folder successes)", "failed": "array of {folder: string, error: {code: int, message: string}}", "recursive": "bool (echo of input)", "halted_at_index": "int - present only when continue_on_error=false stopped the loop early" }
-    },
-    {
-      "name": "marketplace_search",
-      "description": "Search free CC0 asset marketplaces (Polyhaven, AmbientCG) for textures / HDRIs / models matching a keyword. SYNTHETIC bridge-side handler — fetches the source's public JSON catalog via plain HTTPS (no auth, no API key). Every asset returned is CC0 (public domain, free for any use including commercial). Pair with marketplace_import to download a chosen result.",
-      "params": {
-        "query": "string (optional, default '') - search keyword matched against name, tags, and categories on the source side; empty string lists popular assets",
-        "source": "string (optional, default 'polyhaven') - one of polyhaven|ambientcg|all; 'all' fans out across both sources",
-        "asset_type": "string (optional, default 'texture') - one of texture|hdri|model|all",
-        "limit": "int (optional, default 10, max 50) - max results to return"
-      },
-      "returns": { "ok": "bool", "query": "string (echo)", "source": "string (echo)", "asset_type": "string (echo)", "limit": "int (echo)", "count": "int (length of results)", "results": "array of {slug: string, name: string, source: string, asset_type: string, thumbnail_url: string, tags: array, categories: array, description: string, max_resolution: array or null, download_count: int}", "partial_errors": "array of string (present only when at least one source failed but another returned results)" }
-    },
-    {
-      "name": "marketplace_import",
-      "description": "Download a CC0 asset from a marketplace (Polyhaven or AmbientCG) and import it into the project as a UTexture2D via the native import_texture handler. SYNTHETIC bridge-side handler. Polyhaven path: /files/{slug} catalog lookup -> direct download. AmbientCG path: /api/v2/full_json?id={slug}&include=downloadData -> downloads the per-resolution zip -> extracts the Color map (textures) or sole EXR/HDR (hdris) -> hands the file to import_texture. With multi_map=true (texture only), additionally pulls Normal/Roughness/AO/Displacement/Metalness when the source ships them; Color stays at dest_name and each other map lands as <dest_name>_<map>. Supports texture and hdri; model import is parked for a later PR. Asset files: both sources are CC0. API access: Polyhaven public API is licensed for non-commercial / academic use only (commercial integrations require a custom license from Poly Haven); AmbientCG API and assets are both CC0.",
-      "params": {
-        "source": "string (optional, default 'polyhaven') - one of polyhaven|ambientcg",
-        "slug": "string (required) - source-specific asset identifier obtained from marketplace_search",
-        "asset_type": "string (optional, default 'texture') - one of texture|hdri|model; model returns not_implemented in v1",
-        "resolution": "string (optional, default '2k') - common values 1k|2k|4k|8k; error message lists actual available set when invalid",
-        "format": "string (optional, default 'png' for texture, 'exr' for hdri) - falls back to source default if requested format unpublished",
-        "dest_path": "string (optional, default /Game/Marketplace) - UE package path; must start with /Game/",
-        "dest_name": "string (optional, default slug) - asset name override",
-        "replace_existing": "bool (optional, default false) - overwrite existing asset at dest_path/dest_name",
-        "multi_map": "bool (optional, default false) - texture only; when true pulls every canonical PBR map (color/normal/roughness/ao/displacement/metalness) the source ships; color is mandatory, others best-effort; Color -> <dest_name>, others -> <dest_name>_<map>"
-      },
-      "returns": { "ok": "bool", "source": "string (echo)", "slug": "string (echo)", "asset_type": "string (echo)", "resolution": "string (echo)", "format": "string (echo)", "downloaded_from": "string (resolved download URL)", "temp_path": "string (single-map mode only; filesystem path of downloaded file)", "ue_asset_path": "string (final asset path in project; in multi_map mode this is the color map path)", "available_resolutions": "array of string (resolutions the source actually offers for this asset)", "import_result": "object (single-map mode only; passthrough of native import_texture result)", "maps": "object (multi_map mode only; canonical_name -> UE asset path)", "import_results": "object (multi_map mode only; canonical_name -> native import_texture result)", "license": "string ('CC0')" }
-    },
-    {
-      "name": "convert_hdri_to_cubemap",
-      "description": "Convert a longlat-projection HDRI (UTexture2D) into a UTextureCube so it can drive a SkyLight's SpecifiedCubemap slot. SYNTHETIC bridge-side handler. Pipeline: spawn an inside-out sphere with the HDRI as an unlit emissive material, capture it with a SceneCaptureCube into a TextureRenderTargetCube, then materialize the static UTextureCube via RenderingLibrary.render_target_create_static_texture_cube_editor_only. Temp render-target + temp material + temp actors are cleaned up before return. Closes the 23rd HANDOFF note's HDRI cubemap parked item.",
-      "params": {
-        "hdri_path": "string (required) - UE asset path of the source longlat UTexture2D; must start with /Game/",
-        "dest_path": "string (optional) - UE package path for the new cube; defaults to the source HDRI's folder",
-        "dest_name": "string (optional) - asset name override; defaults to <source_basename>_Cube",
-        "cube_size": "int (optional, default 1024) - square face size in pixels; range [16, 8192]; powers of two recommended",
-        "compression": "string (optional, default 'TC_HDR') - one of TC_HDR | TC_HDR_COMPRESSED | TC_HDR_F32 | TC_DEFAULT"
-      },
-      "returns": { "ok": "bool", "source_hdri": "string (echo)", "cube_asset_path": "string (final cube asset path)", "dest_path": "string (echo)", "dest_name": "string (echo)", "cube_size": "int (echo)", "compression": "string (echo)" },
-      "min_engine_version": "5.0",
-      "max_engine_version": null
-    },
-    {
-      "name": "sequencer_add_transform_keyframe",
-      "description": "Add a single keyframe on a Level Sequence's 3D Transform Track for a previously-bound actor. SYNTHETIC bridge-side handler. Wires MovieSceneSequenceExtensions.find_binding_by_id + MovieSceneBindingProxy.add_track + MovieSceneScriptingDoubleChannel.add_key. Caller passes location/rotation/scale as optional 3-element triples; missing triples skip those channels. Rotation order is [pitch, yaw, roll] (unreal.Rotator convention) — mapped internally to the channel layout (Roll=X, Pitch=Y, Yaw=Z). Closes the keyframe-authoring half of the 21st HANDOFF note's Sequencer parked item; Movie Render Queue remains parked.",
-      "params": {
-        "sequence_path": "string (required) - UE asset path of the LevelSequence; must start with /Game/",
-        "binding_id": "string (required) - GUID string returned by bind_actor_to_sequence; accepts bare 32-hex or dashed forms",
-        "time_seconds": "number (required, >= 0) - time in seconds at which to place the keyframe",
-        "location": "array of 3 numbers (optional) - [x, y, z] translation; omit to skip Location channels",
-        "rotation": "array of 3 numbers (optional) - [pitch, yaw, roll] in degrees (unreal.Rotator convention); omit to skip Rotation channels",
-        "scale": "array of 3 numbers (optional) - [x, y, z] scale; omit to skip Scale channels",
-        "interpolation": "string (optional, default 'linear') - one of linear | constant | auto | smart_auto | cubic (alias of smart_auto)",
-        "auto_extend_section": "bool (optional, default true) - extend the section's seconds-range to cover time_seconds when needed"
-      },
-      "returns": { "ok": "bool", "sequence_path": "string (echo)", "binding_id": "string (echo)", "time_seconds": "number (echo)", "keys_added": "int (total channel-keys created)", "channels_keyed": "array of string (e.g. Location.X / Rotation.Z)", "interpolation": "string (resolved enum member, e.g. LINEAR)", "track_path": "string (full path of the 3D Transform Track asset)" },
-      "min_engine_version": "5.0",
-      "max_engine_version": null
-    }
-  ]
+  {
+   "name": "get_engine_version",
+   "description": "Structured engine-version snapshot — major/minor/patch/changelist/branch as separate fields plus a 'minor_dotted' convenience like '5.7'.",
+   "params": {},
+   "returns": "see docs/TOOLS.md"
+  },
+  {
+   "name": "list_levels",
+   "description": "Enumerate every UWorld asset (level) in the project. Optional path_under (default /Game/) + name_contains filter.",
+   "params": {
+    "path_under": "string (optional, default /Game/) - recursive package-path filter; must start with /Game/ or /Engine/",
+    "name_contains": "string (optional) - case-insensitive substring filter on the level asset name"
+   },
+   "returns": "see docs/TOOLS.md"
+  },
+  {
+   "name": "save_dirty_assets",
+   "description": "Persist every in-memory-modified asset + map to disk. Same as editor 'Save All'.",
+   "params": {
+    "include_levels": "bool (optional, default true) - save dirty .umap level packages",
+    "include_content": "bool (optional, default true) - save dirty .uasset content packages"
+   },
+   "returns": "see docs/TOOLS.md"
+  },
+  {
+   "name": "get_selected_actors",
+   "description": "Return name/label/class/transform of every actor currently selected in the editor. Companion to apply_python_to_selection.",
+   "params": {},
+   "returns": "see docs/TOOLS.md"
+  },
+  {
+   "name": "inspect_input_mappings",
+   "description": "Dump the project's legacy UInputSettings (action + axis mappings) plus an Enhanced Input migration-status flag.",
+   "params": {},
+   "returns": "see docs/TOOLS.md"
+  },
+  {
+   "name": "pie_control",
+   "description": "Start / stop / query Play-In-Editor sessions. Closes the 'did my edit work?' validation loop for AI-driven workflows.",
+   "params": {
+    "action": "string (required) - one of: start, stop, query",
+    "mode": "string (optional, default 'play') - 'play' or 'simulate'; only used when action=start"
+   },
+   "returns": "see docs/TOOLS.md"
+  },
+  {
+   "name": "inspect_project_setting",
+   "description": "Reflect any UDeveloperSettings subclass (RendererSettings, PhysicsSettings, InputSettings, etc.) and dump its editable UPROPERTY values as JSON.",
+   "params": {
+    "settings_class": "string (required) - full class path like '/Script/Engine.RendererSettings'",
+    "property": "string (optional) - single property name to return instead of bulk dump"
+   },
+   "returns": "see docs/TOOLS.md"
+  },
+  {
+   "name": "bulk_inspect_assets",
+   "description": "Inspect multiple assets in one MCP call by composing inspect_asset bridge-side. Returns per-path inspection data plus aggregate counts; mirrors the bulk_*_assets family shape.",
+   "params": {
+    "paths": "array of string (required) - asset object paths to inspect",
+    "continue_on_error": "bool (optional, default true) - when false, stop at first failure"
+   },
+   "returns": "see docs/TOOLS.md"
+  },
+  {
+   "name": "get_project_summary",
+   "description": "Project name, engine version, enabled plugins, asset counts.",
+   "params": {},
+   "returns": "see docs/TOOLS.md"
+  },
+  {
+   "name": "inspect_blueprint",
+   "description": "Variables, function/event graph names, parent class of a Blueprint asset.",
+   "params": {
+    "path": "string (required)"
+   }
+  },
+  {
+   "name": "inspect_widget_tree",
+   "description": "Read the widget hierarchy of a UWidgetBlueprint or EUW. Bypasses UE 5.7 Python reflection limit on WidgetTree.",
+   "params": {
+    "path": "string (required)"
+   }
+  },
+  {
+   "name": "edit_widget_tree",
+   "description": "Mutate a widget tree. ops: set_root | add_child | set_property. Solves UE 5.7 EUW WidgetTree population.",
+   "params": {
+    "path": "string (required)",
+    "op": "string (required)",
+    "compile": "bool (optional, default false)"
+   }
+  },
+  {
+   "name": "get_viewport_screenshot",
+   "description": "Capture the active editor viewport as base64 PNG.",
+   "params": {},
+   "returns": {
+    "width": "int",
+    "height": "int",
+    "png_bytes": "int",
+    "png_base64": "string"
+   }
+  },
+  {
+   "name": "render_camera_to_png",
+   "description": "Force a synchronous render of the level-editor viewport (or an off-screen SceneCapture2D at arbitrary resolution) and write it to an absolute path as a PNG. Works headless/backgrounded where deferred screenshots fail.",
+   "params": {
+    "out_path": "string (required) - absolute filesystem path for the .png",
+    "width": "int (optional) - output width in pixels; with height (or camera_label) switches to off-screen SceneCapture2D",
+    "height": "int (optional) - output height in pixels",
+    "camera_label": "string (optional) - render from this level actor's transform",
+    "fov": "number (optional) - field of view in degrees"
+   },
+   "returns": {
+    "ok": "bool",
+    "path": "string",
+    "width": "int",
+    "height": "int"
+   }
+  },
+  {
+   "name": "list_tools",
+   "description": "Return the names of every registered MCP method on the server.",
+   "params": {}
+  },
+  {
+   "name": "get_actors_in_level",
+   "description": "Return name/class/transform of every actor in the active editor world.",
+   "params": {
+    "name_contains": "string (optional)"
+   }
+  },
+  {
+   "name": "focus_actor",
+   "description": "Select an actor by label/name and frame the viewport on it.",
+   "params": {
+    "name": "string (required)"
+   }
+  },
+  {
+   "name": "load_level_by_path",
+   "description": "Load a UE level by package path.",
+   "params": {
+    "path": "string (required)"
+   }
+  },
+  {
+   "name": "take_high_res_screenshot",
+   "description": "Trigger UE's HighResShot. Output to Saved/Screenshots/<Platform>Editor/.",
+   "params": {
+    "multiplier": "number (optional, 1..8, default 1)"
+   }
+  },
+  {
+   "name": "import_texture",
+   "description": "Import an image file (PNG/JPG/EXR/TGA/BMP/HDR) from disk into the project as a UTexture2D asset, using the canonical UE asset import pipeline.",
+   "params": {
+    "source_path": "string (required) - absolute filesystem path",
+    "dest_path": "string (required) - UE package path starting with /Game/",
+    "dest_name": "string (optional) - asset-name override",
+    "replace_existing": "bool (optional, default false)",
+    "automated": "bool (optional, default true)",
+    "save": "bool (optional, default true)"
+   },
+   "returns": {
+    "ok": "bool",
+    "asset_path": "string",
+    "asset_name": "string",
+    "source_path": "string",
+    "width": "int",
+    "height": "int",
+    "format": "string",
+    "message": "string"
+   }
+  },
+  {
+   "name": "configure_texture",
+   "description": "Adjust SRGB/CompressionSettings/LODGroup/Filter on an existing UTexture asset and persist the change. Triggers UE's standard PreEditChange/PostEditChange flow and rebuilds the GPU resource.",
+   "params": {
+    "path": "string (required) - UE package path of an existing texture",
+    "srgb": "bool (optional)",
+    "compression": "string (optional) - TextureCompressionSettings enum name",
+    "lod_group": "string (optional) - TextureGroup enum name",
+    "filter": "string (optional) - Nearest | Bilinear | Trilinear | Default",
+    "compress": "bool (optional, default true)"
+   },
+   "returns": {
+    "ok": "bool",
+    "path": "string",
+    "applied": "object",
+    "message": "string"
+   }
+  },
+  {
+   "name": "find_assets",
+   "description": "Query the asset registry by class + optional path + optional name substring + optional tag filters. Returns matching assets with structured records (name, package_path, class[, tags]).",
+   "params": {
+    "class_path": "string (required) - UE class path, e.g. /Script/Engine.StaticMesh",
+    "path_under": "string (optional, default /Game/) - recursive path filter",
+    "name_contains": "string (optional) - case-insensitive substring filter",
+    "limit": "int (optional, default 100, max 500)",
+    "tags": "object (optional) - map of tag-name -> exact-match string or null (any value); AND-combined",
+    "include_tags": "bool (optional, default false) - when true, each result asset includes a 'tags' map"
+   },
+   "returns": {
+    "ok": "bool",
+    "matched": "int",
+    "returned": "int",
+    "assets": "array of {name, package_path, class[, tags]}"
+   }
+  },
+  {
+   "name": "spawn_actor",
+   "description": "Create an actor in the current editor world at a location with optional rotation, label, and initial properties. Class path can be built-in (/Script/Engine.StaticMeshActor) or Blueprint (/Game/Blueprints/BP_X.BP_X_C).",
+   "params": {
+    "class_path": "string (required) - actor class path",
+    "location": "object (optional, default {0,0,0}) - {x, y, z}",
+    "rotation": "object (optional, default {0,0,0}) - {pitch, yaw, roll}",
+    "label": "string (optional) - World Outliner label",
+    "properties": "object (optional) - {PropertyName: value} applied post-spawn"
+   },
+   "returns": {
+    "ok": "bool",
+    "name": "string",
+    "label": "string",
+    "class": "string",
+    "location": "object",
+    "rotation": "object"
+   }
+  },
+  {
+   "name": "set_actor_transform",
+   "description": "Move / rotate / scale an existing actor by name (label or FName). Supports both absolute and relative modes.",
+   "params": {
+    "name": "string (required) - actor label OR FName",
+    "location": "object (optional)",
+    "rotation": "object (optional)",
+    "scale": "object (optional)",
+    "relative": "bool (optional, default false)"
+   },
+   "returns": {
+    "ok": "bool",
+    "name": "string",
+    "applied": "object"
+   }
+  },
+  {
+   "name": "delete_actor",
+   "description": "Remove an actor from the editor world by name (label or FName). Children are detached, not destroyed (UE's default behavior). Force flag overrides the children-attached safety check.",
+   "params": {
+    "name": "string (required) - actor label OR FName",
+    "force": "bool (optional, default false)"
+   },
+   "returns": {
+    "ok": "bool",
+    "name": "string",
+    "deleted": "bool"
+   }
+  },
+  {
+   "name": "set_actor_property",
+   "description": "Mutate any UPROPERTY on an actor. v0.4.0 supports primitives, all common UE structs, enums, TSoftObjectPtr, plus USTRUCT (recursive)/TArray/TMap (string-keyed)/TSet/FObjectProperty (hard UObject pointers via asset path). Property names accept dotted-path syntax for nested traversal (e.g. 'RootComponent.RelativeLocation'). FInstancedStruct deferred to v0.4.x.",
+   "params": {
+    "name": "string (required) - actor label OR FName",
+    "property": "string (required) - UPROPERTY name",
+    "value": "string | number | boolean | array | object | null (required) - polymorphic JSON; coerced to FProperty type. Use JSON arrays for TArray / TSet (e.g. OverrideMaterials), JSON objects for FVector / FRotator / FLinearColor / FInstancedStruct / TMap, and null for explicit clear on nullable properties. JSON Schema 'number' covers integers; the typed schema (instead of 'any') prevents strict MCP clients from stringifying array values before wire transport."
+   },
+   "returns": {
+    "ok": "bool",
+    "name": "string",
+    "property": "string",
+    "old_value": "any",
+    "new_value": "any"
+   }
+  },
+  {
+   "name": "add_component",
+   "description": "Attach a component (UActorComponent or USceneComponent subclass) to an existing actor at runtime, optionally socketed and transformed relative to a parent component.",
+   "params": {
+    "actor_name": "string (required) - host actor label or FName",
+    "class_path": "string (required) - component class path",
+    "component_name": "string (optional)",
+    "attach_to": "string (optional, default root)",
+    "socket": "string (optional)",
+    "relative_transform": "object (optional)"
+   },
+   "returns": {
+    "ok": "bool",
+    "actor": "string",
+    "component": "string",
+    "class": "string",
+    "attached_to": "string"
+   }
+  },
+  {
+   "name": "get_log_lines",
+   "description": "Read recent UE Output Log entries from the in-process ring buffer (last 1000 lines). Supports category substring filter and minimum verbosity filter.",
+   "params": {
+    "count": "int (optional, default 100, max 1000) - max lines to return",
+    "category_filter": "string (optional) - case-insensitive substring filter on log category",
+    "min_verbosity": "string (optional, default 'Log') - Fatal | Error | Warning | Display | Log | Verbose | VeryVerbose"
+   },
+   "returns": {
+    "ok": "bool",
+    "returned": "int",
+    "lines": "array of {timestamp, category, verbosity, message}"
+   }
+  },
+  {
+   "name": "execute_console_command",
+   "description": "Execute a UE console command (e.g. 'stat fps', 'r.ScreenPercentage 50') and capture its output.",
+   "params": {
+    "command": "string (required) - console command to execute",
+    "capture_output": "bool (optional, default true) - capture and return command output"
+   },
+   "returns": {
+    "ok": "bool",
+    "command": "string",
+    "output": "string"
+   }
+  },
+  {
+   "name": "inspect_asset",
+   "description": "Read everything the asset registry knows about a single asset: class, all registry tags, dependency packages, referencer packages, on-disk file size.",
+   "params": {
+    "path": "string (required) - asset path or package path"
+   },
+   "returns": {
+    "ok": "bool",
+    "name": "string",
+    "package_path": "string",
+    "asset_path": "string",
+    "class": "string",
+    "class_path": "string",
+    "tags": "object",
+    "dependencies": "array of string",
+    "referencers": "array of string",
+    "package_size_bytes": "int or null"
+   }
+  },
+  {
+   "name": "move_asset",
+   "description": "Move an asset to a different folder; leaf name unchanged. UE auto-creates a redirector at the source path.",
+   "params": {
+    "path": "string (required) - source asset path",
+    "dest_folder": "string (required) - destination folder under /Game/ or /Engine/"
+   },
+   "returns": {
+    "ok": "bool",
+    "old_path": "string",
+    "new_path": "string"
+   }
+  },
+  {
+   "name": "rename_asset",
+   "description": "Rename an asset's leaf name; folder unchanged. UE auto-creates a redirector at the old name.",
+   "params": {
+    "path": "string (required) - source asset path",
+    "new_name": "string (required) - new leaf name (no '/' or '.')"
+   },
+   "returns": {
+    "ok": "bool",
+    "old_path": "string",
+    "new_path": "string"
+   }
+  },
+  {
+   "name": "duplicate_asset",
+   "description": "Copy an asset to a new path. Source asset is preserved; destination must not already exist. No redirector is created (callers reference the duplicate by its new path).",
+   "params": {
+    "path": "string (required) - source asset path",
+    "dest_path": "string (required) - destination asset path (must not exist)"
+   },
+   "returns": {
+    "ok": "bool",
+    "src_path": "string",
+    "dest_path": "string"
+   }
+  },
+  {
+   "name": "delete_asset",
+   "description": "Delete an asset. Refuses if referenced by other packages unless force=true. Force-delete cannot be recovered via Undo.",
+   "params": {
+    "path": "string (required) - asset path to delete",
+    "force": "bool (optional, default false) - delete even if referenced"
+   },
+   "returns": {
+    "ok": "bool",
+    "deleted_path": "string"
+   }
+  },
+  {
+   "name": "inspect_sequence",
+   "description": "Read structure of a Level Sequence asset: tracks, sections, bindings, frame rate, playback range.",
+   "params": {
+    "path": "string (required) - Level Sequence asset path"
+   },
+   "returns": {
+    "ok": "bool",
+    "name": "string",
+    "package_path": "string",
+    "tick_resolution": "int",
+    "display_rate_fps": "number",
+    "playback_range": "object",
+    "bindings": "array of object",
+    "tracks": "array of object"
+   }
+  },
+  {
+   "name": "create_sequence",
+   "description": "Create a new Level Sequence asset with display frame rate and playback range.",
+   "params": {
+    "path": "string (required) - destination folder under /Game/",
+    "name": "string (required) - leaf asset name (no '/' or '.')",
+    "display_rate_fps": "number (optional, default 30.0)",
+    "playback_end_frames": "int (optional, default 240)"
+   },
+   "returns": {
+    "ok": "bool",
+    "asset_path": "string",
+    "package_path": "string",
+    "display_rate_fps": "number",
+    "playback_range": "object"
+   }
+  },
+  {
+   "name": "bind_actor_to_sequence",
+   "description": "Add a level actor as a possessable binding to a Level Sequence.",
+   "params": {
+    "sequence_path": "string (required) - Level Sequence asset path",
+    "actor_name": "string (required) - actor label or FName"
+   },
+   "returns": {
+    "ok": "bool",
+    "sequence_path": "string",
+    "binding_guid": "string",
+    "actor_label": "string",
+    "binding_type": "string"
+   }
+  },
+  {
+   "name": "create_material_instance",
+   "description": "Create a UMaterialInstanceConstant asset and set its parent to an existing UMaterial or UMaterialInstance.",
+   "params": {
+    "parent_path": "string (required) - path of the parent UMaterial or UMaterialInstance",
+    "path": "string (required) - destination folder under /Game/",
+    "name": "string (required) - leaf asset name (no '/' or '.')"
+   },
+   "returns": {
+    "ok": "bool",
+    "asset_path": "string",
+    "package_path": "string",
+    "parent_path": "string"
+   }
+  },
+  {
+   "name": "set_mi_parameter",
+   "description": "Override a scalar/vector/texture parameter on a UMaterialInstanceConstant.",
+   "params": {
+    "path": "string (required) - material instance asset path",
+    "parameter": "string (required) - parameter name as declared on the parent material",
+    "type": "string (required) - one of: scalar | vector | texture",
+    "value": "varies by type - scalar: number; vector: {r,g,b,a}; texture: string asset path"
+   },
+   "returns": {
+    "ok": "bool",
+    "path": "string",
+    "parameter": "string",
+    "type": "string",
+    "applied_value": "varies by type"
+   }
+  },
+  {
+   "name": "inspect_material",
+   "description": "List parameter names declared by a UMaterial or UMaterialInstance: scalar, vector, texture, and static-switch parameters.",
+   "params": {
+    "path": "string (required) - material asset path"
+   },
+   "returns": {
+    "ok": "bool",
+    "name": "string",
+    "package_path": "string",
+    "class": "string",
+    "scalar_parameters": "array of string",
+    "vector_parameters": "array of string",
+    "texture_parameters": "array of string",
+    "static_switch_parameters": "array of string"
+   }
+  },
+  {
+   "name": "inspect_material_instance",
+   "description": "Read a UMaterialInstanceConstant's parent and currently-overridden parameter values (scalar/vector/texture).",
+   "params": {
+    "path": "string (required) - material instance asset path"
+   },
+   "returns": {
+    "ok": "bool",
+    "name": "string",
+    "package_path": "string",
+    "parent_path": "string",
+    "scalar_overrides": "object",
+    "vector_overrides": "object",
+    "texture_overrides": "object"
+   }
+  },
+  {
+   "name": "run_python_file",
+   "description": "Execute a .py file from disk via the editor's embedded Python. Complement to execute_unreal_python; avoids JSON escaping pain for non-trivial scripts.",
+   "params": {
+    "path": "string (required) - filesystem path to a .py file (absolute or relative to editor CWD, typically the project root)"
+   },
+   "returns": {
+    "ok": "bool",
+    "output": "string",
+    "path": "string (resolved absolute path)"
+   }
+  },
+  {
+   "name": "fix_up_redirectors",
+   "description": "Cascade-update consumers of UObjectRedirector assets under a folder, then delete the redirector stubs. Cleans up after move_asset / rename_asset.",
+   "params": {
+    "path": "string (required) - package path under which to recursively fix up, e.g. /Game/ or /Game/Materials"
+   },
+   "returns": {
+    "ok": "bool",
+    "path": "string",
+    "redirectors_found": "int",
+    "note": "string"
+   }
+  },
+  {
+   "name": "apply_python_to_selection",
+   "description": "Run user Python with `selection` (selected level actors) and `selected_assets` (selected content-browser assets) pre-bound as locals. Convenience wrapper around execute_unreal_python.",
+   "params": {
+    "code": "string (required) - Python source. `selection` and `selected_assets` are pre-bound by the injected boilerplate."
+   },
+   "returns": {
+    "ok": "bool",
+    "output": "string",
+    "temp_script": "string"
+   }
+  },
+  {
+   "name": "compile_blueprint",
+   "description": "Explicit Blueprint recompile via FKismetEditorUtilities::CompileBlueprint. For BPs that were mutated externally (e.g. via execute_unreal_python) and need a recompile without further mutation.",
+   "params": {
+    "path": "string (required) - Blueprint asset path",
+    "skip_save": "bool (optional, default false) - suppress Save-On-Compile auto-save"
+   },
+   "returns": {
+    "ok": "bool",
+    "path": "string",
+    "status": "string (up_to_date|up_to_date_with_warnings|error|dirty|unknown|being_created)",
+    "saved": "bool",
+    "note": "string (only on error)"
+   }
+  },
+  {
+   "name": "get_console_variable",
+   "description": "Read a UE Console Variable by name; returns value in all four representations (string/int/float/bool) plus type, read-only flag, last-setter, and help text.",
+   "params": {
+    "name": "string (required) - exact CVar name, case-sensitive (e.g. r.ScreenPercentage)"
+   },
+   "returns": {
+    "ok": "bool",
+    "name": "string",
+    "type": "string (int|float|bool|string|unknown)",
+    "read_only": "bool",
+    "set_by": "string",
+    "value_string": "string",
+    "value_int": "number",
+    "value_float": "number",
+    "value_bool": "bool",
+    "help": "string"
+   }
+  },
+  {
+   "name": "set_console_variable",
+   "description": "Mutate a UE Console Variable by name. Polymorphic value (string/number/bool) coerced to string and forwarded at ECVF_SetByConsole priority. Pre-rejects read-only CVars; post-verifies the change landed.",
+   "params": {
+    "name": "string (required) - exact CVar name, case-sensitive",
+    "value": "string | number | bool (required) - new value; coerced to string before Set"
+   },
+   "returns": {
+    "ok": "bool",
+    "name": "string",
+    "type": "string",
+    "requested_value": "string",
+    "value_string": "string",
+    "value_int": "number",
+    "value_float": "number",
+    "value_bool": "bool",
+    "set_by": "string",
+    "note": "string (only when post-set value differs from requested)"
+   }
+  },
+  {
+   "name": "poll_events",
+   "description": "Tier 2 entrypoint: drain editor events fired since the caller's last poll. UE delegates (starter set: actor_spawned, actor_deleted, asset_added) push into a 1000-entry ring buffer (FUCMCPEventBus); this handler returns the slice with seq > since_seq, capped at max_count.",
+   "params": {
+    "since_seq": "int (optional, default -1) - return events with seq > since_seq",
+    "max_count": "int (optional, default 100, max 1000) - cap returned events",
+    "event_filter": "array of string (optional) - substring filters on event type; OR-combined"
+   },
+   "returns": {
+    "ok": "bool",
+    "next_seq": "int",
+    "first_seq_in_buffer": "int",
+    "returned": "int",
+    "dropped": "bool",
+    "events": "array of {seq, event, ts, data}",
+    "note": "string (only when dropped=true)"
+   }
+  },
+  {
+   "name": "wait_for_events",
+   "description": "Bridge-side composition: repeatedly polls UE's poll_events until matching events arrive or timeout_ms expires. Implemented in the bridge (Python) rather than UE C++ so the wait runs in a separate process, leaving UE's game thread free to actually fire game-thread events during the wait.",
+   "params": {
+    "timeout_ms": "int (optional, default 500, hard cap 30000) - max wait in ms",
+    "poll_interval_ms": "int (optional, default 100, range 25-1000) - bridge-side polling cadence",
+    "since_seq": "int (optional, default -1) - inclusive cursor",
+    "max_count": "int (optional, default 100, max 1000) - cap returned events",
+    "event_filter": "array of string (optional) - substring filters on event type"
+   },
+   "returns": {
+    "ok": "bool",
+    "next_seq": "int",
+    "first_seq_in_buffer": "int",
+    "returned": "int",
+    "dropped": "bool",
+    "timed_out": "bool",
+    "events": "array of {seq, event, ts, data}",
+    "note": "string (only when dropped=true)"
+   }
+  },
+  {
+   "name": "register_subscription",
+   "description": "Create a server-side cursor + filter on FUCMCPEventBus. Returns a subscription_id pairs with poll_subscription / unsubscribe. Cursor starts at the bus's current next_seq (subscribers see events fired AFTER subscription).",
+   "params": {
+    "event_filter": "array of string (optional) - substring filters on event type; OR-combined"
+   },
+   "returns": {
+    "ok": "bool",
+    "subscription_id": "string",
+    "initial_next_seq": "int",
+    "event_filter": "array of string"
+   }
+  },
+  {
+   "name": "unsubscribe",
+   "description": "Remove a subscription. Idempotent: unknown ids return ok=true with was_present=false, so blanket shutdown unsubscribes are safe.",
+   "params": {
+    "subscription_id": "string (required) - id from register_subscription"
+   },
+   "returns": {
+    "ok": "bool",
+    "subscription_id": "string",
+    "was_present": "bool"
+   }
+  },
+  {
+   "name": "poll_subscription",
+   "description": "Drain events for a subscription. Per-sub cursor advances atomically -- successful poll never returns the same events twice. No since_seq / event_filter params (both are server-side state).",
+   "params": {
+    "subscription_id": "string (required) - id from register_subscription",
+    "max_count": "int (optional, default 100, max 1000) - cap returned events"
+   },
+   "returns": {
+    "ok": "bool",
+    "subscription_id": "string",
+    "next_seq": "int",
+    "first_seq_in_buffer": "int",
+    "returned": "int",
+    "dropped": "bool",
+    "events": "array of {seq, event, ts, data}",
+    "note": "string (only when dropped=true)"
+   }
+  },
+  {
+   "name": "start_sleep_task",
+   "description": "PR #44 task-framework tracer: background-sleeps for duration_ms then completes. Returns task_id; poll via poll_task. Hard cap 1 hour.",
+   "params": {
+    "duration_ms": "int (required, 1 to 3600000) - sleep duration"
+   },
+   "returns": {
+    "ok": "bool",
+    "task_id": "string",
+    "type": "string (= 'sleep')",
+    "status": "string (= 'pending')",
+    "duration_ms": "int",
+    "note": "string"
+   }
+  },
+  {
+   "name": "poll_task",
+   "description": "Read current state of a task. Non-blocking. Status: pending | running | completed | cancelled | failed.",
+   "params": {
+    "task_id": "string (required) - id from start_*_task"
+   },
+   "returns": {
+    "ok": "bool",
+    "task_id": "string",
+    "type": "string",
+    "status": "string",
+    "start_time": "string",
+    "end_time": "string (empty if not terminal)",
+    "cancel_requested": "bool",
+    "result": "object (only if status=completed)",
+    "error": "string (only if status=failed)"
+   }
+  },
+  {
+   "name": "cancel_task",
+   "description": "Request cooperative cancellation. Sets atomic flag; worker observes within ~50ms and transitions to status='cancelled'. Idempotent.",
+   "params": {
+    "task_id": "string (required) - id from start_*_task"
+   },
+   "returns": {
+    "ok": "bool",
+    "task_id": "string",
+    "accepted": "bool",
+    "note": "string"
+   }
+  },
+  {
+   "name": "list_tasks",
+   "description": "Enumerate tasks in the registry with optional status/type filters and a limit. Atomic snapshot. Mirrors find_assets's total/matched/returned convention.",
+   "params": {
+    "status_filter": "string (optional) - one of pending | running | completed | cancelled | failed",
+    "type_filter": "string (optional) - exact-match task type",
+    "limit": "int (optional, default 100, clamped 1..500)"
+   },
+   "returns": {
+    "ok": "bool",
+    "total": "int",
+    "matched": "int",
+    "returned": "int",
+    "tasks": "array of {task_id, type, status, start_time, end_time, cancel_requested, result?, error?}"
+   }
+  },
+  {
+   "name": "exec_python_persistent",
+   "description": "Like execute_unreal_python but state PERSISTS across calls. Implemented via FPythonCommandEx with FileExecutionScope=Public (shared globals dict with the editor's Python console). Pairs with reset_python_state.",
+   "params": {
+    "code": "string (required) - Python source to execute against the persistent globals dict"
+   },
+   "returns": {
+    "ok": "bool",
+    "output": "string",
+    "temp_script": "string",
+    "scope": "string (= 'public')"
+   }
+  },
+  {
+   "name": "reset_python_state",
+   "description": "Clear all user-defined names from UE Python's public globals dict. Pairs with exec_python_persistent. Names starting with '_' (dunders + conventional private) are preserved.",
+   "params": {},
+   "returns": {
+    "ok": "bool",
+    "scope": "string (= 'public')",
+    "note": "string"
+   }
+  },
+  {
+   "name": "find_console_variables",
+   "description": "Prefix-search IConsoleManager registry; returns matching CVar names + types + read-only flags. C++ handler -- direct iteration of UE's internal registry. Part of language-shim experiment (PR #46).",
+   "params": {
+    "prefix": "string (optional, default empty) - case-sensitive prefix filter",
+    "limit": "int (optional, default 100, max 1000) - cap returned variables"
+   },
+   "returns": {
+    "ok": "bool",
+    "prefix": "string",
+    "limit": "int",
+    "returned": "int",
+    "variables": "array of {name, type, read_only}",
+    "note": "string (only when result count hit the cap)"
+   }
+  },
+  {
+   "name": "inspect_static_mesh",
+   "description": "Read structural properties of a UStaticMesh: LOD count, per-LOD vertex/triangle counts, bounding box, material slots. C++ handler. Part of language-shim experiment (PR #46).",
+   "params": {
+    "path": "string (required) - UE asset path of a UStaticMesh"
+   },
+   "returns": {
+    "ok": "bool",
+    "name": "string",
+    "package_path": "string",
+    "num_lods": "int",
+    "total_vertices": "int",
+    "total_triangles": "int",
+    "lods": "array of {index, vertices, triangles}",
+    "bounds": "{min, max, size, center}",
+    "material_slots": "array of {index, slot_name, material_path}"
+   }
+  },
+  {
+   "name": "inspect_niagara_system",
+   "description": "Read structural properties of a UNiagaraSystem: emitters, user parameters, system-level settings. C++ handler. Calls EnsureFullyLoaded() before access (UNiagaraSystem uses LazyOnDemand load behavior).",
+   "params": {
+    "path": "string (required) - UE asset path of a UNiagaraSystem"
+   },
+   "returns": {
+    "ok": "bool",
+    "name": "string",
+    "package_path": "string",
+    "is_looping": "bool",
+    "has_gpu_emitters": "bool",
+    "needs_warmup": "bool",
+    "warmup_tick_count": "int (conditional, when needs_warmup is true)",
+    "warmup_time": "float (conditional, when needs_warmup is true)",
+    "warmup_tick_delta": "float (conditional, when needs_warmup is true)",
+    "emitter_count": "int",
+    "emitters": "array of {name, enabled, mode}",
+    "user_parameter_count": "int",
+    "user_parameters": "array of {name, type}",
+    "effect_type": "string (optional, when set; asset path of the UNiagaraEffectType instance)",
+    "fixed_bounds": "object (optional, when bFixedBounds is true) - {min, max, size, center}"
+   }
+  },
+  {
+   "name": "inspect_anim_blueprint",
+   "description": "Read structural properties of a UAnimBlueprint: parent class, target skeleton, template flag, compile status, baked state machines, anim functions (with implemented flag), sync groups, parent anim blueprint chain. C++ handler. Guards UAnimBlueprintGeneratedClass for null when blueprint hasn't been compiled.",
+   "params": {
+    "path": "string (required) - UE asset path of a UAnimBlueprint"
+   },
+   "returns": {
+    "ok": "bool",
+    "name": "string",
+    "path": "string",
+    "parent_class": "string",
+    "is_template": "bool",
+    "target_skeleton": "string (conditional, when bIsTemplate is false and TargetSkeleton is set; asset path)",
+    "blueprint_status": "string enum: UpToDate | UpToDateWithWarnings | Dirty | Error | BeingCreated | Unknown",
+    "is_compiled": "bool (true when GetAnimBlueprintGeneratedClass is non-null)",
+    "parent_anim_blueprint": "string (conditional, when this blueprint subclasses another anim blueprint; asset path)",
+    "state_machine_count": "int",
+    "state_machines": "array of {name}",
+    "anim_function_count": "int",
+    "anim_functions": "array of {name, implemented}",
+    "sync_group_count": "int",
+    "sync_groups": "array of string"
+   }
+  },
+  {
+   "name": "inspect_landscape",
+   "description": "Read structural properties of an ALandscape scene actor (not an asset). Component dimensions, total component count, landscape material asset path, world-space loaded bounds, GUID identity. Lookup by actor label and/or LandscapeGuid string.",
+   "params": {
+    "name": "string (optional) - actor label; when omitted with guid, returns the sole landscape if exactly one exists",
+    "guid": "string (optional) - LandscapeGuid OR OriginalLandscapeGuid string"
+   },
+   "returns": {
+    "ok": "bool",
+    "name": "string",
+    "actor_name": "string",
+    "landscape_guid": "string",
+    "original_landscape_guid": "string",
+    "component_size_quads": "int",
+    "subsection_size_quads": "int",
+    "num_subsections": "int",
+    "landscape_material": "string (conditional, when LandscapeMaterial is set; asset path)",
+    "loaded_bounds": "{min, max, size, center}",
+    "streaming_proxy_count": "int",
+    "component_count_total": "int",
+    "has_landscape_info": "bool"
+   }
+  },
+  {
+   "name": "inspect_skeletal_mesh",
+   "description": "Read structural properties of a USkeletalMesh: per-LOD vertex/triangle/section counts, bounds, target skeleton, bone counts, materials, morph targets, clothing, physics asset. C++ handler. No new Build.cs deps (Engine covers it).",
+   "params": {
+    "path": "string (required) - UE asset path of a USkeletalMesh"
+   },
+   "returns": {
+    "ok": "bool",
+    "name": "string",
+    "package_path": "string",
+    "num_lods": "int",
+    "total_vertices": "int",
+    "total_triangles": "int",
+    "lods": "array of {index, vertices, triangles, section_count}",
+    "bounds": "{min, max, size, center}",
+    "sphere_radius": "float",
+    "skeleton": "string (conditional, when GetSkeleton is non-null; asset path)",
+    "bone_count": "int (includes virtual bones via FReferenceSkeleton::GetNum)",
+    "raw_bone_count": "int (imported only via GetRawBoneNum)",
+    "material_slots": "array of {index, slot_name, material_path}",
+    "morph_target_count": "int",
+    "morph_targets": "array of string",
+    "has_clothing_assets": "bool",
+    "clothing_asset_count": "int",
+    "physics_asset": "string (conditional, when GetPhysicsAsset is non-null; asset path)"
+   }
+  },
+  {
+   "name": "inspect_anim_montage",
+   "description": "Read structural properties of a UAnimMontage: skeleton, play length, frame rate, blend envelope, composite sections (with section ladder + start/end times), slot tracks, notify events. C++ handler. Completes the anim introspection trio (anim_blueprint + skeletal_mesh + anim_montage). No new Build.cs deps (Engine covers it).",
+   "params": {
+    "path": "string (required) - UE asset path of a UAnimMontage"
+   },
+   "returns": {
+    "ok": "bool",
+    "name": "string",
+    "package_path": "string",
+    "skeleton": "string (conditional, when GetSkeleton is non-null; asset path)",
+    "play_length": "float (seconds)",
+    "frame_rate": "{numerator, denominator}",
+    "is_dynamic": "bool",
+    "blend_in_time": "float",
+    "blend_out_time": "float",
+    "blend_out_trigger_time": "float (seconds, negative means at-end)",
+    "auto_blend_out": "bool",
+    "parent_asset": "string (conditional, when this montage is a child via asset remapping)",
+    "section_count": "int",
+    "sections": "array of {name, next, start_time, end_time}",
+    "slot_count": "int",
+    "slots": "array of {slot_name, segment_count}",
+    "notify_count": "int",
+    "notifies": "array of {name, time, duration, notify_class?, notify_state_class?}"
+   }
+  },
+  {
+   "name": "inspect_widget_blueprint",
+   "description": "Read UWidgetBlueprint-specific structural properties: parent class, blueprint compile status, palette category, animations, delegate property bindings, inherited named slots from parent generated class. Complements inspect_blueprint (UBlueprint vars + graphs) and inspect_widget_tree (widget hierarchy); cross-link via shared asset path. C++ handler. No new Build.cs deps (UMG + UMGEditor already present). Null-skips TObjectPtr<UWidgetAnimation> entries (PR #55->#57 lesson).",
+   "params": {
+    "path": "string (required) - UE asset path of a UWidgetBlueprint"
+   },
+   "returns": {
+    "ok": "bool",
+    "name": "string",
+    "path": "string",
+    "parent_class": "string",
+    "blueprint_status": "string enum: UpToDate | UpToDateWithWarnings | Dirty | Error | BeingCreated | Unknown",
+    "palette_category": "string (conditional, when non-empty)",
+    "can_init_without_player_context": "bool",
+    "property_bindings_allowed": "bool (from ArePropertyBindingsAllowed())",
+    "property_bindings_count": "int (from WBP::PropertyBindings; performance signal)",
+    "binding_count": "int (Bindings.Num)",
+    "bindings": "array of {object_name, property_name, function_name}",
+    "animation_count": "int (valid TObjectPtr<UWidgetAnimation> entries only)",
+    "animations": "array of {name, display_label, start_time, end_time, length_seconds, binding_count}",
+    "inherited_named_slot_count": "int",
+    "inherited_named_slots": "array of string",
+    "inherited_slots_with_content": "array of string (sorted, stable across calls)"
+   }
+  },
+  {
+   "name": "inspect_data_table",
+   "description": "Read structural properties of a UDataTable: RowStruct identity (asset path + name), row count, sorted row names, per-property name+type on the RowStruct (TFieldIterator skipping super fields), strip-from-client-builds flag, ignore-extra/missing-fields tolerance flags, optional ImportKeyField. C++ handler. No new Build.cs deps (Engine + CoreUObject cover UDataTable / UScriptStruct / FProperty). Null-guards RowStruct.",
+   "params": {
+    "path": "string (required) - UE asset path of a UDataTable"
+   },
+   "returns": {
+    "ok": "bool",
+    "name": "string",
+    "path": "string",
+    "row_struct": "string (conditional, when RowStruct is non-null; asset path of the UScriptStruct)",
+    "row_struct_name": "string (conditional, when RowStruct is non-null)",
+    "row_count": "int",
+    "rows": "array of string (sorted, stable across calls)",
+    "row_property_count": "int",
+    "row_properties": "array of {name, type} where type is FProperty::GetCPPType (e.g. int32, FString, FVector)",
+    "strip_from_client_builds": "bool",
+    "ignore_extra_fields": "bool",
+    "ignore_missing_fields": "bool",
+    "import_key_field": "string (conditional, when non-empty)"
+   }
+  },
+  {
+   "name": "inspect_texture",
+   "description": "Read structural properties of a UTexture asset: surface dimensions, sRGB, compression settings, filter, LOD group, LOD bias, mip-gen settings, virtual-texture streaming flag, never-stream flag, composite-texture link. UTexture2D-specific size/mips/pixel_format/imported_size emitted conditionally when the asset is a UTexture2D. Pairs with configure_texture (mutates) and import_texture (creates). C++ handler. No new Build.cs deps (Engine covers UTexture / UTexture2D / EPixelFormat).",
+   "params": {
+    "path": "string (required) - UE asset path of a UTexture (UTexture2D / UTextureCube / UTextureRenderTarget / UTexture2DArray / ...)"
+   },
+   "returns": {
+    "ok": "bool",
+    "name": "string",
+    "path": "string",
+    "texture_class": "string (e.g. Texture2D, TextureCube, TextureRenderTarget2D)",
+    "compression_settings": "string enum (Default | Normalmap | Masks | Grayscale | Displacementmap | VectorDisplacementmap | HDR | UserInterface2D | BC7 | HalfFloat | SingleFloat | Alpha | DistanceFieldFont | HDR_Compressed | HDR_F32 | Unknown)",
+    "filter": "string enum (Nearest | Bilinear | Trilinear | Default | Unknown)",
+    "lod_group": "string (TextureGroup name from UTexture::GetTextureGroupString)",
+    "mip_gen_settings": "string (TextureMipGenSettings name from UTexture::GetMipGenSettingsString)",
+    "lod_bias": "int",
+    "srgb": "bool",
+    "virtual_texture_streaming": "bool",
+    "never_stream": "bool",
+    "composite_texture": "string (conditional, when CompositeTexture is non-null; asset path)",
+    "surface_width": "float (UTexture::GetSurfaceWidth)",
+    "surface_height": "float (UTexture::GetSurfaceHeight)",
+    "surface_depth": "float (UTexture::GetSurfaceDepth)",
+    "size_x": "int (conditional, UTexture2D-only via GetSizeX)",
+    "size_y": "int (conditional, UTexture2D-only via GetSizeY)",
+    "num_mips": "int (conditional, UTexture2D-only via GetNumMips)",
+    "pixel_format": "string (conditional, UTexture2D-only; EPixelFormat name via GetPixelFormatEnum)",
+    "imported_size_x": "int (conditional, UTexture2D-only via GetImportedSize().X)",
+    "imported_size_y": "int (conditional, UTexture2D-only via GetImportedSize().Y)"
+   }
+  },
+  {
+   "name": "inspect_curve",
+   "description": "Read structural properties of a UCurveBase asset: curve class, channel count, global time + value range, per-channel name + key count + per-channel ranges. Channel layout differs by subclass (UCurveFloat = 1, UCurveLinearColor = 4 RGBA, UCurveVector = 3 XYZ). C++ handler. No new Build.cs deps (Engine covers UCurveBase / FRichCurve / FRealCurve).",
+   "params": {
+    "path": "string (required) - UE asset path of a UCurveBase (UCurveFloat / UCurveLinearColor / UCurveVector / any subclass)"
+   },
+   "returns": {
+    "ok": "bool",
+    "name": "string",
+    "path": "string",
+    "curve_class": "string (e.g. CurveFloat, CurveLinearColor, CurveVector)",
+    "channel_count": "int",
+    "time_range": "{min, max}",
+    "value_range": "{min, max}",
+    "channels": "array of {name, key_count, time_range, value_range}; key_count is -1 when CurveToEdit is null (theoretical guard)"
+   }
+  },
+  {
+   "name": "inspect_physics_asset",
+   "description": "Read structural properties of a UPhysicsAsset: preview skeletal mesh cross-link, body setups (one per simulated bone), constraint setups (joints between bodies), bounds-bodies subset, named physical-animation + constraint profiles. C++ handler. No new Build.cs deps (Engine + PhysicsCore cover UPhysicsAsset / USkeletalBodySetup / UPhysicsConstraintTemplate). Null-skips TObjectPtr entries.",
+   "params": {
+    "path": "string (required) - UE asset path of a UPhysicsAsset"
+   },
+   "returns": {
+    "ok": "bool",
+    "name": "string",
+    "path": "string",
+    "preview_skeletal_mesh": "string (conditional, when PreviewSkeletalMesh is set; soft-object asset path; cross-link to inspect_skeletal_mesh)",
+    "body_count": "int (valid USkeletalBodySetup entries only)",
+    "bodies": "array of {name, body_index, consider_for_bounds, is_in_bounds_subset}",
+    "constraint_count": "int (valid UPhysicsConstraintTemplate entries only)",
+    "constraints": "array of {joint_name, child_bone, parent_bone}",
+    "bounds_body_count": "int (BoundsBodies.Num)",
+    "physical_animation_profile_count": "int",
+    "physical_animation_profiles": "array of string",
+    "constraint_profile_count": "int",
+    "constraint_profiles": "array of string"
+   }
+  },
+  {
+   "name": "inspect_sound_cue",
+   "description": "Read structural properties of a USoundCue asset: duration, max distance, volume + pitch multipliers, subtitle priority, max audible distance, attenuation cross-link, root sound-node class, full graph node list (sorted by name with class taxonomy). C++ handler. No new Build.cs deps (Engine covers USoundCue / USoundBase / USoundNode / USoundAttenuation). Null-skips TObjectPtr<USoundNode> entries.",
+   "params": {
+    "path": "string (required) - UE asset path of a USoundCue"
+   },
+   "returns": {
+    "ok": "bool",
+    "name": "string",
+    "path": "string",
+    "duration": "float (USoundBase::Duration; total cue length in seconds)",
+    "max_distance": "float (USoundBase::MaxDistance)",
+    "volume_multiplier": "float",
+    "pitch_multiplier": "float",
+    "subtitle_priority": "float",
+    "max_audible_distance": "float",
+    "attenuation_settings": "string (conditional, when AttenuationSettings is non-null; asset path)",
+    "first_node_class": "string (conditional, when FirstNode is non-null; class name of the root graph node)",
+    "node_count": "int (valid USoundNode entries only)",
+    "nodes": "array of {name, class} (sorted by name; null-skipped)"
+   }
+  },
+  {
+   "name": "inspect_sound_wave",
+   "description": "Read structural properties of a USoundWave asset: sample rate, channel count, frame count, duration, compression type, runtime format, sound group, looping/streaming flags, loading behavior, subtitle + cue-point + loop-region counts. Editor-only fields (imported_sample_rate, lufs, sample_peak_db, comment) emit conditionally when non-default. C++ handler. No new Build.cs deps (Engine covers USoundWave + relatives). LazyOnDemand caveat: only declarative fields read (no transient runtime state).",
+   "params": {
+    "path": "string (required) - UE asset path of a USoundWave"
+   },
+   "returns": {
+    "ok": "bool",
+    "name": "string",
+    "path": "string",
+    "sound_wave_class": "string",
+    "sample_rate": "int",
+    "num_channels": "int",
+    "num_frames": "int (USoundWave::GetNumFrames)",
+    "duration": "float (USoundBase::GetDuration; seconds)",
+    "compression_type": "string (ESoundAssetCompressionType, prefix-stripped)",
+    "runtime_format": "string (FName from GetRuntimeFormat)",
+    "sound_group": "string (ESoundGroup, prefix-stripped)",
+    "loading_behavior": "string (ESoundWaveLoadingBehavior, prefix-stripped)",
+    "is_looping": "bool (bLooping bitfield)",
+    "is_streaming": "bool (IsStreaming() method, NOT deprecated bStreaming)",
+    "resource_size": "int",
+    "supports_subtitles": "bool",
+    "subtitle_count": "int",
+    "cue_point_count": "int (non-loop cue points only via GetCuePoints)",
+    "loop_region_count": "int (via GetLoopRegions)",
+    "compressed_data_size": "int (conditional; bytes for the runtime format)",
+    "imported_sample_rate": "int (conditional, editor-only, when non-zero)",
+    "lufs": "float (conditional, editor-only, when non-zero)",
+    "sample_peak_db": "float (conditional, editor-only, when non-zero)",
+    "comment": "string (conditional, editor-only, when non-empty)"
+   }
+  },
+  {
+   "name": "inspect_sound_attenuation",
+   "description": "Read structural properties of a USoundAttenuation asset: distance algorithm + shape, spatialization, air-absorption LPF/HPF, listener focus, occlusion, reverb send, priority attenuation, plus assorted feature_flags. Each major feature is gated by its master bool; sub-objects collapse to {\"enabled\":false} when disabled, keeping default-asset JSON compact. Completes the audio introspection trio with inspect_sound_cue + inspect_sound_wave. C++ handler. No new Build.cs deps.",
+   "params": {
+    "path": "string (required) - UE asset path of a USoundAttenuation"
+   },
+   "returns": {
+    "ok": "bool",
+    "name": "string",
+    "path": "string",
+    "distance": "object {enabled, distance_algorithm, attenuation_shape, falloff_mode, db_attenuation_at_max, attenuation_shape_extents:{x,y,z}, cone_offset, falloff_distance, cone_sphere_radius, cone_sphere_falloff_distance}",
+    "spatialization": "object {enabled, [spatialization_algorithm, binaural_radius, non_spatialized_radius_start, non_spatialized_radius_end, non_spatialized_radius_mode, stereo_spread]}",
+    "air_absorption": "object {enabled, [absorption_method, lpf_radius_min, lpf_radius_max, lpf_frequency_at_min, lpf_frequency_at_max, hpf_frequency_at_min, hpf_frequency_at_max]}",
+    "listener_focus": "object {enabled, [focus_azimuth, non_focus_azimuth, focus_distance_scale, non_focus_distance_scale, focus_priority_scale, non_focus_priority_scale, focus_volume_attenuation, non_focus_volume_attenuation, focus_attack_interp_speed?, focus_release_interp_speed?]}",
+    "occlusion": "object {enabled, [occlusion_trace_channel, use_complex_collision_for_occlusion, occlusion_low_pass_filter_frequency, occlusion_volume_attenuation, occlusion_interpolation_time]}",
+    "reverb_send": "object {enabled, [reverb_send_method, reverb_wet_level_min, reverb_wet_level_max, reverb_distance_min, reverb_distance_max, manual_reverb_send_level]}",
+    "priority_attenuation": "object {enabled, [priority_attenuation_method, priority_attenuation_min, priority_attenuation_max, priority_attenuation_distance_min, priority_attenuation_distance_max, manual_priority_attenuation]}",
+    "feature_flags": "object {apply_normalization_to_stereo_sounds, enable_log_frequency_scaling, enable_submix_sends, enable_source_data_override, enable_send_to_audio_link}"
+   }
+  },
+  {
+   "name": "get_camera_transform",
+   "description": "Read level-editor viewport camera transform. SYNTHETIC bridge-side handler -- composes execute_unreal_python + get_log_lines via marker pattern. Part of language-shim experiment (PR #46).",
+   "params": {},
+   "returns": {
+    "ok": "bool",
+    "location": "{x, y, z}",
+    "rotation": "{pitch, yaw, roll}"
+   },
+   "min_engine_version": "5.0",
+   "max_engine_version": null
+  },
+  {
+   "name": "set_camera_transform",
+   "description": "Set level-editor viewport camera transform. SYNTHETIC bridge-side handler. Single execute_unreal_python round-trip. Part of language-shim experiment (PR #46).",
+   "params": {
+    "location": "object (optional) - {x, y, z}; missing fields default to 0",
+    "rotation": "object (optional) - {pitch, yaw, roll}; missing fields default to 0"
+   },
+   "returns": {
+    "ok": "bool",
+    "location": "{x, y, z}",
+    "rotation": "{pitch, yaw, roll}"
+   },
+   "min_engine_version": "5.0",
+   "max_engine_version": null
+  },
+  {
+   "name": "screenshot_actor",
+   "description": "Frame the editor viewport on an actor and capture a focused PNG screenshot. SYNTHETIC bridge-side handler that composes focus_actor + get_viewport_screenshot. Returns base64 PNG plus the focused actor's identity and world location.",
+   "params": {
+    "name": "string (required) - actor label or unique name to focus on"
+   },
+   "returns": {
+    "ok": "bool",
+    "focused": "string",
+    "name": "string",
+    "loc": "{x, y, z}",
+    "width": "int",
+    "height": "int",
+    "png_bytes": "int",
+    "png_base64": "string"
+   }
+  },
+  {
+   "name": "compile_mod_pak",
+   "description": "Compile a UE mod plugin to a .pak file (BuildMod) or to a redistributable plugin package (BuildPlugin), headless via RunUAT.bat. No UE editor session required. SYNTHETIC bridge-side handler -- shells out to RunUAT, captures stdout/stderr tails, scans output_dir for the freshest .pak (optionally filtered by mod_name). Primary use case: game-specific UE5 Dev Kits in installed-build mode that block standard BuildPlugin (e.g. Conan Exiles Enhanced; Funcom ships a BuildMod UAT command as the only working path). Success criterion is per-command: BuildMod requires both exit_code==0 AND a .pak in output_dir; BuildPlugin requires exit_code==0 alone (this command produces a package directory, not a .pak).",
+   "params": {
+    "project_path": "string (required) - absolute path to .uproject",
+    "output_dir": "string (required) - directory for output .pak or package; created if missing; success verification scans this dir",
+    "mod_name": "string (conditional, needed when uat_command is BuildMod) - matches Content/Mods/<mod_name>/ folder; also used to disambiguate the freshest .pak when output_dir has multiple",
+    "plugin_path": "string (conditional, needed when uat_command is BuildPlugin) - absolute path to .uplugin",
+    "uat_command": "string enum (BuildMod | BuildPlugin) - default BuildMod",
+    "run_uat_path": "string (optional) - override path to RunUAT.bat; auto-discovered from project Engine sibling otherwise",
+    "extra_args": "array of string (optional) - additional CLI args appended to RunUAT",
+    "timeout_sec": "int (optional) - max wait time in seconds; default 1800 (30 min)"
+   },
+   "returns": {
+    "ok": "bool",
+    "pak_path": "string (null when no .pak found; non-null otherwise; for BuildPlugin path expect null since BuildPlugin produces a package dir not a .pak)",
+    "exit_code": "int",
+    "stdout_tail": "string (last 4KB of stdout)",
+    "stderr_tail": "string (last 2KB of stderr)",
+    "duration_sec": "float (seconds, 2-decimal precision)",
+    "uat_command": "string (the command actually run)",
+    "cmd": "array of string (the full subprocess argv for debugging)"
+   }
+  },
+  {
+   "name": "compile_mod_pak_direct",
+   "description": "Compile a UE5 mod into a .pak by invoking UnrealPak.exe directly with a response file, bypassing RunUAT entirely. Use when the Dev Kit's RunUAT BuildMod is broken (Funcom Conan Exiles Enhanced UE5 ships a ScriptModules manifest invalid-record bug -- UAT deletes its own deps.json before BuildMod can run). Pre-condition: caller has already cooked the .uasset files (e.g. via execute_unreal_python on a running Editor, or a separate UnrealEditor-Cmd.exe -run=Cook pass). SYNTHETIC bridge-side handler. Complements compile_mod_pak (which uses RunUAT); use compile_mod_pak_direct when UAT is broken on your Dev Kit.",
+   "params": {
+    "unreal_pak_path": "string (required) - absolute path to UnrealPak.exe (e.g. <DevKit>/Engine/Binaries/Win64/UnrealPak.exe)",
+    "response_file": "string (required) - absolute path to UnrealPak response file (.txt) mapping absolute sources to mount points inside the pak",
+    "output_pak": "string (required) - absolute path where the .pak should be written; parent dir created if missing; success verification needs a known path",
+    "compression": "string enum (Zlib | Gzip | Oodle | None) - default Zlib; 'None' omits the -compress<Algo> flag entirely (uncompressed pak)",
+    "extra_args": "array of string (optional) - additional CLI args appended to UnrealPak.exe (e.g. -encryptionkey)",
+    "timeout_sec": "int (optional) - max wait in seconds; default 600 (10 min) -- UnrealPak is typically much faster than RunUAT"
+   },
+   "returns": {
+    "ok": "bool (exit_code==0 AND output_pak exists with size > 0)",
+    "pak_path": "string (null when no .pak written or zero-byte; non-null path otherwise)",
+    "pak_size_bytes": "int (null when pak missing; size in bytes otherwise)",
+    "exit_code": "int",
+    "stdout_tail": "string (last 4KB of stdout)",
+    "stderr_tail": "string (last 2KB of stderr)",
+    "duration_sec": "float (seconds, 2-decimal precision)",
+    "cmd": "array of string (the full subprocess argv for debugging)"
+   }
+  },
+  {
+   "name": "bulk_delete_assets",
+   "description": "Delete multiple assets by composing the delete_asset C++ handler bridge-side. Returns per-path results plus aggregate counts. By default continues after individual failures (partial success is normal); set continue_on_error=false to stop on first failure. SYNTHETIC bridge-side handler.",
+   "params": {
+    "paths": "array of string (required) - asset object paths to delete; each must be a non-empty string; same normalisation rules as delete_asset apply",
+    "continue_on_error": "bool (optional, default true) - when true, keep deleting after an individual path fails and surface per-path errors in results; when false, stop on first failure and return partial results"
+   },
+   "returns": {
+    "ok": "bool (true only when failed == 0)",
+    "total": "int (paths.length)",
+    "deleted": "int (count of per-path successes)",
+    "failed": "int (count of per-path failures)",
+    "results": "array of {path: string, ok: bool, error_code: int | null, error_message: string | null} - one entry per attempted path; preserves the upstream JSON-RPC error code per failure so callers can distinguish transport-level errors (-32099) from logical delete_asset failures"
+   }
+  },
+  {
+   "name": "bulk_move_assets",
+   "description": "Move multiple assets into a single destination folder by composing the move_asset C++ handler bridge-side. Each move leaves a redirector at the source per UE's standard move semantics. Returns per-path results plus aggregate counts. By default continues after individual failures (partial success is normal); set continue_on_error=false to stop on first failure. SYNTHETIC bridge-side handler -- mirrors bulk_delete_assets's shape so client code can switch between the two with a one-tool-name change.",
+   "params": {
+    "paths": "array of string (required) - asset object paths to move; each must be a non-empty string; same path-shape rules as bulk_delete_assets (NUL and '..' segments rejected)",
+    "dest_folder": "string (required) - destination folder for ALL moved assets, e.g. '/Game/Archive'; for per-asset destinations call move_asset directly",
+    "continue_on_error": "bool (optional, default true) - when true, keep moving after an individual path fails and surface per-path errors in results; when false, stop on first failure and return partial results"
+   },
+   "returns": {
+    "ok": "bool (true only when failed == 0)",
+    "total": "int (paths.length)",
+    "moved": "int (count of per-path successes)",
+    "failed": "int (count of per-path failures)",
+    "dest_folder": "string (echo of input for caller correlation)",
+    "results": "array of {path: string, ok: bool, error_code: int | null, error_message: string | null} - one entry per attempted path; preserves the upstream JSON-RPC error code per failure"
+   }
+  },
+  {
+   "name": "inspect_data_asset",
+   "description": "Shallow-reflect a UDataAsset by package path: returns leaf class name, parent class name, package path, and editable property list. SYNTHETIC bridge-side handler that composes execute_unreal_python + get_log_lines via the marker pattern.",
+   "params": {
+    "path": "string (required) - package path to a UDataAsset, e.g. /Game/Data/DA_PlayerStats; must be a non-empty string"
+   },
+   "returns": {
+    "ok": "bool",
+    "path": "string",
+    "class": "string (leaf class name)",
+    "parent_class": "string (super-class name, null when at UObject root)",
+    "package_path": "string (full path with object name, from obj.get_path_name())",
+    "properties": "array of {name: string, type: string (Python type-name from type(v).__name__), value: string (stringified for scalars; '<container:type>' for list/tuple/dict; '<unsupported>' otherwise)} - shallow reflection only, no recursion",
+    "error_code": "string (only on ok=False; one of 'asset_not_found', 'marker_not_found', 'invalid_json')",
+    "error_message": "string (only on ok=False; human-readable detail)"
+   }
+  },
+  {
+   "name": "inspect_sound_class",
+   "description": "Inspect a USoundClass by package path: returns leaf class name, package path, parent and child USoundClass asset paths (for chaining), and the editable FSoundClassProperties values. SYNTHETIC bridge-side handler that composes execute_unreal_python + get_log_lines via the marker pattern. The JSON output remaps UE Python's snake_case property names back to the C++ PascalCase FSoundClassProperties layout.",
+   "params": {
+    "path": "string (required) - package path to a USoundClass asset, e.g. /Game/Audio/SC_Music; must be a non-empty string"
+   },
+   "returns": {
+    "ok": "bool",
+    "path": "string",
+    "class": "string (leaf class name from cls.get_name())",
+    "package_path": "string (from obj.get_path_name())",
+    "parent_class": "string (parent USoundClass package path; null when no parent)",
+    "child_classes": "array of string (child USoundClass package paths; may be empty)",
+    "properties": "object with PascalCase keys: Volume (float), Pitch (float), LowPassFilterFrequency (float), AttenuationDistanceScale (float), VoiceCenterChannelVolume (float), RadioFilterVolume (float), bApplyAmbientVolumes (bool), bApplyEffects (bool), bAlwaysPlay (bool), bIsUISound (bool), bIsMusic (bool), bReverb (bool), bCenterChannelOnly (bool), bApplyDoppler (bool), bApplyMixerOverrides (bool), OutputTarget (string enum stringified, e.g. 'Master', 'Controller')",
+    "error_code": "string (only on ok=False; one of 'asset_not_found', 'wrong_asset_type', 'marker_not_found', 'invalid_json')",
+    "error_message": "string (only on ok=False; human-readable detail)",
+    "actual_class": "string (only on wrong_asset_type; the leaf class name of the actually-loaded asset)"
+   }
+  },
+  {
+   "name": "inspect_sound_submix",
+   "description": "Inspect a USoundSubmix by package path: returns leaf class name, package path, parent submix asset path (for chaining), child submix asset paths, and additional editor-accessible UPROPERTYs discovered via dir() permissive enumeration. SYNTHETIC bridge-side handler that composes execute_unreal_python + get_log_lines via the marker pattern.",
+   "params": {
+    "path": "string (required) - package path to a USoundSubmix asset, e.g. /Game/Audio/SX_Music; must be a non-empty string"
+   },
+   "returns": {
+    "ok": "bool",
+    "path": "string",
+    "class": "string (leaf class name)",
+    "package_path": "string (from obj.get_path_name())",
+    "parent_submix": "string (parent USoundSubmix package path; null when no parent)",
+    "child_submixes": "array of string (child submix package paths; may be empty)",
+    "additional_properties": "array of {name: string, type: string (Python type-name), value: string (stringified for scalars; '<container:type>' for list/tuple/dict; '<unsupported>' otherwise)} - shallow reflection only, no recursion",
+    "error_code": "string (only on ok=False; one of 'asset_not_found', 'wrong_asset_type', 'marker_not_found', 'invalid_json')",
+    "error_message": "string (only on ok=False)",
+    "actual_class": "string (only on wrong_asset_type)"
+   }
+  },
+  {
+   "name": "inspect_audio_bus",
+   "description": "Inspect a UAudioBus by package path: returns leaf class name, package path, audio_bus_channels enum stringified (Mono/Stereo/Quad/FivePointOne/SevenPointOne), and additional editor-accessible UPROPERTYs discovered via dir() permissive enumeration. SYNTHETIC bridge-side handler that composes execute_unreal_python + get_log_lines via the marker pattern.",
+   "params": {
+    "path": "string (required) - package path to a UAudioBus asset, e.g. /Game/Audio/AB_Master; must be a non-empty string"
+   },
+   "returns": {
+    "ok": "bool",
+    "path": "string",
+    "class": "string (leaf class name)",
+    "package_path": "string (from obj.get_path_name())",
+    "audio_bus_channels": "string (enum value stringified via .name; one of Mono | Stereo | Quad | FivePointOne | SevenPointOne)",
+    "additional_properties": "array of {name: string, type: string (Python type-name), value: string (stringified for scalars; '<container:type>' for containers; '<unsupported>' otherwise)} - excludes audio_bus_channels (already curated above)",
+    "error_code": "string (only on ok=False; one of 'asset_not_found', 'wrong_asset_type', 'marker_not_found', 'invalid_json')",
+    "error_message": "string (only on ok=False)",
+    "actual_class": "string (only on wrong_asset_type)"
+   }
+  },
+  {
+   "name": "inspect_material_function",
+   "description": "Inspect a UMaterialFunction by package path: returns leaf class name, package path, description, expose_to_library flag, library_categories (stringified Text values), function inputs (name + input_type enum), function outputs (name), and additional editor-accessible UPROPERTYs discovered via dir() permissive enumeration. SYNTHETIC bridge-side handler that composes execute_unreal_python + get_log_lines via the marker pattern.",
+   "params": {
+    "path": "string (required) - package path to a UMaterialFunction asset, e.g. /Game/Materials/MF_PackedNormal; must be a non-empty string"
+   },
+   "returns": {
+    "ok": "bool",
+    "path": "string",
+    "class": "string (leaf class name)",
+    "package_path": "string (from obj.get_path_name())",
+    "description": "string (asset description; empty when not set)",
+    "exposed_to_library": "bool (whether the function appears in the material-function library)",
+    "library_categories": "array of string (Text values stringified)",
+    "inputs": "array of {name: string, type: string (always 'FunctionInput'), input_type: string (enum stringified)} - one entry per MaterialExpressionFunctionInput discovered in function_expressions",
+    "outputs": "array of {name: string, type: string (always 'FunctionOutput')} - one entry per MaterialExpressionFunctionOutput",
+    "additional_properties": "array of {name: string, type: string, value: string} - excludes the curated names",
+    "error_code": "string (only on ok=False; one of 'asset_not_found', 'wrong_asset_type', 'marker_not_found', 'invalid_json')",
+    "error_message": "string (only on ok=False)",
+    "actual_class": "string (only on wrong_asset_type)"
+   }
+  },
+  {
+   "name": "bulk_duplicate_assets",
+   "description": "Duplicate multiple assets by composing the duplicate_asset C++ handler bridge-side. Takes a `duplicates` list of {path, dest_path} pairs (each asset gets a per-entry full destination path). Unlike rename/move, duplicate does NOT leave a redirector at the source -- the source is preserved and a new copy is created at dest_path. Returns per-entry results plus aggregate counts. SYNTHETIC bridge-side handler -- fourth member of the bulk_*_assets family.",
+   "params": {
+    "duplicates": "array of {path: string, dest_path: string} (required) - per-entry duplicate pairs; both path and dest_path must be non-empty strings with no NUL byte and no '..' segment",
+    "continue_on_error": "bool (optional, default true) - when true, keep duplicating after an individual entry fails and surface per-entry errors in results; when false, stop on first failure and return partial results"
+   },
+   "returns": {
+    "ok": "bool (true only when failed == 0)",
+    "total": "int (duplicates.length)",
+    "duplicated": "int (count of per-entry successes)",
+    "failed": "int (count of per-entry failures)",
+    "results": "array of {path: string, dest_path: string, ok: bool, error_code: int | null, error_message: string | null} - one entry per attempted duplicate; preserves the upstream JSON-RPC error code per failure"
+   }
+  },
+  {
+   "name": "bulk_rename_assets",
+   "description": "Rename multiple assets by composing the rename_asset C++ handler bridge-side. Takes a `renames` list of {path, new_name} pairs (each asset gets a per-entry new leaf name; the folder is unchanged). Each successful rename leaves a redirector at the source per UE's standard semantics. Returns per-entry results plus aggregate counts. SYNTHETIC bridge-side handler -- third member of the bulk_*_assets family after delete + move.",
+   "params": {
+    "renames": "array of {path: string, new_name: string} (required) - per-entry rename pairs; path must be a non-empty string with no NUL byte and no '..' segment; new_name must be a non-empty leaf name with no '/' or '.'",
+    "continue_on_error": "bool (optional, default true) - when true, keep renaming after an individual entry fails and surface per-entry errors in results; when false, stop on first failure and return partial results"
+   },
+   "returns": {
+    "ok": "bool (true only when failed == 0)",
+    "total": "int (renames.length)",
+    "renamed": "int (count of per-entry successes)",
+    "failed": "int (count of per-entry failures)",
+    "results": "array of {path: string, new_name: string, ok: bool, error_code: int | null, error_message: string | null} - one entry per attempted rename; preserves the upstream JSON-RPC error code per failure"
+   }
+  },
+  {
+   "name": "inspect_metasound",
+   "description": "Inspect a MetaSoundSource or MetaSoundPatch asset by package path: returns leaf class name, package path, and additional editor-accessible UPROPERTYs via dir() permissive enumeration. Accepts either MetaSoundSource (emitter-attached) or MetaSoundPatch (reusable subgraph). Graph structure is NOT reflected here (deferred). SYNTHETIC bridge-side handler that composes execute_unreal_python + get_log_lines via the marker pattern.",
+   "params": {
+    "path": "string (required) - package path to a MetaSoundSource or MetaSoundPatch asset, e.g. /Game/Audio/MS_Music; must be a non-empty string"
+   },
+   "returns": {
+    "ok": "bool",
+    "path": "string",
+    "class": "string (leaf class name -- MetaSoundSource or MetaSoundPatch)",
+    "package_path": "string (from obj.get_path_name())",
+    "additional_properties": "array of {name: string, type: string (Python type-name), value: string (stringified for scalars; '<container:type>' for list/tuple/dict; '<unsupported>' otherwise)} - shallow reflection only, no recursion",
+    "error_code": "string (only on ok=False; one of 'asset_not_found', 'wrong_asset_type', 'metasound_unavailable', 'marker_not_found', 'invalid_json')",
+    "error_message": "string (only on ok=False)",
+    "actual_class": "string (only on wrong_asset_type)"
+   }
+  },
+  {
+   "name": "find_unused_assets",
+   "description": "Enumerate assets under a content path and report which have ZERO referencers (nothing in the project links to them). SYNTHETIC bridge-side handler that composes find_assets + inspect_asset. Useful for content cleanup audits before shipping; returns the first `limit` unused assets plus a `truncated` flag.",
+   "params": {
+    "path_under": "string (optional, default /Game) - folder to scan recursively",
+    "class_filter": "string (optional) - UE class path filter, e.g. /Script/Engine.Texture2D, narrows scan to one asset type",
+    "limit": "int (optional, default 100, max 10000) - max unused assets to return; scan stops once this many are found"
+   },
+   "returns": {
+    "ok": "bool",
+    "scanned": "int (number of candidates inspected)",
+    "unused_count": "int (length of unused array)",
+    "unused": "array of {path: string, class: string} - assets with zero referencers",
+    "truncated": "bool (true when more candidates existed beyond what was scanned)"
+   }
+  },
+  {
+   "name": "get_reference_chain",
+   "description": "Walk the asset reference graph BFS from a root, returning every node and edge up to a depth bound. SYNTHETIC bridge-side handler that composes inspect_asset recursively. direction=up follows referencers (impact-of-change analysis); direction=down follows dependencies (packaging audits). De-duplicates visited nodes so cycles don't loop.",
+   "params": {
+    "path": "string (required) - root asset path to walk from",
+    "depth": "int (optional, default 3, max 8) - BFS depth bound; 8 hops is already a vast subgraph in any non-trivial project",
+    "direction": "string (optional, default 'up') - one of 'up' (referencers) or 'down' (dependencies)"
+   },
+   "returns": {
+    "ok": "bool",
+    "root": "string (echo of input)",
+    "direction": "string ('up' or 'down')",
+    "depth": "int (echo of input)",
+    "node_count": "int (de-duplicated visited count, including root)",
+    "edge_count": "int (length of edges array)",
+    "edges": "array of {from: string, to: string} - asset path pairs; for direction=up edges flow neighbor->node, for direction=down edges flow node->neighbor",
+    "truncated": "bool (true when the BFS hit depth and there were still neighbors to expand)"
+   }
+  },
+  {
+   "name": "bulk_compile_blueprints",
+   "description": "Recompile multiple Blueprints in one MCP call by composing the compile_blueprint C++ handler bridge-side. Returns per-path results plus aggregate counts. Mirrors the bulk_*_assets family shape. SYNTHETIC bridge-side handler. Useful after batch-mutating BPs via execute_unreal_python or other tooling.",
+   "params": {
+    "paths": "array of string (required) - Blueprint asset paths to compile; each non-empty, NUL + '..' segments rejected, max 1000 entries",
+    "continue_on_error": "bool (optional, default true) - when true keep compiling after individual failures; when false stop at the first failed compile"
+   },
+   "returns": {
+    "ok": "bool (true only when failed == 0)",
+    "total": "int (paths.length)",
+    "succeeded": "int (count of per-path successes)",
+    "failed": "int (count of per-path failures)",
+    "results": "array of {path: string, ok: bool, error?: {code: int, message: string}} - one entry per attempted compile; preserves the upstream JSON-RPC error code per failure"
+   }
+  },
+  {
+   "name": "audit_blueprint_compile_status",
+   "description": "Enumerate every Blueprint under a content path and bucket each by compile-status (UpToDate/Dirty/Error/Unknown/BeingCreated). READ-ONLY -- no recompile triggered. SYNTHETIC bridge-side handler that composes find_assets + inspect_blueprint. Until the C++ inspect_blueprint handler surfaces blueprint_status, every scanned BP falls into the Unknown bucket; the audit shape stays stable across that future C++ enhancement.",
+   "params": {
+    "path_under": "string (optional, default /Game) - content path to scan recursively",
+    "compile_failures_only": "bool (optional, default true) - when true, problem_assets only lists Error/Unknown; when false, every scanned BP is listed"
+   },
+   "returns": {
+    "ok": "bool",
+    "scanned": "int (number of BPs inspected)",
+    "by_status": "object with five integer keys: UpToDate, Dirty, Error, Unknown, BeingCreated",
+    "problem_assets": "array of {path: string, status: string} - filtered per compile_failures_only"
+   }
+  },
+  {
+   "name": "find_actors_by_class",
+   "description": "Filter the active level's actors by class. SYNTHETIC bridge-side handler that composes get_actors_in_level and matches each actor's short class name against the supplied class_name. Useful for narrowing a thousand-actor dump down to one class (every light, every spawn point, every static-mesh actor) in a single MCP call.",
+   "params": {
+    "class_name": "string (required) - short class name (e.g. 'StaticMeshActor') or full class path (e.g. '/Script/Engine.StaticMeshActor'); class-path inputs are stripped to the trailing short name then matched case-insensitively against the C++ handler's 'class' field",
+    "level": "string (optional) - UWorld package path; needed when the search target is not the active editor world; load_level_by_path runs first when supplied"
+   },
+   "returns": {
+    "ok": "bool",
+    "class_name": "string (echo of input)",
+    "total_in_level": "int (total actors the C++ handler enumerated before filtering)",
+    "count": "int (number of actors matching class_name)",
+    "actors": "array of {name: string, label: string, class: string (short name), class_path: string|null (echoed from handler when present), transform: {loc: {x,y,z}, rot: {pitch,yaw,roll}}}"
+   }
+  },
+  {
+   "name": "bulk_focus_actors",
+   "description": "Frame the viewport on each actor in a sequence, optionally capturing a screenshot after each focus settles. SYNTHETIC bridge-side handler that composes focus_actor (plus, when screenshot_each=true, get_viewport_screenshot) per name. Sleeps delay_ms between calls -- not after the last -- so LOD and viewport settling stays bounded.",
+   "params": {
+    "names": "array of string (required) - actor labels or unique names, each non-empty, max 100 entries",
+    "delay_ms": "int (optional, default 500) - settle delay between focus calls in milliseconds; clamped to 0..10000",
+    "screenshot_each": "bool (optional, default false) - when true, capture a viewport PNG after each focus and emit a parallel 'screenshots' array"
+   },
+   "returns": {
+    "ok": "bool (true only when failed is empty)",
+    "total": "int (names.length)",
+    "focused": "int (number of successful focuses)",
+    "failed": "array of {name: string, error: {code: int, message: string}}",
+    "screenshots": "array of {name: string, png_base64: string} - present only when screenshot_each=true"
+   }
+  },
+  {
+   "name": "bulk_screenshot_actors",
+   "description": "Frame and screenshot each actor in a sequence. SYNTHETIC bridge-side handler that composes screenshot_actor (itself a synthetic over focus_actor + get_viewport_screenshot) per name. Convenient for thumbnail-pipeline runs where every actor in a list needs a deterministic centered shot. Caps at 50 entries because each yields a PNG payload.",
+   "params": {
+    "names": "array of string (required) - actor labels or unique names, each non-empty, max 50 entries",
+    "delay_ms": "int (optional, default 500) - settle delay between actors in milliseconds; clamped to 0..10000"
+   },
+   "returns": {
+    "ok": "bool (true only when every entry succeeded)",
+    "total": "int (names.length)",
+    "succeeded": "int (count of per-name successes)",
+    "results": "array of {name: string, ok: bool, png_base64?: string, focused?: string, loc?: {x,y,z}, error?: {code: int, message: string}}"
+   }
+  },
+  {
+   "name": "bulk_set_actor_property",
+   "description": "Apply many UPROPERTY mutations across many actors in one MCP call. SYNTHETIC bridge-side handler that composes set_actor_property per assignment. Mirrors the bulk_compile_blueprints partial-failure semantics. NOT 'set the same property on N actors' -- each assignment is independent.",
+   "params": {
+    "assignments": "array of {actor: string, property: string, value: any} (required) - each actor and property non-empty, value mandatory (use null for explicit-null intent), max 200 entries",
+    "continue_on_error": "bool (optional, default true) - when false, halt at the first per-assignment failure and emit halted_at_index"
+   },
+   "returns": {
+    "ok": "bool (true only when failed is empty)",
+    "total": "int (assignments.length)",
+    "succeeded": "int (count of per-assignment successes)",
+    "failed": "array of {actor: string, property: string, error: {code: int, message: string}}",
+    "halted_at_index": "int - present only when continue_on_error=false stopped the loop early; the 0-based index of the failed assignment"
+   }
+  },
+  {
+   "name": "compare_assets",
+   "description": "Symmetric diff between two assets' inspect_asset outputs. SYNTHETIC bridge-side handler that composes inspect_asset on both paths and returns the fields that differ. Useful for 'what changed between these two versions of the same blueprint?' walkthroughs and for cross-checking duplicated assets that should be identical. The 'path' field is excluded from comparison (trivially different between the two inputs).",
+   "params": {
+    "path_a": "string (required) - first asset path",
+    "path_b": "string (required) - second asset path",
+    "fields": "array of string (optional) - whitelist of inspect_asset field names to compare; when omitted, the synthetic diffs the union of both responses' keys (minus 'path')"
+   },
+   "returns": {
+    "ok": "bool (always true on success)",
+    "path_a": "string (echo of input)",
+    "path_b": "string (echo of input)",
+    "identical": "bool (true when differences is empty)",
+    "fields_compared": "array of string (the fields actually diffed; 'path' is never included)",
+    "differences": "array of {field: string, value_a: any, value_b: any} - one entry per differing field"
+   }
+  },
+  {
+   "name": "bulk_set_console_variables",
+   "description": "Set multiple Console Variables in one MCP call with optional atomic rollback. SYNTHETIC bridge-side handler that composes get_console_variable (to capture each pre-value) plus set_console_variable (to apply each new value). On any per-cvar failure when rollback_on_error=true, the synthetic walks back every applied change to its captured pre-value, with rollback_failures listing any restore attempts that themselves failed.",
+   "params": {
+    "assignments": "object (required) - mapping of {cvar_name: new_value}; each name a non-empty string; each value a string, number, or boolean; max 50 entries",
+    "rollback_on_error": "bool (optional, default true) - when true, halt at first failure and restore every applied change to its captured pre-value; when false, record failures but keep applied changes"
+   },
+   "returns": {
+    "ok": "bool (true only when failed is empty)",
+    "total": "int (assignments size)",
+    "applied": "array of {name: string, old_value: string, new_value: any} - one entry per successfully applied cvar; old_value comes from get_console_variable's value_string",
+    "failed": "array of {name: string, error: {code: int, message: string}}",
+    "rolled_back": "bool (true when a rollback pass was performed)",
+    "rollback_failures": "array of {name: string, error: {code: int, message: string}} - present only when rollback was attempted AND some restore failed"
+   }
+  },
+  {
+   "name": "inspect_dependency_graph",
+   "description": "Walk the asset dependency graph BFS from a root (dependencies, downward by default). SYNTHETIC bridge-side handler that composes inspect_asset recursively. Optionally also follows referencers (upward) for a single bidirectional sweep. Distinct from get_reference_chain in that it defaults to direction=down (packaging-audit framing) and supports a bidirectional pass instead of two separate calls. De-duplicates visited nodes across both directions.",
+   "params": {
+    "path": "string (required) - root asset path to walk from",
+    "depth": "int (optional, default 2, range 1..8) - BFS depth bound",
+    "include_referencers": "bool (optional, default false) - when true, also follow referencers upward in the same BFS"
+   },
+   "returns": {
+    "ok": "bool",
+    "root": "string (echo of input)",
+    "depth": "int (echo of input)",
+    "include_referencers": "bool (echo of input)",
+    "node_count": "int (de-duplicated visited count, including root)",
+    "edge_count": "int (length of edges array)",
+    "nodes": "array of string (sorted asset paths visited)",
+    "edges": "array of {from: string, to: string, direction: string ('down' for dependency edges, 'up' for referencer edges)}",
+    "truncated": "bool (true when the BFS hit depth and there were still neighbors to expand)"
+   }
+  },
+  {
+   "name": "bulk_fix_redirectors",
+   "description": "Resolve UObjectRedirector stubs across multiple content folders in one MCP call. SYNTHETIC bridge-side handler that composes fix_up_redirectors per folder. Useful as a follow-up to sweeps of bulk_move_assets / bulk_rename_assets calls (each of which leaves redirectors at source paths) so the LLM does not have to issue one fix_up_redirectors per touched folder.",
+   "params": {
+    "folders": "array of string (required) - content folder paths under which to fix up redirectors; each non-empty, NUL + '..' segments rejected, max 100 entries",
+    "recursive": "bool (optional, default true) - echoed back in the response for clarity; fix_up_redirectors itself always operates recursively under the supplied path",
+    "continue_on_error": "bool (optional, default true) - when false, halt at the first per-folder fix-up failure and emit halted_at_index"
+   },
+   "returns": {
+    "ok": "bool (true only when failed is empty)",
+    "total": "int (folders.length)",
+    "succeeded": "int (count of per-folder successes)",
+    "failed": "array of {folder: string, error: {code: int, message: string}}",
+    "recursive": "bool (echo of input)",
+    "halted_at_index": "int - present only when continue_on_error=false stopped the loop early"
+   }
+  },
+  {
+   "name": "marketplace_search",
+   "description": "Search free CC0 asset marketplaces (Polyhaven, AmbientCG) for textures / HDRIs / models matching a keyword. SYNTHETIC bridge-side handler — fetches the source's public JSON catalog via plain HTTPS (no auth, no API key). Every asset returned is CC0 (public domain, free for any use including commercial). Pair with marketplace_import to download a chosen result.",
+   "params": {
+    "query": "string (optional, default '') - search keyword matched against name, tags, and categories on the source side; empty string lists popular assets",
+    "source": "string (optional, default 'polyhaven') - one of polyhaven|ambientcg|all; 'all' fans out across both sources",
+    "asset_type": "string (optional, default 'texture') - one of texture|hdri|model|all",
+    "limit": "int (optional, default 10, max 50) - max results to return"
+   },
+   "returns": {
+    "ok": "bool",
+    "query": "string (echo)",
+    "source": "string (echo)",
+    "asset_type": "string (echo)",
+    "limit": "int (echo)",
+    "count": "int (length of results)",
+    "results": "array of {slug: string, name: string, source: string, asset_type: string, thumbnail_url: string, tags: array, categories: array, description: string, max_resolution: array or null, download_count: int}",
+    "partial_errors": "array of string (present only when at least one source failed but another returned results)"
+   }
+  },
+  {
+   "name": "marketplace_import",
+   "description": "Download a CC0 asset from a marketplace (Polyhaven or AmbientCG) and import it into the project as a UTexture2D via the native import_texture handler. SYNTHETIC bridge-side handler. Polyhaven path: /files/{slug} catalog lookup -> direct download. AmbientCG path: /api/v2/full_json?id={slug}&include=downloadData -> downloads the per-resolution zip -> extracts the Color map (textures) or sole EXR/HDR (hdris) -> hands the file to import_texture. With multi_map=true (texture only), additionally pulls Normal/Roughness/AO/Displacement/Metalness when the source ships them; Color stays at dest_name and each other map lands as <dest_name>_<map>. Supports texture and hdri; model import is parked for a later PR. Asset files: both sources are CC0. API access: Polyhaven public API is licensed for non-commercial / academic use only (commercial integrations require a custom license from Poly Haven); AmbientCG API and assets are both CC0.",
+   "params": {
+    "source": "string (optional, default 'polyhaven') - one of polyhaven|ambientcg",
+    "slug": "string (required) - source-specific asset identifier obtained from marketplace_search",
+    "asset_type": "string (optional, default 'texture') - one of texture|hdri|model; model returns not_implemented in v1",
+    "resolution": "string (optional, default '2k') - common values 1k|2k|4k|8k; error message lists actual available set when invalid",
+    "format": "string (optional, default 'png' for texture, 'exr' for hdri) - falls back to source default if requested format unpublished",
+    "dest_path": "string (optional, default /Game/Marketplace) - UE package path; must start with /Game/",
+    "dest_name": "string (optional, default slug) - asset name override",
+    "replace_existing": "bool (optional, default false) - overwrite existing asset at dest_path/dest_name",
+    "multi_map": "bool (optional, default false) - texture only; when true pulls every canonical PBR map (color/normal/roughness/ao/displacement/metalness) the source ships; color is mandatory, others best-effort; Color -> <dest_name>, others -> <dest_name>_<map>"
+   },
+   "returns": {
+    "ok": "bool",
+    "source": "string (echo)",
+    "slug": "string (echo)",
+    "asset_type": "string (echo)",
+    "resolution": "string (echo)",
+    "format": "string (echo)",
+    "downloaded_from": "string (resolved download URL)",
+    "temp_path": "string (single-map mode only; filesystem path of downloaded file)",
+    "ue_asset_path": "string (final asset path in project; in multi_map mode this is the color map path)",
+    "available_resolutions": "array of string (resolutions the source actually offers for this asset)",
+    "import_result": "object (single-map mode only; passthrough of native import_texture result)",
+    "maps": "object (multi_map mode only; canonical_name -> UE asset path)",
+    "import_results": "object (multi_map mode only; canonical_name -> native import_texture result)",
+    "license": "string ('CC0')"
+   }
+  },
+  {
+   "name": "convert_hdri_to_cubemap",
+   "description": "Convert a longlat-projection HDRI (UTexture2D) into a UTextureCube so it can drive a SkyLight's SpecifiedCubemap slot. SYNTHETIC bridge-side handler. Pipeline: spawn an inside-out sphere with the HDRI as an unlit emissive material, capture it with a SceneCaptureCube into a TextureRenderTargetCube, then materialize the static UTextureCube via RenderingLibrary.render_target_create_static_texture_cube_editor_only. Temp render-target + temp material + temp actors are cleaned up before return. Closes the 23rd HANDOFF note's HDRI cubemap parked item.",
+   "params": {
+    "hdri_path": "string (required) - UE asset path of the source longlat UTexture2D; must start with /Game/",
+    "dest_path": "string (optional) - UE package path for the new cube; defaults to the source HDRI's folder",
+    "dest_name": "string (optional) - asset name override; defaults to <source_basename>_Cube",
+    "cube_size": "int (optional, default 1024) - square face size in pixels; range [16, 8192]; powers of two recommended",
+    "compression": "string (optional, default 'TC_HDR') - one of TC_HDR | TC_HDR_COMPRESSED | TC_HDR_F32 | TC_DEFAULT"
+   },
+   "returns": {
+    "ok": "bool",
+    "source_hdri": "string (echo)",
+    "cube_asset_path": "string (final cube asset path)",
+    "dest_path": "string (echo)",
+    "dest_name": "string (echo)",
+    "cube_size": "int (echo)",
+    "compression": "string (echo)"
+   },
+   "min_engine_version": "5.0",
+   "max_engine_version": null
+  },
+  {
+   "name": "sequencer_add_transform_keyframe",
+   "description": "Add a single keyframe on a Level Sequence's 3D Transform Track for a previously-bound actor. SYNTHETIC bridge-side handler. Wires MovieSceneSequenceExtensions.find_binding_by_id + MovieSceneBindingProxy.add_track + MovieSceneScriptingDoubleChannel.add_key. Caller passes location/rotation/scale as optional 3-element triples; missing triples skip those channels. Rotation order is [pitch, yaw, roll] (unreal.Rotator convention) — mapped internally to the channel layout (Roll=X, Pitch=Y, Yaw=Z). Closes the keyframe-authoring half of the 21st HANDOFF note's Sequencer parked item; Movie Render Queue remains parked.",
+   "params": {
+    "sequence_path": "string (required) - UE asset path of the LevelSequence; must start with /Game/",
+    "binding_id": "string (required) - GUID string returned by bind_actor_to_sequence; accepts bare 32-hex or dashed forms",
+    "time_seconds": "number (required, >= 0) - time in seconds at which to place the keyframe",
+    "location": "array of 3 numbers (optional) - [x, y, z] translation; omit to skip Location channels",
+    "rotation": "array of 3 numbers (optional) - [pitch, yaw, roll] in degrees (unreal.Rotator convention); omit to skip Rotation channels",
+    "scale": "array of 3 numbers (optional) - [x, y, z] scale; omit to skip Scale channels",
+    "interpolation": "string (optional, default 'linear') - one of linear | constant | auto | smart_auto | cubic (alias of smart_auto)",
+    "auto_extend_section": "bool (optional, default true) - extend the section's seconds-range to cover time_seconds when needed"
+   },
+   "returns": {
+    "ok": "bool",
+    "sequence_path": "string (echo)",
+    "binding_id": "string (echo)",
+    "time_seconds": "number (echo)",
+    "keys_added": "int (total channel-keys created)",
+    "channels_keyed": "array of string (e.g. Location.X / Rotation.Z)",
+    "interpolation": "string (resolved enum member, e.g. LINEAR)",
+    "track_path": "string (full path of the 3D Transform Track asset)"
+   },
+   "min_engine_version": "5.0",
+   "max_engine_version": null
+  },
+  {
+   "name": "import_mesh",
+   "description": "Import a 3D mesh file (.glb/.gltf/.fbx/.obj) from disk into the project as StaticMesh asset(s). SYNTHETIC bridge-side handler. Fills the gap left by import_texture (images only): drives UE Interchange import to a target /Game/ path and returns the EXACT created StaticMesh asset paths by diffing the destination folder before/after, so the caller never guesses Interchange's sub-folder nesting before binding the mesh to an actor. Embedded materials import by default. Pairs with spawn_actor / set_actor_property.",
+   "params": {
+    "source_path": "string (required) - absolute filesystem path to the mesh; extension must be .glb | .gltf | .fbx | .obj (case-insensitive)",
+    "dest_path": "string (required) - '/Game' or a '/Game/...' content path; Interchange may create sub-folders, reflected in returned static_meshes",
+    "import_materials": "bool (optional, default true) - import materials embedded in the source file"
+   },
+   "returns": {
+    "ok": "bool",
+    "source_path": "string (echo)",
+    "dest_path": "string (echo)",
+    "import_materials": "bool (echo)",
+    "static_meshes": "array of string - created StaticMesh asset paths",
+    "created": "array of string - all asset paths created by the import",
+    "count": "int - number of StaticMesh assets created"
+   },
+   "min_engine_version": "5.0",
+   "max_engine_version": null
+  }
+ ]
 }
