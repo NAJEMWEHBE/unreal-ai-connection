@@ -146,7 +146,7 @@ py -3 -m pip install pytest   # if pytest isn't already installed
 py -3 -m pytest tests/ -q
 ```
 
-Expected: **503 pytest cases** passing (verify against the expected-count constants in `tests/conftest.py` and the manifest-parity check in `tests/test_manifest_sync.py`).
+Expected: **510 pytest cases** passing (verify against the expected-count constants in `tests/conftest.py` and the manifest-parity check in `tests/test_manifest_sync.py`).
 
 ### 10. Open Claude Code in the repo
 
