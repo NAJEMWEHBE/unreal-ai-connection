@@ -91,6 +91,8 @@ These rules matter more than any single recipe. Internalize them.
 | Photo → Unreal scene | FLAGSHIP | Reconstruct a faithful blockout + atmosphere from a reference image |
 | Sequencer shot | EXPERIMENTAL | Scaffold a Level Sequence; keyframe via execute_unreal_python |
 | Widget / UMG authoring | MATURE | Build/mutate a WidgetBlueprint or EUW tree; set properties; compile once |
+| PIE validation loop | PROVEN | Start/observe/stop a Play-In-Editor session to validate live behavior |
+| Component authoring | PROVEN | Attach + configure a component on an existing actor |
 
 Open [`reference.md`](reference.md) for the ordered tool sequences, verification checkpoints, and the
 UE 5.x gotcha table before running any of these.

@@ -148,6 +148,51 @@ Notes: `class` accepts the shorthand names above or a fully-qualified `UClass` p
 `save_dirty_assets` is needed for the tree itself, but the `compile: true` final op is what bakes the
 generated class. After a batch, `inspect_widget_tree` to confirm the hierarchy before relying on it.
 
+## 8. PIE (Play-In-Editor) validation loop (PROVEN)
+
+Goal: launch a Play-In-Editor session to validate live behavior, observe it, then tear it down — the
+"did my edit actually work?" loop, with no human keypress.
+
+1. **Start** — `pie_control` with `action=start` and `mode` = `play` (full PIE in the active
+   viewport) or `simulate` (ticks the world without spawning a Player Controller). The call is
+   **asynchronous**: it queues the request and returns immediately; the session is not live yet.
+2. **Confirm it started** — on a later tick, `pie_control` with `action=query` and check the
+   `is_playing` (and `is_simulating`) flags. Don't act on the session until query reports
+   `is_playing` true.
+3. **Observe / act** — inspect the running world (`get_actors_in_level`, `get_selected_actors`,
+   `execute_unreal_python`) while the session is live.
+4. **Stop** — `pie_control` with `action=stop`. Also asynchronous (defers end-play to the next tick).
+   If a start request was still queued and never ticked, stop cancels that queued request instead.
+5. **Confirm shutdown** — `action=query` again; proceed only once `is_playing` is false.
+
+Notes: starting while a session is running or queued returns `pie_already_active`; stopping with
+nothing running or queued returns `pie_not_active`. Because both start and stop defer to the next
+editor tick, never infer state from the start/stop return — always read it back with `action=query`.
+
+## 9. Component authoring (PROVEN)
+
+Goal: attach a component to an existing actor and configure it.
+
+1. **Target the actor** — get its name/label from `get_actors_in_level`, `find_actors_by_class`, or
+   `get_selected_actors` (the editor's current selection, in selection order — the last entry is the
+   most-recently-selected).
+2. **Add the component** — `add_component` with `actor_name` (label or FName; an ambiguous label
+   returns `ambiguous_actor` with candidates — retry with the FName) and `class_path` (a concrete
+   `UActorComponent` subclass path, e.g. `/Script/Engine.PointLightComponent`; abstract or deprecated
+   classes are rejected). Optional `component_name`.
+3. **Place scene components** — for `USceneComponent` subclasses, optional `attach_to` (an existing
+   component name on the actor; defaults to the root), `socket`, and `relative_transform`
+   (`location` / `rotation` / `scale`). Non-scene components just register.
+4. **Configure** — set further properties with `set_actor_property`, then read them back before
+   relying on them.
+5. **Persist** — `add_component` marks the actor dirty but does **not** auto-save; run
+   `save_dirty_assets` so the component survives an editor restart.
+
+Notes: actor targeting is the same hybrid label/FName lookup used across the actor tools. The handler
+runs `RerunConstructionScripts` after attaching, so construction-script-driven actors re-evaluate
+with the new component in place. Supplying a duplicate `component_name` is not explicitly documented —
+UE auto-suffixes the FName to avoid collisions; use distinct names to avoid ambiguity.
+
 ---
 
 ## UE 5.x behavior notes (caller-relevant)
@@ -165,5 +210,7 @@ These shape how you call the tools — not internal implementation you control.
 | TArray/TSet properties (e.g. `OverrideMaterials`) | Supported — pass a JSON **array** value to `set_actor_property` | Send the array directly; no `execute_unreal_python` fallback |
 | `unreal.Rotator` / `unreal.Color` positional args | Rotator is (roll,pitch,yaw); Color is BGRA | Build empty struct, assign by property name |
 | `compile_mod_pak` | **Blocking** RunUAT call (up to ~30 min) — returns no task id, not pollable | Wait for the tool to return; tune `timeout_sec` (default 1800) |
+| `pie_control` start/stop are async | Session isn't live (or torn down) on return — they defer to the next tick | Read back with `action=query`; don't infer state from the start/stop return |
+| `load_level_by_path` needs an exact package path | A wrong/partial path fails to load | `list_levels` first (optional `path_under` / `name_contains`) to discover the path |
 
 When any tool name here disagrees with live `list_tools`, the live catalog wins — update this file.

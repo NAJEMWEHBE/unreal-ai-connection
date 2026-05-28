@@ -47,9 +47,22 @@ NON_TOOL_TOKENS = {
     "continue_on_error",
     "time_seconds",
     "timeout_sec",
-    # error codes / response fields
+    "actor_name",
+    "attach_to",
+    "class_path",
+    "component_name",
+    "relative_transform",
+    "name_contains",
+    "path_under",
+    # error codes returned by actor-targeting tools
     "ambiguous_actor",
+    # error codes returned by pie_control action=start/stop
+    "pie_already_active",
+    "pie_not_active",
+    # response / return fields
     "tick_resolution",
+    "is_playing",
+    "is_simulating",
     # anti-example: the docs explicitly state this tool does NOT exist
     # (the real entry point is register_subscription)
     "start_event_subscription",
