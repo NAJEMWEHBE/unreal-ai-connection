@@ -63,6 +63,8 @@ NON_TOOL_TOKENS = {
     "tick_resolution",
     "is_playing",
     "is_simulating",
+    "set_by",
+    "value_string",
     # anti-example: the docs explicitly state this tool does NOT exist
     # (the real entry point is register_subscription)
     "start_event_subscription",
