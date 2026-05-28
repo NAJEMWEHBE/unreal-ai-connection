@@ -6936,7 +6936,17 @@ def _build_import_mesh_script(source_path: str, dest_path: str, import_materials
         "DEST = " + repr(dest_path) + "\n"
         "SRC = " + repr(source_path) + "\n"
         "WANT_MATS = " + ("True" if import_materials else "False") + "\n"
-        "before = set(unreal.EditorAssetLibrary.list_assets(DEST, recursive=True, include_folder=False)) if unreal.EditorAssetLibrary.does_directory_exist(DEST) else set()\n"
+        # list_assets raises on a non-existent directory; guard both diffs so a
+        # failed import (dir never created) doesn't mask the real error.
+        "def _list(d):\n"
+        "    return set(unreal.EditorAssetLibrary.list_assets(d, recursive=True, include_folder=False)) if unreal.EditorAssetLibrary.does_directory_exist(d) else set()\n"
+        # asset-registry class lookup (no load_asset -> no full asset load into memory)\n"
+        "def _cls(a):\n"
+        "    try:\n"
+        "        return str(unreal.EditorAssetLibrary.find_asset_data(a).asset_class_path.asset_name)\n"
+        "    except Exception:\n"
+        "        return ''\n"
+        "before = _list(DEST)\n"
         "mgr = unreal.InterchangeManager.get_interchange_manager_scripted()\n"
         "src = mgr.create_source_data(SRC)\n"
         "p = unreal.ImportAssetParameters()\n"
@@ -6946,13 +6956,18 @@ def _build_import_mesh_script(source_path: str, dest_path: str, import_materials
         "except Exception:\n"
         "    pass\n"
         "mgr.import_asset(DEST, src, p)\n"
-        "after = set(unreal.EditorAssetLibrary.list_assets(DEST, recursive=True, include_folder=False))\n"
+        "after = _list(DEST)\n"
         "new = sorted(after - before)\n"
-        "def _is_sm(a):\n"
-        "    o = unreal.EditorAssetLibrary.load_asset(a)\n"
-        "    return bool(o) and o.get_class().get_name() == 'StaticMesh'\n"
-        "sms = [a for a in new if _is_sm(a)]\n"
-        "print(" + repr(_IMPORT_MESH_MARKER) + " + json.dumps({'static_meshes': sms, 'created': new}))\n"
+        # honor import_materials=False: drop the material assets Interchange made
+        # (meshes fall back to the engine default material). EditorAssetLibrary
+        # .delete_asset is the scripting API -- it does not raise a modal.\n"
+        "if not WANT_MATS:\n"
+        "    for a in list(new):\n"
+        "        if _cls(a) in ('Material', 'MaterialInstanceConstant'):\n"
+        "            unreal.EditorAssetLibrary.delete_asset(a)\n"
+        "    after = _list(DEST); new = sorted(after - before)\n"
+        "sms = [a for a in new if _cls(a) == 'StaticMesh']\n"
+        "print(" + repr(_IMPORT_MESH_MARKER) + " + json.dumps({'static_meshes': sms, 'created': new, 'materials_imported': bool(WANT_MATS)}))\n"
     )
 
 
@@ -7032,13 +7047,28 @@ def synthetic_import_mesh(req_id, args: dict) -> dict:
         if isinstance(v, str) and _IMPORT_MESH_MARKER in v:
             blob = v
             break
-    parsed = {"static_meshes": [], "created": []}
-    if blob:
-        line = blob.split(_IMPORT_MESH_MARKER, 1)[1].splitlines()[0].strip()
-        try:
-            parsed = json.loads(line)
-        except (ValueError, TypeError):
-            parsed = {"static_meshes": [], "created": []}
+    # Fail closed: the inner script always prints the marker on success, so a
+    # missing marker (or unparseable payload) means the import did not complete
+    # as expected -- surface an error instead of a hollow ok with empty lists.
+    if not blob:
+        snippet = ""
+        for key in ("stdout", "output"):
+            v = result.get(key)
+            if isinstance(v, str) and v:
+                snippet = v[:300]
+                break
+        return make_response(req_id, error={
+            "code": -32603,
+            "message": f"import_mesh: missing_result_marker: import ran but emitted no result marker (output: {snippet!r})",
+        })
+    line = blob.split(_IMPORT_MESH_MARKER, 1)[1].splitlines()[0].strip()
+    try:
+        parsed = json.loads(line)
+    except (ValueError, TypeError):
+        return make_response(req_id, error={
+            "code": -32603,
+            "message": f"import_mesh: bad_result_marker: could not parse result payload {line[:200]!r}",
+        })
     body = {
         "ok": True,
         "source_path": source_path,
@@ -7046,6 +7076,7 @@ def synthetic_import_mesh(req_id, args: dict) -> dict:
         "import_materials": import_materials,
         "static_meshes": parsed.get("static_meshes", []),
         "created": parsed.get("created", []),
+        "materials_imported": parsed.get("materials_imported", import_materials),
         "count": len(parsed.get("static_meshes", [])),
     }
     return _wrap_tool_result(req_id, body)

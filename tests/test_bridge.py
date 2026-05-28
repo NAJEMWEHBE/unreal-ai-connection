@@ -6752,3 +6752,45 @@ def test_import_mesh_propagates_ue_python_error():
     assert "error" in resp
     assert resp["error"]["code"] == -32603
     assert "ue_python_error" in resp["error"]["message"]
+
+
+def test_import_mesh_fails_closed_when_marker_missing():
+    """ok=True but no result marker -> error (don't return a hollow ok)."""
+    fake = {"result": {"ok": True, "output": "ran but printed nothing useful"}}
+    with patch.object(bridge.os.path, "isfile", return_value=True), \
+         patch.object(bridge, "call_ue", side_effect=[_engine_5_7_resp(), fake]):
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 957, "method": "tools/call",
+            "params": {"name": "import_mesh", "arguments": {
+                "source_path": "C:/x/M.glb", "dest_path": "/Game/A"}},
+        })
+    assert "error" in resp
+    assert resp["error"]["code"] == -32603
+    assert "missing_result_marker" in resp["error"]["message"]
+
+
+def test_import_mesh_no_materials_generates_delete_branch():
+    """import_materials=False bakes WANT_MATS False + a material-delete branch
+    into the generated script, and reports materials_imported False."""
+    marker = bridge._IMPORT_MESH_MARKER
+    payload = {"static_meshes": ["/Game/A/M.M"], "created": ["/Game/A/M.M"], "materials_imported": False}
+    fake = {"result": {"ok": True, "output": marker + json.dumps(payload)}}
+    with patch.object(bridge.os.path, "isfile", return_value=True), \
+         patch.object(bridge, "call_ue", side_effect=[_engine_5_7_resp(), fake]) as m_ue:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 958, "method": "tools/call",
+            "params": {"name": "import_mesh", "arguments": {
+                "source_path": "C:/x/M.glb", "dest_path": "/Game/A", "import_materials": False}},
+        })
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert body["materials_imported"] is False
+    code = m_ue.call_args[0][1]["code"]
+    assert "WANT_MATS = False" in code
+    assert "delete_asset" in code  # honors the flag by removing imported materials
+
+
+def test_import_mesh_uses_asset_registry_not_load_asset():
+    """Class check uses find_asset_data (registry), not load_asset (slow/heavy)."""
+    code = bridge._build_import_mesh_script("C:/x/M.glb", "/Game/A", True)
+    assert "find_asset_data" in code
+    assert "load_asset" not in code
