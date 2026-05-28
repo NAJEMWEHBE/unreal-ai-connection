@@ -13,9 +13,9 @@ plugin speaks raw JSON-RPC over a local TCP socket (default
 Behaviour:
   - "initialize"             returned synthetically (does NOT hit the UE server)
   - "notifications/*"        consumed silently
-  - "tools/list"             returns a static list of all 105 tools (72
+  - "tools/list"             returns a static list of all 106 tools (72
                              dispatched to the UE plugin's C++ handlers
-                             plus 33 bridge-side synthetic tools served by
+                             plus 34 bridge-side synthetic tools served by
                              SYNTHETIC_TOOLS without crossing the wire as
                              a single UE round-trip)
   - "tools/call"             unpacks {name, arguments} and forwards to the
@@ -1468,6 +1468,21 @@ TOOLS = [
                 "auto_extend_section": {"type": "boolean", "description": "If true (default), extends the track section's seconds-range to cover time_seconds when needed."},
             },
             "required": ["sequence_path", "binding_id", "time_seconds"],
+        },
+        "min_engine_version": "5.0",
+        "max_engine_version": None,
+    },
+    {
+        "name": "import_mesh",
+        "description": "Import a 3D mesh file (.glb/.gltf/.fbx/.obj) from disk into the project as StaticMesh asset(s). SYNTHETIC bridge-side handler. Fills the gap left by import_texture (which only handles images): drives UE's Interchange import to a target /Game/ path and returns the EXACT created StaticMesh asset paths, so the caller never has to guess Interchange's sub-folder nesting before binding the mesh to an actor. Diffs the destination folder before/after import to report precisely what was created. Materials embedded in the source (e.g. glTF PBR) import by default. Pairs with spawn_actor / set_actor_property for placement.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "source_path": {"type": "string", "description": "Absolute filesystem path to the mesh file. Extension must be one of .glb, .gltf, .fbx, .obj (case-insensitive)."},
+                "dest_path": {"type": "string", "description": "UE content path to import into; must be '/Game' or start with '/Game/'. Interchange may create sub-folders under it; the returned static_meshes paths reflect the actual locations."},
+                "import_materials": {"type": "boolean", "description": "Import materials embedded in the source file. Default true."},
+            },
+            "required": ["source_path", "dest_path"],
         },
         "min_engine_version": "5.0",
         "max_engine_version": None,
@@ -6905,7 +6920,139 @@ def check_engine_gate(req_id, tool_name: str) -> dict | None:
     })
 
 
+_IMPORT_MESH_EXTS = (".glb", ".gltf", ".fbx", ".obj")
+_IMPORT_MESH_MARKER = "IMPORT_MESH_RESULT:"
+
+
+def _build_import_mesh_script(source_path: str, dest_path: str, import_materials: bool) -> str:
+    """Generate the UE Python that imports `source_path` into `dest_path` via
+    Interchange and prints a marker line with the created StaticMesh asset
+    paths. Paths are baked via repr() so they cannot break the literal or
+    inject code. Diffs the destination folder before/after so the reported
+    paths reflect Interchange's actual (possibly nested) output locations.
+    """
+    return (
+        "import unreal, json\n"
+        "DEST = " + repr(dest_path) + "\n"
+        "SRC = " + repr(source_path) + "\n"
+        "WANT_MATS = " + ("True" if import_materials else "False") + "\n"
+        "before = set(unreal.EditorAssetLibrary.list_assets(DEST, recursive=True, include_folder=False)) if unreal.EditorAssetLibrary.does_directory_exist(DEST) else set()\n"
+        "mgr = unreal.InterchangeManager.get_interchange_manager_scripted()\n"
+        "src = mgr.create_source_data(SRC)\n"
+        "p = unreal.ImportAssetParameters()\n"
+        "p.is_automated = True\n"
+        "try:\n"
+        "    p.import_level = False\n"
+        "except Exception:\n"
+        "    pass\n"
+        "mgr.import_asset(DEST, src, p)\n"
+        "after = set(unreal.EditorAssetLibrary.list_assets(DEST, recursive=True, include_folder=False))\n"
+        "new = sorted(after - before)\n"
+        "def _is_sm(a):\n"
+        "    o = unreal.EditorAssetLibrary.load_asset(a)\n"
+        "    return bool(o) and o.get_class().get_name() == 'StaticMesh'\n"
+        "sms = [a for a in new if _is_sm(a)]\n"
+        "print(" + repr(_IMPORT_MESH_MARKER) + " + json.dumps({'static_meshes': sms, 'created': new}))\n"
+    )
+
+
+def synthetic_import_mesh(req_id, args: dict) -> dict:
+    """Import a mesh file from disk into the project as StaticMesh asset(s),
+    returning the exact created asset paths.
+
+    Args (object):
+      - source_path (str, required): absolute filesystem path to the mesh
+        (.glb/.gltf/.fbx/.obj).
+      - dest_path (str, required): '/Game' or a '/Game/...' content path.
+      - import_materials (bool, optional, default True).
+
+    Returns: ok, source_path, dest_path, static_meshes[], created[], count.
+    """
+    if not isinstance(args, dict):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "import_mesh: invalid_arguments: arguments must be an object",
+        })
+    source_path = args.get("source_path")
+    if not isinstance(source_path, str) or not source_path:
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "import_mesh: invalid_field: 'source_path' must be a non-empty string",
+        })
+    if not source_path.lower().endswith(_IMPORT_MESH_EXTS):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": f"import_mesh: invalid_field: 'source_path' must end with one of {list(_IMPORT_MESH_EXTS)}",
+        })
+    if not os.path.isfile(source_path):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": f"import_mesh: file_not_found: no file at source_path {source_path!r}",
+        })
+    dest_path = args.get("dest_path")
+    if not isinstance(dest_path, str) or (dest_path != "/Game" and not dest_path.startswith("/Game/")):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "import_mesh: invalid_field: 'dest_path' must be '/Game' or start with '/Game/'",
+        })
+    if "\\" in dest_path or any(seg in (".", "..") for seg in dest_path.split("/")):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "import_mesh: invalid_field: 'dest_path' must not contain '\\\\' or '.'/'..' segments",
+        })
+    import_materials = args.get("import_materials", True)
+    if not isinstance(import_materials, bool):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "import_mesh: invalid_field: 'import_materials' must be a boolean",
+        })
+
+    gate = check_engine_gate(req_id, "import_mesh")
+    if gate is not None:
+        return gate
+
+    code = _build_import_mesh_script(source_path, dest_path, import_materials)
+    resp = call_ue("execute_unreal_python", {"code": code, "capture_output": True})
+    if "error" in resp:
+        upstream = resp.get("error") or {}
+        return make_response(req_id, error={
+            "code": upstream.get("code", -32603) or -32603,
+            "message": f"import_mesh: ue_exec_failed: {upstream.get('message') or 'execute_unreal_python returned an error'}",
+        })
+    result = resp.get("result") or {}
+    if not result.get("ok"):
+        return make_response(req_id, error={
+            "code": -32603,
+            "message": f"import_mesh: ue_python_error: {result.get('output') or result}",
+        })
+    # Parse the marker line out of stdout/output.
+    blob = ""
+    for key in ("stdout", "output"):
+        v = result.get(key)
+        if isinstance(v, str) and _IMPORT_MESH_MARKER in v:
+            blob = v
+            break
+    parsed = {"static_meshes": [], "created": []}
+    if blob:
+        line = blob.split(_IMPORT_MESH_MARKER, 1)[1].splitlines()[0].strip()
+        try:
+            parsed = json.loads(line)
+        except (ValueError, TypeError):
+            parsed = {"static_meshes": [], "created": []}
+    body = {
+        "ok": True,
+        "source_path": source_path,
+        "dest_path": dest_path,
+        "import_materials": import_materials,
+        "static_meshes": parsed.get("static_meshes", []),
+        "created": parsed.get("created", []),
+        "count": len(parsed.get("static_meshes", [])),
+    }
+    return _wrap_tool_result(req_id, body)
+
+
 SYNTHETIC_TOOLS = {
+    "import_mesh": synthetic_import_mesh,
     "wait_for_events": synthetic_wait_for_events,
     "get_camera_transform": synthetic_get_camera_transform,
     "set_camera_transform": synthetic_set_camera_transform,

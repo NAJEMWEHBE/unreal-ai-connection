@@ -105,6 +105,7 @@ ENGINE_GATED_TOOLS = {
     "sequencer_add_transform_keyframe",
     "get_camera_transform",
     "set_camera_transform",
+    "import_mesh",
 }
 
 
