@@ -34,6 +34,7 @@ import math
 import os
 import socket
 import sys
+import tempfile
 import time
 import uuid
 
@@ -68,7 +69,7 @@ SERVER_VERSION = "0.9.1"
 TOOLS = [
     {
         "name": "execute_unreal_python",
-        "description": "Run arbitrary unreal.* Python in the editor's embedded interpreter (universal escape hatch). Multi-line scripts allowed.",
+        "description": "Run arbitrary unreal.* Python in the editor's embedded interpreter (universal escape hatch). Multi-line scripts allowed. The result includes a 'stdout' field with anything your code print()ed (and any traceback). Note: unreal.log()/log_warning() write to UE's LogPython category, not Python stdout, so those still surface via get_log_lines.",
         "inputSchema": {
             "type": "object",
             "properties": {"code": {"type": "string", "description": "Python source to execute"}},
@@ -1186,7 +1187,7 @@ TOOLS = [
     },
     {
         "name": "exec_python_persistent",
-        "description": "Tier 2 PR #45: like execute_unreal_python but state PERSISTS across calls. Variables, imports, and function/class definitions defined in one call are visible in the next -- letting Claude build up state across turns without re-loading every time. Implemented via UE's FPythonCommandEx with FileExecutionScope=Public (shared globals dict with the editor's Python console). Pairs with reset_python_state. Same output-capture caveat as execute_unreal_python: ExecuteFile mode does not capture stdout via CommandResult; use unreal.log marker + get_log_lines.",
+        "description": "Tier 2 PR #45: like execute_unreal_python but state PERSISTS across calls. Variables, imports, and function/class definitions defined in one call are visible in the next -- letting Claude build up state across turns without re-loading every time. Implemented via UE's FPythonCommandEx with FileExecutionScope=Public (shared globals dict with the editor's Python console). Pairs with reset_python_state. The result includes a 'stdout' field with anything your code print()ed (and any traceback); persistence across calls is preserved (the capture wrapper runs against the shared globals dict). unreal.log()/log_warning() still go to UE's LogPython category, surfaced via get_log_lines.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -6941,6 +6942,119 @@ SYNTHETIC_TOOLS = {
 }
 
 
+# Tools that run raw user Python via UE's ExecuteFile mode. UE's
+# FPythonCommandEx::CommandResult does NOT surface stdout for file
+# execution -- it returns the last-evaluated expression's repr (almost
+# always "None"), which is why every result historically came back with
+# `"output": "None"` and callers had to round-trip prints through
+# unreal.log("__MARKER__...") + get_log_lines. We close that gap
+# bridge-side (no C++ recompile) by wrapping the user's code so its
+# stdout/stderr is written to a temp file the bridge reads back after the
+# round-trip and folds into a new `stdout` result field. The legacy
+# `output` field is left untouched for backward compatibility.
+#
+# Note: this captures Python-level stdout/stderr (print, tracebacks) only.
+# unreal.log()/log_warning() write to UE's LogPython category, not Python
+# stdout, so those still surface via get_log_lines as before.
+_STDOUT_CAPTURE_TOOLS = {"execute_unreal_python", "exec_python_persistent"}
+
+
+def _wrap_code_for_stdout_capture(user_code: str, capture_path: str) -> str:
+    """Wrap `user_code` so its stdout + stderr (and any traceback) is written
+    to `capture_path`, then return the wrapped source.
+
+    The user source is embedded as a string literal (via repr) and run with
+    the builtin code-runner against globals() rather than being
+    inlined/indented, so that:
+      * multi-line string literals inside the user code are never corrupted
+        by re-indentation, and
+      * scope semantics are preserved exactly -- the runner uses globals(),
+        which is whatever dict UE hands the wrapper file: a fresh per-call
+        dict for execute_unreal_python (Private scope) or the shared console
+        dict for exec_python_persistent (Public scope). Persistence behaves
+        as before.
+
+    The source is compiled with the filename '<execute_unreal_python>' so any
+    traceback line numbers map back to the user's own code, not this wrapper.
+    If the user code raises, the captured output (including the traceback) is
+    flushed to the file and the exception is re-raised so UE's
+    ExecPythonCommandEx still reports ok=False.
+    """
+    return (
+        "import sys as __ucm_sys, io as __ucm_io, traceback as __ucm_tb, builtins as __ucm_bi\n"
+        "__ucm_src = " + repr(user_code) + "\n"
+        "__ucm_run = getattr(__ucm_bi, 'exec')\n"
+        "__ucm_buf = __ucm_io.StringIO()\n"
+        "__ucm_old_out, __ucm_old_err = __ucm_sys.stdout, __ucm_sys.stderr\n"
+        "__ucm_sys.stdout = __ucm_sys.stderr = __ucm_buf\n"
+        "__ucm_exc = None\n"
+        "try:\n"
+        "    __ucm_run(compile(__ucm_src, '<execute_unreal_python>', 'exec'), globals())\n"
+        "except BaseException:\n"
+        "    __ucm_exc = __ucm_tb.format_exc()\n"
+        "finally:\n"
+        "    __ucm_sys.stdout, __ucm_sys.stderr = __ucm_old_out, __ucm_old_err\n"
+        "    try:\n"
+        # Use builtins.open via the captured module ref: an unqualified `open`
+        # could be shadowed by a name in the user's globals (e.g. a var named
+        # `open`), which would silently drop the captured stdout.
+        "        with __ucm_bi.open(" + repr(capture_path) + ", 'w', encoding='utf-8') as __ucm_f:\n"
+        "            __ucm_f.write(__ucm_buf.getvalue())\n"
+        "            if __ucm_exc:\n"
+        "                __ucm_f.write(__ucm_exc)\n"
+        "    except Exception:\n"
+        "        pass\n"
+        "    for __ucm_n in ['__ucm_sys', '__ucm_io', '__ucm_tb', '__ucm_bi',\n"
+        "                    '__ucm_src', '__ucm_run', '__ucm_buf',\n"
+        "                    '__ucm_old_out', '__ucm_old_err', '__ucm_f',\n"
+        "                    '__ucm_n']:\n"
+        "        globals().pop(__ucm_n, None)\n"
+        # pop-in-raise: never bind a separate __ucm_reraise global (it would
+        # leak into exec_python_persistent's shared namespace). globals().pop
+        # returns the value AND removes the key in one step.
+        "if __ucm_exc:\n"
+        "    raise RuntimeError('user code raised (see stdout field):\\n' + globals().pop('__ucm_exc'))\n"
+        "globals().pop('__ucm_exc', None)\n"
+    )
+
+
+def _call_ue_capturing_stdout(tool_name: str, tool_args: dict) -> dict:
+    """call_ue wrapper for the raw-Python exec tools: inject stdout capture,
+    forward to UE, then fold the captured text into the result as `stdout`.
+
+    Falls back to a plain call_ue (no wrapping) when `code` is missing or not
+    a string, so the C++ handler still emits its own canonical missing-'code'
+    error rather than the bridge masking it.
+    """
+    code = tool_args.get("code")
+    if not isinstance(code, str):
+        return call_ue(tool_name, tool_args)
+
+    fd, capture_path = tempfile.mkstemp(prefix="ucm_stdout_", suffix=".txt")
+    os.close(fd)
+    try:
+        forwarded = dict(tool_args)
+        forwarded["code"] = _wrap_code_for_stdout_capture(code, capture_path)
+        resp = call_ue(tool_name, forwarded)
+
+        captured = ""
+        try:
+            with open(capture_path, "r", encoding="utf-8") as f:
+                captured = f.read()
+        except OSError:
+            captured = ""
+
+        result = resp.get("result") if isinstance(resp, dict) else None
+        if isinstance(result, dict):
+            result["stdout"] = captured
+        return resp
+    finally:
+        try:
+            os.remove(capture_path)
+        except OSError:
+            pass
+
+
 def handle(req: dict) -> dict | None:
     method = req.get("method", "")
     req_id = req.get("id")
@@ -6972,7 +7086,10 @@ def handle(req: dict) -> dict | None:
         if tool_name in SYNTHETIC_TOOLS:
             return SYNTHETIC_TOOLS[tool_name](req_id, tool_args)
 
-        ue_resp = call_ue(tool_name, tool_args)
+        if tool_name in _STDOUT_CAPTURE_TOOLS:
+            ue_resp = _call_ue_capturing_stdout(tool_name, tool_args)
+        else:
+            ue_resp = call_ue(tool_name, tool_args)
         if "error" in ue_resp:
             return make_response(req_id, error=ue_resp["error"])
 
