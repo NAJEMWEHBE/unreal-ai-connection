@@ -48,14 +48,16 @@ public:
             return nullptr;
         }
 
-        // 'folder' is required but may be empty (empty == move to outliner root).
+        // 'folder' is required and must be a string, but may be empty
+        // (empty == move to outliner root). Check TryGetStringField's return
+        // directly so a present-but-non-string value (object/number) is rejected
+        // rather than silently coerced to "" (which would move the actor to root).
         FString Folder;
-        if (!Params->HasField(TEXT("folder")))
+        if (!Params->TryGetStringField(TEXT("folder"), Folder))
         {
-            OutError = TEXT("set_actor_folder: missing_required_field: 'folder' is required (use \"\" for the root)");
+            OutError = TEXT("set_actor_folder: missing_required_field: 'folder' is required (a string; use \"\" for the outliner root)");
             return nullptr;
         }
-        Params->TryGetStringField(TEXT("folder"), Folder);
 
         AActor* Actor = nullptr;
         TArray<FString> Ambiguous;
