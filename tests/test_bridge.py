@@ -82,6 +82,8 @@ def test_tool_names_are_unique_and_match_handlers():
         "get_log_lines", "execute_console_command",
         "inspect_asset", "move_asset", "rename_asset", "duplicate_asset", "delete_asset",
         "inspect_sequence", "create_sequence", "bind_actor_to_sequence",
+        "set_sequence_playback_range", "add_cine_camera_to_sequence",
+        "add_camera_cut_track", "add_audio_track", "add_visibility_track",
         "create_material_instance", "set_mi_parameter", "inspect_material",
         "inspect_material_instance",
         "create_level", "build_lighting", "create_data_table", "create_data_asset",
@@ -1079,6 +1081,43 @@ def test_bind_actor_to_sequence_in_tools_catalog():
     t = next((t for t in bridge.TOOLS if t["name"] == "bind_actor_to_sequence"), None)
     assert t is not None
     assert set(t["inputSchema"]["required"]) == {"sequence_path", "actor_name"}
+
+
+def test_set_sequence_playback_range_in_tools_catalog():
+    """Sequencer lane: set_sequence_playback_range requires sequence_path + end_frame."""
+    t = next((t for t in bridge.TOOLS if t["name"] == "set_sequence_playback_range"), None)
+    assert t is not None, "set_sequence_playback_range must be in TOOLS catalog"
+    assert set(t["inputSchema"]["required"]) == {"sequence_path", "end_frame"}
+    assert "start_frame" in t["inputSchema"]["properties"]
+
+
+def test_add_cine_camera_to_sequence_in_tools_catalog():
+    """Sequencer lane: add_cine_camera_to_sequence requires sequence_path only."""
+    t = next((t for t in bridge.TOOLS if t["name"] == "add_cine_camera_to_sequence"), None)
+    assert t is not None, "add_cine_camera_to_sequence must be in TOOLS catalog"
+    assert t["inputSchema"]["required"] == ["sequence_path"]
+    assert "label" in t["inputSchema"]["properties"]
+
+
+def test_add_camera_cut_track_in_tools_catalog():
+    """Sequencer lane: add_camera_cut_track requires sequence_path + camera_binding_guid."""
+    t = next((t for t in bridge.TOOLS if t["name"] == "add_camera_cut_track"), None)
+    assert t is not None, "add_camera_cut_track must be in TOOLS catalog"
+    assert set(t["inputSchema"]["required"]) == {"sequence_path", "camera_binding_guid"}
+
+
+def test_add_audio_track_in_tools_catalog():
+    """Sequencer lane: add_audio_track requires sequence_path + sound_path."""
+    t = next((t for t in bridge.TOOLS if t["name"] == "add_audio_track"), None)
+    assert t is not None, "add_audio_track must be in TOOLS catalog"
+    assert set(t["inputSchema"]["required"]) == {"sequence_path", "sound_path"}
+
+
+def test_add_visibility_track_in_tools_catalog():
+    """Sequencer lane: add_visibility_track requires sequence_path + binding_guid."""
+    t = next((t for t in bridge.TOOLS if t["name"] == "add_visibility_track"), None)
+    assert t is not None, "add_visibility_track must be in TOOLS catalog"
+    assert set(t["inputSchema"]["required"]) == {"sequence_path", "binding_guid"}
 
 
 def test_create_material_instance_in_tools_catalog():

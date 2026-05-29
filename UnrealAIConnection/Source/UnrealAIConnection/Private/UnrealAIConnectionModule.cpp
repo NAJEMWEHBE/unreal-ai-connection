@@ -132,6 +132,11 @@ extern TSharedRef<IUCMCPHandler> Make_Handler_ConnectMaterialExpression();
 extern TSharedRef<IUCMCPHandler> Make_Handler_SpawnNiagaraAtLocation();
 extern TSharedRef<IUCMCPHandler> Make_Handler_SpawnNiagaraAttached();
 extern TSharedRef<IUCMCPHandler> Make_Handler_SetNiagaraUserParam();
+extern TSharedRef<IUCMCPHandler> Make_Handler_SetSequencePlaybackRange();
+extern TSharedRef<IUCMCPHandler> Make_Handler_AddCineCameraToSequence();
+extern TSharedRef<IUCMCPHandler> Make_Handler_AddCameraCutTrack();
+extern TSharedRef<IUCMCPHandler> Make_Handler_AddAudioTrack();
+extern TSharedRef<IUCMCPHandler> Make_Handler_AddVisibilityTrack();
 
 static constexpr int32 kMCPDefaultPort = 18888;
 
@@ -240,6 +245,11 @@ void FUnrealAIConnectionModule::StartupModule()
     Reg.Register(Make_Handler_SpawnNiagaraAtLocation());
     Reg.Register(Make_Handler_SpawnNiagaraAttached());
     Reg.Register(Make_Handler_SetNiagaraUserParam());
+    Reg.Register(Make_Handler_SetSequencePlaybackRange());
+    Reg.Register(Make_Handler_AddCineCameraToSequence());
+    Reg.Register(Make_Handler_AddCameraCutTrack());
+    Reg.Register(Make_Handler_AddAudioTrack());
+    Reg.Register(Make_Handler_AddVisibilityTrack());
 
     // -----------------------------------------------------------------
     // Tier 2 (PR #40): wire 3 starter delegates into the FUCMCPEventBus.

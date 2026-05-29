@@ -1,7 +1,7 @@
 {
  "name": "UnrealAIConnection",
  "version": "0.9.1",
- "description": "Drive Unreal Engine 5.7 from any MCP-compliant client over a local TCP socket. 124 tools total (89 native C++ handlers plus 35 bridge-side synthetic tools) that work with any UE 5.7 project.",
+ "description": "Drive Unreal Engine 5.7 from any MCP-compliant client over a local TCP socket. 129 tools total (94 native C++ handlers plus 35 bridge-side synthetic tools) that work with any UE 5.7 project.",
  "transport": {
   "type": "tcp",
   "host": "127.0.0.1",
@@ -503,6 +503,98 @@
     "binding_guid": "string",
     "actor_label": "string",
     "binding_type": "string"
+   }
+  },
+  {
+   "name": "set_sequence_playback_range",
+   "description": "Set a Level Sequence MovieScene playback range start/end. Inputs are display-rate frames; the returned range is in tick units.",
+   "params": {
+    "sequence_path": "string (required) - Level Sequence asset path",
+    "start_frame": "int (optional, default 0) - display-rate frames",
+    "end_frame": "int (required) - display-rate frames; must be greater than start_frame"
+   },
+   "returns": {
+    "ok": "bool",
+    "sequence_path": "string",
+    "playback_range": "object",
+    "display_rate_fps": "number"
+   }
+  },
+  {
+   "name": "add_cine_camera_to_sequence",
+   "description": "Spawn an ACineCameraActor into the editor world and add it as a possessable binding on a Level Sequence; returns the binding GUID.",
+   "params": {
+    "sequence_path": "string (required) - Level Sequence asset path",
+    "label": "string (optional, default 'CineCameraActor') - actor label + binding name",
+    "location": "object (optional) - world location {x,y,z}",
+    "rotation": "object (optional) - world rotation {pitch,yaw,roll}"
+   },
+   "returns": {
+    "ok": "bool",
+    "sequence_path": "string",
+    "binding_guid": "string",
+    "actor_label": "string",
+    "actor_name": "string",
+    "class": "string",
+    "binding_type": "string"
+   }
+  },
+  {
+   "name": "add_camera_cut_track",
+   "description": "Add (or reuse) the single camera cut track on a Level Sequence and append a section binding an existing camera GUID over a frame range.",
+   "params": {
+    "sequence_path": "string (required) - Level Sequence asset path",
+    "camera_binding_guid": "string (required) - GUID of an existing binding in the sequence",
+    "start_frame": "int (optional, default 0) - display-rate frames",
+    "end_frame": "int (optional, default = playback range end) - display-rate frames; must be greater than start_frame"
+   },
+   "returns": {
+    "ok": "bool",
+    "sequence_path": "string",
+    "track_class": "string",
+    "section_index": "int",
+    "camera_binding_guid": "string",
+    "start_frame": "int",
+    "end_frame": "int"
+   }
+  },
+  {
+   "name": "add_audio_track",
+   "description": "Add a root-level (master) audio track to a Level Sequence and append a sound section playing a USoundBase starting at a given frame.",
+   "params": {
+    "sequence_path": "string (required) - Level Sequence asset path",
+    "sound_path": "string (required) - path to a USoundBase asset (wave/cue/metasound)",
+    "start_frame": "int (optional, default 0) - display-rate frames",
+    "row_index": "int (optional, default -1 = next free row)",
+    "volume": "number (optional) - sets the sound-volume channel default",
+    "looping": "bool (optional) - whether the section loops"
+   },
+   "returns": {
+    "ok": "bool",
+    "sequence_path": "string",
+    "track_class": "string",
+    "sound_path": "string",
+    "section_index": "int",
+    "start_frame": "int"
+   }
+  },
+  {
+   "name": "add_visibility_track",
+   "description": "Add a visibility track to an existing binding on a Level Sequence and key actor visibility on/off at given frames (inverted hidden-flag handling is internal).",
+   "params": {
+    "sequence_path": "string (required) - Level Sequence asset path",
+    "binding_guid": "string (required) - GUID of an existing binding",
+    "keys": "array of object - [{frame:int, visible:bool}, ...]; supply this OR visible_at_start (at least one key needed)",
+    "visible_at_start": "bool (optional) - convenience single key at start_frame",
+    "start_frame": "int (optional, default 0) - frame for visible_at_start"
+   },
+   "returns": {
+    "ok": "bool",
+    "sequence_path": "string",
+    "binding_guid": "string",
+    "track_class": "string",
+    "section_index": "int",
+    "key_count": "int"
    }
   },
   {
