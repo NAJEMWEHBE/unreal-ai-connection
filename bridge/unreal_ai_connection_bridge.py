@@ -13,7 +13,7 @@ plugin speaks raw JSON-RPC over a local TCP socket (default
 Behaviour:
   - "initialize"             returned synthetically (does NOT hit the UE server)
   - "notifications/*"        consumed silently
-  - "tools/list"             returns a static list of all 112 tools (77
+  - "tools/list"             returns a static list of all 116 tools (81
                              dispatched to the UE plugin's C++ handlers
                              plus 35 bridge-side synthetic tools served by
                              SYNTHETIC_TOOLS without crossing the wire as
@@ -1068,6 +1068,51 @@ TOOLS = [
                 "path": {"type": "string", "description": "Material instance asset path."},
             },
             "required": ["path"],
+        },
+    },
+    {
+        "name": "create_level",
+        "description": "Create a new empty level (UWorld) asset under /Game/ and open it as the active level.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "Destination level asset path; must start with /Game/ (no '..' or backslash)."},
+            },
+            "required": ["path"],
+        },
+    },
+    {
+        "name": "build_lighting",
+        "description": "Invoke a static-lighting build on the active editor world. Non-interactive; may take time for large levels.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {},
+        },
+    },
+    {
+        "name": "create_data_table",
+        "description": "Create a new UDataTable asset whose rows conform to a given row UScriptStruct.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "Destination folder under /Game/."},
+                "name": {"type": "string", "description": "Leaf asset name."},
+                "row_struct": {"type": "string", "description": "Full path to a UScriptStruct, e.g. /Script/Engine.Vector or a /Game user struct."},
+            },
+            "required": ["path", "name", "row_struct"],
+        },
+    },
+    {
+        "name": "create_data_asset",
+        "description": "Create a new UDataAsset (or subclass) asset from a UDataAsset subclass path.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "Destination folder under /Game/."},
+                "name": {"type": "string", "description": "Leaf asset name."},
+                "class_path": {"type": "string", "description": "Full path to a UDataAsset subclass, e.g. /Script/Engine.PrimaryDataAsset or a /Game BP-based DataAsset class. Abstract classes are rejected."},
+            },
+            "required": ["path", "name", "class_path"],
         },
     },
     {

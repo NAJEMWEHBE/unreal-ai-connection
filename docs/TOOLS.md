@@ -1,6 +1,6 @@
 # MCP Tools Reference
 
-**112 tools total.** 77 are JSON-RPC 2.0 methods served on `127.0.0.1:18888` directly by the plugin's C++ handlers. The remaining 35 — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`, `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap`, `sequencer_add_transform_keyframe`, `import_mesh`, `material_auto_remap` — are bridge-side **synthetic tools** that are intercepted by `bridge/unreal_ai_connection_bridge.py` and served by composing existing handlers (or running Python via `execute_unreal_python`, or — for `compile_mod_pak` — shelling out to `RunUAT.bat` entirely outside the UE process). They are visible to MCP clients exactly like the C++ tools but cannot be reached by sending raw JSON-RPC to the TCP socket — only via the MCP bridge or by replicating their composition manually. The "Implementation" header on each entry below indicates whether a tool is C++ or bridge-side.
+**116 tools total.** 81 are JSON-RPC 2.0 methods served on `127.0.0.1:18888` directly by the plugin's C++ handlers. The remaining 35 — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`, `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap`, `sequencer_add_transform_keyframe`, `import_mesh`, `material_auto_remap` — are bridge-side **synthetic tools** that are intercepted by `bridge/unreal_ai_connection_bridge.py` and served by composing existing handlers (or running Python via `execute_unreal_python`, or — for `compile_mod_pak` — shelling out to `RunUAT.bat` entirely outside the UE process). They are visible to MCP clients exactly like the C++ tools but cannot be reached by sending raw JSON-RPC to the TCP socket — only via the MCP bridge or by replicating their composition manually. The "Implementation" header on each entry below indicates whether a tool is C++ or bridge-side.
 
 Each tool's params and result are documented with a working example.
 
@@ -1140,6 +1140,108 @@ Create a `UMaterialInstanceConstant` asset and set its parent to an existing `UM
 ```
 
 The new instance starts with no parameter overrides; use `set_mi_parameter` to customize it.
+
+---
+
+## create_level
+
+**Implementation:** C++
+
+Create a new empty level (`UWorld`) asset under `/Game/` and open it as the active level (via `ULevelEditorSubsystem::NewLevel`).
+
+**Params**
+- `path` (string, required) — destination level asset path. Must start with `/Game/`. Rejected if it contains `..` or a backslash.
+
+**Result**
+- `ok` (bool)
+- `path` (string) — the level asset path that was created.
+
+**Errors:** `missing_params`, `missing_required_field`, `invalid_field`, `editor_unavailable`, `create_failed`.
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"create_level","params":{
+  "path": "/Game/Maps/NewLevel"
+}}
+```
+
+---
+
+## build_lighting
+
+**Implementation:** C++
+
+Invoke a static-lighting build on the active editor world (via `FEditorBuildUtils::EditorBuild` with `FBuildOptions::BuildLighting`). Non-interactive — no lighting dialog is shown.
+
+**Params**
+- none.
+
+**Result**
+- `ok` (bool) — true if the build was invoked.
+- `note` (string) — `"lighting build invoked; may take time for large levels"`.
+
+**Errors:** `editor_unavailable`.
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"build_lighting","params":{}}
+```
+
+---
+
+## create_data_table
+
+**Implementation:** C++
+
+Create a new `UDataTable` asset whose rows conform to a given row `UScriptStruct` (via `UDataTableFactory` + `IAssetTools::CreateAsset`).
+
+**Params**
+- `path` (string, required) — destination folder under `/Game/`. Rejected if it contains `..` or a backslash.
+- `name` (string, required) — leaf asset name.
+- `row_struct` (string, required) — full path to a `UScriptStruct`, e.g. `/Script/Engine.Vector` or a `/Game` user struct.
+
+**Result**
+- `ok` (bool)
+- `path` (string) — full object path of the created data table (`UObject::GetPathName`).
+
+**Errors:** `missing_params`, `missing_required_field`, `invalid_field` (includes `row_struct_not_found`), `editor_unavailable`, `create_failed`.
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"create_data_table","params":{
+  "path": "/Game/Data",
+  "name": "DT_Items",
+  "row_struct": "/Script/Engine.Vector"
+}}
+```
+
+---
+
+## create_data_asset
+
+**Implementation:** C++
+
+Create a new `UDataAsset` (or subclass) asset from a `UDataAsset` subclass path (via `UDataAssetFactory` + `IAssetTools::CreateAsset`).
+
+**Params**
+- `path` (string, required) — destination folder under `/Game/`. Rejected if it contains `..` or a backslash.
+- `name` (string, required) — leaf asset name.
+- `class_path` (string, required) — full path to a `UDataAsset` subclass, e.g. `/Script/Engine.PrimaryDataAsset` or a `/Game` BP-based DataAsset class. Abstract classes are rejected.
+
+**Result**
+- `ok` (bool)
+- `path` (string) — full object path of the created data asset (`UObject::GetPathName`).
+
+**Errors:** `missing_params`, `missing_required_field`, `invalid_field` (includes `class_not_found` and `class_is_abstract`), `editor_unavailable`, `create_failed`.
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"create_data_asset","params":{
+  "path": "/Game/Data",
+  "name": "DA_GameConfig",
+  "class_path": "/Script/Engine.PrimaryDataAsset"
+}}
+```
 
 ---
 
