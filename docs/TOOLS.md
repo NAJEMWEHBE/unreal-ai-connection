@@ -1,6 +1,6 @@
 # MCP Tools Reference
 
-**129 tools total.** 94 are JSON-RPC 2.0 methods served on `127.0.0.1:18888` directly by the plugin's C++ handlers. The remaining 35 — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`, `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap`, `sequencer_add_transform_keyframe`, `import_mesh`, `material_auto_remap` — are bridge-side **synthetic tools** that are intercepted by `bridge/unreal_ai_connection_bridge.py` and served by composing existing handlers (or running Python via `execute_unreal_python`, or — for `compile_mod_pak` — shelling out to `RunUAT.bat` entirely outside the UE process). They are visible to MCP clients exactly like the C++ tools but cannot be reached by sending raw JSON-RPC to the TCP socket — only via the MCP bridge or by replicating their composition manually. The "Implementation" header on each entry below indicates whether a tool is C++ or bridge-side.
+**130 tools total.** 95 are JSON-RPC 2.0 methods served on `127.0.0.1:18888` directly by the plugin's C++ handlers. The remaining 35 — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`, `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap`, `sequencer_add_transform_keyframe`, `import_mesh`, `material_auto_remap` — are bridge-side **synthetic tools** that are intercepted by `bridge/unreal_ai_connection_bridge.py` and served by composing existing handlers (or running Python via `execute_unreal_python`, or — for `compile_mod_pak` — shelling out to `RunUAT.bat` entirely outside the UE process). They are visible to MCP clients exactly like the C++ tools but cannot be reached by sending raw JSON-RPC to the TCP socket — only via the MCP bridge or by replicating their composition manually. The "Implementation" header on each entry below indicates whether a tool is C++ or bridge-side.
 
 Each tool's params and result are documented with a working example.
 
@@ -1293,6 +1293,62 @@ Add a visibility track to an existing binding on a Level Sequence and key the ac
     {"frame": 60,  "visible": true},
     {"frame": 180, "visible": false}
   ]
+}}
+```
+
+---
+
+## render_sequence_mrq
+
+**Implementation:** C++ (`Handler_RenderSequenceMrq.cpp`). **Async** — returns a `task_id` immediately; poll with `poll_task`.
+
+Render a Level Sequence to an image sequence (PNG/JPG/BMP/EXR) on disk via the **Movie Render Queue** (MRQ). The handler builds an MRQ queue + job programmatically, configures the output setting + image-output container + deferred render pass, and kicks off a render on the game thread. Completion is delivered through the executor's game-thread `OnExecutorFinished` delegate, which marks the task complete in the same `FUCMCPTaskRegistry` used by `start_sleep_task`.
+
+An optional `map_path` lets this single tool also cover the **render-a-level** case — an MRQ job carries both a Sequence and a Map, so there is no separate `render_level_mrq`.
+
+**Requires the `MovieRenderPipeline` engine plugin.** The plugin's `.uplugin` declares it as a dependency, so any project that enables Unreal AI Connection auto-enables it.
+
+**Params**
+- `sequence_path` (string, required) — Level Sequence asset path (object or package path).
+- `output_dir` (string, required) — **absolute** filesystem directory for the output image sequence (written verbatim into the MRQ `OutputDirectory`).
+- `map_path` (string, optional) — `UWorld` asset path to render against. Defaults to the **currently-loaded editor world**.
+- `format` (string, optional) — `png` | `jpg` | `bmp` | `exr` (default `png`).
+- `file_name_format` (string, optional) — MRQ file-name format (default `{sequence_name}.{frame_number}`).
+- `resolution` (object, optional) — `{width, height}` (default 1920x1080).
+- `output_frame_rate` (number, optional) — if `>0`, enables a custom output frame rate; otherwise the sequence's own display rate is used.
+- `use_custom_playback_range` (object, optional) — `{start_frame, end_frame}` in **display-rate** frames to override the rendered range; both required together.
+- `overwrite_existing` (bool, optional) — overwrite existing output files (default `true`).
+- `render_pass` (string, optional) — `lit` | `unlit` | `detail_lighting` | `lighting_only` | `reflections_only` | `path_tracer` (default `lit`).
+- `use_new_process` (bool, optional) — `false` (default) uses the in-editor PIE executor; `true` uses the out-of-process executor (per-file enumeration is **not** available out-of-process).
+- `render_offscreen` (bool, optional) — PIE executor only: render without a progress window (default `true`).
+
+**Result (synchronous handler return)**
+- `ok` (bool)
+- `task_id` (string) — feed into `poll_task`
+- `type` (string) — always `"mrq_render"`
+- `status` (string) — `"pending"`
+- `sequence_path`, `map_path`, `output_dir`, `format` (strings) — echo of the resolved inputs
+- `note` (string)
+
+**Result (delivered by `poll_task` when `status == "completed"`)**
+- `ok` (bool)
+- `output_dir` (string)
+- `success` (bool) — from the executor's `OnExecutorFinished` `bSuccess`
+- `files_written` (array of string) — written file paths harvested from `FMoviePipelineOutputData` (PIE executor only; empty for `use_new_process`)
+- `frame_count` (int) — number of harvested files
+
+**Errors:** `missing_params`, `missing_required_field`, `invalid_path`, `sequence_not_found`, `not_a_sequence`, `map_not_found`, `invalid_format`, `invalid_render_pass`, `no_editor`, `mrq_subsystem_unavailable`, `already_rendering`, `output_dir_invalid`, `queue_build_failed`, `executor_create_failed`, `render_start_failed`.
+
+**Behavior notes:** a real Play-In-Editor session is launched for the render — **save dirty assets first** (`save_dirty_assets`). The render populates the editor's shared MRQ panel queue (it is cleared then repopulated with this one job). `cancel_task` is **not wired** for `mrq_render` in v1 (there is no polling worker to observe the cancel flag); `poll_task` still reports the true terminal state when the render finishes.
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"render_sequence_mrq","params":{
+  "sequence_path": "/Game/Cinematics/MainCinematic",
+  "output_dir": "C:/Renders/MainCinematic",
+  "format": "png",
+  "resolution": {"width": 1920, "height": 1080},
+  "render_pass": "lit"
 }}
 ```
 

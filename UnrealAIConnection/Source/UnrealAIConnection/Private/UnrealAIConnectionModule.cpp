@@ -137,6 +137,9 @@ extern TSharedRef<IUCMCPHandler> Make_Handler_AddCineCameraToSequence();
 extern TSharedRef<IUCMCPHandler> Make_Handler_AddCameraCutTrack();
 extern TSharedRef<IUCMCPHandler> Make_Handler_AddAudioTrack();
 extern TSharedRef<IUCMCPHandler> Make_Handler_AddVisibilityTrack();
+// Movie Render Queue render lane (v0.9.x) — async ULevelSequence -> image
+// sequence via MRQ; completes via the executor's game-thread OnExecutorFinished.
+extern TSharedRef<IUCMCPHandler> Make_Handler_RenderSequenceMrq();
 
 static constexpr int32 kMCPDefaultPort = 18888;
 
@@ -250,6 +253,7 @@ void FUnrealAIConnectionModule::StartupModule()
     Reg.Register(Make_Handler_AddCameraCutTrack());
     Reg.Register(Make_Handler_AddAudioTrack());
     Reg.Register(Make_Handler_AddVisibilityTrack());
+    Reg.Register(Make_Handler_RenderSequenceMrq());
 
     // -----------------------------------------------------------------
     // Tier 2 (PR #40): wire 3 starter delegates into the FUCMCPEventBus.

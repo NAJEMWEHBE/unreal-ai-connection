@@ -10,7 +10,7 @@ The repo (this folder you're reading) is the **only thing that survives a format
 
 - **The repo source** — every merged PR is on `origin/main` at `github.com/NAJEMWEHBE/unreal-ai-connection`
 - **Session memory files** — preserved in [`docs/session-memory-archive/`](session-memory-archive/) (this is the safety net for the format)
-- **HANDOFF.md** — reflects the current state (129 tools total — 94 native C++ handlers + 35 synthetic tools, all directives, all traps)
+- **HANDOFF.md** — reflects the current state (130 tools total — 95 native C++ handlers + 35 synthetic tools, all directives, all traps)
 - **CLAUDE.md** at repo root — auto-loaded by Claude Code on session start; tells the agent to read HANDOFF.md
 - **The Unreal Engine install** — if it's on `F:\UE_5.7\` (different drive from the formatted C:), it survives. If you also wipe F:, follow step 7 below.
 
@@ -146,7 +146,7 @@ py -3 -m pip install pytest   # if pytest isn't already installed
 py -3 -m pytest tests/ -q
 ```
 
-Expected: **559 pytest cases** passing (verify against the expected-count constants in `tests/conftest.py` and the manifest-parity check in `tests/test_manifest_sync.py`).
+Expected: **560 pytest cases** passing (verify against the expected-count constants in `tests/conftest.py` and the manifest-parity check in `tests/test_manifest_sync.py`).
 
 ### 10. Open Claude Code in the repo
 
@@ -158,7 +158,7 @@ Claude Code will auto-load `CLAUDE.md` (which references `docs/HANDOFF.md`). Sen
 
 After recovery, the project state is:
 
-- **129 tools shipped** (94 UE C++ handlers + 35 bridge-side synthetic)
+- **130 tools shipped** (95 UE C++ handlers + 35 bridge-side synthetic)
 - **Latest commit on main:** check via `git log -1 --oneline` — this file is necessarily behind on the SHA after every merge.
 - **Live verification on host machine:** **PASSING** as of the 2026-05-10 sprint (cold compile + editor + bridge round-trip proven on `HDMediaVirtualStudio` host project). New C++ handlers follow the cold-compile-before-merge cadence (HANDOFF.md "Session 2026-05-10").
 - **Next deferred handlers:** Sequencer keyframe authoring + Movie Render Queue (both C++; need attended Codex per multi-agent partitioning). The synthetic-tool inspectors (`inspect_data_asset`, `inspect_sound_class`, `inspect_metasound`, bulk_*_assets family, etc.) listed as deferred in earlier revisions of this file have all shipped — see HANDOFF.md "What to watch in the next session" for the current deferred list.

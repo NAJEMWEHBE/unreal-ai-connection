@@ -26,6 +26,7 @@
         { "Name": "PythonScriptPlugin",       "Enabled": true },
         { "Name": "EditorScriptingUtilities", "Enabled": true },
         { "Name": "LevelSequenceEditor",      "Enabled": true },
-        { "Name": "Niagara",                  "Enabled": true }
+        { "Name": "Niagara",                  "Enabled": true },
+        { "Name": "MovieRenderPipeline",      "Enabled": true }
     ]
 }
