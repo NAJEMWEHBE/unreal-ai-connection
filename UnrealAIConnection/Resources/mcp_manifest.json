@@ -1,7 +1,7 @@
 {
  "name": "UnrealAIConnection",
  "version": "0.9.1",
- "description": "Drive Unreal Engine 5.7 from any MCP-compliant client over a local TCP socket. 119 tools total (84 native C++ handlers plus 35 bridge-side synthetic tools) that work with any UE 5.7 project.",
+ "description": "Drive Unreal Engine 5.7 from any MCP-compliant client over a local TCP socket. 121 tools total (86 native C++ handlers plus 35 bridge-side synthetic tools) that work with any UE 5.7 project.",
  "transport": {
   "type": "tcp",
   "host": "127.0.0.1",
@@ -608,6 +608,38 @@
     "ok": "bool",
     "blueprint": "string",
     "function_name": "string"
+   }
+  },
+  {
+   "name": "add_material_expression",
+   "description": "Create a UMaterialExpression node inside an existing UMaterial's graph, then recompile the material.",
+   "params": {
+    "material": "string (required) - /Game path to the UMaterial asset",
+    "expression_class": "string (required) - full path to a UMaterialExpression subclass, e.g. /Script/Engine.MaterialExpressionConstant3Vector; abstract classes are rejected",
+    "node_pos_x": "int (optional) - X position of the node in the graph; default 0",
+    "node_pos_y": "int (optional) - Y position of the node in the graph; default 0"
+   },
+   "returns": {
+    "ok": "bool",
+    "material": "string",
+    "expression": "string",
+    "class": "string"
+   }
+  },
+  {
+   "name": "connect_material_expression",
+   "description": "Wire a material expression's output to a material property input or another expression's input, then recompile.",
+   "params": {
+    "material": "string (required) - /Game path to the UMaterial asset",
+    "from_expression": "string (required) - node name returned by add_material_expression (the source expression)",
+    "from_output": "string (optional) - name of the source expression's output; empty = default/first output",
+    "to": "string (required) - either 'property:<Name>' (BaseColor | Metallic | Specular | Roughness | EmissiveColor | Opacity | OpacityMask | Normal | AmbientOcclusion | WorldPositionOffset) or 'node:<ExprName>:<InputName>'"
+   },
+   "returns": {
+    "ok": "bool",
+    "material": "string",
+    "from_expression": "string",
+    "to": "string"
    }
   },
   {

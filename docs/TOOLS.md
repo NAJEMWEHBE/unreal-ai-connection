@@ -1,6 +1,6 @@
 # MCP Tools Reference
 
-**119 tools total.** 84 are JSON-RPC 2.0 methods served on `127.0.0.1:18888` directly by the plugin's C++ handlers. The remaining 35 — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`, `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap`, `sequencer_add_transform_keyframe`, `import_mesh`, `material_auto_remap` — are bridge-side **synthetic tools** that are intercepted by `bridge/unreal_ai_connection_bridge.py` and served by composing existing handlers (or running Python via `execute_unreal_python`, or — for `compile_mod_pak` — shelling out to `RunUAT.bat` entirely outside the UE process). They are visible to MCP clients exactly like the C++ tools but cannot be reached by sending raw JSON-RPC to the TCP socket — only via the MCP bridge or by replicating their composition manually. The "Implementation" header on each entry below indicates whether a tool is C++ or bridge-side.
+**121 tools total.** 86 are JSON-RPC 2.0 methods served on `127.0.0.1:18888` directly by the plugin's C++ handlers. The remaining 35 — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`, `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap`, `sequencer_add_transform_keyframe`, `import_mesh`, `material_auto_remap` — are bridge-side **synthetic tools** that are intercepted by `bridge/unreal_ai_connection_bridge.py` and served by composing existing handlers (or running Python via `execute_unreal_python`, or — for `compile_mod_pak` — shelling out to `RunUAT.bat` entirely outside the UE process). They are visible to MCP clients exactly like the C++ tools but cannot be reached by sending raw JSON-RPC to the TCP socket — only via the MCP bridge or by replicating their composition manually. The "Implementation" header on each entry below indicates whether a tool is C++ or bridge-side.
 
 Each tool's params and result are documented with a working example.
 
@@ -1329,6 +1329,71 @@ Add a new empty function graph to an existing `UBlueprint` (via `FBlueprintEdito
 {"jsonrpc":"2.0","id":1,"method":"add_blueprint_function","params":{
   "blueprint": "/Game/Blueprints/BP_Enemy",
   "function_name": "TakeDamage"
+}}
+```
+
+---
+
+## add_material_expression
+
+**Implementation:** C++
+
+Create a `UMaterialExpression` node inside an existing `UMaterial`'s graph (via `UMaterialEditingLibrary::CreateMaterialExpression`), then recompile the material so the new node takes effect.
+
+**Params**
+- `material` (string, required) — `/Game` path to the `UMaterial` asset.
+- `expression_class` (string, required) — full path to a `UMaterialExpression` subclass, e.g. `/Script/Engine.MaterialExpressionConstant3Vector` or `/Script/Engine.MaterialExpressionTextureSample`. Abstract classes are rejected.
+- `node_pos_x` (int, optional) — X position of the node in the graph. Default `0`.
+- `node_pos_y` (int, optional) — Y position of the node in the graph. Default `0`.
+
+**Result**
+- `ok` (bool)
+- `material` (string) — echoed back.
+- `expression` (string) — name of the created node (`UMaterialExpression::GetName`), used as `from_expression` for `connect_material_expression`.
+- `class` (string) — resolved expression class name (`UClass::GetName`).
+
+**Errors:** `missing_params`, `missing_required_field`, `material_not_found`, `invalid_field` (includes `expression_class_not_found` and `expression_class_is_abstract`), `create_failed`.
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"add_material_expression","params":{
+  "material": "/Game/Materials/M_Stone",
+  "expression_class": "/Script/Engine.MaterialExpressionConstant3Vector",
+  "node_pos_x": -400,
+  "node_pos_y": 0
+}}
+```
+
+---
+
+## connect_material_expression
+
+**Implementation:** C++
+
+Wire a material expression's output to either a material property input or another expression's input (via `UMaterialEditingLibrary::ConnectMaterialProperty` / `ConnectMaterialExpressions`), then recompile the material. The source node is looked up by name in the material's expression collection.
+
+**Params**
+- `material` (string, required) — `/Game` path to the `UMaterial` asset.
+- `from_expression` (string, required) — node name returned by `add_material_expression` (the source expression).
+- `from_output` (string, optional) — name of the source expression's output. Empty (default) uses the expression's default/first output.
+- `to` (string, required) — connection target, one of two forms:
+  - `property:<Name>` — wire to a material output. `<Name>` is one of `BaseColor`, `Metallic`, `Specular`, `Roughness`, `EmissiveColor`, `Opacity`, `OpacityMask`, `Normal`, `AmbientOcclusion`, `WorldPositionOffset`.
+  - `node:<ExprName>:<InputName>` — wire into another expression's named input.
+
+**Result**
+- `ok` (bool)
+- `material` (string) — echoed back.
+- `from_expression` (string) — echoed back.
+- `to` (string) — echoed back.
+
+**Errors:** `missing_params`, `missing_required_field`, `material_not_found`, `from_expression_not_found`, `to_expression_not_found`, `invalid_field` (includes `bad_to_format` and `unknown_property`), `connect_failed`.
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"connect_material_expression","params":{
+  "material": "/Game/Materials/M_Stone",
+  "from_expression": "MaterialExpressionConstant3Vector_0",
+  "to": "property:BaseColor"
 }}
 ```
 

@@ -13,7 +13,7 @@ plugin speaks raw JSON-RPC over a local TCP socket (default
 Behaviour:
   - "initialize"             returned synthetically (does NOT hit the UE server)
   - "notifications/*"        consumed silently
-  - "tools/list"             returns a static list of all 119 tools (84
+  - "tools/list"             returns a static list of all 121 tools (84
                              dispatched to the UE plugin's C++ handlers
                              plus 35 bridge-side synthetic tools served by
                              SYNTHETIC_TOOLS without crossing the wire as
@@ -1153,6 +1153,34 @@ TOOLS = [
                 "function_name": {"type": "string", "description": "New function name. Must not collide with an existing function graph."},
             },
             "required": ["blueprint", "function_name"],
+        },
+    },
+    {
+        "name": "add_material_expression",
+        "description": "Create a UMaterialExpression node inside an existing UMaterial's graph, then recompile the material.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "material": {"type": "string", "description": "/Game path to the UMaterial asset."},
+                "expression_class": {"type": "string", "description": "Full path to a UMaterialExpression subclass, e.g. /Script/Engine.MaterialExpressionConstant3Vector or /Script/Engine.MaterialExpressionTextureSample. Abstract classes are rejected."},
+                "node_pos_x": {"type": "integer", "description": "Optional X position of the node in the graph. Default 0."},
+                "node_pos_y": {"type": "integer", "description": "Optional Y position of the node in the graph. Default 0."},
+            },
+            "required": ["material", "expression_class"],
+        },
+    },
+    {
+        "name": "connect_material_expression",
+        "description": "Wire a material expression's output to a material property input (e.g. property:BaseColor) or another expression's input (node:<ExprName>:<InputName>), then recompile.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "material": {"type": "string", "description": "/Game path to the UMaterial asset."},
+                "from_expression": {"type": "string", "description": "Node name returned by add_material_expression (the source expression)."},
+                "from_output": {"type": "string", "description": "Optional name of the source expression's output. Empty = the expression's default/first output."},
+                "to": {"type": "string", "description": "Connection target. Either 'property:<Name>' (BaseColor, Metallic, Specular, Roughness, EmissiveColor, Opacity, OpacityMask, Normal, AmbientOcclusion, WorldPositionOffset) or 'node:<ExprName>:<InputName>' to wire into another expression's input."},
+            },
+            "required": ["material", "from_expression", "to"],
         },
     },
     {

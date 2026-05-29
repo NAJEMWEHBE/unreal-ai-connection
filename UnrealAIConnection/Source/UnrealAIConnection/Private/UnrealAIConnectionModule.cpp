@@ -127,6 +127,8 @@ extern TSharedRef<IUCMCPHandler> Make_Handler_CreateDataAsset();
 extern TSharedRef<IUCMCPHandler> Make_Handler_CreateBlueprint();
 extern TSharedRef<IUCMCPHandler> Make_Handler_AddBlueprintVariable();
 extern TSharedRef<IUCMCPHandler> Make_Handler_AddBlueprintFunction();
+extern TSharedRef<IUCMCPHandler> Make_Handler_AddMaterialExpression();
+extern TSharedRef<IUCMCPHandler> Make_Handler_ConnectMaterialExpression();
 
 static constexpr int32 kMCPDefaultPort = 18888;
 
@@ -230,6 +232,8 @@ void FUnrealAIConnectionModule::StartupModule()
     Reg.Register(Make_Handler_CreateBlueprint());
     Reg.Register(Make_Handler_AddBlueprintVariable());
     Reg.Register(Make_Handler_AddBlueprintFunction());
+    Reg.Register(Make_Handler_AddMaterialExpression());
+    Reg.Register(Make_Handler_ConnectMaterialExpression());
 
     // -----------------------------------------------------------------
     // Tier 2 (PR #40): wire 3 starter delegates into the FUCMCPEventBus.
