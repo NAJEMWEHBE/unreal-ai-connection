@@ -28,6 +28,10 @@ class FHandler_DeleteActor : public IUCMCPHandler
 public:
     virtual FString GetMethodName() const override { return TEXT("delete_actor"); }
 
+    // Deletion is captured by the dispatcher's FScopedTransaction via the
+    // editor-undo-aware EditorDestroyActor path below.
+    virtual bool IsMutating() const override { return true; }
+
     virtual TSharedPtr<FJsonObject> Handle(const TSharedPtr<FJsonObject>& Params, FString& OutError) override
     {
         if (!Params.IsValid())
@@ -80,7 +84,11 @@ public:
         UWorld* World = GEditor ? GEditor->GetEditorWorldContext().World() : nullptr;
         if (World)
         {
-            World->DestroyActor(Actor);
+            // EditorDestroyActor is the editor-undo-aware path: it marks the level
+            // modified and records the destroy into the open transaction (vs the
+            // runtime DestroyActor, which is not captured on the undo stack).
+            Actor->Modify();
+            World->EditorDestroyActor(Actor, /*bShouldModifyLevel=*/true);
         }
 
         TSharedPtr<FJsonObject> Out = MakeShared<FJsonObject>();

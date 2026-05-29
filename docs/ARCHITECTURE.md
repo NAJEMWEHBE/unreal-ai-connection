@@ -107,6 +107,10 @@ Each handler stays a leaf — these modules just lift cross-cutting concerns to 
 
 Tradeoff: a slow handler will stall the editor's tick. This is acceptable for the current handler set — each call returns quickly. Genuinely long-running work (sleeps, multi-step pipelines) is handled by the task pattern (`start_sleep_task` / `poll_task` / `cancel_task` / `list_tasks`): the starter handler registers a task and returns immediately, and the work runs off the dispatch thread. Future handlers that block on disk I/O or the network should follow the same pattern instead of stalling the tick.
 
+## Undo / transactions
+
+Handlers that mutate level/actor state are made undoable at the dispatcher. `IUCMCPHandler::IsMutating()` (default `false`) marks such handlers; when true, `FUCMCPDispatcher::HandleMessage` wraps the `Handle()` call in an `FScopedTransaction`, so the whole operation collapses to a single editor undo step (Ctrl+Z). For the transaction to record a change, the handler must call `UObject::Modify()` on each object it edits **before** mutating it (and use editor-undo-aware paths — e.g. `UWorld::EditorDestroyActor` rather than the runtime `DestroyActor`). An empty transaction (handler bailed during validation before any `Modify()`) is discarded automatically, so marking a handler mutating is safe even on its error paths. The first wave covers the level/actor mutators (`spawn_actor`, `delete_actor`, `set_actor_transform`, `set_actor_property`, `add_component`); asset-content authoring (material instances, textures, widget blueprints) uses the package/save model rather than the level undo stack and is intentionally left un-transacted for now.
+
 ## JSON-RPC framing (v0.5.0+)
 
 Every TCP message uses explicit length-prefixed framing. Each frame on the wire is:

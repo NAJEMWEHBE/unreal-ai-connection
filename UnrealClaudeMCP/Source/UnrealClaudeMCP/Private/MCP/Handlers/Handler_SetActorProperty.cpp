@@ -28,6 +28,10 @@ class FHandler_SetActorProperty : public IUCMCPHandler
 public:
     virtual FString GetMethodName() const override { return TEXT("set_actor_property"); }
 
+    // Mutates an existing actor's property; Modify() below records it into the
+    // dispatcher's FScopedTransaction for a single-step undo.
+    virtual bool IsMutating() const override { return true; }
+
     virtual TSharedPtr<FJsonObject> Handle(const TSharedPtr<FJsonObject>& Params, FString& OutError) override
     {
         if (!Params.IsValid())
@@ -90,6 +94,9 @@ public:
         // Capture old value before mutation.
         TSharedPtr<FJsonValue> OldValue = UCMCP::PropertyCoercion::EncodeProperty(
             Prop, Resolved.PropAddr, TEXT(".") + Resolved.ResolvedPath, 0);
+
+        // Snapshot before mutation so the dispatcher's transaction can undo it.
+        Actor->Modify();
 
         UCMCP::PropertyCoercion::FCoerceOutcome Outcome =
             UCMCP::PropertyCoercion::SetProperty(

@@ -7,6 +7,9 @@
 #include "Dom/JsonValue.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
+#include "ScopedTransaction.h"
+
+#define LOCTEXT_NAMESPACE "UnrealClaudeMCP"
 
 DEFINE_LOG_CATEGORY_STATIC(LogUCMCPDispatcher, Log, All);
 
@@ -84,7 +87,20 @@ FString FUCMCPDispatcher::HandleMessage(const FString& InMessage)
     }
 
     FString Error;
-    TSharedPtr<FJsonObject> Result = Handler->Handle(Params, Error);
+    TSharedPtr<FJsonObject> Result;
+    if (Handler->IsMutating())
+    {
+        // Wrap mutating handlers in an editor transaction so the operation lands
+        // as a single Ctrl+Z step. An empty transaction (handler bailed before any
+        // Modify()) is automatically discarded by the transaction buffer.
+        const FScopedTransaction Transaction(
+            FText::Format(LOCTEXT("UCMCPHandlerEdit", "MCP: {0}"), FText::FromString(Method)));
+        Result = Handler->Handle(Params, Error);
+    }
+    else
+    {
+        Result = Handler->Handle(Params, Error);
+    }
 
     if (!Error.IsEmpty())
     {
@@ -96,3 +112,5 @@ FString FUCMCPDispatcher::HandleMessage(const FString& InMessage)
     if (bIsNotification) { return FString(); }
     return MakeResultResponse(Id, Result);
 }
+
+#undef LOCTEXT_NAMESPACE

@@ -27,6 +27,10 @@ class FHandler_AddComponent : public IUCMCPHandler
 public:
     virtual FString GetMethodName() const override { return TEXT("add_component"); }
 
+    // Attaches a component to an existing actor; the handler already calls
+    // Actor->Modify(), which the dispatcher's FScopedTransaction records for undo.
+    virtual bool IsMutating() const override { return true; }
+
     virtual TSharedPtr<FJsonObject> Handle(const TSharedPtr<FJsonObject>& Params, FString& OutError) override
     {
         if (!Params.IsValid())

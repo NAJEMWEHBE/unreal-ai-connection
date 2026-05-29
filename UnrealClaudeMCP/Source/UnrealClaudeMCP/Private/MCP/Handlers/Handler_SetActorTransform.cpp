@@ -28,6 +28,10 @@ class FHandler_SetActorTransform : public IUCMCPHandler
 public:
     virtual FString GetMethodName() const override { return TEXT("set_actor_transform"); }
 
+    // Mutates an existing actor's transform; Modify() below records it into the
+    // dispatcher's FScopedTransaction for a single-step undo.
+    virtual bool IsMutating() const override { return true; }
+
     virtual TSharedPtr<FJsonObject> Handle(const TSharedPtr<FJsonObject>& Params, FString& OutError) override
     {
         if (!Params.IsValid())
@@ -136,6 +140,7 @@ public:
         }
 
         FTransform NewTransform(NewRotation, NewLocation, NewScale);
+        Actor->Modify();
         Actor->SetActorTransform(NewTransform);
 
         TSharedPtr<FJsonObject> Out = MakeShared<FJsonObject>();
