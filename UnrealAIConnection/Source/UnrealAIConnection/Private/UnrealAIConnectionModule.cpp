@@ -120,6 +120,10 @@ extern TSharedRef<IUCMCPHandler> Make_Handler_InspectAnimBlueprint();
 extern TSharedRef<IUCMCPHandler> Make_Handler_InspectLandscape();
 extern TSharedRef<IUCMCPHandler> Make_Handler_InspectSkeletalMesh();
 extern TSharedRef<IUCMCPHandler> Make_Handler_InspectAnimMontage();
+extern TSharedRef<IUCMCPHandler> Make_Handler_CreateLevel();
+extern TSharedRef<IUCMCPHandler> Make_Handler_BuildLighting();
+extern TSharedRef<IUCMCPHandler> Make_Handler_CreateDataTable();
+extern TSharedRef<IUCMCPHandler> Make_Handler_CreateDataAsset();
 
 static constexpr int32 kMCPDefaultPort = 18888;
 
@@ -216,6 +220,10 @@ void FUnrealAIConnectionModule::StartupModule()
     Reg.Register(Make_Handler_InspectLandscape());
     Reg.Register(Make_Handler_InspectSkeletalMesh());
     Reg.Register(Make_Handler_InspectAnimMontage());
+    Reg.Register(Make_Handler_CreateLevel());
+    Reg.Register(Make_Handler_BuildLighting());
+    Reg.Register(Make_Handler_CreateDataTable());
+    Reg.Register(Make_Handler_CreateDataAsset());
 
     // -----------------------------------------------------------------
     // Tier 2 (PR #40): wire 3 starter delegates into the FUCMCPEventBus.

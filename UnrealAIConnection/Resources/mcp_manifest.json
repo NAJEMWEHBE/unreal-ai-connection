@@ -1,7 +1,7 @@
 {
  "name": "UnrealAIConnection",
  "version": "0.9.1",
- "description": "Drive Unreal Engine 5.7 from any MCP-compliant client over a local TCP socket. 112 tools total (77 native C++ handlers plus 35 bridge-side synthetic tools) that work with any UE 5.7 project.",
+ "description": "Drive Unreal Engine 5.7 from any MCP-compliant client over a local TCP socket. 116 tools total (81 native C++ handlers plus 35 bridge-side synthetic tools) that work with any UE 5.7 project.",
  "transport": {
   "type": "tcp",
   "host": "127.0.0.1",
@@ -518,6 +518,52 @@
     "asset_path": "string",
     "package_path": "string",
     "parent_path": "string"
+   }
+  },
+  {
+   "name": "create_level",
+   "description": "Create a new empty level (UWorld) asset under /Game/ and open it as the active level.",
+   "params": {
+    "path": "string (required) - destination level asset path; must start with /Game/ (no '..' or backslash)"
+   },
+   "returns": {
+    "ok": "bool",
+    "path": "string"
+   }
+  },
+  {
+   "name": "build_lighting",
+   "description": "Invoke a static-lighting build on the active editor world. Non-interactive; may take time for large levels.",
+   "params": {},
+   "returns": {
+    "ok": "bool",
+    "note": "string"
+   }
+  },
+  {
+   "name": "create_data_table",
+   "description": "Create a new UDataTable asset whose rows conform to a given row UScriptStruct.",
+   "params": {
+    "path": "string (required) - destination folder under /Game/",
+    "name": "string (required) - leaf asset name",
+    "row_struct": "string (required) - full path to a UScriptStruct, e.g. /Script/Engine.Vector or a /Game user struct"
+   },
+   "returns": {
+    "ok": "bool",
+    "path": "string"
+   }
+  },
+  {
+   "name": "create_data_asset",
+   "description": "Create a new UDataAsset (or subclass) asset from a UDataAsset subclass path.",
+   "params": {
+    "path": "string (required) - destination folder under /Game/",
+    "name": "string (required) - leaf asset name",
+    "class_path": "string (required) - full path to a UDataAsset subclass, e.g. /Script/Engine.PrimaryDataAsset or a /Game BP-based DataAsset class; abstract classes are rejected"
+   },
+   "returns": {
+    "ok": "bool",
+    "path": "string"
    }
   },
   {
