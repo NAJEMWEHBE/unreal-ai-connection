@@ -144,10 +144,10 @@ public:
             // node:<ExprName>:<InputName>
             const FString Rest = ToSpec.RightChop(5); // len("node:")
             FString ToExprName, ToInputName;
-            if (!Rest.Split(TEXT(":"), &ToExprName, &ToInputName) || ToExprName.IsEmpty())
+            if (!Rest.Split(TEXT(":"), &ToExprName, &ToInputName) || ToExprName.IsEmpty() || ToInputName.IsEmpty())
             {
                 OutError = FString::Printf(
-                    TEXT("connect_material_expression: invalid_field: bad_to_format: 'to' node form must be 'node:<ExprName>:<InputName>', got '%s'"),
+                    TEXT("connect_material_expression: invalid_field: bad_to_format: 'to' node form must be 'node:<ExprName>:<InputName>' with a non-empty input name, got '%s'"),
                     *ToSpec);
                 return nullptr;
             }
