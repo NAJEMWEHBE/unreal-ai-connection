@@ -1,11 +1,11 @@
 {
   "$schema": "https://json.schemastore.org/mcp.json",
-  "_comment": "Place this file as .mcp.json at the root of your project (your UE project root works well). Edit the path in args to point to wherever you cloned UnrealClaudeMCP. Open the UE editor with the UnrealClaudeMCP plugin enabled before invoking any tool. Works for Claude Code, Copilot CLI (as a 'workspace server'), and Cursor. Codex CLI reads ~/.codex/config.toml instead -- register the same server with `codex mcp add unreal-ai-connection -- py <full path to bridge.py>`.",
+  "_comment": "Place this file as .mcp.json at the root of your project (your UE project root works well). Edit the path in args to point to wherever you cloned UnrealAIConnection. Open the UE editor with the UnrealAIConnection plugin enabled before invoking any tool. Works for Claude Code, Copilot CLI (as a 'workspace server'), and Cursor. Codex CLI reads ~/.codex/config.toml instead -- register the same server with `codex mcp add unreal-ai-connection -- py <full path to bridge.py>`.",
   "mcpServers": {
     "unreal-ai-connection": {
       "command": "py",
       "args": [
-        "C:\\path\\to\\UnrealClaudeMCP\\bridge\\unreal_ai_connection_bridge.py"
+        "C:\\path\\to\\UnrealAIConnection\\bridge\\unreal_ai_connection_bridge.py"
       ],
       "env": {}
     }

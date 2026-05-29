@@ -4,7 +4,7 @@ Unreal AI Connection speaks the open Model Context Protocol over stdio. Every MC
 
 ## Prerequisites (all clients)
 
-1. **Unreal Engine 5.7** with the `UnrealClaudeMCP` plugin built into your project (see [the main README quick-start](../../README.md#quick-start)).
+1. **Unreal Engine 5.7** with the `UnrealAIConnection` plugin built into your project (see [the main README quick-start](../../README.md#quick-start)).
 2. **Python 3.11+** on PATH (`py --version` should print `3.11.x` or newer on Windows; `python3 --version` on macOS/Linux).
 3. **This repo cloned somewhere on disk.** You'll point the client at `bridge/unreal_ai_connection_bridge.py`.
 4. **UE editor running** with the plugin loaded — look for `[LogUCMCP] Listening on 127.0.0.1:18888` in the Output Log.
@@ -41,7 +41,7 @@ Stdio command shared by JSON-based clients (Claude Code, Cursor, Cline, VS Copil
 ```json
 {
   "command": "py",
-  "args": ["C:\\full\\path\\to\\UnrealClaudeMCP\\bridge\\unreal_ai_connection_bridge.py"]
+  "args": ["C:\\full\\path\\to\\UnrealAIConnection\\bridge\\unreal_ai_connection_bridge.py"]
 }
 ```
 
@@ -50,7 +50,7 @@ On macOS/Linux use `python3` instead of `py` and a POSIX path:
 ```json
 {
   "command": "python3",
-  "args": ["/full/path/to/UnrealClaudeMCP/bridge/unreal_ai_connection_bridge.py"]
+  "args": ["/full/path/to/UnrealAIConnection/bridge/unreal_ai_connection_bridge.py"]
 }
 ```
 

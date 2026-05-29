@@ -21,7 +21,7 @@ Open-source coding agent for VS Code (formerly Claude Dev). Config: `cline_mcp_s
   "mcpServers": {
     "unreal-ai-connection": {
       "command": "py",
-      "args": ["C:\\full\\path\\to\\UnrealClaudeMCP\\bridge\\unreal_ai_connection_bridge.py"],
+      "args": ["C:\\full\\path\\to\\UnrealAIConnection\\bridge\\unreal_ai_connection_bridge.py"],
       "disabled": false,
       "autoApprove": []
     }
@@ -35,7 +35,7 @@ Open-source coding agent for VS Code (formerly Claude Dev). Config: `cline_mcp_s
   "mcpServers": {
     "unreal-ai-connection": {
       "command": "python3",
-      "args": ["/full/path/to/UnrealClaudeMCP/bridge/unreal_ai_connection_bridge.py"],
+      "args": ["/full/path/to/UnrealAIConnection/bridge/unreal_ai_connection_bridge.py"],
       "disabled": false,
       "autoApprove": []
     }

@@ -1,5 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
-// UCMCPCompat.h -- UnrealClaudeMCP cross-engine compatibility shim header
+// UCMCPCompat.h -- UnrealAIConnection cross-engine compatibility shim header
 //
 // STATUS: SCAFFOLDING ONLY -- NOT certified on any engine other than UE 5.7.
 // Certification requires each target engine installed and a real build+smoke pass.
@@ -379,7 +379,7 @@ namespace UCMCPCompat
 //  * FUCMCPTicker                       -- FTicker(4.27) / FTSTicker(>=5.0).
 //        Wired: MCPServer.cpp + MCPServer.h.
 //  * UCMCP_POST_SAVE_WORLD_DELEGATE     -- PostSaveWorld(4.27) /
-//        PostSaveWorldWithContext(>=5.0). Wired: UnrealClaudeMCPModule.cpp.
+//        PostSaveWorldWithContext(>=5.0). Wired: UnrealAIConnectionModule.cpp.
 //        UNVERIFIED: the 4.27 PostSaveWorld param list
 //        (uint32,UWorld*,bool) and UCMCP_POST_SAVE_CONTEXT_TYPE==bool
 //        placeholder are NOT confirmed without a 4.27 engine.
@@ -397,7 +397,7 @@ namespace UCMCPCompat
 //
 // UNIFORM 4.27+ (verified by inspection, NO shim needed):
 //  * UImportSubsystem / OnAssetPostImport(UFactory*,UObject*) -- subsystem
-//        + delegate uniform 4.27 -> 5.8. UnrealClaudeMCPModule.cpp.
+//        + delegate uniform 4.27 -> 5.8. UnrealAIConnectionModule.cpp.
 //  * UStaticMesh::GetBoundingBox() / GetStaticMaterials()     -- accessor
 //        form uniform 4.27 -> 5.8 (FBox LWC widens harmlessly into
 //        SetNumberField(double)). Handler_InspectStaticMesh.cpp.

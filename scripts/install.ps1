@@ -1,9 +1,9 @@
 <#
 .SYNOPSIS
-    One-command installer for UnrealClaudeMCP on Windows.
+    One-command installer for UnrealAIConnection on Windows.
 
 .DESCRIPTION
-    Drops the UnrealClaudeMCP plugin into a target UE project's Plugins/ folder,
+    Drops the UnrealAIConnection plugin into a target UE project's Plugins/ folder,
     verifies the Python launcher (`py`) is on PATH, and (optionally) writes a
     starter .mcp.json for Claude Code / Cursor / VS Code Copilot in the project
     root. Does NOT regenerate VS project files or build the editor -- that's
@@ -46,7 +46,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $RepoRoot = Split-Path -Parent $PSScriptRoot
-$PluginSource = Join-Path $RepoRoot 'UnrealClaudeMCP'
+$PluginSource = Join-Path $RepoRoot 'UnrealAIConnection'
 $BridgePath = Join-Path $RepoRoot 'bridge\unreal_ai_connection_bridge.py'
 
 function Write-Step($msg) { Write-Host "==> $msg" -ForegroundColor Cyan }
@@ -87,8 +87,8 @@ if (-not (Test-Path $BridgePath -PathType Leaf)) {
 Write-Ok "Plugin source: $PluginSource"
 Write-Ok "Bridge:        $BridgePath"
 
-# 4. Copy plugin into <project>/Plugins/UnrealClaudeMCP
-$PluginDest = Join-Path $ProjectPath 'Plugins\UnrealClaudeMCP'
+# 4. Copy plugin into <project>/Plugins/UnrealAIConnection
+$PluginDest = Join-Path $ProjectPath 'Plugins\UnrealAIConnection'
 Write-Step "Installing plugin to $PluginDest"
 if ($DryRun) {
     Write-Skip "DryRun -- would copy '$PluginSource' -> '$PluginDest'"

@@ -8,9 +8,9 @@ UE 5.7 plugin + Python bridge exposing editor automation to MCP-compliant client
 
 ## Where to look first for any change
 
-- **C++ handlers** (72) — `UnrealClaudeMCP/Source/UnrealClaudeMCP/Private/MCP/Handlers/Handler_*.cpp`, one per tool. Registered in `UnrealClaudeMCPModule.cpp` (the `Reg.Register(...)` block).
+- **C++ handlers** (72) — `UnrealAIConnection/Source/UnrealAIConnection/Private/MCP/Handlers/Handler_*.cpp`, one per tool. Registered in `UnrealAIConnectionModule.cpp` (the `Reg.Register(...)` block).
 - **Bridge-side synthetic tools** (33: `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`, `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap`, `sequencer_add_transform_keyframe`) — `bridge/unreal_ai_connection_bridge.py`'s `SYNTHETIC_TOOLS` dict.
-- **Tool catalog (kept in sync manually across three places)** — `UnrealClaudeMCP/Resources/mcp_manifest.json`, `bridge/unreal_ai_connection_bridge.py`'s `TOOLS` list, and `docs/TOOLS.md`. The `tests/test_manifest_sync.py` suite catches drift between the first two.
+- **Tool catalog (kept in sync manually across three places)** — `UnrealAIConnection/Resources/mcp_manifest.json`, `bridge/unreal_ai_connection_bridge.py`'s `TOOLS` list, and `docs/TOOLS.md`. The `tests/test_manifest_sync.py` suite catches drift between the first two.
 - **Architecture notes + UE 5.7 API gotchas** — `docs/ARCHITECTURE.md`.
 - **Host-build runbook** — top of `docs/HANDOFF.md` (steps 1–6, PowerShell). Live verification on the host machine is the perpetual next step.
 - **Per-tool JSON schemas + examples** — `docs/TOOLS.md`.
@@ -19,7 +19,7 @@ UE 5.7 plugin + Python bridge exposing editor automation to MCP-compliant client
 
 ## House rules carried forward across sessions
 
-- **One handler = one `.cpp` file** in `Source/UnrealClaudeMCP/Private/MCP/Handlers/`, plus one `extern` declaration and one `Reg.Register(...)` line in `UnrealClaudeMCPModule.cpp`. Don't grow the foundation; add leaves.
+- **One handler = one `.cpp` file** in `Source/UnrealAIConnection/Private/MCP/Handlers/`, plus one `extern` declaration and one `Reg.Register(...)` line in `UnrealAIConnectionModule.cpp`. Don't grow the foundation; add leaves.
 - **Verify UE API claims against UE 5.7 source** before committing C++. Past reviewer agents have asserted UE APIs that turned out wrong.
 - **Vendor-neutral framing** in any user-facing copy — repo description, `.uplugin` Description, README, tool descriptions. Don't bake "Claude Code" specifically into anything that ships.
 - **Smoke test runs against a live UE editor** (`examples/smoke_test.py` hits `127.0.0.1:18888` directly). Bridge unit tests under `tests/` run without UE.

@@ -16,7 +16,7 @@
 //      state matters from the explicit query handlers (find_assets,
 //      get_actors_in_level, etc.).
 //
-// Subscriptions are wired in UnrealClaudeMCPModule::StartupModule. The bus
+// Subscriptions are wired in UnrealAIConnectionModule::StartupModule. The bus
 // itself is type-agnostic; adding new event sources is additive (no changes
 // to this handler needed). See docs/superpowers/specs/2026-05-09-tier2-event-push-design.md
 // for the full Tier 2 multi-PR roadmap.

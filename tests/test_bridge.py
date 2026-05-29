@@ -3797,7 +3797,7 @@ def test_set_actor_property_manifest_value_documents_polymorphic_types():
     # so external MCP clients reading the manifest pick up the union, not 'any'.
     manifest_path = (
         pathlib.Path(__file__).resolve().parent.parent
-        / "UnrealClaudeMCP" / "Resources" / "mcp_manifest.json"
+        / "UnrealAIConnection" / "Resources" / "mcp_manifest.json"
     )
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     tool = next(

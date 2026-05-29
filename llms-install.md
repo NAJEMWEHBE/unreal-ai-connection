@@ -7,7 +7,7 @@ You are an AI agent configuring the **Unreal AI Connection** MCP server for a us
 The MCP server is only a thin stdio bridge. It is useless until the Unreal Engine plugin is installed and the editor is running. You (or the user) must:
 
 1. Clone/copy this repo: `git clone https://github.com/NAJEMWEHBE/unreal-ai-connection`
-2. Copy the `UnrealClaudeMCP/` plugin folder from the repo into the user's UE project: `<UEProject>/Plugins/UnrealClaudeMCP/`
+2. Copy the `UnrealAIConnection/` plugin folder from the repo into the user's UE project: `<UEProject>/Plugins/UnrealAIConnection/`
 3. Build the UE 5.7 editor for that project (regenerate project files → build `Development Editor`).
 4. Launch the UE editor. The plugin's TCP server binds `127.0.0.1:18888` within ~2 minutes of launch. Confirm via the Output Log: `[LogUCMCP] Listening on 127.0.0.1:18888`.
 

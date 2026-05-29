@@ -11,7 +11,7 @@
 
 #include "CoreMinimal.h"
 
-class UNREALCLAUDEMCP_API FUCMCPDispatcher
+class UNREALAICONNECTION_API FUCMCPDispatcher
 {
 public:
     /**

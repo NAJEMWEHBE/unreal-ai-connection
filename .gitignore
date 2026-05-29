@@ -66,7 +66,7 @@ HDMediaCamPlugin/
 
 # Phase H release artifacts. scripts/gen_uplugin_variants.py emits per-engine
 # bucket .uplugin variants here at release time; they are derived from the
-# canonical UnrealClaudeMCP/UnrealClaudeMCP.uplugin and must not be committed.
+# canonical UnrealAIConnection/UnrealAIConnection.uplugin and must not be committed.
 /dist/
 
 # External DCC asset scratch — Blender project files and exported meshes/textures

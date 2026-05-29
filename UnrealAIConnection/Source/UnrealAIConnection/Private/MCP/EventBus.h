@@ -13,7 +13,7 @@
 //     callers attach event-specific structured data per Push.
 //
 // The bus is type-agnostic: it knows nothing about specific UE delegates.
-// Per-event subscriptions are wired as lambdas in UnrealClaudeMCPModule's
+// Per-event subscriptions are wired as lambdas in UnrealAIConnectionModule's
 // StartupModule, which build the JSON payload and call Push(). Adding new
 // event sources later requires no change to this file.
 

@@ -63,7 +63,7 @@ public:
         // bots converged on the same fix.)
         const FString TempDir = FPaths::Combine(
             FPaths::ProjectIntermediateDir(),
-            TEXT("UnrealClaudeMCPPython")
+            TEXT("UnrealAIConnectionPython")
         );
         IFileManager::Get().MakeDirectory(*TempDir, /*Tree=*/true);
 

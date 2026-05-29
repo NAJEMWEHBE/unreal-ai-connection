@@ -1,6 +1,6 @@
 // Copyright (c) 2026 HD Media. MIT licensed - see LICENSE.
 
-#include "UnrealClaudeMCPModule.h"
+#include "UnrealAIConnectionModule.h"
 #include "MCP/MCPServer.h"
 #include "MCP/MCPHandler.h"
 #include "MCP/LogCapture.h"
@@ -36,7 +36,7 @@
 #include "UObject/ObjectSaveContext.h"  // FObjectPostSaveContext value param of PostSaveWorldWithContext (5.0+)
 #endif
 
-DEFINE_LOG_CATEGORY_STATIC(LogUnrealClaudeMCP, Log, All);
+DEFINE_LOG_CATEGORY_STATIC(LogUnrealAIConnection, Log, All);
 
 // Forward-declared handler factories (one per Handler_*.cpp file in MCP/Handlers/)
 extern TSharedRef<IUCMCPHandler> Make_Handler_ExecutePython();
@@ -123,9 +123,9 @@ extern TSharedRef<IUCMCPHandler> Make_Handler_InspectAnimMontage();
 
 static constexpr int32 kMCPDefaultPort = 18888;
 
-void FUnrealClaudeMCPModule::StartupModule()
+void FUnrealAIConnectionModule::StartupModule()
 {
-    UE_LOG(LogUnrealClaudeMCP, Log, TEXT("[UnrealClaudeMCP] Module started"));
+    UE_LOG(LogUnrealAIConnection, Log, TEXT("[UnrealAIConnection] Module started"));
 
     // Register the log capture device before anything else so early log lines
     // (including handler registration messages) are buffered from the start.
@@ -361,7 +361,7 @@ void FUnrealClaudeMCPModule::StartupModule()
                 // Subscription dropped silently leaves callers of poll_events
                 // chasing a missing event stream. Surface the failure in the
                 // build log instead of going quiet.
-                UE_LOG(LogUnrealClaudeMCP, Warning,
+                UE_LOG(LogUnrealAIConnection, Warning,
                     TEXT("UImportSubsystem unavailable at StartupModule; asset_post_import events will not fire. ")
                     TEXT("Other delegate subscriptions (PostSaveWorldWithContext, MapChange) are unaffected."));
             }
@@ -370,7 +370,7 @@ void FUnrealClaudeMCPModule::StartupModule()
         {
             // PostSaveWorldWithContext and MapChange subscriptions below use the
             // FEditorDelegates static namespace and remain unaffected.
-            UE_LOG(LogUnrealClaudeMCP, Warning,
+            UE_LOG(LogUnrealAIConnection, Warning,
                 TEXT("GEditor null at StartupModule despite PostEngineInit phase; ")
                 TEXT("asset_post_import subscription skipped."));
         }
@@ -463,8 +463,8 @@ void FUnrealClaudeMCPModule::StartupModule()
             if (Perf->bThrottleCPUWhenNotForeground)
             {
                 Perf->bThrottleCPUWhenNotForeground = false;
-                UE_LOG(LogUnrealClaudeMCP, Log,
-                    TEXT("[UnrealClaudeMCP] Disabled 'Use Less CPU when in Background' for this session ")
+                UE_LOG(LogUnrealAIConnection, Log,
+                    TEXT("[UnrealAIConnection] Disabled 'Use Less CPU when in Background' for this session ")
                     TEXT("so MCP commands stay responsive (~50 ms) while the editor is unfocused. ")
                     TEXT("In-memory only — your saved Editor Preference is unchanged. ")
                     TEXT("Set UCMCP_KEEP_BACKGROUND_THROTTLE=1 to keep the throttle."));
@@ -473,7 +473,7 @@ void FUnrealClaudeMCPModule::StartupModule()
     }
 }
 
-void FUnrealClaudeMCPModule::ShutdownModule()
+void FUnrealAIConnectionModule::ShutdownModule()
 {
     FUCMCPServer::Get().Stop();
 
@@ -552,7 +552,7 @@ void FUnrealClaudeMCPModule::ShutdownModule()
     // doesn't call into a dangling pointer.
     GLog->RemoveOutputDevice(&FUCMCPLogCapture::Get());
 
-    UE_LOG(LogUnrealClaudeMCP, Log, TEXT("[UnrealClaudeMCP] Module shutdown"));
+    UE_LOG(LogUnrealAIConnection, Log, TEXT("[UnrealAIConnection] Module shutdown"));
 }
 
-IMPLEMENT_MODULE(FUnrealClaudeMCPModule, UnrealClaudeMCP)
+IMPLEMENT_MODULE(FUnrealAIConnectionModule, UnrealAIConnection)

@@ -1,5 +1,5 @@
 {
- "name": "UnrealClaudeMCP",
+ "name": "UnrealAIConnection",
  "version": "0.9.1",
  "description": "Drive Unreal Engine 5.7 from any MCP-compliant client over a local TCP socket. 112 tools total (77 native C++ handlers plus 35 bridge-side synthetic tools) that work with any UE 5.7 project.",
  "transport": {

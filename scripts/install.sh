@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# One-command installer for UnrealClaudeMCP on macOS / Linux.
+# One-command installer for UnrealAIConnection on macOS / Linux.
 #
-# Drops the UnrealClaudeMCP plugin into a target UE project's Plugins/ folder,
+# Drops the UnrealAIConnection plugin into a target UE project's Plugins/ folder,
 # verifies python3 3.11+, and optionally writes a starter MCP config snippet
 # for the chosen client. Does NOT regenerate project files or build the editor
 # — that remains a manual step.
@@ -54,7 +54,7 @@ esac
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
-PLUGIN_SOURCE="$REPO_ROOT/UnrealClaudeMCP"
+PLUGIN_SOURCE="$REPO_ROOT/UnrealAIConnection"
 BRIDGE_PATH="$REPO_ROOT/bridge/unreal_ai_connection_bridge.py"
 
 step()  { printf '\033[1;36m==> %s\033[0m\n' "$1"; }
@@ -102,7 +102,7 @@ ok "Plugin source: $PLUGIN_SOURCE"
 ok "Bridge:        $BRIDGE_PATH"
 
 # 4. Copy plugin
-PLUGIN_DEST="$PROJECT_PATH/Plugins/UnrealClaudeMCP"
+PLUGIN_DEST="$PROJECT_PATH/Plugins/UnrealAIConnection"
 step "Installing plugin to $PLUGIN_DEST"
 if [ "$DRY_RUN" -eq 1 ]; then
     skip "DryRun — would copy '$PLUGIN_SOURCE' -> '$PLUGIN_DEST'"

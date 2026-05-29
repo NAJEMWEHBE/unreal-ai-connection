@@ -19,7 +19,7 @@ High-performance code editor. MCP support via the `context_servers` block in `~/
     "unreal-ai-connection": {
       "command": {
         "path": "py",
-        "args": ["C:\\full\\path\\to\\UnrealClaudeMCP\\bridge\\unreal_ai_connection_bridge.py"],
+        "args": ["C:\\full\\path\\to\\UnrealAIConnection\\bridge\\unreal_ai_connection_bridge.py"],
         "env": {}
       }
     }
@@ -34,7 +34,7 @@ High-performance code editor. MCP support via the `context_servers` block in `~/
     "unreal-ai-connection": {
       "command": {
         "path": "python3",
-        "args": ["/full/path/to/UnrealClaudeMCP/bridge/unreal_ai_connection_bridge.py"],
+        "args": ["/full/path/to/UnrealAIConnection/bridge/unreal_ai_connection_bridge.py"],
         "env": {}
       }
     }

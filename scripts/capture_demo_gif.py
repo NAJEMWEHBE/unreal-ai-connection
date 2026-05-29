@@ -49,7 +49,7 @@ driver for the documentation asset.
 
 Requirements
 ------------
-* A LIVE Unreal Editor with the host UnrealClaudeMCP plugin REBUILT
+* A LIVE Unreal Editor with the host UnrealAIConnection plugin REBUILT
   (so render_camera_to_png and the other handlers are compiled in and
   answer on the socket). A handler that is declared but not linked
   manifests as JSON-RPC error -32601 (method-not-found) — this script
@@ -163,7 +163,7 @@ def call(host: str, port: int, method: str,
         except (ConnectionRefusedError, OSError) as e:
             return {"_error": f"Cannot reach UE at {host}:{port}: {e}. "
                               f"Is the editor open with the rebuilt "
-                              f"UnrealClaudeMCP plugin?"}
+                              f"UnrealAIConnection plugin?"}
         try:
             _send_framed(s, raw)
             payload_bytes = _recv_framed(s)

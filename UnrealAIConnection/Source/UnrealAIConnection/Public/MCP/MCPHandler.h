@@ -11,7 +11,7 @@
 #include "Dom/JsonObject.h"
 #include "Templates/SharedPointer.h"
 
-class UNREALCLAUDEMCP_API IUCMCPHandler
+class UNREALAICONNECTION_API IUCMCPHandler
 {
 public:
     virtual ~IUCMCPHandler() = default;
@@ -38,7 +38,7 @@ public:
     virtual bool IsMutating() const { return false; }
 };
 
-class UNREALCLAUDEMCP_API FUCMCPHandlerRegistry
+class UNREALAICONNECTION_API FUCMCPHandlerRegistry
 {
 public:
     static FUCMCPHandlerRegistry& Get();

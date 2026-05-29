@@ -1,6 +1,6 @@
 // Copyright (c) 2026 HD Media. MIT licensed - see LICENSE.
 //
-// MCPServer - lightweight TCP listener inside the UnrealClaudeMCP module.
+// MCPServer - lightweight TCP listener inside the UnrealAIConnection module.
 // Accepts JSON-RPC 2.0 messages from MCP clients (e.g. Claude Code) and
 // routes them to FUCMCPDispatcher. Auto-starts on editor launch via the
 // module's StartupModule().
@@ -72,7 +72,7 @@ struct FUCMCPClientWriteState
     }
 };
 
-class UNREALCLAUDEMCP_API FUCMCPServer
+class UNREALAICONNECTION_API FUCMCPServer
 {
 public:
     static FUCMCPServer& Get();

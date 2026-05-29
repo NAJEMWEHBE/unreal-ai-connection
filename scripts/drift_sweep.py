@@ -57,7 +57,7 @@ SCAN_FILES = [
     "docs/setup/zed.md",
     ".github/copilot-instructions.md",
     "bridge/unreal_ai_connection_bridge.py",
-    "UnrealClaudeMCP/Resources/mcp_manifest.json",
+    "UnrealAIConnection/Resources/mcp_manifest.json",
 ]
 
 
@@ -187,10 +187,10 @@ def _read_uplugin_versions() -> tuple[str, str]:
     missing or malformed -- callers should never silently fall back to
     stale defaults.
     """
-    uplugin_path = REPO_ROOT / "UnrealClaudeMCP" / "UnrealClaudeMCP.uplugin"
+    uplugin_path = REPO_ROOT / "UnrealAIConnection" / "UnrealAIConnection.uplugin"
     if not uplugin_path.exists():
         raise RuntimeError(
-            f"Cannot find UnrealClaudeMCP.uplugin at {uplugin_path}. If the "
+            f"Cannot find UnrealAIConnection.uplugin at {uplugin_path}. If the "
             "module was renamed or moved, update _read_uplugin_versions() "
             "to match the new path."
         )
@@ -198,7 +198,7 @@ def _read_uplugin_versions() -> tuple[str, str]:
         data = json.loads(_read_text_lenient(uplugin_path))
     except json.JSONDecodeError as e:
         raise RuntimeError(
-            f"UnrealClaudeMCP.uplugin is not valid JSON: {e}"
+            f"UnrealAIConnection.uplugin is not valid JSON: {e}"
         ) from e
     version_name = data.get("VersionName")
     engine_version = data.get("EngineVersion")

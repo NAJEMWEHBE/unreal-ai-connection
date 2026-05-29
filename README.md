@@ -109,7 +109,7 @@ Also discoverable in the [official MCP Registry](https://github.com/modelcontext
 ```mermaid
 graph LR
     A[Any MCP client] -->|stdio MCP| B[Python Bridge]
-    B -->|TCP 127.0.0.1:18888| C[UnrealClaudeMCP plugin<br/>UE editor module]
+    B -->|TCP 127.0.0.1:18888| C[UnrealAIConnection plugin<br/>UE editor module]
     C -->|native C++ API| D[Unreal Editor 5.7]
 ```
 
@@ -387,12 +387,12 @@ Adding a 73rd C++ handler is one `.cpp` file plus one line of registration — s
 
 ### Engineers (you already build UE projects from source)
 
-1. **Drop the plugin in.** Copy `UnrealClaudeMCP/` into `<YourProject>/Plugins/`.
+1. **Drop the plugin in.** Copy `UnrealAIConnection/` into `<YourProject>/Plugins/`.
 2. **Regenerate project files.** Right-click `<YourProject>.uproject` → *Generate Visual Studio project files*.
 3. **Build the editor.** Open the .sln, build *Development Editor | Win64*. First build takes ~5–15 min.
 4. **Launch.** Open the .uproject. The MCP server auto-starts on `127.0.0.1:18888`. Look for these lines in the Output Log:
    ```
-   [LogUnrealClaudeMCP] Module started
+   [LogUnrealAIConnection] Module started
    LogUCMCPHandler: Registered handler 'execute_unreal_python'
      ... (71 more handler lines)
    [LogUCMCP] Listening on 127.0.0.1:18888
@@ -418,10 +418,10 @@ You'll see structured JSON output for every default-on step (eleven banner-heade
 ## What's in the box
 
 ```
-UnrealClaudeMCP/                The Unreal Engine plugin (drop into <Project>/Plugins/)
-  Source/UnrealClaudeMCP/         C++ editor module
+UnrealAIConnection/                The Unreal Engine plugin (drop into <Project>/Plugins/)
+  Source/UnrealAIConnection/         C++ editor module
   Resources/                      MCP manifest JSON
-  UnrealClaudeMCP.uplugin         Plugin manifest
+  UnrealAIConnection.uplugin         Plugin manifest
 
 bridge/
   unreal_ai_connection_bridge.py     Python stdio ↔ TCP bridge for any MCP client
@@ -478,7 +478,7 @@ One in-flight item is stated plainly here so nothing is oversold:
 Issues and PRs welcome. Two house rules:
 
 1. **Verify UE API claims against UE 5.7 source.** Past reviewer subagents have made specific UE API claims that turned out wrong; ground-truth the engine source before committing.
-2. **Each new MCP handler is one `Handler_*.cpp` file** in `Source/UnrealClaudeMCP/Private/MCP/Handlers/`, plus one `extern` declaration and one `Reg.Register(Make_Handler_*())` line in `UnrealClaudeMCPModule.cpp`. Don't grow the foundation — add handlers.
+2. **Each new MCP handler is one `Handler_*.cpp` file** in `Source/UnrealAIConnection/Private/MCP/Handlers/`, plus one `extern` declaration and one `Reg.Register(Make_Handler_*())` line in `UnrealAIConnectionModule.cpp`. Don't grow the foundation — add handlers.
 
 ### Running tests
 

@@ -19,7 +19,7 @@ Synthetic tools (all 33: `wait_for_events`, `get_camera_transform`, `set_camera_
 
 ## execute_unreal_python
 
-Universal escape hatch. Runs an arbitrary block of Python in the editor's embedded interpreter via `IPythonScriptPlugin`. Multi-line scripts are supported — the handler writes the source to a temp `.py` file under `Intermediate/UnrealClaudeMCPPython/` and asks UE to execute it (this avoids `ExecPythonCommandEx`'s file-vs-source heuristic getting confused by multi-line input).
+Universal escape hatch. Runs an arbitrary block of Python in the editor's embedded interpreter via `IPythonScriptPlugin`. Multi-line scripts are supported — the handler writes the source to a temp `.py` file under `Intermediate/UnrealAIConnectionPython/` and asks UE to execute it (this avoids `ExecPythonCommandEx`'s file-vs-source heuristic getting confused by multi-line input).
 
 **Params**
 - `code` (string, required) — Python source code
@@ -1565,7 +1565,7 @@ Future PRs will add `blueprint_compiled` (no global delegate today; needs per-BP
 
 **Behavior notes**
 - The asset-registry initial scan at editor startup floods `asset_added` for every asset in the project. The 1000-entry ring will overflow; subsequent polls with a small `since_seq` will see `dropped=true` until the caller catches up. Workflows that don't care about startup-scan events should poll once after startup with the latest `next_seq` and discard the snapshot, then begin consuming deltas.
-- The bus is type-agnostic: adding new event sources in future PRs means adding lambda subscriptions in `UnrealClaudeMCPModule::StartupModule`, not changing this handler or the bus itself.
+- The bus is type-agnostic: adding new event sources in future PRs means adding lambda subscriptions in `UnrealAIConnectionModule::StartupModule`, not changing this handler or the bus itself.
 - `IAssetRegistry::OnAssetAdded` is a `TS_` (thread-safe) delegate — it can fire from background threads. The bus's `FCriticalSection` discipline handles this safely.
 
 **Example — first poll (discovery)**
@@ -4234,4 +4234,4 @@ Builds a PBR `Material` from a set of UE texture assets and assigns it to a leve
 
 ## Adding more tools
 
-See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the recipe. Short version: one `.cpp` file in `Source/UnrealClaudeMCP/Private/MCP/Handlers/`, two registration lines in `UnrealClaudeMCPModule.cpp`, one entry in `Resources/mcp_manifest.json`, one entry in `bridge/unreal_ai_connection_bridge.py`'s `TOOLS` list, rebuild, restart.
+See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the recipe. Short version: one `.cpp` file in `Source/UnrealAIConnection/Private/MCP/Handlers/`, two registration lines in `UnrealAIConnectionModule.cpp`, one entry in `Resources/mcp_manifest.json`, one entry in `bridge/unreal_ai_connection_bridge.py`'s `TOOLS` list, rebuild, restart.

@@ -1,12 +1,12 @@
-# UnrealClaudeMCP-Editor.psm1
+# UnrealAIConnection-Editor.psm1
 #
-# PowerShell module for UnrealClaudeMCP editor lifecycle automation.
+# PowerShell module for UnrealAIConnection editor lifecycle automation.
 # Use during the verification runbook (docs/HANDOFF.md) to launch the editor,
 # wait for the MCP TCP server to bind, count registered handlers in the log,
 # and shut the editor down cleanly.
 #
 # Usage:
-#   Import-Module .\scripts\UnrealClaudeMCP-Editor.psm1
+#   Import-Module .\scripts\UnrealAIConnection-Editor.psm1
 #   Stop-UCMCPEditor
 #   $proc = Start-UCMCPEditor -ProjectPath "C:\path\to\Host.uproject"
 #   $ready = Wait-UCMCPReady -TimeoutSeconds 540
@@ -96,7 +96,7 @@ function Stop-UCMCPEditor {
 # TimeoutSeconds elapses. Polls every PollIntervalSeconds.
 #
 # This is the canonical "editor is ready" signal: the plugin module's
-# StartupModule (UnrealClaudeMCPModule.cpp:91) calls
+# StartupModule (UnrealAIConnectionModule.cpp:91) calls
 # FUCMCPServer::Get().Start(kMCPDefaultPort) only AFTER all handlers have
 # registered. So a successful TCP connect implies all 32 handlers are
 # already registered.

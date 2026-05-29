@@ -4,16 +4,16 @@ This guide assumes Unreal Engine 5.7 is installed (any patch version) and that y
 
 ## 1. Drop the plugin into your project
 
-1. Locate `UnrealClaudeMCP/` from this repo (the inner folder, not the repo root)
-2. Copy the entire folder to `<YourUE5Project>/Plugins/UnrealClaudeMCP/`. Create the `Plugins/` folder if it doesn't exist.
+1. Locate `UnrealAIConnection/` from this repo (the inner folder, not the repo root)
+2. Copy the entire folder to `<YourUE5Project>/Plugins/UnrealAIConnection/`. Create the `Plugins/` folder if it doesn't exist.
 
 Your project layout should now look like:
 ```
 <YourUE5Project>/
   <YourUE5Project>.uproject
   Plugins/
-    UnrealClaudeMCP/
-      UnrealClaudeMCP.uplugin
+    UnrealAIConnection/
+      UnrealAIConnection.uplugin
       Source/
       Resources/
 ```
@@ -48,9 +48,9 @@ Replace `<UE_INSTALL>` with your UE 5.7 install root (e.g. `F:/UE_5.7/`).
 The MCP server auto-starts when the editor module loads. Open Window → Output Log. You should see something like:
 
 ```
-[LogUnrealClaudeMCP] Editor module started
-[LogUnrealClaudeMCP] Registered handler 'edit_widget_tree'
-[LogUnrealClaudeMCP] Registered handler 'execute_unreal_python'
+[LogUnrealAIConnection] Editor module started
+[LogUnrealAIConnection] Registered handler 'edit_widget_tree'
+[LogUnrealAIConnection] Registered handler 'execute_unreal_python'
 ... (72 handler registration lines in total — two shown above) ...
 [LogUCMCP] Listening on 127.0.0.1:18888
 ```
@@ -96,8 +96,8 @@ Claude calls the tool natively — no GUI driving, no screenshot-based clicking.
 ## Troubleshooting
 
 **The MCP server didn't start (no "Listening on 127.0.0.1:18888" line)**
-- Check Output Log for `LogPluginManager: Mounting Project plugin UnrealClaudeMCP` — if missing, the plugin isn't being loaded. Verify it's enabled in Edit → Plugins.
-- Check if another process is using port 18888 (`netstat -an | findstr 18888`). To change the port, edit `kMCPDefaultPort` in `UnrealClaudeMCPModule.cpp` and rebuild.
+- Check Output Log for `LogPluginManager: Mounting Project plugin UnrealAIConnection` — if missing, the plugin isn't being loaded. Verify it's enabled in Edit → Plugins.
+- Check if another process is using port 18888 (`netstat -an | findstr 18888`). To change the port, edit `kMCPDefaultPort` in `UnrealAIConnectionModule.cpp` and rebuild.
 
 **TCP client times out**
 - The dispatcher runs on the game thread (FTSTicker callback). If UE is showing a modal dialog (e.g. "Project file out of date") or in the middle of a long compile, the ticker is blocked.
@@ -111,4 +111,4 @@ Claude calls the tool natively — no GUI driving, no screenshot-based clicking.
 
 ## What if I want to add another tool?
 
-See [`ARCHITECTURE.md`](ARCHITECTURE.md). Short version: one `.cpp` file in `Source/UnrealClaudeMCP/Private/MCP/Handlers/`, one `extern` declaration + one `Reg.Register(...)` line in `UnrealClaudeMCPModule.cpp`. Rebuild. Restart UE. New tool available.
+See [`ARCHITECTURE.md`](ARCHITECTURE.md). Short version: one `.cpp` file in `Source/UnrealAIConnection/Private/MCP/Handlers/`, one `extern` declaration + one `Reg.Register(...)` line in `UnrealAIConnectionModule.cpp`. Rebuild. Restart UE. New tool available.

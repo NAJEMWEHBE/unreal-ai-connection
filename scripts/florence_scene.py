@@ -38,7 +38,7 @@ Assumptions:
 Run from a bridge MCP subprocess like:
 
     {"name":"run_python_file","arguments":{
-        "path":"F:/UnrealClaudeMCP/scripts/florence_scene.py",
+        "path":"F:/UnrealAIConnection/scripts/florence_scene.py",
         "capture_output":true}}
 """
 import unreal

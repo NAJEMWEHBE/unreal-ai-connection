@@ -17,7 +17,7 @@ from conftest import EXPECTED_TOOL_COUNT
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MANIFEST_PATH = os.path.join(
-    REPO_ROOT, "UnrealClaudeMCP", "Resources", "mcp_manifest.json"
+    REPO_ROOT, "UnrealAIConnection", "Resources", "mcp_manifest.json"
 )
 
 
