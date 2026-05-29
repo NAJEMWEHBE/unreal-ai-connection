@@ -1,7 +1,7 @@
 {
  "name": "UnrealClaudeMCP",
  "version": "0.9.1",
- "description": "Drive Unreal Engine 5.7 from any MCP-compliant client over a local TCP socket. 106 tools total (72 native C++ handlers plus 34 bridge-side synthetic tools) that work with any UE 5.7 project.",
+ "description": "Drive Unreal Engine 5.7 from any MCP-compliant client over a local TCP socket. 107 tools total (72 native C++ handlers plus 35 bridge-side synthetic tools) that work with any UE 5.7 project.",
  "transport": {
   "type": "tcp",
   "host": "127.0.0.1",
@@ -1708,6 +1708,26 @@
     "static_meshes": "array of string - created StaticMesh asset paths",
     "created": "array of string - all asset paths created by the import",
     "count": "int - number of StaticMesh assets created"
+   },
+   "min_engine_version": "5.0",
+   "max_engine_version": null
+  },
+  {
+   "name": "material_auto_remap",
+   "description": "Build a PBR Material from a set of UE texture assets (base color / normal / roughness / metallic / ambient occlusion) and assign it to a level actor's StaticMesh, in one call. SYNTHETIC bridge-side handler. Automates creating a Material, adding a correctly-typed TextureSample per map, wiring each to the matching output, and pushing it onto every material slot of the target actor. Natural finisher for import_mesh / import_texture. Optional UV tiling.",
+   "params": {
+    "actor_label": "string (required) - label of the level actor whose StaticMesh slots receive the new material",
+    "textures": "object (required) - slot -> /Game/ texture path; keys: base_color (required), normal, roughness, metallic, ambient_occlusion; unknown keys ignored",
+    "dest_material": "string (optional) - /Game/ path for the created Material; defaults to /Game/AutoMaterials/M_<actor_label>",
+    "tiling": "number (optional, default 1.0, >0) - UV tiling applied to all maps (U=V)"
+   },
+   "returns": {
+    "ok": "bool",
+    "actor_label": "string (echo)",
+    "material_path": "string (created Material asset path)",
+    "actor_found": "bool (whether the actor label resolved in the level)",
+    "slots_assigned": "int (material slots set on the actor)",
+    "slots_used": "array of string (PBR slots wired into the material)"
    },
    "min_engine_version": "5.0",
    "max_engine_version": null

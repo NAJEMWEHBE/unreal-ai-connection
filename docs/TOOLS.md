@@ -1,6 +1,6 @@
 # MCP Tools Reference
 
-**106 tools total.** 72 are JSON-RPC 2.0 methods served on `127.0.0.1:18888` directly by the plugin's C++ handlers. The remaining 34 — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`, `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap`, `sequencer_add_transform_keyframe`, `import_mesh` — are bridge-side **synthetic tools** that are intercepted by `bridge/unreal_ai_connection_bridge.py` and served by composing existing handlers (or running Python via `execute_unreal_python`, or — for `compile_mod_pak` — shelling out to `RunUAT.bat` entirely outside the UE process). They are visible to MCP clients exactly like the C++ tools but cannot be reached by sending raw JSON-RPC to the TCP socket — only via the MCP bridge or by replicating their composition manually. The "Implementation" header on each entry below indicates whether a tool is C++ or bridge-side.
+**107 tools total.** 72 are JSON-RPC 2.0 methods served on `127.0.0.1:18888` directly by the plugin's C++ handlers. The remaining 35 — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`, `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap`, `sequencer_add_transform_keyframe`, `import_mesh`, `material_auto_remap` — are bridge-side **synthetic tools** that are intercepted by `bridge/unreal_ai_connection_bridge.py` and served by composing existing handlers (or running Python via `execute_unreal_python`, or — for `compile_mod_pak` — shelling out to `RunUAT.bat` entirely outside the UE process). They are visible to MCP clients exactly like the C++ tools but cannot be reached by sending raw JSON-RPC to the TCP socket — only via the MCP bridge or by replicating their composition manually. The "Implementation" header on each entry below indicates whether a tool is C++ or bridge-side.
 
 Each tool's params and result are documented with a working example.
 
@@ -4103,6 +4103,22 @@ Imports a 3D mesh file (`.glb` / `.gltf` / `.fbx` / `.obj`) from disk into the p
 ```
 
 Pairs with `spawn_actor` + `set_actor_property` to place the imported mesh, and with `create_material_instance` / material tools to re-skin it.
+
+---
+
+## material_auto_remap
+
+**Implementation:** bridge-side synthetic (`execute_unreal_python`). **Min engine:** 5.0.
+
+Builds a PBR `Material` from a set of UE texture assets and assigns it to a level actor's StaticMesh — in one call. Automates the tedious manual loop of creating a material, adding a correctly-typed `TextureSample` per map, wiring each to the matching material output, and pushing it onto every material slot of the target actor. The natural finisher for `import_mesh` / `import_texture` when dressing an imported asset. Sampler types are set automatically: base color sRGB color, normal as normal map, roughness/metallic/AO linear grayscale.
+
+**Params:** `actor_label` (string, required), `textures` (object, required — slot → `/Game/` texture path; recognized keys: `base_color` **required**, `normal`, `roughness`, `metallic`, `ambient_occlusion`; unknown keys ignored), `dest_material` (string, optional `/Game/` path — defaults to `/Game/AutoMaterials/M_<actor_label>`), `tiling` (number, optional, default `1.0`, `>0`).
+
+**Returns:** `ok`, `actor_label` (echo), `material_path` (created Material), `actor_found` (bool), `slots_assigned` (int), `slots_used` (array of wired PBR slots).
+
+```json
+{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"material_auto_remap","arguments":{"actor_label":"R8_Books_v8","textures":{"base_color":"/Game/HDM_books/T_BookSpines_D","normal":"/Game/HDM_books/T_BookSpines_N","roughness":"/Game/HDM_books/T_BookSpines_R"}}}}
+```
 
 ---
 

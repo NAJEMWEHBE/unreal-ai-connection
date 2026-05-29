@@ -154,6 +154,7 @@ def test_tool_names_are_unique_and_match_handlers():
         "convert_hdri_to_cubemap",
         "sequencer_add_transform_keyframe",
         "import_mesh",
+        "material_auto_remap",
     }
     assert set(names) == expected
 
@@ -6794,3 +6795,153 @@ def test_import_mesh_uses_asset_registry_not_load_asset():
     code = bridge._build_import_mesh_script("C:/x/M.glb", "/Game/A", True)
     assert "find_asset_data" in code
     assert "load_asset" not in code
+
+
+# ---------------------------------------------------------------------------
+# material_auto_remap (synthetic)
+# ---------------------------------------------------------------------------
+
+def _matremap_ok(material_path="/Game/AutoMaterials/M_Wall", found=True, slots=3):
+    marker = bridge._MATREMAP_MARKER
+    payload = {"material_path": material_path, "actor_found": found, "slots_assigned": slots}
+    return {"result": {"ok": True, "output": "log\n" + marker + json.dumps(payload)}}
+
+
+def test_material_auto_remap_schema_present():
+    names = [t["name"] for t in bridge.TOOLS]
+    assert "material_auto_remap" in names
+    t = next(t for t in bridge.TOOLS if t["name"] == "material_auto_remap")
+    assert t["inputSchema"]["required"] == ["actor_label", "textures"]
+
+
+def test_material_auto_remap_rejects_missing_actor():
+    with patch.object(bridge, "call_ue") as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 970, "method": "tools/call",
+            "params": {"name": "material_auto_remap", "arguments": {
+                "textures": {"base_color": "/Game/T/D"}}},
+        })
+    assert m.call_count == 0
+    assert resp["error"]["code"] == -32602
+    assert "actor_label" in resp["error"]["message"]
+
+
+def test_material_auto_remap_requires_base_color():
+    with patch.object(bridge, "call_ue") as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 971, "method": "tools/call",
+            "params": {"name": "material_auto_remap", "arguments": {
+                "actor_label": "Wall", "textures": {"normal": "/Game/T/N"}}},
+        })
+    assert m.call_count == 0
+    assert resp["error"]["code"] == -32602
+    assert "base_color" in resp["error"]["message"]
+
+
+def test_material_auto_remap_rejects_non_game_texture():
+    with patch.object(bridge, "call_ue") as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 972, "method": "tools/call",
+            "params": {"name": "material_auto_remap", "arguments": {
+                "actor_label": "Wall", "textures": {"base_color": "/Engine/T/D"}}},
+        })
+    assert m.call_count == 0
+    assert resp["error"]["code"] == -32602
+    assert "base_color" in resp["error"]["message"]
+
+
+def test_material_auto_remap_rejects_bad_tiling():
+    with patch.object(bridge, "call_ue") as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 973, "method": "tools/call",
+            "params": {"name": "material_auto_remap", "arguments": {
+                "actor_label": "Wall", "textures": {"base_color": "/Game/T/D"}, "tiling": 0}},
+        })
+    assert m.call_count == 0
+    assert resp["error"]["code"] == -32602
+    assert "tiling" in resp["error"]["message"]
+
+
+def test_material_auto_remap_happy_path():
+    with patch.object(bridge, "call_ue", side_effect=[_engine_5_7_resp(), _matremap_ok(slots=2)]) as m_ue:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 974, "method": "tools/call",
+            "params": {"name": "material_auto_remap", "arguments": {
+                "actor_label": "Wall",
+                "textures": {"base_color": "/Game/T/D", "normal": "/Game/T/N", "roughness": "/Game/T/R"},
+                "tiling": 2.0}},
+        })
+    assert "error" not in resp, resp
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert body["ok"] is True
+    assert body["actor_found"] is True
+    assert body["slots_assigned"] == 2
+    assert body["slots_used"] == ["base_color", "normal", "roughness"]
+    assert m_ue.call_count == 2
+    code = m_ue.call_args[0][1]["code"]
+    # bakes the actor + texture paths + tiling, with correct sampler types/outputs
+    assert repr("Wall") in code
+    assert repr("/Game/T/N") in code
+    assert "SAMPLERTYPE_NORMAL" in code and "MP_NORMAL" in code
+    assert "SAMPLERTYPE_GRAYSCALE" in code and "MP_ROUGHNESS" in code
+    assert "TILING" in code
+
+
+def test_material_auto_remap_default_dest_material():
+    """Omitted dest_material defaults to /Game/AutoMaterials/M_<sanitized label>."""
+    with patch.object(bridge, "call_ue", side_effect=[_engine_5_7_resp(), _matremap_ok(material_path="/Game/AutoMaterials/M_Hero_Wall")]):
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 975, "method": "tools/call",
+            "params": {"name": "material_auto_remap", "arguments": {
+                "actor_label": "Hero Wall", "textures": {"base_color": "/Game/T/D"}}},
+        })
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert body["material_path"].startswith("/Game/AutoMaterials/M_")
+
+
+def test_material_auto_remap_fails_closed_when_marker_missing():
+    fake = {"result": {"ok": True, "output": "no marker here"}}
+    with patch.object(bridge, "call_ue", side_effect=[_engine_5_7_resp(), fake]):
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 976, "method": "tools/call",
+            "params": {"name": "material_auto_remap", "arguments": {
+                "actor_label": "Wall", "textures": {"base_color": "/Game/T/D"}}},
+        })
+    assert "error" in resp
+    assert resp["error"]["code"] == -32603
+    assert "missing_result_marker" in resp["error"]["message"]
+
+
+def test_material_auto_remap_resolves_actor_before_creating_material():
+    """cubic P1: the generated script resolves the target actor BEFORE
+    deleting/creating dest_material, so a bad actor_label never mutates it."""
+    code = bridge._build_material_remap_script(
+        "Wall", {"base_color": "/Game/T/D"}, "/Game/Mats/M_X", 1.0)
+    assert "target = None" in code and "if target is None:" in code
+    assert code.index("target = None") < code.index("create_asset")
+    assert code.index("if target is None:") < code.index("delete_asset")
+
+
+def test_material_auto_remap_rejects_nonfinite_tiling():
+    for bad in (float("inf"), float("nan")):
+        with patch.object(bridge, "call_ue") as m:
+            resp = bridge.handle({
+                "jsonrpc": "2.0", "id": 977, "method": "tools/call",
+                "params": {"name": "material_auto_remap", "arguments": {
+                    "actor_label": "Wall", "textures": {"base_color": "/Game/T/D"}, "tiling": bad}},
+            })
+        assert m.call_count == 0
+        assert resp["error"]["code"] == -32602
+        assert "tiling" in resp["error"]["message"]
+
+
+def test_material_auto_remap_rejects_texture_path_traversal():
+    for bad in ("/Game/../secret/D", "/Game\\T\\D"):
+        with patch.object(bridge, "call_ue") as m:
+            resp = bridge.handle({
+                "jsonrpc": "2.0", "id": 978, "method": "tools/call",
+                "params": {"name": "material_auto_remap", "arguments": {
+                    "actor_label": "Wall", "textures": {"base_color": bad}}},
+            })
+        assert m.call_count == 0
+        assert resp["error"]["code"] == -32602

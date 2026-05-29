@@ -13,9 +13,9 @@ plugin speaks raw JSON-RPC over a local TCP socket (default
 Behaviour:
   - "initialize"             returned synthetically (does NOT hit the UE server)
   - "notifications/*"        consumed silently
-  - "tools/list"             returns a static list of all 106 tools (72
+  - "tools/list"             returns a static list of all 107 tools (72
                              dispatched to the UE plugin's C++ handlers
-                             plus 34 bridge-side synthetic tools served by
+                             plus 35 bridge-side synthetic tools served by
                              SYNTHETIC_TOOLS without crossing the wire as
                              a single UE round-trip)
   - "tools/call"             unpacks {name, arguments} and forwards to the
@@ -1483,6 +1483,22 @@ TOOLS = [
                 "import_materials": {"type": "boolean", "description": "Import materials embedded in the source file. Default true."},
             },
             "required": ["source_path", "dest_path"],
+        },
+        "min_engine_version": "5.0",
+        "max_engine_version": None,
+    },
+    {
+        "name": "material_auto_remap",
+        "description": "Build a PBR Material from a set of UE texture assets (base color / normal / roughness / metallic / ambient occlusion) and assign it to a level actor's StaticMesh, in one call. SYNTHETIC bridge-side handler. Automates the otherwise-tedious dance of creating a Material, adding a TextureSample per map with the correct sampler type, wiring each to the matching material output, and pushing it onto every material slot of the target actor — the natural finisher for import_mesh / import_texture when dressing an imported asset. Correct sampler types are applied automatically (base color sRGB, normal as normal map, roughness/metallic/AO linear grayscale). Optional UV tiling.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "actor_label": {"type": "string", "description": "Label of the level actor whose StaticMesh component gets the new material (assigned to all slots)."},
+                "textures": {"type": "object", "description": "Map of PBR slot -> UE texture asset path (each must start with /Game/). Recognized keys: base_color (required), normal, roughness, metallic, ambient_occlusion. Unknown keys are ignored."},
+                "dest_material": {"type": "string", "description": "UE package path for the created Material, e.g. /Game/Mats/M_MyAsset. Must start with /Game/. Defaults to /Game/AutoMaterials/M_<actor_label>."},
+                "tiling": {"type": "number", "description": "UV tiling applied to all maps (U=V). Default 1.0. Must be > 0."},
+            },
+            "required": ["actor_label", "textures"],
         },
         "min_engine_version": "5.0",
         "max_engine_version": None,
@@ -7082,8 +7098,180 @@ def synthetic_import_mesh(req_id, args: dict) -> dict:
     return _wrap_tool_result(req_id, body)
 
 
+_MATREMAP_MARKER = "MATERIAL_REMAP_RESULT:"
+# slot -> (sampler-type enum member name, MaterialProperty enum member name, output pin)
+_MATREMAP_SLOTS = {
+    "base_color": ("SAMPLERTYPE_COLOR", "MP_BASE_COLOR", "RGB"),
+    "normal": ("SAMPLERTYPE_NORMAL", "MP_NORMAL", "RGB"),
+    "roughness": ("SAMPLERTYPE_GRAYSCALE", "MP_ROUGHNESS", "R"),
+    "metallic": ("SAMPLERTYPE_GRAYSCALE", "MP_METALLIC", "R"),
+    "ambient_occlusion": ("SAMPLERTYPE_GRAYSCALE", "MP_AMBIENT_OCCLUSION", "R"),
+}
+
+
+def _build_material_remap_script(actor_label: str, textures: dict, dest_material: str, tiling: float) -> str:
+    """Generate the UE Python that builds a PBR Material from `textures`, assigns it
+    to the named actor's StaticMesh slots, and prints a marker line with the result.
+    All caller values are baked via repr() (injection-safe). Only recognized slots are
+    emitted, each with its correct sampler type + output pin."""
+    pkg = dest_material.rsplit("/", 1)[0] if "/" in dest_material else "/Game"
+    name = dest_material.rsplit("/", 1)[1] if "/" in dest_material else dest_material
+    # emit only recognized slots that were supplied
+    slot_lines = []
+    for slot, (st, prop, out) in _MATREMAP_SLOTS.items():
+        if slot in textures:
+            slot_lines.append((textures[slot], st, prop, out))
+    # actor-first: resolve the target actor BEFORE creating/deleting any material asset,
+    # so a missing/typo'd actor_label never mutates or destroys dest_material (cubic P1).
+    head = (
+        "import unreal, json\n"
+        "ACTOR = " + repr(actor_label) + "\n"
+        "MATPKG = " + repr(pkg) + "\n"
+        "MATNAME = " + repr(name) + "\n"
+        "MATPATH = MATPKG + '/' + MATNAME\n"
+        "TILING = " + repr(float(tiling)) + "\n"
+        "MARKER = " + repr(_MATREMAP_MARKER) + "\n"
+        "mel = unreal.MaterialEditingLibrary\n"
+        "eas = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)\n"
+        "target = None\n"
+        "for _a in eas.get_all_level_actors():\n"
+        "    if _a.get_actor_label() == ACTOR:\n"
+        "        target = _a; break\n"
+        "if target is None:\n"
+        "    print(MARKER + json.dumps({'material_path': MATPATH, 'actor_found': False, 'slots_assigned': 0}))\n"
+        "else:\n"
+        "    for _p in " + repr([t[0] for t in slot_lines]) + ":\n"
+        "        if not unreal.EditorAssetLibrary.does_asset_exist(_p):\n"
+        "            raise RuntimeError('texture_not_found: ' + _p)\n"
+        "    if unreal.EditorAssetLibrary.does_asset_exist(MATPATH):\n"
+        "        unreal.EditorAssetLibrary.delete_asset(MATPATH)\n"
+        "    m = unreal.AssetToolsHelpers.get_asset_tools().create_asset(MATNAME, MATPKG, unreal.Material, unreal.MaterialFactoryNew())\n"
+        "    if m is None:\n"
+        "        raise RuntimeError('material_create_failed: ' + MATPATH)\n"
+        "    tc = mel.create_material_expression(m, unreal.MaterialExpressionTextureCoordinate, -900, 0)\n"
+        "    tc.set_editor_property('u_tiling', TILING); tc.set_editor_property('v_tiling', TILING)\n"
+        "    _y = -300\n"
+    )
+    mid = ""
+    for path, st, prop, out in slot_lines:
+        mid += (
+            "    _y += 300\n"
+            "    _s = mel.create_material_expression(m, unreal.MaterialExpressionTextureSample, -500, _y)\n"
+            "    _s.set_editor_property('texture', unreal.EditorAssetLibrary.load_asset(" + repr(path) + "))\n"
+            "    _s.set_editor_property('sampler_type', unreal.MaterialSamplerType." + st + ")\n"
+            "    mel.connect_material_expressions(tc, '', _s, 'UVs')\n"
+            "    mel.connect_material_property(_s, " + repr(out) + ", unreal.MaterialProperty." + prop + ")\n"
+        )
+    tail = (
+        "    mel.recompile_material(m)\n"
+        "    unreal.EditorAssetLibrary.save_asset(MATPATH)\n"
+        "    smc = target.get_component_by_class(unreal.StaticMeshComponent)\n"
+        "    slots = 0\n"
+        "    if smc:\n"
+        "        slots = smc.get_num_materials()\n"
+        "        for _i in range(slots):\n"
+        "            smc.set_material(_i, m)\n"
+        "    print(MARKER + json.dumps({'material_path': MATPATH, 'actor_found': True, 'slots_assigned': slots}))\n"
+    )
+    return head + mid + tail
+
+
+def synthetic_material_auto_remap(req_id, args: dict) -> dict:
+    """Build a PBR material from a texture set and assign it to a level actor.
+
+    Args (object): actor_label (str, required); textures (object slot->/Game/ path,
+    base_color required); dest_material (str, optional /Game/ path); tiling (number,
+    optional default 1.0). Returns: ok, material_path, actor_label, actor_found,
+    slots_assigned, slots_used.
+    """
+    if not isinstance(args, dict):
+        return make_response(req_id, error={
+            "code": -32602, "message": "material_auto_remap: invalid_arguments: arguments must be an object"})
+    actor_label = args.get("actor_label")
+    if not isinstance(actor_label, str) or not actor_label:
+        return make_response(req_id, error={
+            "code": -32602, "message": "material_auto_remap: invalid_field: 'actor_label' must be a non-empty string"})
+    textures = args.get("textures")
+    if not isinstance(textures, dict) or not textures:
+        return make_response(req_id, error={
+            "code": -32602, "message": "material_auto_remap: invalid_field: 'textures' must be a non-empty object"})
+    recognized = {k: v for k, v in textures.items() if k in _MATREMAP_SLOTS}
+    if "base_color" not in recognized:
+        return make_response(req_id, error={
+            "code": -32602, "message": "material_auto_remap: invalid_field: 'textures' must include a 'base_color' entry"})
+    for slot, path in recognized.items():
+        if not isinstance(path, str) or not path.startswith("/Game/"):
+            return make_response(req_id, error={
+                "code": -32602, "message": f"material_auto_remap: invalid_field: textures['{slot}'] must be a string starting with /Game/"})
+        if "\\" in path or any(seg in (".", "..") for seg in path.split("/")):
+            return make_response(req_id, error={
+                "code": -32602, "message": f"material_auto_remap: invalid_field: textures['{slot}'] must not contain '\\\\' or '.'/'..' segments"})
+    dest_material = args.get("dest_material")
+    if dest_material is None:
+        safe = "".join(c if (c.isalnum() or c == "_") else "_" for c in actor_label)
+        dest_material = f"/Game/AutoMaterials/M_{safe}"
+    if not isinstance(dest_material, str) or not dest_material.startswith("/Game/"):
+        return make_response(req_id, error={
+            "code": -32602, "message": "material_auto_remap: invalid_field: 'dest_material' must be a string starting with /Game/"})
+    if "\\" in dest_material or any(seg in (".", "..") for seg in dest_material.split("/")):
+        return make_response(req_id, error={
+            "code": -32602, "message": "material_auto_remap: invalid_field: 'dest_material' must not contain '\\\\' or '.'/'..' segments"})
+    tiling = args.get("tiling", 1.0)
+    if not isinstance(tiling, (int, float)) or isinstance(tiling, bool) or not math.isfinite(tiling) or tiling <= 0:
+        return make_response(req_id, error={
+            "code": -32602, "message": "material_auto_remap: invalid_field: 'tiling' must be a finite number > 0"})
+
+    gate = check_engine_gate(req_id, "material_auto_remap")
+    if gate is not None:
+        return gate
+
+    code = _build_material_remap_script(actor_label, recognized, dest_material, tiling)
+    resp = call_ue("execute_unreal_python", {"code": code, "capture_output": True})
+    if "error" in resp:
+        upstream = resp.get("error") or {}
+        return make_response(req_id, error={
+            "code": upstream.get("code", -32603) or -32603,
+            "message": f"material_auto_remap: ue_exec_failed: {upstream.get('message') or 'execute_unreal_python returned an error'}"})
+    result = resp.get("result") or {}
+    if not result.get("ok"):
+        return make_response(req_id, error={
+            "code": -32603, "message": f"material_auto_remap: ue_python_error: {result.get('output') or result}"})
+    blob = ""
+    for key in ("stdout", "output"):
+        v = result.get(key)
+        if isinstance(v, str) and _MATREMAP_MARKER in v:
+            blob = v
+            break
+    if not blob:
+        snippet = ""
+        for key in ("stdout", "output"):
+            v = result.get(key)
+            if isinstance(v, str) and v:
+                snippet = v[:300]
+                break
+        return make_response(req_id, error={
+            "code": -32603,
+            "message": f"material_auto_remap: missing_result_marker: ran but emitted no result marker (output: {snippet!r})"})
+    line = blob.split(_MATREMAP_MARKER, 1)[1].splitlines()[0].strip()
+    try:
+        parsed = json.loads(line)
+    except (ValueError, TypeError):
+        return make_response(req_id, error={
+            "code": -32603, "message": f"material_auto_remap: bad_result_marker: could not parse {line[:200]!r}"})
+    body = {
+        "ok": True,
+        "actor_label": actor_label,
+        "material_path": parsed.get("material_path", dest_material),
+        "actor_found": parsed.get("actor_found", False),
+        "slots_assigned": parsed.get("slots_assigned", 0),
+        "slots_used": sorted(recognized.keys()),
+    }
+    return _wrap_tool_result(req_id, body)
+
+
 SYNTHETIC_TOOLS = {
     "import_mesh": synthetic_import_mesh,
+    "material_auto_remap": synthetic_material_auto_remap,
     "wait_for_events": synthetic_wait_for_events,
     "get_camera_transform": synthetic_get_camera_transform,
     "set_camera_transform": synthetic_set_camera_transform,

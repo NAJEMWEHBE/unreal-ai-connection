@@ -106,6 +106,7 @@ ENGINE_GATED_TOOLS = {
     "get_camera_transform",
     "set_camera_transform",
     "import_mesh",
+    "material_auto_remap",
 }
 
 
