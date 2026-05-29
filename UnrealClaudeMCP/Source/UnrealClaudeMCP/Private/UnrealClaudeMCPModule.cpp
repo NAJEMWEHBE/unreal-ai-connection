@@ -440,8 +440,17 @@ void FUnrealClaudeMCPModule::StartupModule()
     // UEditorEngine reads each frame, and we deliberately do NOT SaveConfig — so
     // the user's saved Editor Preference is untouched and the next launch
     // (without this plugin) is unchanged. Opt out by setting the environment
-    // variable UCMCP_KEEP_BACKGROUND_THROTTLE=1 before launching the editor.
-    if (FPlatformMisc::GetEnvironmentVariable(TEXT("UCMCP_KEEP_BACKGROUND_THROTTLE")).IsEmpty())
+    // variable UCMCP_KEEP_BACKGROUND_THROTTLE to a truthy value (1/true/yes)
+    // before launching the editor. (Parse truthiness rather than mere presence,
+    // so UCMCP_KEEP_BACKGROUND_THROTTLE=0 / =false reads as "do not keep" — the
+    // intuitive meaning — instead of any non-empty value keeping the throttle.)
+    const FString KeepThrottleEnv =
+        FPlatformMisc::GetEnvironmentVariable(TEXT("UCMCP_KEEP_BACKGROUND_THROTTLE")).TrimStartAndEnd();
+    const bool bKeepThrottle =
+        KeepThrottleEnv == TEXT("1")
+        || KeepThrottleEnv.Equals(TEXT("true"), ESearchCase::IgnoreCase)
+        || KeepThrottleEnv.Equals(TEXT("yes"), ESearchCase::IgnoreCase);
+    if (!bKeepThrottle)
     {
         if (UEditorPerformanceSettings* Perf = GetMutableDefault<UEditorPerformanceSettings>())
         {
