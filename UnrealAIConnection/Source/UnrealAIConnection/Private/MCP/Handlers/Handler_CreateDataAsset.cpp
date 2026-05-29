@@ -28,6 +28,7 @@
 #include "UObject/UObjectGlobals.h"
 #include "Factories/DataAssetFactory.h"
 #include "Engine/DataAsset.h"
+#include "MCP/Handlers/AssetPathUtil.h"
 
 class FHandler_CreateDataAsset : public IUCMCPHandler
 {
@@ -82,13 +83,13 @@ public:
             return nullptr;
         }
 
-        UClass* DataAssetClass = LoadClass<UDataAsset>(nullptr, *ClassPath);
-        if (!DataAssetClass && !ClassPath.EndsWith(TEXT("_C")))
+        // Resolve native class paths and Blueprint-defined DataAsset classes
+        // (plain /Game asset path -> GeneratedClass) uniformly, then require the
+        // result to actually be a UDataAsset subclass.
+        UClass* DataAssetClass = UCMCPAssetPath::ResolveClassByPath(ClassPath);
+        if (DataAssetClass && !DataAssetClass->IsChildOf(UDataAsset::StaticClass()))
         {
-            // Blueprint-defined classes resolve under the generated-class path
-            // (e.g. "/Game/Data/DA_Foo.DA_Foo_C"). Retry with the _C suffix so a
-            // caller can pass the plain asset path for a BP DataAsset class.
-            DataAssetClass = LoadClass<UDataAsset>(nullptr, *(ClassPath + TEXT("_C")));
+            DataAssetClass = nullptr;
         }
         if (!DataAssetClass)
         {

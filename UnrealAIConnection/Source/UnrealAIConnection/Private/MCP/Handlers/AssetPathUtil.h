@@ -15,6 +15,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Engine/Blueprint.h"   // UBlueprint::GeneratedClass for ResolveClassByPath
 
 namespace UCMCPAssetPath
 {
@@ -99,5 +100,22 @@ namespace UCMCPAssetPath
         if (InName.Contains(TEXT("/"))) { return false; }
         if (InName.Contains(TEXT("."))) { return false; }
         return true;
+    }
+
+    /**
+     * Resolve a UClass from a path. Tries LoadClass first — handles native class
+     * paths (e.g. "/Script/Engine.Actor") and explicit generated-class object
+     * paths (e.g. "/Game/BP/BP_Foo.BP_Foo_C"). If that fails, loads the path as a
+     * UBlueprint asset and returns its GeneratedClass, so a caller can pass the
+     * plain /Game asset path of a Blueprint class (e.g. "/Game/BP/BP_Foo").
+     * Returns nullptr if nothing resolves. (Appending a bare "_C" to a package
+     * path does NOT work — the generated class lives at "<pkg>.<name>_C", which
+     * is exactly what loading the UBlueprint + GeneratedClass sidesteps.)
+     */
+    inline UClass* ResolveClassByPath(const FString& Path)
+    {
+        if (UClass* Direct = LoadClass<UObject>(nullptr, *Path)) { return Direct; }
+        if (UBlueprint* BP = LoadObject<UBlueprint>(nullptr, *Path)) { return BP->GeneratedClass; }
+        return nullptr;
     }
 }

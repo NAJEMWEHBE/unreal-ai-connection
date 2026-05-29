@@ -29,6 +29,7 @@
 #include "UObject/Class.h"
 #include "Factories/BlueprintFactory.h"
 #include "Engine/Blueprint.h"
+#include "MCP/Handlers/AssetPathUtil.h"
 
 class FHandler_CreateBlueprint : public IUCMCPHandler
 {
@@ -83,18 +84,13 @@ public:
             ParentPath = TEXT("/Script/Engine.Actor");
         }
 
-        UClass* Parent = LoadClass<UObject>(nullptr, *ParentPath);
-        if (!Parent && !ParentPath.EndsWith(TEXT("_C")))
-        {
-            // Blueprint-defined parents resolve under the generated-class path
-            // (e.g. "/Game/Blueprints/BP_Base.BP_Base_C"). Retry with the _C
-            // suffix so a caller can pass the plain asset path for a BP parent.
-            Parent = LoadClass<UObject>(nullptr, *(ParentPath + TEXT("_C")));
-        }
+        // Resolve native class paths (/Script/...) and Blueprint parents (plain
+        // /Game asset path -> its GeneratedClass) uniformly.
+        UClass* Parent = UCMCPAssetPath::ResolveClassByPath(ParentPath);
         if (!Parent)
         {
             OutError = FString::Printf(
-                TEXT("create_blueprint: parent_class_not_found: no UClass at '%s' (for a Blueprint class, the generated path ends with _C)"),
+                TEXT("create_blueprint: parent_class_not_found: no class resolved from '%s' (pass a native path like /Script/Engine.Actor, or a Blueprint asset path)"),
                 *ParentPath);
             return nullptr;
         }

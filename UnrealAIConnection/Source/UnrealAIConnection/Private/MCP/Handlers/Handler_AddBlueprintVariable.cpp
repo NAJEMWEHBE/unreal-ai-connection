@@ -29,6 +29,7 @@
 #include "EdGraphSchema_K2.h"
 #include "EdGraph/EdGraphPin.h"
 #include "Engine/Blueprint.h"
+#include "MCP/Handlers/AssetPathUtil.h"
 #include "UObject/Class.h"
 #include "UObject/UObjectGlobals.h"
 
@@ -121,15 +122,11 @@ public:
                 OutError = TEXT("add_blueprint_variable: missing_required_field: 'object_class' is required when type is 'object'");
                 return nullptr;
             }
-            UClass* OC = LoadClass<UObject>(nullptr, *ObjectClassPath);
-            if (!OC && !ObjectClassPath.EndsWith(TEXT("_C")))
-            {
-                OC = LoadClass<UObject>(nullptr, *(ObjectClassPath + TEXT("_C")));
-            }
+            UClass* OC = UCMCPAssetPath::ResolveClassByPath(ObjectClassPath);
             if (!OC)
             {
                 OutError = FString::Printf(
-                    TEXT("add_blueprint_variable: invalid_field: object_class_not_found: no UClass at '%s' (for a Blueprint class, the generated path ends with _C)"),
+                    TEXT("add_blueprint_variable: invalid_field: object_class_not_found: no class resolved from '%s' (pass a native path or a Blueprint asset path)"),
                     *ObjectClassPath);
                 return nullptr;
             }

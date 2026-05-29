@@ -81,6 +81,13 @@ public:
 
         UEdGraph* NewGraph = FBlueprintEditorUtils::CreateNewGraph(
             BP, FunctionFName, UEdGraph::StaticClass(), UEdGraphSchema_K2::StaticClass());
+        if (!NewGraph)
+        {
+            OutError = FString::Printf(
+                TEXT("add_blueprint_function: graph_create_failed: could not create a function graph named '%s'"),
+                *FunctionName);
+            return nullptr;
+        }
 
         FBlueprintEditorUtils::AddFunctionGraph<UClass>(
             BP, NewGraph, /*bIsUserCreated=*/true, /*SignatureFromObject=*/(UClass*)nullptr);
