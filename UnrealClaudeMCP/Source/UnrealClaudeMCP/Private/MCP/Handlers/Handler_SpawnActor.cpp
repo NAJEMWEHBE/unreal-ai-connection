@@ -21,6 +21,10 @@ class FHandler_SpawnActor : public IUCMCPHandler
 public:
     virtual FString GetMethodName() const override { return TEXT("spawn_actor"); }
 
+    // Spawn is recorded by the dispatcher's FScopedTransaction (the world captures
+    // actor add/remove while a transaction is open), making it a single undo step.
+    virtual bool IsMutating() const override { return true; }
+
     virtual TSharedPtr<FJsonObject> Handle(const TSharedPtr<FJsonObject>& Params, FString& OutError) override
     {
         if (!Params.IsValid())
@@ -91,6 +95,11 @@ public:
             OutError = FString::Printf(TEXT("spawn_actor: spawn_failed: World::SpawnActor returned null for '%s'"), *ClassPath);
             return nullptr;
         }
+
+        // The spawn itself is recorded by the dispatcher's open transaction; Modify()
+        // here ensures the post-spawn label/property edits below are part of the same
+        // single undo step.
+        Actor->Modify();
 
         // Apply optional label
         FString Label;

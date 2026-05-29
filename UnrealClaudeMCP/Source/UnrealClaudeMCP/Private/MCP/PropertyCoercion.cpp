@@ -116,6 +116,7 @@ namespace UCMCP::PropertyCoercion
 
         UStruct* CurrentStruct = RootObject->GetClass();
         void* CurrentContainer = RootObject;
+        UObject* OwningObject = RootObject;  // nearest enclosing UObject; updated on each FObjectProperty hop
         FString PathSoFar;
 
         for (int32 i = 0; i < Segments.Num(); ++i)
@@ -142,6 +143,7 @@ namespace UCMCP::PropertyCoercion
                 OutResolved.Container    = CurrentContainer;
                 OutResolved.PropAddr     = PropAddr;
                 OutResolved.ResolvedPath = PathSoFar;
+                OutResolved.OwningObject = OwningObject;
                 return MakeOutcome(ECoerceResult::Success);
             }
 
@@ -163,6 +165,7 @@ namespace UCMCP::PropertyCoercion
                 }
                 CurrentStruct    = Pointed->GetClass();
                 CurrentContainer = Pointed;
+                OwningObject     = Pointed;  // stepped into a new UObject — it now owns the remaining path
             }
             else
             {

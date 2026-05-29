@@ -28,6 +28,10 @@ class FHandler_SetActorProperty : public IUCMCPHandler
 public:
     virtual FString GetMethodName() const override { return TEXT("set_actor_property"); }
 
+    // Mutates an existing actor's property; Modify() below records it into the
+    // dispatcher's FScopedTransaction for a single-step undo.
+    virtual bool IsMutating() const override { return true; }
+
     virtual TSharedPtr<FJsonObject> Handle(const TSharedPtr<FJsonObject>& Params, FString& OutError) override
     {
         if (!Params.IsValid())
@@ -91,6 +95,12 @@ public:
         TSharedPtr<FJsonValue> OldValue = UCMCP::PropertyCoercion::EncodeProperty(
             Prop, Resolved.PropAddr, TEXT(".") + Resolved.ResolvedPath, 0);
 
+        // Snapshot the object that actually owns the resolved property (the actor
+        // for a direct property, or the component/subobject a dotted path stepped
+        // into) so the dispatcher's transaction records the change for undo.
+        UObject* ModifyTarget = Resolved.OwningObject ? Resolved.OwningObject : Actor;
+        ModifyTarget->Modify();
+
         UCMCP::PropertyCoercion::FCoerceOutcome Outcome =
             UCMCP::PropertyCoercion::SetProperty(
                 Actor, Prop, Resolved.PropAddr, Value,
@@ -111,9 +121,12 @@ public:
             return nullptr;
         }
 
-        // Fire UE's edit cascade for property mutations.
+        // Fire UE's edit cascade on the object that actually owns the property
+        // (the same object we Modify()'d above) — for a dotted path into a
+        // component/subobject this is that component, not the actor, so the
+        // change notification reaches the real mutation target.
         FPropertyChangedEvent ChangedEvent(Prop);
-        Actor->PostEditChangeProperty(ChangedEvent);
+        ModifyTarget->PostEditChangeProperty(ChangedEvent);
 
         TSharedPtr<FJsonValue> NewValue = UCMCP::PropertyCoercion::EncodeProperty(
             Prop, Resolved.PropAddr, TEXT(".") + Resolved.ResolvedPath, 0);

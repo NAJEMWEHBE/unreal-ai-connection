@@ -26,6 +26,16 @@ public:
      * @return Result object on success; nullptr on failure (with OutError populated).
      */
     virtual TSharedPtr<FJsonObject> Handle(const TSharedPtr<FJsonObject>& Params, FString& OutError) = 0;
+
+    /**
+     * Whether this handler mutates level/actor state that should be captured on
+     * the editor undo stack. When true, the dispatcher wraps Handle() in an
+     * FScopedTransaction so the operation is a single Ctrl+Z step. Mutating
+     * handlers must call UObject::Modify() on each object they change (before the
+     * change) for the transaction to record it. Default false (read-only / async /
+     * asset-content handlers, where an empty transaction would just be discarded).
+     */
+    virtual bool IsMutating() const { return false; }
 };
 
 class UNREALCLAUDEMCP_API FUCMCPHandlerRegistry
