@@ -1,6 +1,6 @@
 # MCP Tools Reference
 
-**124 tools total.** 89 are JSON-RPC 2.0 methods served on `127.0.0.1:18888` directly by the plugin's C++ handlers. The remaining 35 — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`, `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap`, `sequencer_add_transform_keyframe`, `import_mesh`, `material_auto_remap` — are bridge-side **synthetic tools** that are intercepted by `bridge/unreal_ai_connection_bridge.py` and served by composing existing handlers (or running Python via `execute_unreal_python`, or — for `compile_mod_pak` — shelling out to `RunUAT.bat` entirely outside the UE process). They are visible to MCP clients exactly like the C++ tools but cannot be reached by sending raw JSON-RPC to the TCP socket — only via the MCP bridge or by replicating their composition manually. The "Implementation" header on each entry below indicates whether a tool is C++ or bridge-side.
+**129 tools total.** 94 are JSON-RPC 2.0 methods served on `127.0.0.1:18888` directly by the plugin's C++ handlers. The remaining 35 — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`, `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap`, `sequencer_add_transform_keyframe`, `import_mesh`, `material_auto_remap` — are bridge-side **synthetic tools** that are intercepted by `bridge/unreal_ai_connection_bridge.py` and served by composing existing handlers (or running Python via `execute_unreal_python`, or — for `compile_mod_pak` — shelling out to `RunUAT.bat` entirely outside the UE process). They are visible to MCP clients exactly like the C++ tools but cannot be reached by sending raw JSON-RPC to the TCP socket — only via the MCP bridge or by replicating their composition manually. The "Implementation" header on each entry below indicates whether a tool is C++ or bridge-side.
 
 Each tool's params and result are documented with a working example.
 
@@ -13,7 +13,7 @@ s.send(json.dumps({"jsonrpc":"2.0","id":1,"method":"<METHOD>","params":{...}}).e
 print(s.recv(65536).decode())
 ```
 
-Synthetic tools (all 33: `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`, `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap`, `sequencer_add_transform_keyframe`) must be reached through the MCP bridge.
+Synthetic tools (all 35: `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`, `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap`, `sequencer_add_transform_keyframe`) must be reached through the MCP bridge.
 
 ---
 
@@ -1110,6 +1110,189 @@ The binding name is set to the actor's `GetActorLabel()`, which means `inspect_s
 {"jsonrpc":"2.0","id":1,"method":"bind_actor_to_sequence","params":{
   "sequence_path": "/Game/Cinematics/MainCinematic",
   "actor_name": "MyHero_Actor"
+}}
+```
+
+---
+
+## set_sequence_playback_range
+
+**Implementation:** C++ (`Handler_SetSequencePlaybackRange.cpp`).
+
+Set a Level Sequence MovieScene's playback range. Write counterpart to `inspect_sequence`'s `playback_range` read.
+
+**Params**
+- `sequence_path` (string, required) — Level Sequence asset path. Both forms accepted.
+- `start_frame` (integer, optional) — range start in **display-rate** frames (default 0).
+- `end_frame` (integer, required) — range end in **display-rate** frames. Must be greater than `start_frame`.
+
+**Result**
+- `ok` (bool)
+- `sequence_path` (string) — normalized asset path
+- `playback_range` (object) — `{start_frames, end_frames}` in **tick** units (matches `inspect_sequence`)
+- `display_rate_fps` (number)
+
+**Errors:** `missing_required_field`, `asset_not_found`, `not_a_sequence`, `invalid_range`, `save_failed`.
+
+**Behavior note:** uses the `TRange<FFrameNumber>` overload of `SetPlaybackRange` (not the `(Start, Duration)` form) to avoid the duration-vs-end footgun. If the range is locked it is temporarily unlocked, set, then re-locked.
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"set_sequence_playback_range","params":{
+  "sequence_path": "/Game/Cinematics/MainCinematic",
+  "start_frame": 0,
+  "end_frame": 300
+}}
+```
+
+---
+
+## add_cine_camera_to_sequence
+
+**Implementation:** C++ (`Handler_AddCineCameraToSequence.cpp`). **Mutating** — spawns a real actor into the editor world (single undo step).
+
+Spawn an `ACineCameraActor` into the editor world, add it as a **possessable** binding on a Level Sequence, and return the binding GUID (feed it straight into `add_camera_cut_track`).
+
+**Params**
+- `sequence_path` (string, required) — Level Sequence asset path.
+- `label` (string, optional) — actor World Outliner label + binding name (default `"CineCameraActor"`).
+- `location` (object, optional) — world location `{x,y,z}` (default 0,0,0).
+- `rotation` (object, optional) — world rotation `{pitch,yaw,roll}` (default 0,0,0).
+
+**Result**
+- `ok` (bool)
+- `sequence_path` (string) — normalized asset path
+- `binding_guid` (string) — GUID of the created possessable binding (canonical hyphenated form)
+- `actor_label` (string) — the spawned camera's label, also the binding name
+- `actor_name` (string) — the spawned actor's `FName`
+- `class` (string) — always `"CineCameraActor"`
+- `binding_type` (string) — always `"possessable"`
+
+**Errors:** `missing_required_field`, `asset_not_found`, `not_a_sequence`, `no_editor_world`, `spawn_failed`, `bind_failed`, `save_failed`.
+
+**Behavior note:** the spawned camera is a **persistent level actor** (saved with the level, on the undo stack), not sequence-owned. Spawnable mode is intentionally not offered — it requires an active Sequencer UI. The sequence binding is persisted by saving the sequence asset; the actor persists with the level on a separate save.
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"add_cine_camera_to_sequence","params":{
+  "sequence_path": "/Game/Cinematics/MainCinematic",
+  "label": "ShotCam_A",
+  "location": {"x": 0, "y": -400, "z": 150},
+  "rotation": {"pitch": -10, "yaw": 90, "roll": 0}
+}}
+```
+
+---
+
+## add_camera_cut_track
+
+**Implementation:** C++ (`Handler_AddCameraCutTrack.cpp`).
+
+Add (or reuse) the single camera cut track on a Level Sequence and append a section that points the viewer at an existing camera binding over a frame range.
+
+**Params**
+- `sequence_path` (string, required) — Level Sequence asset path.
+- `camera_binding_guid` (string, required) — GUID of an existing possessable/spawnable in the sequence (e.g. from `add_cine_camera_to_sequence` or `bind_actor_to_sequence`). Validated against the sequence's bindings.
+- `start_frame` (integer, optional) — cut start in **display-rate** frames (default 0).
+- `end_frame` (integer, optional) — cut end in **display-rate** frames (default = playback-range end). Must be greater than `start_frame`.
+
+**Result**
+- `ok` (bool)
+- `sequence_path` (string) — normalized asset path
+- `track_class` (string) — always `"MovieSceneCameraCutTrack"`
+- `section_index` (integer) — index of the new section in the track
+- `camera_binding_guid` (string) — echoed canonical GUID
+- `start_frame` / `end_frame` (integer) — the applied range in **tick** units
+
+**Errors:** `missing_required_field`, `invalid_guid`, `asset_not_found`, `not_a_sequence`, `binding_not_found`, `invalid_range`, `track_add_failed`, `section_add_failed`, `save_failed`.
+
+**Behavior note:** there is only one camera cut track per sequence — it is reused if present. `AddNewCameraCut` auto-sizes the section end to the playback-range upper bound; this handler disables section auto-management and forces the exact `[start_frame, end_frame]` range afterward.
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"add_camera_cut_track","params":{
+  "sequence_path": "/Game/Cinematics/MainCinematic",
+  "camera_binding_guid": "0F1E2D3C-4B5A-6978-8796-A5B4C3D2E1F0",
+  "start_frame": 0,
+  "end_frame": 120
+}}
+```
+
+---
+
+## add_audio_track
+
+**Implementation:** C++ (`Handler_AddAudioTrack.cpp`).
+
+Add a root-level (master) audio track to a Level Sequence and append a sound section playing a `USoundBase` (SoundWave / SoundCue / MetaSound source).
+
+**Params**
+- `sequence_path` (string, required) — Level Sequence asset path.
+- `sound_path` (string, required) — path to a `USoundBase` asset.
+- `start_frame` (integer, optional) — section start in **display-rate** frames (default 0).
+- `row_index` (integer, optional) — track row to place the section on (default `-1` = next free row).
+- `volume` (number, optional) — constant volume; sets the section's sound-volume channel default.
+- `looping` (boolean, optional) — whether the section loops.
+
+**Result**
+- `ok` (bool)
+- `sequence_path` (string) — normalized asset path
+- `track_class` (string) — always `"MovieSceneAudioTrack"`
+- `sound_path` (string) — normalized sound asset path
+- `section_index` (integer) — index of the new section in the track
+- `start_frame` (integer) — section start in **tick** units
+
+**Errors:** `missing_required_field`, `asset_not_found`, `not_a_sequence`, `sound_not_found`, `not_a_sound`, `track_add_failed`, `section_add_failed`, `save_failed`.
+
+**Behavior note:** the section length auto-sizes from the sound's duration; `volume` is a keyframe channel default (not a simple scalar), so only its default value is set.
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"add_audio_track","params":{
+  "sequence_path": "/Game/Cinematics/MainCinematic",
+  "sound_path": "/Game/Audio/Music_Theme",
+  "start_frame": 0,
+  "looping": true
+}}
+```
+
+---
+
+## add_visibility_track
+
+**Implementation:** C++ (`Handler_AddVisibilityTrack.cpp`).
+
+Add a visibility track to an existing binding on a Level Sequence and key the actor's visibility on/off at given frames.
+
+**Params**
+- `sequence_path` (string, required) — Level Sequence asset path.
+- `binding_guid` (string, required) — GUID of an existing binding (possessable/spawnable) to attach the track to.
+- `keys` (array, required unless `visible_at_start` given) — array of `{frame: int (display-rate), visible: bool}`; at least one entry.
+- `visible_at_start` (boolean, optional) — convenience: a single visibility key at `start_frame` instead of `keys`.
+- `start_frame` (integer, optional) — frame for the `visible_at_start` key (default 0).
+
+**Result**
+- `ok` (bool)
+- `sequence_path` (string) — normalized asset path
+- `binding_guid` (string) — echoed canonical GUID
+- `track_class` (string) — always `"MovieSceneVisibilityTrack"`
+- `section_index` (integer) — index of the new section in the track
+- `key_count` (integer) — number of keys written
+
+**Errors:** `missing_required_field`, `invalid_guid`, `asset_not_found`, `not_a_sequence`, `binding_not_found`, `no_keys`, `track_add_failed`, `section_add_failed`, `save_failed`.
+
+**Behavior note:** `visible` is specified in user terms. Internally the underlying property is the actor's *hidden* flag, so `visible: true` is stored as a `false` channel value (and vice versa) — the inversion is handled for you and round-trips correctly.
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"add_visibility_track","params":{
+  "sequence_path": "/Game/Cinematics/MainCinematic",
+  "binding_guid": "0F1E2D3C-4B5A-6978-8796-A5B4C3D2E1F0",
+  "keys": [
+    {"frame": 0,   "visible": false},
+    {"frame": 60,  "visible": true},
+    {"frame": 180, "visible": false}
+  ]
 }}
 ```
 

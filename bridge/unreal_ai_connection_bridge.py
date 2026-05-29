@@ -13,7 +13,7 @@ plugin speaks raw JSON-RPC over a local TCP socket (default
 Behaviour:
   - "initialize"             returned synthetically (does NOT hit the UE server)
   - "notifications/*"        consumed silently
-  - "tools/list"             returns a static list of all 124 tools (89
+  - "tools/list"             returns a static list of all 129 tools (94
                              dispatched to the UE plugin's C++ handlers
                              plus 35 bridge-side synthetic tools served by
                              SYNTHETIC_TOOLS without crossing the wire as
@@ -1019,6 +1019,78 @@ TOOLS = [
                 "actor_name": {"type": "string", "description": "Actor label or FName in the current editor world. Hybrid identification: ambiguous labels return ambiguous_actor."},
             },
             "required": ["sequence_path", "actor_name"],
+        },
+    },
+    {
+        "name": "set_sequence_playback_range",
+        "description": "Set a Level Sequence MovieScene's playback range start/end. Inputs are display-rate frames; the stored range (returned) is in tick units, matching inspect_sequence. Write counterpart to inspect_sequence's playback_range read.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "sequence_path": {"type": "string", "description": "Level Sequence asset path (object path or package path)."},
+                "start_frame": {"type": "integer", "description": "Range start in display-rate frames (default 0)."},
+                "end_frame": {"type": "integer", "description": "Range end in display-rate frames; must be greater than start_frame."},
+            },
+            "required": ["sequence_path", "end_frame"],
+        },
+    },
+    {
+        "name": "add_cine_camera_to_sequence",
+        "description": "Spawn an ACineCameraActor into the editor world, add it as a possessable binding on a Level Sequence, and return the binding GUID (feed it into add_camera_cut_track). The spawned camera is a persistent level actor (not sequence-owned). Spawnable mode is not offered (needs an active Sequencer UI).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "sequence_path": {"type": "string", "description": "Level Sequence asset path."},
+                "label": {"type": "string", "description": "Actor World Outliner label + binding name (default 'CineCameraActor')."},
+                "location": {"type": "object", "description": "World location {x,y,z} (default 0,0,0)."},
+                "rotation": {"type": "object", "description": "World rotation {pitch,yaw,roll} (default 0,0,0)."},
+            },
+            "required": ["sequence_path"],
+        },
+    },
+    {
+        "name": "add_camera_cut_track",
+        "description": "Add (or reuse) the single camera cut track on a Level Sequence and append a section that points the viewer at an existing camera binding (by GUID) over a [start_frame, end_frame] range. Frames are display-rate; the returned range is in ticks.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "sequence_path": {"type": "string", "description": "Level Sequence asset path."},
+                "camera_binding_guid": {"type": "string", "description": "GUID of an existing possessable/spawnable in the sequence (e.g. from add_cine_camera_to_sequence or bind_actor_to_sequence)."},
+                "start_frame": {"type": "integer", "description": "Cut start in display-rate frames (default 0)."},
+                "end_frame": {"type": "integer", "description": "Cut end in display-rate frames (default = playback range end); must be greater than start_frame."},
+            },
+            "required": ["sequence_path", "camera_binding_guid"],
+        },
+    },
+    {
+        "name": "add_audio_track",
+        "description": "Add a root-level (master) audio track to a Level Sequence and append a sound section playing a USoundBase (SoundWave / SoundCue / MetaSound source) starting at a given frame.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "sequence_path": {"type": "string", "description": "Level Sequence asset path."},
+                "sound_path": {"type": "string", "description": "Path to a USoundBase asset (SoundWave / SoundCue / MetaSound source)."},
+                "start_frame": {"type": "integer", "description": "Section start in display-rate frames (default 0)."},
+                "row_index": {"type": "integer", "description": "Track row to place the section on (default -1 = next free row)."},
+                "volume": {"type": "number", "description": "Constant volume; sets the section's sound-volume channel default."},
+                "looping": {"type": "boolean", "description": "Whether the sound section loops."},
+            },
+            "required": ["sequence_path", "sound_path"],
+        },
+    },
+    {
+        "name": "add_visibility_track",
+        "description": "Add a visibility track to an existing binding (possessable/spawnable) on a Level Sequence and key the actor's visibility on/off at given frames. 'visible' is keyed in user terms (the inverted hidden-flag handling is done internally). Frames are display-rate.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "sequence_path": {"type": "string", "description": "Level Sequence asset path."},
+                "binding_guid": {"type": "string", "description": "GUID of an existing binding to attach the visibility track to."},
+                "keys": {"type": "array", "description": "Array of {frame: int (display-rate), visible: bool}; at least one entry.", "items": {"type": "object"}},
+                "visible_at_start": {"type": "boolean", "description": "Convenience: a single visibility key at start_frame instead of 'keys'."},
+                "start_frame": {"type": "integer", "description": "Frame for the visible_at_start convenience key (default 0)."},
+            },
+            "required": ["sequence_path", "binding_guid"],
         },
     },
     {

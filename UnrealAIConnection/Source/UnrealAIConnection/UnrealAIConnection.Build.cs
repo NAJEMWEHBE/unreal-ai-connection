@@ -41,6 +41,9 @@ public class UnrealAIConnection : ModuleRules
             "LevelSequence",
             "MovieScene",
             "MovieSceneTracks",
+            // Cinematics authoring lane — ACineCameraActor / UCineCameraComponent
+            // (add_cine_camera_to_sequence) live in the CinematicCamera module.
+            "CinematicCamera",
             // DMX patch authoring (create_dmx_patch handler, v0.9.2)
             "DMXRuntime",
             // DMX continuous output streamer (dmx_stream_* handlers, v0.9.3) —
