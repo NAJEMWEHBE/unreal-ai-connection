@@ -48,10 +48,10 @@ public:
             OutError = TEXT("create_data_asset: missing_required_field: 'path' is required");
             return nullptr;
         }
-        if (!PackagePath.StartsWith(TEXT("/Game")))
+        if (!PackagePath.StartsWith(TEXT("/Game/")))
         {
             OutError = FString::Printf(
-                TEXT("create_data_asset: invalid_field: 'path' must start with /Game, got '%s'"),
+                TEXT("create_data_asset: invalid_field: 'path' must start with /Game/, got '%s'"),
                 *PackagePath);
             return nullptr;
         }
@@ -83,10 +83,17 @@ public:
         }
 
         UClass* DataAssetClass = LoadClass<UDataAsset>(nullptr, *ClassPath);
+        if (!DataAssetClass && !ClassPath.EndsWith(TEXT("_C")))
+        {
+            // Blueprint-defined classes resolve under the generated-class path
+            // (e.g. "/Game/Data/DA_Foo.DA_Foo_C"). Retry with the _C suffix so a
+            // caller can pass the plain asset path for a BP DataAsset class.
+            DataAssetClass = LoadClass<UDataAsset>(nullptr, *(ClassPath + TEXT("_C")));
+        }
         if (!DataAssetClass)
         {
             OutError = FString::Printf(
-                TEXT("create_data_asset: invalid_field: class_not_found: no UDataAsset subclass at '%s'"),
+                TEXT("create_data_asset: invalid_field: class_not_found: no UDataAsset subclass at '%s' (for a Blueprint class, the generated path ends with _C)"),
                 *ClassPath);
             return nullptr;
         }

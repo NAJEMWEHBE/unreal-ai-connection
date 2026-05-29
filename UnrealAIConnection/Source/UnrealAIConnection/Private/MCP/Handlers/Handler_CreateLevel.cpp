@@ -58,6 +58,10 @@ public:
             return nullptr;
         }
 
+        // Strip a trailing slash so NewLevel doesn't create an empty-named
+        // package (e.g. "/Game/Maps/" -> create at "/Game/Maps").
+        Path.RemoveFromEnd(TEXT("/"));
+
         ULevelEditorSubsystem* LevelSS =
             GEditor ? GEditor->GetEditorSubsystem<ULevelEditorSubsystem>() : nullptr;
         if (!LevelSS)

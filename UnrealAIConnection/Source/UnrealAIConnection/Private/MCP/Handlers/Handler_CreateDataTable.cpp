@@ -48,7 +48,7 @@ public:
             OutError = TEXT("create_data_table: missing_required_field: 'path' is required");
             return nullptr;
         }
-        if (!PackagePath.StartsWith(TEXT("/Game")))
+        if (!PackagePath.StartsWith(TEXT("/Game/")))
         {
             OutError = FString::Printf(
                 TEXT("create_data_table: invalid_field: 'path' must start with /Game, got '%s'"),
@@ -87,6 +87,15 @@ public:
         {
             OutError = FString::Printf(
                 TEXT("create_data_table: invalid_field: row_struct_not_found: no UScriptStruct at '%s'"),
+                *RowStructPath);
+            return nullptr;
+        }
+        // A UDataTable requires its row struct to derive from FTableRowBase;
+        // anything else produces an unusable table.
+        if (!RowStruct->IsChildOf(FTableRowBase::StaticStruct()))
+        {
+            OutError = FString::Printf(
+                TEXT("create_data_table: invalid_field: row_struct '%s' must derive from FTableRowBase"),
                 *RowStructPath);
             return nullptr;
         }
