@@ -6,6 +6,11 @@
 #include "MCP/LogCapture.h"
 #include "MCP/EventBus.h"
 
+// Editor responsiveness: disable background-CPU throttle while the server runs
+// (Editor/EditorPerformanceSettings.h declares UEditorPerformanceSettings).
+#include "Editor/EditorPerformanceSettings.h"
+#include "HAL/PlatformMisc.h"
+
 // Tier 2 event-push delegate sources (PR #40)
 #include "Engine/Engine.h"           // UEngine::OnLevelActorAdded/Deleted (Engine.h:2200/2207)
 #include "Engine/World.h"            // UWorld::GetPathName for actor.level
@@ -424,6 +429,33 @@ void FUnrealClaudeMCPModule::StartupModule()
     }
 
     FUCMCPServer::Get().Start(kMCPDefaultPort);
+
+    // Keep the editor responsive to MCP commands while it is unfocused.
+    // MCP requests are drained on the game-thread ticker (every ~50 ms), but UE
+    // throttles a *backgrounded* editor to a few FPS ("Use Less CPU when in
+    // Background"), which caps the ticker to the frame rate and adds ~one frame
+    // (~300 ms) of latency per command when the user drives the editor from
+    // another window (the normal MCP-client case). Disable that throttle for
+    // THIS session only: GetMutableDefault mutates the in-memory CDO that
+    // UEditorEngine reads each frame, and we deliberately do NOT SaveConfig — so
+    // the user's saved Editor Preference is untouched and the next launch
+    // (without this plugin) is unchanged. Opt out by setting the environment
+    // variable UCMCP_KEEP_BACKGROUND_THROTTLE=1 before launching the editor.
+    if (FPlatformMisc::GetEnvironmentVariable(TEXT("UCMCP_KEEP_BACKGROUND_THROTTLE")).IsEmpty())
+    {
+        if (UEditorPerformanceSettings* Perf = GetMutableDefault<UEditorPerformanceSettings>())
+        {
+            if (Perf->bThrottleCPUWhenNotForeground)
+            {
+                Perf->bThrottleCPUWhenNotForeground = false;
+                UE_LOG(LogUnrealClaudeMCP, Log,
+                    TEXT("[UnrealClaudeMCP] Disabled 'Use Less CPU when in Background' for this session ")
+                    TEXT("so MCP commands stay responsive (~50 ms) while the editor is unfocused. ")
+                    TEXT("In-memory only — your saved Editor Preference is unchanged. ")
+                    TEXT("Set UCMCP_KEEP_BACKGROUND_THROTTLE=1 to keep the throttle."));
+            }
+        }
+    }
 }
 
 void FUnrealClaudeMCPModule::ShutdownModule()
