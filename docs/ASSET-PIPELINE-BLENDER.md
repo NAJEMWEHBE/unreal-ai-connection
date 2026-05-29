@@ -120,11 +120,16 @@ inputs.
 
 ## Step 3 — Import into Unreal via the existing seam
 
-**There is no mesh-import handler in this plugin, and by design there will
-not be one** (ADR-0002 / house rules). The supported import path is the
-universal escape hatch — `execute_unreal_python` running UE's canonical
-`unreal.AssetImportTask`. Paste this block to a live editor through the
-`execute_unreal_python` tool (adjust the three paths):
+**There is no mesh-import C++ *handler* in this plugin, and by design there
+will not be one** (ADR-0002 / house rules). Since 2026-05 the supported
+convenience path is the **`import_mesh` bridge synthetic**: pass `source_path`
+(`.glb`/`.gltf`/`.fbx`/`.obj`), `dest_path` (under `/Game/`), and
+`import_materials` (bool); it runs UE's Interchange pipeline and returns the
+created `static_meshes` paths. `import_mesh` honors ADR-0002 — it is a
+Python-composition synthetic over `execute_unreal_python`, **not** new plugin
+C++. Prefer it for normal imports. The raw `unreal.AssetImportTask` block below
+remains the underlying mechanism and a useful by-hand escape hatch — paste it to
+a live editor through the `execute_unreal_python` tool (adjust the three paths):
 
 ```python
 import unreal
