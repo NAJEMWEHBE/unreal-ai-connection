@@ -1,6 +1,6 @@
 # MCP Tools Reference
 
-**109 tools total.** 74 are JSON-RPC 2.0 methods served on `127.0.0.1:18888` directly by the plugin's C++ handlers. The remaining 35 — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`, `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap`, `sequencer_add_transform_keyframe`, `import_mesh`, `material_auto_remap` — are bridge-side **synthetic tools** that are intercepted by `bridge/unreal_ai_connection_bridge.py` and served by composing existing handlers (or running Python via `execute_unreal_python`, or — for `compile_mod_pak` — shelling out to `RunUAT.bat` entirely outside the UE process). They are visible to MCP clients exactly like the C++ tools but cannot be reached by sending raw JSON-RPC to the TCP socket — only via the MCP bridge or by replicating their composition manually. The "Implementation" header on each entry below indicates whether a tool is C++ or bridge-side.
+**112 tools total.** 77 are JSON-RPC 2.0 methods served on `127.0.0.1:18888` directly by the plugin's C++ handlers. The remaining 35 — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`, `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap`, `sequencer_add_transform_keyframe`, `import_mesh`, `material_auto_remap` — are bridge-side **synthetic tools** that are intercepted by `bridge/unreal_ai_connection_bridge.py` and served by composing existing handlers (or running Python via `execute_unreal_python`, or — for `compile_mod_pak` — shelling out to `RunUAT.bat` entirely outside the UE process). They are visible to MCP clients exactly like the C++ tools but cannot be reached by sending raw JSON-RPC to the TCP socket — only via the MCP bridge or by replicating their composition manually. The "Implementation" header on each entry below indicates whether a tool is C++ or bridge-side.
 
 Each tool's params and result are documented with a working example.
 
@@ -619,6 +619,60 @@ Remove an actor from the current editor world by label or FName. Uses the same h
 | `actor_not_found` | No actor matches the given name. |
 | `ambiguous_actor` | Label matches multiple actors. Error message lists candidate FNames. |
 | `has_children` | `force=false` and the actor has attached children. |
+
+---
+
+## duplicate_actor
+
+**Implementation:** C++. Clones an existing level actor (`UEditorActorSubsystem::DuplicateActor`), optionally offset and relabelled. Wrapped in an editor transaction — a single Ctrl+Z removes the clone. Target resolved by label or FName (hybrid lookup).
+
+**Params**
+- `name` (string, required) — source actor label OR FName.
+- `offset` (object, optional) — world-space `{x, y, z}` offset for the clone (default same location).
+- `label` (string, optional) — World Outliner label for the clone (default UE auto-name).
+
+**Result**
+- `ok` (bool)
+- `source` (string) — source actor FName
+- `name` (string) — the clone's new FName
+- `label` (string) — the clone's World Outliner label
+
+**Error codes:** `missing_params`, `missing_required_field`, `actor_not_found`, `ambiguous_actor`, `editor_unavailable`, `duplicate_failed`.
+
+---
+
+## set_actor_folder
+
+**Implementation:** C++. Sets an actor's World Outliner folder path (`AActor::SetFolderPath`) for organization — e.g. `"Lighting/Key"`. Pass `""` to move the actor to the outliner root. Undoable.
+
+**Params**
+- `name` (string, required) — actor label OR FName.
+- `folder` (string, required) — slash-delimited folder path; `""` = root.
+
+**Result**
+- `ok` (bool)
+- `name` (string) — actor FName
+- `folder` (string) — the folder path after the change
+
+**Error codes:** `missing_params`, `missing_required_field`, `actor_not_found`, `ambiguous_actor`.
+
+---
+
+## rename_actor
+
+**Implementation:** C++. Changes an actor's World Outliner display **label** (`AActor::SetActorLabel`). The stable FName is unchanged. Undoable.
+
+**Params**
+- `name` (string, required) — actor label OR FName to target.
+- `label` (string, required) — new display label.
+
+**Result**
+- `ok` (bool)
+- `name` (string) — actor FName (unchanged)
+- `old_label` (string)
+- `new_label` (string)
+
+**Error codes:** `missing_params`, `missing_required_field`, `actor_not_found`, `ambiguous_actor`.
 
 ---
 

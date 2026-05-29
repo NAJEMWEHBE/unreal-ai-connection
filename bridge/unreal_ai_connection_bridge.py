@@ -13,7 +13,7 @@ plugin speaks raw JSON-RPC over a local TCP socket (default
 Behaviour:
   - "initialize"             returned synthetically (does NOT hit the UE server)
   - "notifications/*"        consumed silently
-  - "tools/list"             returns a static list of all 109 tools (74
+  - "tools/list"             returns a static list of all 112 tools (77
                              dispatched to the UE plugin's C++ handlers
                              plus 35 bridge-side synthetic tools served by
                              SYNTHETIC_TOOLS without crossing the wire as
@@ -833,6 +833,43 @@ TOOLS = [
                 "force": {"type": "boolean", "description": "When false (default), refuses to delete if children are attached and returns has_children error. When true, deletes anyway."},
             },
             "required": ["name"],
+        },
+    },
+    {
+        "name": "duplicate_actor",
+        "description": "Clone an existing level actor (label or FName), optionally offset and relabel. Returns the new actor's FName + label. Wrapped in an editor transaction (single Ctrl+Z). Ambiguous label returns ambiguous_actor with candidate FNames.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Source actor label OR FName."},
+                "offset": {"type": "object", "description": "Optional world-space offset {x,y,z} for the clone (default same location)."},
+                "label": {"type": "string", "description": "Optional World Outliner label for the clone (default UE auto-name)."},
+            },
+            "required": ["name"],
+        },
+    },
+    {
+        "name": "set_actor_folder",
+        "description": "Set an actor's World Outliner folder path (organization), e.g. 'Lighting/Key'. Pass an empty string to move it to the outliner root. Label or FName. Undoable.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Actor label OR FName."},
+                "folder": {"type": "string", "description": "Slash-delimited outliner folder path (e.g. 'Lighting/Key'); \"\" = root. Required."},
+            },
+            "required": ["name", "folder"],
+        },
+    },
+    {
+        "name": "rename_actor",
+        "description": "Change an actor's World Outliner display label (SetActorLabel). The stable FName is unchanged. Returns old_label + new_label. Label or FName to target. Undoable.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Actor label OR FName to target."},
+                "label": {"type": "string", "description": "New display label. Required."},
+            },
+            "required": ["name", "label"],
         },
     },
     {

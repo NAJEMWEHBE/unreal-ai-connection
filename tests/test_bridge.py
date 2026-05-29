@@ -77,6 +77,7 @@ def test_tool_names_are_unique_and_match_handlers():
         "import_texture", "configure_texture",
         "find_assets", "spawn_actor", "set_actor_transform", "delete_actor",
         "set_actor_property", "add_component",
+        "duplicate_actor", "set_actor_folder", "rename_actor",
         "undo_transaction", "redo_transaction",
         "get_log_lines", "execute_console_command",
         "inspect_asset", "move_asset", "rename_asset", "duplicate_asset", "delete_asset",
