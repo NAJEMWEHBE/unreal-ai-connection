@@ -121,9 +121,12 @@ public:
             return nullptr;
         }
 
-        // Fire UE's edit cascade for property mutations.
+        // Fire UE's edit cascade on the object that actually owns the property
+        // (the same object we Modify()'d above) — for a dotted path into a
+        // component/subobject this is that component, not the actor, so the
+        // change notification reaches the real mutation target.
         FPropertyChangedEvent ChangedEvent(Prop);
-        Actor->PostEditChangeProperty(ChangedEvent);
+        ModifyTarget->PostEditChangeProperty(ChangedEvent);
 
         TSharedPtr<FJsonValue> NewValue = UCMCP::PropertyCoercion::EncodeProperty(
             Prop, Resolved.PropAddr, TEXT(".") + Resolved.ResolvedPath, 0);
