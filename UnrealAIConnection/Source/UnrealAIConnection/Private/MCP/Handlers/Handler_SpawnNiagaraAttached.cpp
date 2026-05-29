@@ -122,6 +122,49 @@ public:
         Params->TryGetStringField(TEXT("component_name"), CompName);
         FName CompFName = CompName.IsEmpty() ? NAME_None : FName(*CompName);
 
+        // Validate the attach target + socket BEFORE any mutation. Resolving the
+        // parent component and checking the socket up front means a bad target/
+        // socket returns an error without ever creating or registering an orphan
+        // UNiagaraComponent (the prior flow mutated first then cleaned up).
+        USceneComponent* Parent = Actor->GetRootComponent();
+        FString AttachTo;
+        if (Params->TryGetStringField(TEXT("attach_to"), AttachTo) && !AttachTo.IsEmpty())
+        {
+            USceneComponent* Found = nullptr;
+            TInlineComponentArray<USceneComponent*> SceneComps;
+            Actor->GetComponents<USceneComponent>(SceneComps);
+            for (USceneComponent* SC : SceneComps)
+            {
+                if (SC && SC->GetFName().ToString() == AttachTo)
+                {
+                    Found = SC;
+                    break;
+                }
+            }
+            if (!Found)
+            {
+                OutError = FString::Printf(
+                    TEXT("spawn_niagara_attached: attach_target_not_found: no component '%s' on actor '%s'"),
+                    *AttachTo, *Actor->GetFName().ToString());
+                return nullptr;
+            }
+            Parent = Found;
+        }
+
+        FString Socket;
+        FName SocketFName = NAME_None;
+        if (Params->TryGetStringField(TEXT("socket"), Socket) && !Socket.IsEmpty())
+        {
+            SocketFName = FName(*Socket);
+            if (Parent && !Parent->DoesSocketExist(SocketFName))
+            {
+                OutError = FString::Printf(
+                    TEXT("spawn_niagara_attached: socket_not_found: parent '%s' has no socket '%s'"),
+                    *Parent->GetFName().ToString(), *Socket);
+                return nullptr;
+            }
+        }
+
         // Snapshot the actor BEFORE adding the component so the dispatcher's
         // transaction records the addition (a Modify() after the fact would
         // snapshot the already-modified actor and undo would not remove the
@@ -135,51 +178,17 @@ public:
             return nullptr;
         }
 
+        // auto_activate defaults true; deactivate if explicitly false. Set the
+        // PERSISTENT bAutoActivate property BEFORE RegisterComponent + the
+        // RerunConstructionScripts below so the requested state survives
+        // reconstruction (the transient Activate/Deactivate call alone is lost
+        // when the construction scripts re-run and reactivate the component).
+        bool bAutoActivate = true;
+        Params->TryGetBoolField(TEXT("auto_activate"), bAutoActivate);
+        NewComp->bAutoActivate = bAutoActivate;
+
         Actor->AddInstanceComponent(NewComp);
         NewComp->RegisterComponent();
-
-        // Resolve the parent component (default = root; or a named USceneComponent).
-        USceneComponent* Parent = Actor->GetRootComponent();
-        FString AttachTo;
-        if (Params->TryGetStringField(TEXT("attach_to"), AttachTo) && !AttachTo.IsEmpty())
-        {
-            USceneComponent* Found = nullptr;
-            TInlineComponentArray<USceneComponent*> SceneComps;
-            Actor->GetComponents<USceneComponent>(SceneComps);
-            for (USceneComponent* SC : SceneComps)
-            {
-                if (SC && SC != NewComp && SC->GetFName().ToString() == AttachTo)
-                {
-                    Found = SC;
-                    break;
-                }
-            }
-            if (!Found)
-            {
-                OutError = FString::Printf(
-                    TEXT("spawn_niagara_attached: attach_target_not_found: no component '%s' on actor '%s'"),
-                    *AttachTo, *Actor->GetFName().ToString());
-                NewComp->DestroyComponent();
-                return nullptr;
-            }
-            Parent = Found;
-        }
-
-        // Validate socket against the parent before attaching.
-        FString Socket;
-        FName SocketFName = NAME_None;
-        if (Params->TryGetStringField(TEXT("socket"), Socket) && !Socket.IsEmpty())
-        {
-            SocketFName = FName(*Socket);
-            if (Parent && !Parent->DoesSocketExist(SocketFName))
-            {
-                OutError = FString::Printf(
-                    TEXT("spawn_niagara_attached: socket_not_found: parent '%s' has no socket '%s'"),
-                    *Parent->GetFName().ToString(), *Socket);
-                NewComp->DestroyComponent();
-                return nullptr;
-            }
-        }
 
         FString AttachedToName = TEXT("");
         if (Parent)
@@ -225,9 +234,9 @@ public:
         // initialized against a registered component (spec gotcha).
         NewComp->SetAsset(System);
 
-        // auto_activate defaults true; deactivate if explicitly false.
-        bool bAutoActivate = true;
-        Params->TryGetBoolField(TEXT("auto_activate"), bAutoActivate);
+        // Apply the transient activation state too (the persistent bAutoActivate
+        // flag was already set before RegisterComponent above so the desired
+        // state survives RerunConstructionScripts).
         if (bAutoActivate)
         {
             NewComp->Activate(true);

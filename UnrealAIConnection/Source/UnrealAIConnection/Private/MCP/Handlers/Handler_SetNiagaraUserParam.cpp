@@ -148,12 +148,34 @@ public:
             return nullptr;
         }
 
+        // Guard against a null component slot before any dereference (GetComponents
+        // can theoretically yield a null entry; NiagaraComps[0] is not otherwise
+        // null-checked on the single-component path).
+        if (!Target)
+        {
+            OutError = FString::Printf(
+                TEXT("set_niagara_user_param: no_niagara_component: actor '%s' has a null UNiagaraComponent"),
+                *Actor->GetFName().ToString());
+            return nullptr;
+        }
+
         // Pre-check the user param exists (SetVariable* silently no-ops on an absent
         // or type-mismatched name). Match against the asset's exposed user parameters
         // by bare name, tolerating the "User." namespace prefix on either side
-        // (FNiagaraUserRedirectionParameterStore redirects "User.").
+        // (FNiagaraUserRedirectionParameterStore redirects "User."). The matched
+        // variable's type is captured so the type-specific SetVariable* below can be
+        // gated on it (a mismatch otherwise no-ops yet reports success).
         const FName ParamFName(*ParamName);
-        if (UNiagaraSystem* Asset = Target->GetAsset())
+        UNiagaraSystem* Asset = Target->GetAsset();
+        if (!Asset)
+        {
+            OutError = FString::Printf(
+                TEXT("set_niagara_user_param: invalid_field: component '%s' on actor '%s' has no Niagara System asset"),
+                *Target->GetFName().ToString(), *Actor->GetFName().ToString());
+            return nullptr;
+        }
+
+        FNiagaraTypeDefinition MatchedType;
         {
             TArray<FNiagaraVariable> UserParameters;
             Asset->GetExposedParameters().GetUserParameters(UserParameters);
@@ -171,6 +193,7 @@ public:
                 const FString VarName = Var.GetName().ToString();
                 if (VarName == ParamName || StripUserPrefix(VarName) == WantBare)
                 {
+                    MatchedType = Var.GetType();
                     bFound = true;
                     break;
                 }
@@ -180,6 +203,50 @@ public:
                 OutError = FString::Printf(
                     TEXT("set_niagara_user_param: invalid_field: system '%s' exposes no user parameter '%s'"),
                     *Asset->GetName(), *ParamName);
+                return nullptr;
+            }
+        }
+
+        // Verify the requested type matches the parameter's actual type before
+        // writing — SetVariableFloat/Vec3/LinearColor/Bool silently no-op on a
+        // type mismatch yet the handler would otherwise report success. Each
+        // supported wire type accepts the canonical FNiagaraTypeDefinition(s) that
+        // the corresponding SetVariable* call can actually write. Note: vec3 also
+        // accepts a Position-typed param because UNiagaraComponent::SetVariableVec3
+        // internally redirects to SetVariablePosition for Position params (see
+        // NiagaraComponent.cpp), so rejecting it would be wrong.
+        {
+            bool bRecognizedType = true;
+            bool bTypeOk = false;
+            if (Type == TEXT("float"))
+            {
+                bTypeOk = (MatchedType == FNiagaraTypeDefinition::GetFloatDef());
+            }
+            else if (Type == TEXT("vec3"))
+            {
+                bTypeOk = (MatchedType == FNiagaraTypeDefinition::GetVec3Def())
+                       || (MatchedType == FNiagaraTypeDefinition::GetPositionDef());
+            }
+            else if (Type == TEXT("linearcolor"))
+            {
+                bTypeOk = (MatchedType == FNiagaraTypeDefinition::GetColorDef());
+            }
+            else if (Type == TEXT("bool"))
+            {
+                bTypeOk = (MatchedType == FNiagaraTypeDefinition::GetBoolDef());
+            }
+            else
+            {
+                // Unrecognized type — leave enforcement to the unsupported_type
+                // branch in the write switch below.
+                bRecognizedType = false;
+            }
+
+            if (bRecognizedType && !bTypeOk)
+            {
+                OutError = FString::Printf(
+                    TEXT("set_niagara_user_param: invalid_field: type_mismatch: param '%s' is %s, not %s"),
+                    *ParamName, *MatchedType.GetName(), *Type);
                 return nullptr;
             }
         }
@@ -209,10 +276,16 @@ public:
                 OutError = TEXT("set_niagara_user_param: invalid_field: 'value' must be an object {x,y,z} for type 'vec3'");
                 return nullptr;
             }
+            // Require all three components to be present and numeric; a missing or
+            // non-numeric key would otherwise silently default to 0.
             double X = 0, Y = 0, Z = 0;
-            (*Obj)->TryGetNumberField(TEXT("x"), X);
-            (*Obj)->TryGetNumberField(TEXT("y"), Y);
-            (*Obj)->TryGetNumberField(TEXT("z"), Z);
+            if (!(*Obj)->TryGetNumberField(TEXT("x"), X) ||
+                !(*Obj)->TryGetNumberField(TEXT("y"), Y) ||
+                !(*Obj)->TryGetNumberField(TEXT("z"), Z))
+            {
+                OutError = TEXT("set_niagara_user_param: invalid_field: 'value' must contain numeric x, y, z for type 'vec3'");
+                return nullptr;
+            }
             Target->SetVariableVec3(ParamFName, FVector(X, Y, Z));
 
             TSharedPtr<FJsonObject> EchoObj = MakeShared<FJsonObject>();
@@ -229,10 +302,17 @@ public:
                 OutError = TEXT("set_niagara_user_param: invalid_field: 'value' must be an object {r,g,b,a} for type 'linearcolor'");
                 return nullptr;
             }
+            // Require r, g, b to be present and numeric; alpha stays optional and
+            // defaults to 1.0. A missing/non-numeric r/g/b would otherwise silently
+            // default to 0.
             double R = 0, G = 0, B = 0, A = 1.0; // a defaults to 1.0 if omitted
-            (*Obj)->TryGetNumberField(TEXT("r"), R);
-            (*Obj)->TryGetNumberField(TEXT("g"), G);
-            (*Obj)->TryGetNumberField(TEXT("b"), B);
+            if (!(*Obj)->TryGetNumberField(TEXT("r"), R) ||
+                !(*Obj)->TryGetNumberField(TEXT("g"), G) ||
+                !(*Obj)->TryGetNumberField(TEXT("b"), B))
+            {
+                OutError = TEXT("set_niagara_user_param: invalid_field: 'value' must contain numeric r, g, b (a optional) for type 'linearcolor'");
+                return nullptr;
+            }
             (*Obj)->TryGetNumberField(TEXT("a"), A);
             Target->SetVariableLinearColor(
                 ParamFName,

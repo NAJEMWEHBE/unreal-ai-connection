@@ -162,6 +162,13 @@ public:
             Actor->SetActorRelativeScale3D(Scale);
         }
 
+        // Persist the auto-activation state on the spawned component (in addition
+        // to the transient Activate/Deactivate below). Setting the persistent
+        // bAutoActivate property means auto_activate=false survives being saved
+        // with the level / any later component reconstruction, instead of only
+        // transiently deactivating the live instance.
+        NiagaraComp->bAutoActivate = bAutoActivate;
+
         // Activation: bAutoActivate defaults true, so an active component previews the
         // FX in-viewport. If the caller asked for auto_activate=false, deactivate.
         if (bAutoActivate)
