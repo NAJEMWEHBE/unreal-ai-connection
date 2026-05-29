@@ -1,7 +1,7 @@
 {
  "name": "UnrealAIConnection",
  "version": "0.9.1",
- "description": "Drive Unreal Engine 5.7 from any MCP-compliant client over a local TCP socket. 121 tools total (86 native C++ handlers plus 35 bridge-side synthetic tools) that work with any UE 5.7 project.",
+ "description": "Drive Unreal Engine 5.7 from any MCP-compliant client over a local TCP socket. 124 tools total (89 native C++ handlers plus 35 bridge-side synthetic tools) that work with any UE 5.7 project.",
  "transport": {
   "type": "tcp",
   "host": "127.0.0.1",
@@ -640,6 +640,67 @@
     "material": "string",
     "from_expression": "string",
     "to": "string"
+   }
+  },
+  {
+   "name": "spawn_niagara_at_location",
+   "description": "Place an editor-persistent Niagara system actor (ANiagaraActor) in the current editor world and assign a UNiagaraSystem asset to its embedded UNiagaraComponent. Persistent = World Outliner entry, saved with the level, on the undo stack. Distinct from the transient PIE-only UNiagaraFunctionLibrary spawn path.",
+   "params": {
+    "system": "string (required) - /Game path to the UNiagaraSystem asset",
+    "location": "object (optional, default {0,0,0}) - {x, y, z}",
+    "rotation": "object (optional, default {0,0,0}) - {pitch, yaw, roll}",
+    "scale": "object (optional, default {1,1,1}) - {x, y, z} multiplier",
+    "label": "string (optional) - World Outliner label",
+    "auto_activate": "bool (optional, default true) - activate so the FX previews in-viewport"
+   },
+   "returns": {
+    "ok": "bool",
+    "name": "string",
+    "label": "string",
+    "system": "string",
+    "component": "string",
+    "location": "object",
+    "rotation": "object"
+   }
+  },
+  {
+   "name": "spawn_niagara_attached",
+   "description": "Attach an editor-persistent UNiagaraComponent (running a given UNiagaraSystem) to an existing actor (label or FName), optionally to a named socket on a named parent component, with an optional relative transform. Persistent instance component, undoable. Distinct from the transient UNiagaraFunctionLibrary attach path.",
+   "params": {
+    "actor_name": "string (required) - host actor label or FName",
+    "system": "string (required) - /Game path to the UNiagaraSystem asset",
+    "attach_to": "string (optional, default root) - parent component name on the actor",
+    "socket": "string (optional) - socket name on the parent component",
+    "component_name": "string (optional) - FName for the new UNiagaraComponent",
+    "relative_transform": "object (optional) - {location, rotation, scale} relative to the parent",
+    "auto_activate": "bool (optional, default true)"
+   },
+   "returns": {
+    "ok": "bool",
+    "actor": "string",
+    "component": "string",
+    "system": "string",
+    "attached_to": "string",
+    "socket": "string"
+   }
+  },
+  {
+   "name": "set_niagara_user_param",
+   "description": "Set a user-exposed (override) parameter on a placed/attached UNiagaraComponent, resolved via its owning actor (label or FName), for the value types float, vec3, linearcolor, bool. Writes the component's override-parameter store so the value persists on the level instance.",
+   "params": {
+    "actor_name": "string (required) - label or FName of the actor owning the Niagara component",
+    "param_name": "string (required) - user parameter name; bare name or 'User.'-prefixed both resolve",
+    "type": "string (required) - one of: float | vec3 | linearcolor | bool",
+    "value": "varies by type (required) - float: number; vec3: {x,y,z}; linearcolor: {r,g,b,a} (a defaults 1.0); bool: boolean",
+    "component_name": "string (optional) - FName of the target UNiagaraComponent when the actor has more than one"
+   },
+   "returns": {
+    "ok": "bool",
+    "actor": "string",
+    "component": "string",
+    "param_name": "string",
+    "type": "string",
+    "value": "varies by type"
    }
   },
   {

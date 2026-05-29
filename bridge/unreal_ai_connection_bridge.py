@@ -13,7 +13,7 @@ plugin speaks raw JSON-RPC over a local TCP socket (default
 Behaviour:
   - "initialize"             returned synthetically (does NOT hit the UE server)
   - "notifications/*"        consumed silently
-  - "tools/list"             returns a static list of all 121 tools (84
+  - "tools/list"             returns a static list of all 124 tools (89
                              dispatched to the UE plugin's C++ handlers
                              plus 35 bridge-side synthetic tools served by
                              SYNTHETIC_TOOLS without crossing the wire as
@@ -1181,6 +1181,54 @@ TOOLS = [
                 "to": {"type": "string", "description": "Connection target. Either 'property:<Name>' (BaseColor, Metallic, Specular, Roughness, EmissiveColor, Opacity, OpacityMask, Normal, AmbientOcclusion, WorldPositionOffset) or 'node:<ExprName>:<InputName>' to wire into another expression's input."},
             },
             "required": ["material", "from_expression", "to"],
+        },
+    },
+    {
+        "name": "spawn_niagara_at_location",
+        "description": "Place an editor-persistent Niagara system actor (ANiagaraActor) in the current editor world and assign a UNiagaraSystem asset to its embedded UNiagaraComponent. Persistent = appears in the World Outliner, saved with the level, on the undo stack. Distinct from the transient PIE-only UNiagaraFunctionLibrary spawn path.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "system": {"type": "string", "description": "/Game path to the UNiagaraSystem asset, e.g. /Game/FX/NS_Fire."},
+                "location": {"type": "object", "description": "World-space {x, y, z}. Defaults to {0,0,0}."},
+                "rotation": {"type": "object", "description": "{pitch, yaw, roll} in degrees. Defaults to {0,0,0}."},
+                "scale": {"type": "object", "description": "{x, y, z} scale multiplier. Defaults to {1,1,1}."},
+                "label": {"type": "string", "description": "Visible name in World Outliner; defaults to UE auto-naming."},
+                "auto_activate": {"type": "boolean", "description": "Activate the component after spawn so the FX previews in-viewport. Default true."},
+            },
+            "required": ["system"],
+        },
+    },
+    {
+        "name": "spawn_niagara_attached",
+        "description": "Attach an editor-persistent UNiagaraComponent (running a given UNiagaraSystem) to an existing actor (label or FName), optionally to a named socket on a named parent component, with an optional relative transform. Persistent instance component (saved with the actor, undoable). Distinct from the transient UNiagaraFunctionLibrary attach path.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "actor_name": {"type": "string", "description": "Host actor label or FName."},
+                "system": {"type": "string", "description": "/Game path to the UNiagaraSystem asset."},
+                "attach_to": {"type": "string", "description": "Existing component name to attach as child of; defaults to the root component."},
+                "socket": {"type": "string", "description": "Socket name on the parent component."},
+                "component_name": {"type": "string", "description": "FName for the new UNiagaraComponent; defaults to UE auto-naming."},
+                "relative_transform": {"type": "object", "description": "{location, rotation, scale} relative to the parent component."},
+                "auto_activate": {"type": "boolean", "description": "Activate the component after attach. Default true."},
+            },
+            "required": ["actor_name", "system"],
+        },
+    },
+    {
+        "name": "set_niagara_user_param",
+        "description": "Set a user-exposed (override) parameter on a placed/attached UNiagaraComponent, resolved via its owning actor (label or FName), for the value types float, vec3, linearcolor, bool. Writes the component's override-parameter store so the value persists on the level instance. Pre-checks the param exists on the system and errors with invalid_field if absent.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "actor_name": {"type": "string", "description": "Label or FName of the actor owning the Niagara component."},
+                "param_name": {"type": "string", "description": "User parameter name. The bare name (e.g. 'Color') and the 'User.'-prefixed name both resolve."},
+                "type": {"type": "string", "enum": ["float", "vec3", "linearcolor", "bool"], "description": "Value type selecting the SetVariable* overload."},
+                "value": {"type": ["number", "object", "boolean"], "description": "Shape per type: float -> number; vec3 -> {x,y,z}; linearcolor -> {r,g,b,a} (a defaults to 1.0); bool -> boolean."},
+                "component_name": {"type": "string", "description": "FName of the target UNiagaraComponent when the actor has more than one; defaults to the first/only one."},
+            },
+            "required": ["actor_name", "param_name", "type", "value"],
         },
     },
     {

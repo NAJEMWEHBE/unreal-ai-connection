@@ -1,6 +1,6 @@
 # MCP Tools Reference
 
-**121 tools total.** 86 are JSON-RPC 2.0 methods served on `127.0.0.1:18888` directly by the plugin's C++ handlers. The remaining 35 — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`, `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap`, `sequencer_add_transform_keyframe`, `import_mesh`, `material_auto_remap` — are bridge-side **synthetic tools** that are intercepted by `bridge/unreal_ai_connection_bridge.py` and served by composing existing handlers (or running Python via `execute_unreal_python`, or — for `compile_mod_pak` — shelling out to `RunUAT.bat` entirely outside the UE process). They are visible to MCP clients exactly like the C++ tools but cannot be reached by sending raw JSON-RPC to the TCP socket — only via the MCP bridge or by replicating their composition manually. The "Implementation" header on each entry below indicates whether a tool is C++ or bridge-side.
+**124 tools total.** 89 are JSON-RPC 2.0 methods served on `127.0.0.1:18888` directly by the plugin's C++ handlers. The remaining 35 — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`, `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap`, `sequencer_add_transform_keyframe`, `import_mesh`, `material_auto_remap` — are bridge-side **synthetic tools** that are intercepted by `bridge/unreal_ai_connection_bridge.py` and served by composing existing handlers (or running Python via `execute_unreal_python`, or — for `compile_mod_pak` — shelling out to `RunUAT.bat` entirely outside the UE process). They are visible to MCP clients exactly like the C++ tools but cannot be reached by sending raw JSON-RPC to the TCP socket — only via the MCP bridge or by replicating their composition manually. The "Implementation" header on each entry below indicates whether a tool is C++ or bridge-side.
 
 Each tool's params and result are documented with a working example.
 
@@ -1396,6 +1396,179 @@ Wire a material expression's output to either a material property input or anoth
   "to": "property:BaseColor"
 }}
 ```
+
+---
+
+## spawn_niagara_at_location
+
+**Implementation:** C++
+
+Place an editor-persistent Niagara system actor (`ANiagaraActor`) in the current editor world and assign a `UNiagaraSystem` asset to its embedded `UNiagaraComponent` (`World->SpawnActor<ANiagaraActor>(...)` then `GetNiagaraComponent()->SetAsset(System)`). Persistent means the actor appears in the World Outliner, is saved with the level, and is on the editor undo stack — distinct from the transient/PIE `UNiagaraFunctionLibrary::SpawnSystemAtLocation`, which produces a bare world-registered component with no Outliner actor. The spawn, asset assignment, scale, and label all land in a single undo step.
+
+**Params**
+- `system` (string, required) — `/Game` path to the `UNiagaraSystem` asset, e.g. `/Game/FX/NS_Fire`.
+- `location` (object, optional, default `{x:0, y:0, z:0}`) — world-space `{x, y, z}` floats.
+- `rotation` (object, optional, default `{pitch:0, yaw:0, roll:0}`) — Euler angles in degrees.
+- `scale` (object, optional, default `{x:1, y:1, z:1}`) — `{x, y, z}` scale multiplier; applied after spawn (SpawnActor sets only location + rotation).
+- `label` (string, optional) — visible name in World Outliner; defaults to UE's auto-name.
+- `auto_activate` (bool, optional, default `true`) — when true, the component is activated so the FX previews in-viewport; when false it is deactivated.
+
+**Result**
+- `ok` (bool)
+- `name` (string) — unique FName assigned by UE (e.g. `NiagaraActor_0`)
+- `label` (string) — World Outliner label
+- `system` (string) — resolved object path of the assigned system
+- `component` (string) — the embedded `UNiagaraComponent`'s FName
+- `location` (object) — `{x, y, z}`
+- `rotation` (object) — `{pitch, yaw, roll}`
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"spawn_niagara_at_location","params":{
+  "system": "/Game/FX/NS_Fire",
+  "location": {"x": 0, "y": 0, "z": 100},
+  "label": "CampfireFX"
+}}
+```
+```json
+{"jsonrpc":"2.0","id":1,"result":{
+  "ok": true,
+  "name": "NiagaraActor_0",
+  "label": "CampfireFX",
+  "system": "/Game/FX/NS_Fire.NS_Fire",
+  "component": "NiagaraComponent0",
+  "location": {"x": 0.0, "y": 0.0, "z": 100.0},
+  "rotation": {"pitch": 0.0, "yaw": 0.0, "roll": 0.0}
+}}
+```
+
+**Errors:** Returned as JSON-RPC `error.message` strings in the format `spawn_niagara_at_location: <error_code>: <human-readable detail>`. Stable codes:
+
+| Code | Trigger |
+|---|---|
+| `missing_params` | The request had no `params` object. |
+| `missing_required_field` | `system` was missing or empty. |
+| `system_not_found` | The system path is not in the asset registry. |
+| `not_a_niagara_system` | The asset loaded but is not a `UNiagaraSystem`. |
+| `spawn_failed` | No editor world available, `UWorld::SpawnActor` returned null, or the spawned actor had no `UNiagaraComponent`. |
+
+---
+
+## spawn_niagara_attached
+
+**Implementation:** C++
+
+Attach an editor-persistent `UNiagaraComponent` (running a given `UNiagaraSystem`) to an existing actor, resolved by label or FName, optionally to a named socket on a named parent component, with an optional relative transform. Replicates the `add_component` instance-component flow (`NewObject` + `AddInstanceComponent` + `RegisterComponent` + `AttachToComponent`) then `SetAsset`, so the component is saved with the actor and is undoable — distinct from the transient `UNiagaraFunctionLibrary::SpawnSystemAttached`. Uses the hybrid label-or-FName identification scheme.
+
+**Params**
+- `actor_name` (string, required) — label or FName of the host actor.
+- `system` (string, required) — `/Game` path to the `UNiagaraSystem` asset.
+- `attach_to` (string, optional) — name of an existing component on the actor to attach to; defaults to the root component.
+- `socket` (string, optional) — socket name on the parent component (validated via `DoesSocketExist`).
+- `component_name` (string, optional) — FName for the new `UNiagaraComponent`; defaults to UE's auto-name.
+- `relative_transform` (object, optional, default identity) — `{location: {x,y,z}, rotation: {pitch,yaw,roll}, scale: {x,y,z}}` relative to the parent.
+- `auto_activate` (bool, optional, default `true`).
+
+**Result**
+- `ok` (bool)
+- `actor` (string) — actor FName
+- `component` (string) — new component FName
+- `system` (string) — resolved object path of the assigned system
+- `attached_to` (string) — parent component name
+- `socket` (string) — socket name, or empty string if none
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"spawn_niagara_attached","params":{
+  "actor_name": "Torch1",
+  "system": "/Game/FX/NS_Flame",
+  "socket": "FlameSocket"
+}}
+```
+```json
+{"jsonrpc":"2.0","id":1,"result":{
+  "ok": true,
+  "actor": "StaticMeshActor_5",
+  "component": "NiagaraComponent_1",
+  "system": "/Game/FX/NS_Flame.NS_Flame",
+  "attached_to": "StaticMeshComponent0",
+  "socket": "FlameSocket"
+}}
+```
+
+**Errors:** Returned as JSON-RPC `error.message` strings in the format `spawn_niagara_attached: <error_code>: <human-readable detail>`. Stable codes:
+
+| Code | Trigger |
+|---|---|
+| `missing_params` | The request had no `params` object. |
+| `missing_required_field` | `actor_name` or `system` was missing or empty. |
+| `actor_not_found` | No actor matches the given name. |
+| `ambiguous_actor` | Label matches multiple actors. Error message lists candidate FNames. |
+| `system_not_found` | The system path is not in the asset registry. |
+| `not_a_niagara_system` | The asset loaded but is not a `UNiagaraSystem`. |
+| `attach_target_not_found` | `attach_to` was specified but no component with that name exists on the actor. |
+| `socket_not_found` | `socket` was specified but the parent component does not have that socket. |
+| `create_failed` | `NewObject<UNiagaraComponent>` returned null. |
+
+---
+
+## set_niagara_user_param
+
+**Implementation:** C++
+
+Set a user-exposed (override) parameter on a placed/attached `UNiagaraComponent`, resolved via its owning actor (label or FName), for the value types `float`, `vec3`, `linearcolor`, `bool`. Uses the FName `SetVariable*` overloads (`SetVariableFloat`, `SetVariableVec3`, `SetVariableLinearColor`, `SetVariableBool`) which write the component's override-parameter store so the value persists on the level instance. The handler pre-checks the named parameter exists on the system's exposed user parameters (the bare name and the `User.`-prefixed name both resolve) and returns `invalid_field` if it does not, so a silent no-op is surfaced as a real error.
+
+**Params**
+- `actor_name` (string, required) — label or FName of the actor owning the Niagara component.
+- `param_name` (string, required) — user parameter name. Both the bare name (e.g. `Color`) and the `User.`-prefixed form (`User.Color`) resolve.
+- `type` (string, required) — one of `"float"`, `"vec3"`, `"linearcolor"`, `"bool"`; selects the `SetVariable*` overload.
+- `value` (varies by type, required):
+  - `"float"` → number, e.g. `2.5`
+  - `"vec3"` → object `{x, y, z}` (maps to `FVector` via `SetVariableVec3`)
+  - `"linearcolor"` → object `{r, g, b, a}` (`a` defaults to `1.0` if omitted)
+  - `"bool"` → boolean
+- `component_name` (string, optional) — FName of the target `UNiagaraComponent` when the actor has more than one; defaults to the first/only one.
+
+**Result**
+- `ok` (bool)
+- `actor` (string) — actor FName
+- `component` (string) — target component FName
+- `param_name` (string) — echoed back
+- `type` (string) — echoed back
+- `value` (varies by type) — echoed back
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"set_niagara_user_param","params":{
+  "actor_name": "CampfireFX",
+  "param_name": "Color",
+  "type": "linearcolor",
+  "value": {"r": 1.0, "g": 0.4, "b": 0.1, "a": 1.0}
+}}
+```
+```json
+{"jsonrpc":"2.0","id":1,"result":{
+  "ok": true,
+  "actor": "NiagaraActor_0",
+  "component": "NiagaraComponent0",
+  "param_name": "Color",
+  "type": "linearcolor",
+  "value": {"r": 1.0, "g": 0.4, "b": 0.1, "a": 1.0}
+}}
+```
+
+**Errors:** Returned as JSON-RPC `error.message` strings in the format `set_niagara_user_param: <error_code>: <human-readable detail>`. Stable codes:
+
+| Code | Trigger |
+|---|---|
+| `missing_params` | The request had no `params` object. |
+| `missing_required_field` | `actor_name`, `param_name`, `type`, or `value` was missing or empty. |
+| `actor_not_found` | No actor matches the given name. |
+| `ambiguous_actor` | Label matches multiple actors. Error message lists candidate FNames. |
+| `no_niagara_component` | The actor has no `UNiagaraComponent` (or none matching `component_name`). |
+| `ambiguous_component` | The actor has multiple `UNiagaraComponent`s and no `component_name` was given. |
+| `invalid_field` | The named user parameter does not exist on the system, or `value` has the wrong JSON shape for the given `type`. |
+| `unsupported_type` | `type` is not one of `float`, `vec3`, `linearcolor`, `bool`. |
 
 ---
 

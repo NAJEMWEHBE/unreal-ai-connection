@@ -129,6 +129,9 @@ extern TSharedRef<IUCMCPHandler> Make_Handler_AddBlueprintVariable();
 extern TSharedRef<IUCMCPHandler> Make_Handler_AddBlueprintFunction();
 extern TSharedRef<IUCMCPHandler> Make_Handler_AddMaterialExpression();
 extern TSharedRef<IUCMCPHandler> Make_Handler_ConnectMaterialExpression();
+extern TSharedRef<IUCMCPHandler> Make_Handler_SpawnNiagaraAtLocation();
+extern TSharedRef<IUCMCPHandler> Make_Handler_SpawnNiagaraAttached();
+extern TSharedRef<IUCMCPHandler> Make_Handler_SetNiagaraUserParam();
 
 static constexpr int32 kMCPDefaultPort = 18888;
 
@@ -234,6 +237,9 @@ void FUnrealAIConnectionModule::StartupModule()
     Reg.Register(Make_Handler_AddBlueprintFunction());
     Reg.Register(Make_Handler_AddMaterialExpression());
     Reg.Register(Make_Handler_ConnectMaterialExpression());
+    Reg.Register(Make_Handler_SpawnNiagaraAtLocation());
+    Reg.Register(Make_Handler_SpawnNiagaraAttached());
+    Reg.Register(Make_Handler_SetNiagaraUserParam());
 
     // -----------------------------------------------------------------
     // Tier 2 (PR #40): wire 3 starter delegates into the FUCMCPEventBus.
