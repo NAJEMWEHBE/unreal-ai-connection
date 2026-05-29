@@ -13,7 +13,7 @@ plugin speaks raw JSON-RPC over a local TCP socket (default
 Behaviour:
   - "initialize"             returned synthetically (does NOT hit the UE server)
   - "notifications/*"        consumed silently
-  - "tools/list"             returns a static list of all 107 tools (72
+  - "tools/list"             returns a static list of all 109 tools (72
                              dispatched to the UE plugin's C++ handlers
                              plus 35 bridge-side synthetic tools served by
                              SYNTHETIC_TOOLS without crossing the wire as
@@ -100,6 +100,26 @@ TOOLS = [
             "properties": {
                 "include_levels": {"type": "boolean", "description": "Save dirty .umap level packages (default true)."},
                 "include_content": {"type": "boolean", "description": "Save dirty .uasset content packages (default true)."},
+            },
+        },
+    },
+    {
+        "name": "undo_transaction",
+        "description": "Step the editor undo stack backward — the programmatic Ctrl+Z. Each mutating tool call (spawn_actor, delete_actor, set_actor_transform, set_actor_property, add_component) is wrapped by the dispatcher as one editor transaction, so this reverts the last such MCP edit (or the last N via count). Returns undone (how many steps actually reverted), descriptions (their titles), and can_undo / can_redo. 'Nothing to undo' is ok=true, undone=0 — not an error.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "count": {"type": "integer", "description": "Number of undo steps to apply (default 1, max 50). Stops early if the stack is exhausted.", "minimum": 1, "maximum": 50},
+            },
+        },
+    },
+    {
+        "name": "redo_transaction",
+        "description": "Step the editor undo stack forward — the programmatic Ctrl+Y. Re-applies transactions previously reverted by undo_transaction (or Ctrl+Z), in order, up to count steps. Returns redone (how many steps re-applied), descriptions (their titles), and can_undo / can_redo. 'Nothing to redo' is ok=true, redone=0 — not an error.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "count": {"type": "integer", "description": "Number of redo steps to apply (default 1, max 50). Stops early when nothing remains to redo.", "minimum": 1, "maximum": 50},
             },
         },
     },

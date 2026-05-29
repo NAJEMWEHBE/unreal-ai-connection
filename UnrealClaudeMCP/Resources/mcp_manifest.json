@@ -1,7 +1,7 @@
 {
  "name": "UnrealClaudeMCP",
  "version": "0.9.1",
- "description": "Drive Unreal Engine 5.7 from any MCP-compliant client over a local TCP socket. 107 tools total (72 native C++ handlers plus 35 bridge-side synthetic tools) that work with any UE 5.7 project.",
+ "description": "Drive Unreal Engine 5.7 from any MCP-compliant client over a local TCP socket. 109 tools total (74 native C++ handlers plus 35 bridge-side synthetic tools) that work with any UE 5.7 project.",
  "transport": {
   "type": "tcp",
   "host": "127.0.0.1",
@@ -42,6 +42,22 @@
    "params": {
     "include_levels": "bool (optional, default true) - save dirty .umap level packages",
     "include_content": "bool (optional, default true) - save dirty .uasset content packages"
+   },
+   "returns": "see docs/TOOLS.md"
+  },
+  {
+   "name": "undo_transaction",
+   "description": "Step the editor undo stack backward (programmatic Ctrl+Z). Reverts the last mutating MCP tool call (or last N), since the dispatcher wraps each mutating handler as one editor transaction.",
+   "params": {
+    "count": "int (optional, default 1, max 50) - number of undo steps; stops early if the stack is exhausted"
+   },
+   "returns": "see docs/TOOLS.md"
+  },
+  {
+   "name": "redo_transaction",
+   "description": "Step the editor undo stack forward (programmatic Ctrl+Y). Re-applies transactions previously reverted by undo_transaction, up to count steps.",
+   "params": {
+    "count": "int (optional, default 1, max 50) - number of redo steps; stops early when nothing remains to redo"
    },
    "returns": "see docs/TOOLS.md"
   },

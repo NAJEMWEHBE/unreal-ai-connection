@@ -1,6 +1,6 @@
 # MCP Tools Reference
 
-**107 tools total.** 72 are JSON-RPC 2.0 methods served on `127.0.0.1:18888` directly by the plugin's C++ handlers. The remaining 35 — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`, `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap`, `sequencer_add_transform_keyframe`, `import_mesh`, `material_auto_remap` — are bridge-side **synthetic tools** that are intercepted by `bridge/unreal_ai_connection_bridge.py` and served by composing existing handlers (or running Python via `execute_unreal_python`, or — for `compile_mod_pak` — shelling out to `RunUAT.bat` entirely outside the UE process). They are visible to MCP clients exactly like the C++ tools but cannot be reached by sending raw JSON-RPC to the TCP socket — only via the MCP bridge or by replicating their composition manually. The "Implementation" header on each entry below indicates whether a tool is C++ or bridge-side.
+**109 tools total.** 74 are JSON-RPC 2.0 methods served on `127.0.0.1:18888` directly by the plugin's C++ handlers. The remaining 35 — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`, `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap`, `sequencer_add_transform_keyframe`, `import_mesh`, `material_auto_remap` — are bridge-side **synthetic tools** that are intercepted by `bridge/unreal_ai_connection_bridge.py` and served by composing existing handlers (or running Python via `execute_unreal_python`, or — for `compile_mod_pak` — shelling out to `RunUAT.bat` entirely outside the UE process). They are visible to MCP clients exactly like the C++ tools but cannot be reached by sending raw JSON-RPC to the TCP socket — only via the MCP bridge or by replicating their composition manually. The "Implementation" header on each entry below indicates whether a tool is C++ or bridge-side.
 
 Each tool's params and result are documented with a working example.
 
@@ -430,6 +430,62 @@ Tag values are stringified via UE's `FAssetTagValueRef::AsString()`, so numeric 
 ```
 
 ---
+
+## undo_transaction
+
+**Implementation:** C++. Steps the editor undo stack backward — the programmatic equivalent of Ctrl+Z (`GEditor->UndoTransaction()`). Each mutating tool call (`spawn_actor`, `delete_actor`, `set_actor_transform`, `set_actor_property`, `add_component`) is wrapped by the dispatcher as one editor transaction, so one `undo_transaction` reverts the last such MCP edit; pass `count` to revert several. Stops early if the stack is exhausted — "nothing to undo" is `ok:true, undone:0`, not an error.
+
+**Params**
+- `count` (integer, optional, default 1, max 50) — number of undo steps to apply.
+
+**Result**
+- `ok` (bool)
+- `undone` (int) — how many steps were actually reverted (may be fewer than `count` if the stack ran out)
+- `descriptions` (array of string) — the title of each reverted transaction, in the order undone
+- `can_undo` (bool) — whether further undo is possible
+- `can_redo` (bool) — whether the reverted steps can now be redone
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"undo_transaction","params":{"count":1}}
+```
+```json
+{"jsonrpc":"2.0","id":1,"result":{
+  "ok": true,
+  "undone": 1,
+  "descriptions": ["MCP: spawn_actor"],
+  "can_undo": true,
+  "can_redo": true
+}}
+```
+
+## redo_transaction
+
+**Implementation:** C++. Steps the editor undo stack forward — the programmatic equivalent of Ctrl+Y (`GEditor->RedoTransaction()`). Re-applies transactions previously reverted by `undo_transaction` (or Ctrl+Z), in order, up to `count` steps. "Nothing to redo" is `ok:true, redone:0`, not an error.
+
+**Params**
+- `count` (integer, optional, default 1, max 50) — number of redo steps to apply.
+
+**Result**
+- `ok` (bool)
+- `redone` (int) — how many steps were re-applied
+- `descriptions` (array of string) — the title of each re-applied transaction, in the order redone
+- `can_undo` (bool)
+- `can_redo` (bool)
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"redo_transaction","params":{"count":1}}
+```
+```json
+{"jsonrpc":"2.0","id":1,"result":{
+  "ok": true,
+  "redone": 1,
+  "descriptions": ["MCP: spawn_actor"],
+  "can_undo": true,
+  "can_redo": false
+}}
+```
 
 ## spawn_actor
 
