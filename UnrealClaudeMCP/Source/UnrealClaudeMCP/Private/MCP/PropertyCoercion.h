@@ -56,10 +56,14 @@ namespace UCMCP::PropertyCoercion
     // containing memory so callers can pass all three to SetProperty / EncodeProperty.
     struct FResolvedProperty
     {
-        FProperty* Property   = nullptr;
-        void*      Container  = nullptr;  // The UObject or struct memory the property lives in
-        void*      PropAddr   = nullptr;  // Address of the property value within Container
-        FString    ResolvedPath;          // Full dotted path that was resolved (for error messages)
+        FProperty* Property     = nullptr;
+        void*      Container    = nullptr;  // The UObject or struct memory the property lives in
+        void*      PropAddr     = nullptr;  // Address of the property value within Container
+        FString    ResolvedPath;            // Full dotted path that was resolved (for error messages)
+        UObject*   OwningObject = nullptr;  // Nearest enclosing UObject whose memory the property lives in
+                                            // (RootObject, or the last UObject an FObjectProperty hop stepped
+                                            // into). Modify() THIS for transactions — not the root — so that an
+                                            // edit to a component/subobject via a dotted path is recorded for undo.
     };
 
     /**

@@ -96,6 +96,11 @@ public:
             return nullptr;
         }
 
+        // The spawn itself is recorded by the dispatcher's open transaction; Modify()
+        // here ensures the post-spawn label/property edits below are part of the same
+        // single undo step.
+        Actor->Modify();
+
         // Apply optional label
         FString Label;
         if (Params->TryGetStringField(TEXT("label"), Label) && !Label.IsEmpty())

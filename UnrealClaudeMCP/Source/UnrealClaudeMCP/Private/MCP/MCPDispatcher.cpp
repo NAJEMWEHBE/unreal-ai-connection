@@ -88,18 +88,26 @@ FString FUCMCPDispatcher::HandleMessage(const FString& InMessage)
 
     FString Error;
     TSharedPtr<FJsonObject> Result;
-    if (Handler->IsMutating())
     {
         // Wrap mutating handlers in an editor transaction so the operation lands
         // as a single Ctrl+Z step. An empty transaction (handler bailed before any
         // Modify()) is automatically discarded by the transaction buffer.
-        const FScopedTransaction Transaction(
-            FText::Format(LOCTEXT("UCMCPHandlerEdit", "MCP: {0}"), FText::FromString(Method)));
+        TUniquePtr<FScopedTransaction> Transaction;
+        if (Handler->IsMutating())
+        {
+            Transaction = MakeUnique<FScopedTransaction>(
+                FText::Format(LOCTEXT("UCMCPHandlerEdit", "MCP: {0}"), FText::FromString(Method)));
+        }
+
         Result = Handler->Handle(Params, Error);
-    }
-    else
-    {
-        Result = Handler->Handle(Params, Error);
+
+        // If the handler failed after already calling Modify() on some object,
+        // cancel the (partial) transaction so a broken edit never lands on the
+        // undo stack. The transaction commits on scope exit otherwise.
+        if (!Error.IsEmpty() && Transaction.IsValid())
+        {
+            Transaction->Cancel();
+        }
     }
 
     if (!Error.IsEmpty())

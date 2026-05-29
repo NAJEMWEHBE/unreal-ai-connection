@@ -85,6 +85,12 @@ public:
         Params->TryGetStringField(TEXT("component_name"), CompName);
         FName CompFName = CompName.IsEmpty() ? NAME_None : FName(*CompName);
 
+        // Snapshot the actor BEFORE adding the component so the dispatcher's
+        // transaction records the addition (a Modify() after the fact would
+        // snapshot the already-modified actor and undo would not remove the
+        // component).
+        Actor->Modify();
+
         UActorComponent* NewComp = NewObject<UActorComponent>(Actor, CompClass, CompFName);
         if (!NewComp)
         {
@@ -181,7 +187,6 @@ public:
             }
         }
 
-        Actor->Modify();
         Actor->RerunConstructionScripts();
 
         TSharedPtr<FJsonObject> Out = MakeShared<FJsonObject>();

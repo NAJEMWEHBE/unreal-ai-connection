@@ -95,8 +95,11 @@ public:
         TSharedPtr<FJsonValue> OldValue = UCMCP::PropertyCoercion::EncodeProperty(
             Prop, Resolved.PropAddr, TEXT(".") + Resolved.ResolvedPath, 0);
 
-        // Snapshot before mutation so the dispatcher's transaction can undo it.
-        Actor->Modify();
+        // Snapshot the object that actually owns the resolved property (the actor
+        // for a direct property, or the component/subobject a dotted path stepped
+        // into) so the dispatcher's transaction records the change for undo.
+        UObject* ModifyTarget = Resolved.OwningObject ? Resolved.OwningObject : Actor;
+        ModifyTarget->Modify();
 
         UCMCP::PropertyCoercion::FCoerceOutcome Outcome =
             UCMCP::PropertyCoercion::SetProperty(
