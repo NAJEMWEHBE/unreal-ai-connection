@@ -200,8 +200,16 @@ public:
         // save_failed (Handler_BindActorToSequence.cpp:146).
         if (!UEditorAssetLibrary::SaveAsset(SequenceObjectPath, /*bForceSave=*/false))
         {
+            // Roll back the in-memory mutations so a retry is idempotent: without
+            // this, the orphaned possessable binding + spawned camera persist and
+            // a second attempt strands a duplicate binding/camera. Unwind in
+            // reverse order — remove the possessable from the MovieScene
+            // (MovieScene.h:463), then destroy the actor (mirrors the bind-failure
+            // rollback at the AddPossessable guard above).
+            Scene->RemovePossessable(Guid);
+            Camera->Destroy();
             OutError = FString::Printf(
-                TEXT("add_cine_camera_to_sequence: save_failed: UEditorAssetLibrary::SaveAsset returned false for '%s' (likely SCC checkout failure or read-only file). The camera was spawned and bound in memory but the sequence binding was not persisted."),
+                TEXT("add_cine_camera_to_sequence: save_failed: UEditorAssetLibrary::SaveAsset returned false for '%s' (likely SCC checkout failure or read-only file). The camera and binding were rolled back so a retry starts clean."),
                 *SequenceObjectPath);
             return nullptr;
         }

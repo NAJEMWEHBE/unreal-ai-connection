@@ -41,8 +41,8 @@
 //     visibility track actually toggles the actor in PIE/render.
 //
 // Error format: "add_visibility_track: <error_code>: <detail>".
-// Stable error codes: missing_required_field, invalid_guid, asset_not_found,
-// not_a_sequence, binding_not_found, no_keys, track_add_failed,
+// Stable error codes: missing_required_field, invalid_guid, invalid_field,
+// asset_not_found, not_a_sequence, binding_not_found, no_keys, track_add_failed,
 // section_add_failed, save_failed.
 
 #include "MCP/MCPHandler.h"
@@ -183,17 +183,30 @@ public:
         const TArray<TSharedPtr<FJsonValue>>* KeysArray = nullptr;
         if (Params->TryGetArrayField(TEXT("keys"), KeysArray) && KeysArray)
         {
-            for (const TSharedPtr<FJsonValue>& Entry : *KeysArray)
+            for (int32 KeyEntryIdx = 0; KeyEntryIdx < KeysArray->Num(); ++KeyEntryIdx)
             {
+                const TSharedPtr<FJsonValue>& Entry = (*KeysArray)[KeyEntryIdx];
                 const TSharedPtr<FJsonObject>* KeyObj = nullptr;
                 if (!Entry.IsValid() || !Entry->TryGetObject(KeyObj) || !KeyObj || !(*KeyObj).IsValid())
                 {
-                    continue;
+                    OutError = FString::Printf(
+                        TEXT("add_visibility_track: invalid_field: keys[%d] requires numeric 'frame' and bool 'visible'"),
+                        KeyEntryIdx);
+                    return nullptr;
                 }
+                // Reject malformed entries instead of silently defaulting (a
+                // missing/non-numeric frame would otherwise key frame 0, and a
+                // missing/non-bool visible would default the actor visible).
                 double FrameRaw = 0.0;
-                (*KeyObj)->TryGetNumberField(TEXT("frame"), FrameRaw);
                 bool bVisible = true;
-                (*KeyObj)->TryGetBoolField(TEXT("visible"), bVisible);
+                if (!(*KeyObj)->TryGetNumberField(TEXT("frame"), FrameRaw) ||
+                    !(*KeyObj)->TryGetBoolField(TEXT("visible"), bVisible))
+                {
+                    OutError = FString::Printf(
+                        TEXT("add_visibility_track: invalid_field: keys[%d] requires numeric 'frame' and bool 'visible'"),
+                        KeyEntryIdx);
+                    return nullptr;
+                }
 
                 const FFrameNumber Ticks = FFrameRate::TransformTime(
                     FFrameTime(FFrameNumber(static_cast<int32>(FrameRaw))),

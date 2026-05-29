@@ -227,7 +227,12 @@ public:
         }
 
         // Stop the track auto-resizing sections so our explicit SetRange below
-        // is not clobbered by AutoArrangeSectionsIfNeeded.
+        // is not clobbered by AutoArrangeSectionsIfNeeded. Capture the prior
+        // value first (getter MovieSceneCameraCutTrack.h:66) and restore it
+        // after SetRange — otherwise we permanently flip the asset's
+        // section-layout behavior, which is a surprising side effect on a track
+        // we may merely be reusing.
+        const bool bWasAutoManaging = CutTrack->IsAutoManagingSections();
         CutTrack->SetIsAutoManagingSections(false);
 
         // --- add the section + force the exact range ------------------------
@@ -255,6 +260,11 @@ public:
         // Ensure the binding is set (AddNewCameraCut sets it, but be explicit so
         // a future refactor of the engine helper can't silently drop it).
         Section->SetCameraBindingID(BindingID);
+
+        // Restore the track's prior auto-managing state now that the explicit
+        // range is committed, so we leave the asset's section-layout behavior as
+        // we found it (see capture above).
+        CutTrack->SetIsAutoManagingSections(bWasAutoManaging);
 
         // --- save -----------------------------------------------------------
 

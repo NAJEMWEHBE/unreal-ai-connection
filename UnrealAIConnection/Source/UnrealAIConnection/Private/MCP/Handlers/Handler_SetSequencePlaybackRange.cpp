@@ -26,8 +26,8 @@
 // only re-locking when we actually unlocked.
 //
 // Error format: "set_sequence_playback_range: <error_code>: <detail>".
-// Stable error codes: missing_required_field, asset_not_found, not_a_sequence,
-// invalid_range, save_failed.
+// Stable error codes: missing_required_field, invalid_field, asset_not_found,
+// not_a_sequence, invalid_range, save_failed.
 
 #include "MCP/MCPHandler.h"
 
@@ -73,6 +73,31 @@ public:
 
         double StartFrameRaw = 0.0;
         Params->TryGetNumberField(TEXT("start_frame"), StartFrameRaw);
+
+        // Validate before narrowing double->int32. A fractional value (e.g.
+        // 12.5) or an out-of-int32-range value (|v| > ~2.1e9) would otherwise
+        // be silently truncated/wrapped by static_cast, producing a frame the
+        // caller never asked for. FMath::Frac == 0 rejects fractions; the range
+        // bounds reject overflow. Reuse invalid_field for both.
+        auto ValidateWholeInt32 = [&OutError](double Value, const TCHAR* FieldName) -> bool
+        {
+            if (FMath::Frac(Value) != 0.0 ||
+                Value > static_cast<double>(MAX_int32) ||
+                Value < static_cast<double>(MIN_int32))
+            {
+                OutError = FString::Printf(
+                    TEXT("set_sequence_playback_range: invalid_field: '%s' must be a whole number within int32 range"),
+                    FieldName);
+                return false;
+            }
+            return true;
+        };
+
+        if (!ValidateWholeInt32(StartFrameRaw, TEXT("start_frame")) ||
+            !ValidateWholeInt32(EndFrameRaw, TEXT("end_frame")))
+        {
+            return nullptr;
+        }
 
         const int32 StartFrame = static_cast<int32>(StartFrameRaw);
         const int32 EndFrame = static_cast<int32>(EndFrameRaw);

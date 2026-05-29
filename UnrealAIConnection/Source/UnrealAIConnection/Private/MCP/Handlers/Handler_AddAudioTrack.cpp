@@ -174,6 +174,11 @@ public:
             : AudioTrack->AddNewSound(Sound, StartTicks);
         if (!Section)
         {
+            // Roll back the empty track we just added so a section-add failure
+            // doesn't strand a sound-less audio track on the MovieScene. It is a
+            // root/master track, so remove it via UMovieScene::RemoveTrack
+            // (MovieScene.h:585 — takes a UMovieSceneTrack&).
+            Scene->RemoveTrack(*AudioTrack);
             OutError = TEXT("add_audio_track: section_add_failed: AddNewSound returned null");
             return nullptr;
         }
