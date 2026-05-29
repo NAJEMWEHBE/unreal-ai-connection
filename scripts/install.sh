@@ -104,6 +104,12 @@ ok "Bridge:        $BRIDGE_PATH"
 # 4. Copy plugin
 PLUGIN_DEST="$PROJECT_PATH/Plugins/UnrealAIConnection"
 step "Installing plugin to $PLUGIN_DEST"
+# Warn about a pre-rename legacy install. The plugin was renamed
+# UnrealClaudeMCP -> UnrealAIConnection; leaving the old folder alongside the new
+# one makes the editor try to load two modules with overlapping identity.
+if [ -d "$PROJECT_PATH/Plugins/UnrealClaudeMCP" ]; then
+    warn "Legacy plugin folder found: $PROJECT_PATH/Plugins/UnrealClaudeMCP. The plugin was renamed to UnrealAIConnection — delete the old UnrealClaudeMCP folder to avoid a duplicate-module load conflict."
+fi
 if [ "$DRY_RUN" -eq 1 ]; then
     skip "DryRun — would copy '$PLUGIN_SOURCE' -> '$PLUGIN_DEST'"
 else

@@ -90,6 +90,14 @@ Write-Ok "Bridge:        $BridgePath"
 # 4. Copy plugin into <project>/Plugins/UnrealAIConnection
 $PluginDest = Join-Path $ProjectPath 'Plugins\UnrealAIConnection'
 Write-Step "Installing plugin to $PluginDest"
+
+# Warn about a pre-rename legacy install. The plugin was renamed
+# UnrealClaudeMCP -> UnrealAIConnection; leaving the old folder alongside the new
+# one makes the editor try to load two modules with overlapping identity.
+$LegacyDest = Join-Path $ProjectPath 'Plugins\UnrealClaudeMCP'
+if (Test-Path $LegacyDest) {
+    Write-Warning "Legacy plugin folder found: $LegacyDest. The plugin was renamed to UnrealAIConnection -- delete the old UnrealClaudeMCP folder to avoid a duplicate-module load conflict."
+}
 if ($DryRun) {
     Write-Skip "DryRun -- would copy '$PluginSource' -> '$PluginDest'"
 }
