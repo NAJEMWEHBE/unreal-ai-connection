@@ -87,6 +87,8 @@ def test_tool_names_are_unique_and_match_handlers():
         "create_level", "build_lighting", "create_data_table", "create_data_asset",
         "create_blueprint", "add_blueprint_variable", "add_blueprint_function",
         "add_material_expression", "connect_material_expression",
+        "spawn_niagara_at_location", "spawn_niagara_attached",
+        "set_niagara_user_param",
         "run_python_file",
         "fix_up_redirectors",
         "apply_python_to_selection",

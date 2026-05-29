@@ -40,7 +40,7 @@ Codeium's AI-native editor. MCP servers in `~/.codeium/windsurf/mcp_config.json`
 
 ## Verification
 
-Cascade panel → 🔨 tools icon → expand `unreal-ai-connection`. Tool count should match all 121 tools.
+Cascade panel → 🔨 tools icon → expand `unreal-ai-connection`. Tool count should match all 124 tools.
 
 ## Notes
 

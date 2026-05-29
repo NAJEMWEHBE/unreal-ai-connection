@@ -15,6 +15,6 @@ sys.path.insert(0, os.path.join(ROOT, "bridge"))
 # Bumps as new C++ handlers register or new synthetic tools land in
 # bridge/unreal_ai_connection_bridge.py::SYNTHETIC_TOOLS. The split below is
 # informational; tests assert against the total via EXPECTED_TOOL_COUNT.
-EXPECTED_CPP_HANDLER_COUNT = 86  # bumped from 84 — added add_material_expression + connect_material_expression native handlers (Lane 4 material graph authoring)
+EXPECTED_CPP_HANDLER_COUNT = 89  # bumped from 86 — added spawn_niagara_at_location + spawn_niagara_attached + set_niagara_user_param native handlers (Niagara / FX spawn lane)
 EXPECTED_SYNTHETIC_TOOL_COUNT = 35  # bumped from 34 — added material_auto_remap
 EXPECTED_TOOL_COUNT = EXPECTED_CPP_HANDLER_COUNT + EXPECTED_SYNTHETIC_TOOL_COUNT
