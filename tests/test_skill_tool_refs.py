@@ -69,6 +69,7 @@ NON_TOOL_TOKENS = {
     "set_by",
     "value_string",
     "static_meshes",
+    "created",
     # anti-example: the docs explicitly state this tool does NOT exist
     # (the real entry point is register_subscription)
     "start_event_subscription",
