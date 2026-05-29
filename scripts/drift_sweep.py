@@ -73,6 +73,10 @@ PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"\b(\d+)\s+tools?\s+become\s+available\b", re.IGNORECASE), "tools"),
     (re.compile(r"across\s+all\s+(\d+)\s+tools?\b", re.IGNORECASE), "tools"),
     (re.compile(r"total\s+of\s+(\d+)\s+tools?\b", re.IGNORECASE), "tools"),
+    # README shields.io tools badge slug ("tools-105-blue").
+    (re.compile(r"badge/tools-(\d+)", re.IGNORECASE), "tools"),
+    # "**N live**" Status-table cell (README "Tools" row) — "tools" implied by context.
+    (re.compile(r"\*\*(\d+)\s+live\*\*", re.IGNORECASE), "tools"),
     (re.compile(r"\b(\d+)\s+native\s+C\+\+\s+handlers?\b", re.IGNORECASE), "cpp_handlers"),
     (re.compile(r"\b(\d+)\s+UE\s+C\+\+\s+handlers?\b", re.IGNORECASE), "cpp_handlers"),
     (re.compile(r"\((\d+)\s+native\s+C\+\+\s+handlers?", re.IGNORECASE), "cpp_handlers"),
@@ -80,7 +84,14 @@ PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"\((\d+)\s+C\+\+\s+handlers?\s+\+", re.IGNORECASE), "cpp_handlers"),
     (re.compile(r"\b(\d+)\s+are\s+(?:native\s+)?C\+\+\s+(?:handlers?|methods?)\b", re.IGNORECASE), "cpp_handlers"),
     (re.compile(r"\b(\d+)\s+are\s+JSON-RPC\b", re.IGNORECASE), "cpp_handlers"),
+    # "N handlers register" (README build-status) / "N dispatched [directly] to UE"
+    # (INSTALLATION) — both name the native C++ handler count.
+    (re.compile(r"\b(\d+)\s+handlers?\s+register\b", re.IGNORECASE), "cpp_handlers"),
+    (re.compile(r"\b(\d+)\s+dispatched\b", re.IGNORECASE), "cpp_handlers"),
     (re.compile(r"\b(\d+)\s+bridge[- ]side\s+synthetic", re.IGNORECASE), "synthetic_tools"),
+    # "N are bridge-side synthetic" (README hero) — the "are" variant the bare
+    # bridge-side pattern above misses.
+    (re.compile(r"\b(\d+)\s+are\s+bridge[- ]side\s+synthetic", re.IGNORECASE), "synthetic_tools"),
     (re.compile(r"\b(\d+)\s+synthetic\s+tools?\b", re.IGNORECASE), "synthetic_tools"),
     (re.compile(r"\b(\d+)\s+bridge\s+synthetic\b", re.IGNORECASE), "synthetic_tools"),
     # "The remaining N --" pattern (TOOLS.md intro). Anchored to a dash
