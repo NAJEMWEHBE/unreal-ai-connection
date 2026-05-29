@@ -15,6 +15,6 @@ sys.path.insert(0, os.path.join(ROOT, "bridge"))
 # Bumps as new C++ handlers register or new synthetic tools land in
 # bridge/unreal_ai_connection_bridge.py::SYNTHETIC_TOOLS. The split below is
 # informational; tests assert against the total via EXPECTED_TOOL_COUNT.
-EXPECTED_CPP_HANDLER_COUNT = 81  # bumped from 77 — added create_level + build_lighting + create_data_table + create_data_asset native handlers
+EXPECTED_CPP_HANDLER_COUNT = 84  # bumped from 81 — added create_blueprint + add_blueprint_variable + add_blueprint_function native handlers (Lane 3 blueprint authoring)
 EXPECTED_SYNTHETIC_TOOL_COUNT = 35  # bumped from 34 — added material_auto_remap
 EXPECTED_TOOL_COUNT = EXPECTED_CPP_HANDLER_COUNT + EXPECTED_SYNTHETIC_TOOL_COUNT

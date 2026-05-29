@@ -85,6 +85,7 @@ def test_tool_names_are_unique_and_match_handlers():
         "create_material_instance", "set_mi_parameter", "inspect_material",
         "inspect_material_instance",
         "create_level", "build_lighting", "create_data_table", "create_data_asset",
+        "create_blueprint", "add_blueprint_variable", "add_blueprint_function",
         "run_python_file",
         "fix_up_redirectors",
         "apply_python_to_selection",

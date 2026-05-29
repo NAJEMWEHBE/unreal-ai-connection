@@ -1,7 +1,7 @@
 {
  "name": "UnrealAIConnection",
  "version": "0.9.1",
- "description": "Drive Unreal Engine 5.7 from any MCP-compliant client over a local TCP socket. 116 tools total (81 native C++ handlers plus 35 bridge-side synthetic tools) that work with any UE 5.7 project.",
+ "description": "Drive Unreal Engine 5.7 from any MCP-compliant client over a local TCP socket. 119 tools total (84 native C++ handlers plus 35 bridge-side synthetic tools) that work with any UE 5.7 project.",
  "transport": {
   "type": "tcp",
   "host": "127.0.0.1",
@@ -564,6 +564,50 @@
    "returns": {
     "ok": "bool",
     "path": "string"
+   }
+  },
+  {
+   "name": "create_blueprint",
+   "description": "Create a new UBlueprint asset under /Game/ from a parent class (default /Script/Engine.Actor).",
+   "params": {
+    "path": "string (required) - destination folder under /Game/",
+    "name": "string (required) - leaf asset name",
+    "parent_class": "string (optional) - full path to the parent UClass, e.g. /Script/Engine.Pawn; defaults to /Script/Engine.Actor; abstract classes are rejected"
+   },
+   "returns": {
+    "ok": "bool",
+    "path": "string",
+    "parent_class": "string"
+   }
+  },
+  {
+   "name": "add_blueprint_variable",
+   "description": "Add a typed member variable to an existing UBlueprint.",
+   "params": {
+    "blueprint": "string (required) - /Game path to the UBlueprint asset",
+    "var_name": "string (required) - new variable name",
+    "type": "string (required) - one of: bool | int | float | string | name | vector | rotator | transform | object",
+    "object_class": "string (needed only when type is 'object') - full path to a UClass",
+    "default_value": "string (optional) - default value as a string"
+   },
+   "returns": {
+    "ok": "bool",
+    "blueprint": "string",
+    "var_name": "string",
+    "type": "string"
+   }
+  },
+  {
+   "name": "add_blueprint_function",
+   "description": "Add a new empty function graph to an existing UBlueprint.",
+   "params": {
+    "blueprint": "string (required) - /Game path to the UBlueprint asset",
+    "function_name": "string (required) - new function name; must not collide with an existing function graph"
+   },
+   "returns": {
+    "ok": "bool",
+    "blueprint": "string",
+    "function_name": "string"
    }
   },
   {

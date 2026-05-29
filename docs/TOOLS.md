@@ -1,6 +1,6 @@
 # MCP Tools Reference
 
-**116 tools total.** 81 are JSON-RPC 2.0 methods served on `127.0.0.1:18888` directly by the plugin's C++ handlers. The remaining 35 — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`, `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap`, `sequencer_add_transform_keyframe`, `import_mesh`, `material_auto_remap` — are bridge-side **synthetic tools** that are intercepted by `bridge/unreal_ai_connection_bridge.py` and served by composing existing handlers (or running Python via `execute_unreal_python`, or — for `compile_mod_pak` — shelling out to `RunUAT.bat` entirely outside the UE process). They are visible to MCP clients exactly like the C++ tools but cannot be reached by sending raw JSON-RPC to the TCP socket — only via the MCP bridge or by replicating their composition manually. The "Implementation" header on each entry below indicates whether a tool is C++ or bridge-side.
+**119 tools total.** 84 are JSON-RPC 2.0 methods served on `127.0.0.1:18888` directly by the plugin's C++ handlers. The remaining 35 — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`, `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap`, `sequencer_add_transform_keyframe`, `import_mesh`, `material_auto_remap` — are bridge-side **synthetic tools** that are intercepted by `bridge/unreal_ai_connection_bridge.py` and served by composing existing handlers (or running Python via `execute_unreal_python`, or — for `compile_mod_pak` — shelling out to `RunUAT.bat` entirely outside the UE process). They are visible to MCP clients exactly like the C++ tools but cannot be reached by sending raw JSON-RPC to the TCP socket — only via the MCP bridge or by replicating their composition manually. The "Implementation" header on each entry below indicates whether a tool is C++ or bridge-side.
 
 Each tool's params and result are documented with a working example.
 
@@ -1240,6 +1240,95 @@ Create a new `UDataAsset` (or subclass) asset from a `UDataAsset` subclass path 
   "path": "/Game/Data",
   "name": "DA_GameConfig",
   "class_path": "/Script/Engine.PrimaryDataAsset"
+}}
+```
+
+---
+
+## create_blueprint
+
+**Implementation:** C++
+
+Create a new `UBlueprint` asset under `/Game/` from a parent class (via `UBlueprintFactory` + `IAssetTools::CreateAsset`).
+
+**Params**
+- `path` (string, required) — destination folder under `/Game/`. Rejected if it contains `..` or a backslash.
+- `name` (string, required) — leaf asset name.
+- `parent_class` (string, optional) — full path to the parent `UClass`, e.g. `/Script/Engine.Pawn` or a `/Game` BP generated class (path ends with `_C`). Defaults to `/Script/Engine.Actor`. Abstract classes are rejected.
+
+**Result**
+- `ok` (bool)
+- `path` (string) — full object path of the created Blueprint (`UObject::GetPathName`).
+- `parent_class` (string) — resolved parent class path (`UClass::GetPathName`).
+
+**Errors:** `missing_params`, `missing_required_field`, `invalid_field` (includes `parent_class_is_abstract`), `parent_class_not_found`, `editor_unavailable`, `create_failed`.
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"create_blueprint","params":{
+  "path": "/Game/Blueprints",
+  "name": "BP_Enemy",
+  "parent_class": "/Script/Engine.Pawn"
+}}
+```
+
+---
+
+## add_blueprint_variable
+
+**Implementation:** C++
+
+Add a typed member variable to an existing `UBlueprint` (via `FBlueprintEditorUtils::AddMemberVariable`). On success the Blueprint is marked structurally modified so the new variable compiles in.
+
+**Params**
+- `blueprint` (string, required) — `/Game` path to the `UBlueprint` asset.
+- `var_name` (string, required) — new variable name.
+- `type` (string, required) — one of `bool`, `int`, `float`, `string`, `name`, `vector`, `rotator`, `transform`, `object`.
+- `object_class` (string, required only when `type` is `object`) — full path to a `UClass`.
+- `default_value` (string, optional) — default value as a string.
+
+**Result**
+- `ok` (bool)
+- `blueprint` (string) — echoed back.
+- `var_name` (string) — echoed back.
+- `type` (string) — echoed back.
+
+**Errors:** `missing_params`, `missing_required_field`, `invalid_field` (includes `object_class_not_found`), `blueprint_not_found`, `unsupported_type`, `add_failed`.
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"add_blueprint_variable","params":{
+  "blueprint": "/Game/Blueprints/BP_Enemy",
+  "var_name": "Health",
+  "type": "float",
+  "default_value": "100.0"
+}}
+```
+
+---
+
+## add_blueprint_function
+
+**Implementation:** C++
+
+Add a new empty function graph to an existing `UBlueprint` (via `FBlueprintEditorUtils::CreateNewGraph` + `AddFunctionGraph`). On success the Blueprint is marked structurally modified so the new function compiles in.
+
+**Params**
+- `blueprint` (string, required) — `/Game` path to the `UBlueprint` asset.
+- `function_name` (string, required) — new function name. Must not collide with an existing function graph.
+
+**Result**
+- `ok` (bool)
+- `blueprint` (string) — echoed back.
+- `function_name` (string) — echoed back.
+
+**Errors:** `missing_params`, `missing_required_field`, `blueprint_not_found`, `function_exists`.
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"add_blueprint_function","params":{
+  "blueprint": "/Game/Blueprints/BP_Enemy",
+  "function_name": "TakeDamage"
 }}
 ```
 
