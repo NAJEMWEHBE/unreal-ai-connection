@@ -6910,3 +6910,38 @@ def test_material_auto_remap_fails_closed_when_marker_missing():
     assert "error" in resp
     assert resp["error"]["code"] == -32603
     assert "missing_result_marker" in resp["error"]["message"]
+
+
+def test_material_auto_remap_resolves_actor_before_creating_material():
+    """cubic P1: the generated script resolves the target actor BEFORE
+    deleting/creating dest_material, so a bad actor_label never mutates it."""
+    code = bridge._build_material_remap_script(
+        "Wall", {"base_color": "/Game/T/D"}, "/Game/Mats/M_X", 1.0)
+    assert "target = None" in code and "if target is None:" in code
+    assert code.index("target = None") < code.index("create_asset")
+    assert code.index("if target is None:") < code.index("delete_asset")
+
+
+def test_material_auto_remap_rejects_nonfinite_tiling():
+    for bad in (float("inf"), float("nan")):
+        with patch.object(bridge, "call_ue") as m:
+            resp = bridge.handle({
+                "jsonrpc": "2.0", "id": 977, "method": "tools/call",
+                "params": {"name": "material_auto_remap", "arguments": {
+                    "actor_label": "Wall", "textures": {"base_color": "/Game/T/D"}, "tiling": bad}},
+            })
+        assert m.call_count == 0
+        assert resp["error"]["code"] == -32602
+        assert "tiling" in resp["error"]["message"]
+
+
+def test_material_auto_remap_rejects_texture_path_traversal():
+    for bad in ("/Game/../secret/D", "/Game\\T\\D"):
+        with patch.object(bridge, "call_ue") as m:
+            resp = bridge.handle({
+                "jsonrpc": "2.0", "id": 978, "method": "tools/call",
+                "params": {"name": "material_auto_remap", "arguments": {
+                    "actor_label": "Wall", "textures": {"base_color": bad}}},
+            })
+        assert m.call_count == 0
+        assert resp["error"]["code"] == -32602

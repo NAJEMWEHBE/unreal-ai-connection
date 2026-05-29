@@ -7121,51 +7121,59 @@ def _build_material_remap_script(actor_label: str, textures: dict, dest_material
     for slot, (st, prop, out) in _MATREMAP_SLOTS.items():
         if slot in textures:
             slot_lines.append((textures[slot], st, prop, out))
-    body = (
+    # actor-first: resolve the target actor BEFORE creating/deleting any material asset,
+    # so a missing/typo'd actor_label never mutates or destroys dest_material (cubic P1).
+    head = (
         "import unreal, json\n"
         "ACTOR = " + repr(actor_label) + "\n"
         "MATPKG = " + repr(pkg) + "\n"
         "MATNAME = " + repr(name) + "\n"
         "MATPATH = MATPKG + '/' + MATNAME\n"
         "TILING = " + repr(float(tiling)) + "\n"
+        "MARKER = " + repr(_MATREMAP_MARKER) + "\n"
         "mel = unreal.MaterialEditingLibrary\n"
-        # verify all supplied textures exist up front
-        "for _p in " + repr([t[0] for t in slot_lines]) + ":\n"
-        "    if not unreal.EditorAssetLibrary.does_asset_exist(_p):\n"
-        "        raise RuntimeError('texture_not_found: ' + _p)\n"
-        "if unreal.EditorAssetLibrary.does_asset_exist(MATPATH):\n"
-        "    unreal.EditorAssetLibrary.delete_asset(MATPATH)\n"
-        "m = unreal.AssetToolsHelpers.get_asset_tools().create_asset(MATNAME, MATPKG, unreal.Material, unreal.MaterialFactoryNew())\n"
-        "tc = mel.create_material_expression(m, unreal.MaterialExpressionTextureCoordinate, -900, 0)\n"
-        "tc.set_editor_property('u_tiling', TILING); tc.set_editor_property('v_tiling', TILING)\n"
-        "_y = -300\n"
-    )
-    for path, st, prop, out in slot_lines:
-        body += (
-            "_y += 300\n"
-            "_s = mel.create_material_expression(m, unreal.MaterialExpressionTextureSample, -500, _y)\n"
-            "_s.set_editor_property('texture', unreal.EditorAssetLibrary.load_asset(" + repr(path) + "))\n"
-            "_s.set_editor_property('sampler_type', unreal.MaterialSamplerType." + st + ")\n"
-            "mel.connect_material_expressions(tc, '', _s, 'UVs')\n"
-            "mel.connect_material_property(_s, " + repr(out) + ", unreal.MaterialProperty." + prop + ")\n"
-        )
-    body += (
-        "mel.recompile_material(m)\n"
-        "unreal.EditorAssetLibrary.save_asset(MATPATH)\n"
         "eas = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)\n"
-        "found = False; slots = 0\n"
-        "for a in eas.get_all_level_actors():\n"
-        "    if a.get_actor_label() == ACTOR:\n"
-        "        found = True\n"
-        "        smc = a.get_component_by_class(unreal.StaticMeshComponent)\n"
-        "        if smc:\n"
-        "            slots = smc.get_num_materials()\n"
-        "            for _i in range(slots):\n"
-        "                smc.set_material(_i, m)\n"
-        "        break\n"
-        "print(" + repr(_MATREMAP_MARKER) + " + json.dumps({'material_path': MATPATH, 'actor_found': found, 'slots_assigned': slots}))\n"
+        "target = None\n"
+        "for _a in eas.get_all_level_actors():\n"
+        "    if _a.get_actor_label() == ACTOR:\n"
+        "        target = _a; break\n"
+        "if target is None:\n"
+        "    print(MARKER + json.dumps({'material_path': MATPATH, 'actor_found': False, 'slots_assigned': 0}))\n"
+        "else:\n"
+        "    for _p in " + repr([t[0] for t in slot_lines]) + ":\n"
+        "        if not unreal.EditorAssetLibrary.does_asset_exist(_p):\n"
+        "            raise RuntimeError('texture_not_found: ' + _p)\n"
+        "    if unreal.EditorAssetLibrary.does_asset_exist(MATPATH):\n"
+        "        unreal.EditorAssetLibrary.delete_asset(MATPATH)\n"
+        "    m = unreal.AssetToolsHelpers.get_asset_tools().create_asset(MATNAME, MATPKG, unreal.Material, unreal.MaterialFactoryNew())\n"
+        "    if m is None:\n"
+        "        raise RuntimeError('material_create_failed: ' + MATPATH)\n"
+        "    tc = mel.create_material_expression(m, unreal.MaterialExpressionTextureCoordinate, -900, 0)\n"
+        "    tc.set_editor_property('u_tiling', TILING); tc.set_editor_property('v_tiling', TILING)\n"
+        "    _y = -300\n"
     )
-    return body
+    mid = ""
+    for path, st, prop, out in slot_lines:
+        mid += (
+            "    _y += 300\n"
+            "    _s = mel.create_material_expression(m, unreal.MaterialExpressionTextureSample, -500, _y)\n"
+            "    _s.set_editor_property('texture', unreal.EditorAssetLibrary.load_asset(" + repr(path) + "))\n"
+            "    _s.set_editor_property('sampler_type', unreal.MaterialSamplerType." + st + ")\n"
+            "    mel.connect_material_expressions(tc, '', _s, 'UVs')\n"
+            "    mel.connect_material_property(_s, " + repr(out) + ", unreal.MaterialProperty." + prop + ")\n"
+        )
+    tail = (
+        "    mel.recompile_material(m)\n"
+        "    unreal.EditorAssetLibrary.save_asset(MATPATH)\n"
+        "    smc = target.get_component_by_class(unreal.StaticMeshComponent)\n"
+        "    slots = 0\n"
+        "    if smc:\n"
+        "        slots = smc.get_num_materials()\n"
+        "        for _i in range(slots):\n"
+        "            smc.set_material(_i, m)\n"
+        "    print(MARKER + json.dumps({'material_path': MATPATH, 'actor_found': True, 'slots_assigned': slots}))\n"
+    )
+    return head + mid + tail
 
 
 def synthetic_material_auto_remap(req_id, args: dict) -> dict:
@@ -7195,6 +7203,9 @@ def synthetic_material_auto_remap(req_id, args: dict) -> dict:
         if not isinstance(path, str) or not path.startswith("/Game/"):
             return make_response(req_id, error={
                 "code": -32602, "message": f"material_auto_remap: invalid_field: textures['{slot}'] must be a string starting with /Game/"})
+        if "\\" in path or any(seg in (".", "..") for seg in path.split("/")):
+            return make_response(req_id, error={
+                "code": -32602, "message": f"material_auto_remap: invalid_field: textures['{slot}'] must not contain '\\\\' or '.'/'..' segments"})
     dest_material = args.get("dest_material")
     if dest_material is None:
         safe = "".join(c if (c.isalnum() or c == "_") else "_" for c in actor_label)
@@ -7206,9 +7217,9 @@ def synthetic_material_auto_remap(req_id, args: dict) -> dict:
         return make_response(req_id, error={
             "code": -32602, "message": "material_auto_remap: invalid_field: 'dest_material' must not contain '\\\\' or '.'/'..' segments"})
     tiling = args.get("tiling", 1.0)
-    if not isinstance(tiling, (int, float)) or isinstance(tiling, bool) or tiling <= 0:
+    if not isinstance(tiling, (int, float)) or isinstance(tiling, bool) or not math.isfinite(tiling) or tiling <= 0:
         return make_response(req_id, error={
-            "code": -32602, "message": "material_auto_remap: invalid_field: 'tiling' must be a number > 0"})
+            "code": -32602, "message": "material_auto_remap: invalid_field: 'tiling' must be a finite number > 0"})
 
     gate = check_engine_gate(req_id, "material_auto_remap")
     if gate is not None:
