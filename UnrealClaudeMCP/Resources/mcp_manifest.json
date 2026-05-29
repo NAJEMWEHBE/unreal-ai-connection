@@ -1,7 +1,7 @@
 {
  "name": "UnrealClaudeMCP",
  "version": "0.9.1",
- "description": "Drive Unreal Engine 5.7 from any MCP-compliant client over a local TCP socket. 109 tools total (74 native C++ handlers plus 35 bridge-side synthetic tools) that work with any UE 5.7 project.",
+ "description": "Drive Unreal Engine 5.7 from any MCP-compliant client over a local TCP socket. 112 tools total (77 native C++ handlers plus 35 bridge-side synthetic tools) that work with any UE 5.7 project.",
  "transport": {
   "type": "tcp",
   "host": "127.0.0.1",
@@ -295,6 +295,34 @@
     "name": "string",
     "deleted": "bool"
    }
+  },
+  {
+   "name": "duplicate_actor",
+   "description": "Clone an existing level actor (label or FName), optionally offset and relabel. Undoable.",
+   "params": {
+    "name": "string (required) - source actor label OR FName",
+    "offset": "object (optional) - world-space {x,y,z} offset for the clone",
+    "label": "string (optional) - World Outliner label for the clone"
+   },
+   "returns": "see docs/TOOLS.md"
+  },
+  {
+   "name": "set_actor_folder",
+   "description": "Set an actor's World Outliner folder path (e.g. 'Lighting/Key'; \"\" = root). Undoable.",
+   "params": {
+    "name": "string (required) - actor label OR FName",
+    "folder": "string (required) - slash-delimited folder path; empty string = outliner root"
+   },
+   "returns": "see docs/TOOLS.md"
+  },
+  {
+   "name": "rename_actor",
+   "description": "Change an actor's World Outliner display label (FName unchanged). Undoable.",
+   "params": {
+    "name": "string (required) - actor label OR FName to target",
+    "label": "string (required) - new display label"
+   },
+   "returns": "see docs/TOOLS.md"
   },
   {
    "name": "set_actor_property",
