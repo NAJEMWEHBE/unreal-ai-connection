@@ -1,5 +1,5 @@
 r"""
-Smoke test the UnrealClaudeMCP server on 127.0.0.1:18888.
+Smoke test the UnrealAIConnection server on 127.0.0.1:18888.
 
 Run from any Python (does NOT need to be UE's embedded interpreter -- this is
 a pure TCP client that hits the server FROM OUTSIDE):
@@ -87,7 +87,7 @@ def call(method: str, params: dict | None = None, request_id: int = 1) -> dict:
     try:
         s.connect((HOST, PORT))
     except (ConnectionRefusedError, OSError) as e:
-        return {"_error": f"Cannot reach UE at {HOST}:{PORT}: {e}. Is the editor open with UnrealClaudeMCP enabled?"}
+        return {"_error": f"Cannot reach UE at {HOST}:{PORT}: {e}. Is the editor open with UnrealAIConnection enabled?"}
 
     try:
         _send_framed(s, raw)
@@ -250,7 +250,7 @@ def main():
     def t2():
         resp = call(
             "execute_unreal_python",
-            {"code": "import unreal\nunreal.log('hello from UnrealClaudeMCP smoke test')"},
+            {"code": "import unreal\nunreal.log('hello from UnrealAIConnection smoke test')"},
         )
         show(resp)
         assert_ok(resp, "execute_unreal_python")
@@ -330,7 +330,7 @@ def main():
         if not os.path.exists(fixture):
             raise SmokeFailure(f"[texture] fixture missing: {fixture}")
 
-        smoke_dest = "/Game/_UnrealClaudeMCPSmoke"
+        smoke_dest = "/Game/_UnrealAIConnectionSmoke"
         asset_name = "T_PipelineSmoke"
         asset_path = f"{smoke_dest}/{asset_name}.{asset_name}"
 
@@ -823,7 +823,7 @@ def main():
         def t8d():
             resp = call("edit_widget_tree", {
                 "path": wbp, "op": "set_property", "widget": "Title",
-                "property": "text", "value": "Hello from UnrealClaudeMCP",
+                "property": "text", "value": "Hello from UnrealAIConnection",
                 "compile": True,
             })
             show(resp)

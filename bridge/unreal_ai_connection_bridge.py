@@ -45,9 +45,9 @@ PROTOCOL_VERSION = "2024-11-05"
 SERVER_NAME = "unreal-ai-connection"
 SERVER_VERSION = "0.9.1"
 
-# Mirror of UnrealClaudeMCP/Resources/mcp_manifest.json - kept in sync manually.
+# Mirror of UnrealAIConnection/Resources/mcp_manifest.json - kept in sync manually.
 # 96 tool entries total. 71 are dispatched straight to UE C++ handlers
-# (see UnrealClaudeMCPModule.cpp's Reg.Register(...) block). The remaining
+# (see UnrealAIConnectionModule.cpp's Reg.Register(...) block). The remaining
 # 25 -- wait_for_events, get_camera_transform, set_camera_transform,
 # screenshot_actor, compile_mod_pak, compile_mod_pak_direct,
 # bulk_delete_assets, bulk_move_assets, bulk_rename_assets,
@@ -1635,7 +1635,7 @@ def call_ue(method: str, params: dict | None) -> dict:
             "id": 1,
             "error": {
                 "code": -32099,
-                "message": f"UE server not reachable on {UE_HOST}:{UE_PORT}: {e}. Open the UE editor with the UnrealClaudeMCP plugin enabled.",
+                "message": f"UE server not reachable on {UE_HOST}:{UE_PORT}: {e}. Open the UE editor with the UnrealAIConnection plugin enabled.",
             },
         }
     except json.JSONDecodeError as e:

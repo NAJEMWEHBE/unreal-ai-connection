@@ -6,7 +6,7 @@
 #include "Modules/ModuleManager.h"
 #include "Delegates/IDelegateInstance.h"
 
-class FUnrealClaudeMCPModule : public IModuleInterface
+class FUnrealAIConnectionModule : public IModuleInterface
 {
 public:
     virtual void StartupModule() override;

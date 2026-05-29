@@ -63,9 +63,9 @@ extend-exclude = [
     "build",
     "dist",
     # UE-side artifacts (not Python)
-    "UnrealClaudeMCP/Binaries",
-    "UnrealClaudeMCP/Intermediate",
-    "UnrealClaudeMCP/Saved",
+    "UnrealAIConnection/Binaries",
+    "UnrealAIConnection/Intermediate",
+    "UnrealAIConnection/Saved",
 ]
 
 [tool.ruff.lint]

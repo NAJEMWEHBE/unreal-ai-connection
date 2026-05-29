@@ -10,16 +10,16 @@ UE 5.7 plugin + Python bridge exposing editor automation to MCP-compliant client
 
 ## Where to look first
 
-- **C++ handlers** (72) — `UnrealClaudeMCP/Source/UnrealClaudeMCP/Private/MCP/Handlers/Handler_*.cpp`. Registered in `UnrealClaudeMCPModule.cpp`.
+- **C++ handlers** (72) — `UnrealAIConnection/Source/UnrealAIConnection/Private/MCP/Handlers/Handler_*.cpp`. Registered in `UnrealAIConnectionModule.cpp`.
 - **Bridge-side synthetic tools** (33) — `bridge/unreal_ai_connection_bridge.py`'s `SYNTHETIC_TOOLS` dict: `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`, `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap`, `sequencer_add_transform_keyframe`.
-- **Tool catalog (manual 3-place sync)** — `UnrealClaudeMCP/Resources/mcp_manifest.json`, `bridge/unreal_ai_connection_bridge.py`'s `TOOLS` list, `docs/TOOLS.md`. `tests/test_manifest_sync.py` catches drift between the first two.
+- **Tool catalog (manual 3-place sync)** — `UnrealAIConnection/Resources/mcp_manifest.json`, `bridge/unreal_ai_connection_bridge.py`'s `TOOLS` list, `docs/TOOLS.md`. `tests/test_manifest_sync.py` catches drift between the first two.
 - **Architecture + UE 5.7 API gotchas** — `docs/ARCHITECTURE.md`.
 - **Host-build runbook** — top of `docs/HANDOFF.md`.
 - **Per-tool JSON schemas + examples** — `docs/TOOLS.md`.
 
 ## House rules carried across all agents
 
-- **One handler = one `.cpp` file** in `Source/UnrealClaudeMCP/Private/MCP/Handlers/`, plus one `extern` declaration and one `Reg.Register(...)` line in `UnrealClaudeMCPModule.cpp`. Don't grow the foundation; add leaves.
+- **One handler = one `.cpp` file** in `Source/UnrealAIConnection/Private/MCP/Handlers/`, plus one `extern` declaration and one `Reg.Register(...)` line in `UnrealAIConnectionModule.cpp`. Don't grow the foundation; add leaves.
 - **Verify UE API claims against UE 5.7 source** before committing C++. Past reviewer agents have asserted UE APIs that turned out wrong.
 - **Vendor-neutral framing** in any user-facing copy — repo description, `.uplugin` Description, README, tool descriptions. Don't bake "Claude Code" specifically into anything that ships.
 - **Smoke test runs against a live UE editor** (`examples/smoke_test.py` hits `127.0.0.1:18888` directly). Bridge unit tests under `tests/` run without UE.
@@ -33,7 +33,7 @@ UE 5.7 plugin + Python bridge exposing editor automation to MCP-compliant client
 
 The bridge is registered as `unreal-ai-connection` in this project's `.mcp.json` (read by Claude Code, Copilot CLI, Cursor). Codex CLI uses `~/.codex/config.toml` — register with:
 ```bash
-codex mcp add unreal-ai-connection -- py F:\UnrealClaudeMCP\bridge\unreal_ai_connection_bridge.py
+codex mcp add unreal-ai-connection -- py F:\UnrealAIConnection\bridge\unreal_ai_connection_bridge.py
 ```
 After registration, all 112 tools become available through the standard MCP `tools/list` + `tools/call` flow. Open the host UE project with the plugin enabled before any tool call (the bridge surfaces a clear error otherwise).
 

@@ -20,7 +20,7 @@ AI-first code editor. MCP servers configured via `.cursor/mcp.json` (project-sco
   "mcpServers": {
     "unreal-ai-connection": {
       "command": "py",
-      "args": ["C:\\full\\path\\to\\UnrealClaudeMCP\\bridge\\unreal_ai_connection_bridge.py"]
+      "args": ["C:\\full\\path\\to\\UnrealAIConnection\\bridge\\unreal_ai_connection_bridge.py"]
     }
   }
 }
@@ -32,7 +32,7 @@ AI-first code editor. MCP servers configured via `.cursor/mcp.json` (project-sco
   "mcpServers": {
     "unreal-ai-connection": {
       "command": "python3",
-      "args": ["/full/path/to/UnrealClaudeMCP/bridge/unreal_ai_connection_bridge.py"]
+      "args": ["/full/path/to/UnrealAIConnection/bridge/unreal_ai_connection_bridge.py"]
     }
   }
 }

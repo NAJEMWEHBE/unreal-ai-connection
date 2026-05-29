@@ -98,13 +98,13 @@ Top-level read-first: [`docs/HANDOFF.md`](../docs/HANDOFF.md) (resumption contex
 
 A new C++ handler is exactly:
 - One `Handler_<Name>.cpp` in
-  `UnrealClaudeMCP/Source/UnrealClaudeMCP/Private/MCP/Handlers/`
+  `UnrealAIConnection/Source/UnrealAIConnection/Private/MCP/Handlers/`
 - One `class FHandler_<Name> : public IUCMCPHandler` with **EXACTLY ONE**
   `virtual FString GetMethodName() const override` and **EXACTLY ONE**
   `virtual TSharedPtr<FJsonObject> Handle(const TSharedPtr<FJsonObject>& Params, FString& OutError) override`. No method-name variants. No additional Handle overloads.
 - One `TSharedRef<IUCMCPHandler> Make_Handler_<Name>()` factory at the bottom.
 - One `extern` forward decl + one `Reg.Register(Make_Handler_<Name>());`
-  line in `UnrealClaudeMCPModule.cpp` (preserving 4-space indent — never
+  line in `UnrealAIConnectionModule.cpp` (preserving 4-space indent — never
   tabs).
 - Direct `#include "MCP/MCPHandler.h"` — never an `__has_include` ladder
   (PR #69 retrospective).

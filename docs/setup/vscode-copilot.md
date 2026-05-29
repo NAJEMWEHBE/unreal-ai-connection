@@ -19,7 +19,7 @@ GitHub Copilot's agent mode in VS Code reads MCP servers from `.vscode/mcp.json`
     "unreal-ai-connection": {
       "type": "stdio",
       "command": "py",
-      "args": ["C:\\full\\path\\to\\UnrealClaudeMCP\\bridge\\unreal_ai_connection_bridge.py"]
+      "args": ["C:\\full\\path\\to\\UnrealAIConnection\\bridge\\unreal_ai_connection_bridge.py"]
     }
   }
 }
@@ -32,7 +32,7 @@ GitHub Copilot's agent mode in VS Code reads MCP servers from `.vscode/mcp.json`
     "unreal-ai-connection": {
       "type": "stdio",
       "command": "python3",
-      "args": ["/full/path/to/UnrealClaudeMCP/bridge/unreal_ai_connection_bridge.py"]
+      "args": ["/full/path/to/UnrealAIConnection/bridge/unreal_ai_connection_bridge.py"]
     }
   }
 }

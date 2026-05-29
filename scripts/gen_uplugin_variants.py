@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate per-engine-bucket .uplugin variants for Phase H release.
 
-The shipped UnrealClaudeMCP/UnrealClaudeMCP.uplugin pins
+The shipped UnrealAIConnection/UnrealAIConnection.uplugin pins
 ``"EngineVersion": "5.7.0"``. That field is a HARD load-gate: UE refuses
 to load a plugin whose EngineVersion does not satisfy the running engine,
 *regardless of the C++ compat shims*. A single binary also cannot span
@@ -47,16 +47,16 @@ from collections import OrderedDict
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-CANONICAL_UPLUGIN = REPO_ROOT / "UnrealClaudeMCP" / "UnrealClaudeMCP.uplugin"
+CANONICAL_UPLUGIN = REPO_ROOT / "UnrealAIConnection" / "UnrealAIConnection.uplugin"
 OUTPUT_DIR = REPO_ROOT / "dist" / "uplugin-variants"
 
 # (variant filename, EngineVersion value, human label). The EngineVersion
 # is the LOWEST engine in the bucket -- UE loads a plugin whose declared
 # EngineVersion is <= the running engine, so "5.4.0" covers 5.4 - 5.8.
 BUCKETS: list[tuple[str, str, str]] = [
-    ("UnrealClaudeMCP-T1.uplugin", "5.4.0", "T1 (UE 5.4 - 5.8)"),
-    ("UnrealClaudeMCP-T2.uplugin", "5.0.0", "T2 (UE 5.0 - 5.3)"),
-    ("UnrealClaudeMCP-T3.uplugin", "4.27.0", "T3 (UE 4.27)"),
+    ("UnrealAIConnection-T1.uplugin", "5.4.0", "T1 (UE 5.4 - 5.8)"),
+    ("UnrealAIConnection-T2.uplugin", "5.0.0", "T2 (UE 5.0 - 5.3)"),
+    ("UnrealAIConnection-T3.uplugin", "4.27.0", "T3 (UE 4.27)"),
 ]
 
 

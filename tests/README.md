@@ -24,7 +24,7 @@ GitHub Actions runs this suite on every push and PR (see
 
 ## 2. `examples/smoke_test.py` — live integration smoke test
 
-Requires a running UE 5.7 editor with the UnrealClaudeMCP plugin loaded on
+Requires a running UE 5.7 editor with the UnrealAIConnection plugin loaded on
 `127.0.0.1:18888`. Now asserts on response shape (not just print) and exits
 non-zero on regression.
 

@@ -86,7 +86,7 @@ public:
         // --- compose wrapped script ----------------------------------------
         //
         // Concatenate the boilerplate + user code into a single string and
-        // write to a unique temp file under Intermediate/UnrealClaudeMCPPython/
+        // write to a unique temp file under Intermediate/UnrealAIConnectionPython/
         // (matches the execute_unreal_python pattern). ExecuteFile mode then
         // tries the path resolution path; the file always wins over the
         // literal-source heuristic when a real path exists on disk.
@@ -95,7 +95,7 @@ public:
 
         const FString TempDir = FPaths::Combine(
             FPaths::ProjectIntermediateDir(),
-            TEXT("UnrealClaudeMCPPython")
+            TEXT("UnrealAIConnectionPython")
         );
         IFileManager::Get().MakeDirectory(*TempDir, /*Tree=*/ true);
 

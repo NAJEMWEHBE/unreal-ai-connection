@@ -2,7 +2,7 @@
 //
 // FUCMCPLogCapture - thread-safe in-process ring buffer for UE Output Log lines.
 //
-// Registered globally as an FOutputDevice in FUnrealClaudeMCPModule::StartupModule.
+// Registered globally as an FOutputDevice in FUnrealAIConnectionModule::StartupModule.
 // Deregistered in ShutdownModule.  get_log_lines reads from this buffer via GetLines().
 
 #pragma once

@@ -3,7 +3,7 @@ Wave A / Wave A.5 / PR #214 live-verification panel.
 
 Purpose
 -------
-Prove that the host-side UnrealClaudeMCP plugin was actually REBUILT and that
+Prove that the host-side UnrealAIConnection plugin was actually REBUILT and that
 the Wave A / Wave A.5 C++ handlers are compiled IN. A handler that is declared
 but not linked into the module manifests as JSON-RPC error -32601
 (method-not-found) at the wire level -- that is the exact regression this
@@ -111,7 +111,7 @@ def call(host: str, port: int, method: str,
             s.connect((host, port))
         except (ConnectionRefusedError, OSError) as e:
             return {"_error": f"Cannot reach UE at {host}:{port}: {e}. "
-                              f"Is the editor open with the rebuilt UnrealClaudeMCP plugin?"}
+                              f"Is the editor open with the rebuilt UnrealAIConnection plugin?"}
 
         try:
             _send_framed(s, raw)

@@ -25,15 +25,15 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 GEN_SCRIPT = REPO_ROOT / "scripts" / "gen_uplugin_variants.py"
-CANONICAL_UPLUGIN = REPO_ROOT / "UnrealClaudeMCP" / "UnrealClaudeMCP.uplugin"
+CANONICAL_UPLUGIN = REPO_ROOT / "UnrealAIConnection" / "UnrealAIConnection.uplugin"
 
 # Mirrors scripts/gen_uplugin_variants.py BUCKETS. Duplicated on purpose:
 # the test is the independent spec; if the generator's bucket table drifts
 # from this, that is exactly the regression we want to catch.
 EXPECTED_BUCKETS = {
-    "UnrealClaudeMCP-T1.uplugin": "5.4.0",
-    "UnrealClaudeMCP-T2.uplugin": "5.0.0",
-    "UnrealClaudeMCP-T3.uplugin": "4.27.0",
+    "UnrealAIConnection-T1.uplugin": "5.4.0",
+    "UnrealAIConnection-T2.uplugin": "5.0.0",
+    "UnrealAIConnection-T3.uplugin": "4.27.0",
 }
 
 
@@ -123,7 +123,7 @@ def test_canonical_uplugin_byte_unchanged(tmp_path, monkeypatch) -> None:
     gen.generate()
     after = CANONICAL_UPLUGIN.read_bytes()
     assert before == after, (
-        "the shipped UnrealClaudeMCP.uplugin must be byte-identical after "
+        "the shipped UnrealAIConnection.uplugin must be byte-identical after "
         "a generation run -- the generator must treat it as read-only"
     )
 

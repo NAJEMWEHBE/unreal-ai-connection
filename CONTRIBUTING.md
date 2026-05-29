@@ -24,9 +24,9 @@ If you're only touching the bridge / tests / docs: no UE needed. The bridge test
 
 ## Project layout (where things live)
 
-- `UnrealClaudeMCP/Source/UnrealClaudeMCP/Private/MCP/Handlers/Handler_*.cpp` — one MCP method per file. **One handler = one .cpp file** (this is the project's load-bearing convention; do not consolidate).
-- `UnrealClaudeMCP/Source/UnrealClaudeMCP/Private/UnrealClaudeMCPModule.cpp` — handler registration. Every handler needs a forward `extern` and a `Reg.Register(...)` line here.
-- `UnrealClaudeMCP/Resources/mcp_manifest.json` — declarative MCP tool manifest. Mirrors `bridge/unreal_ai_connection_bridge.py`'s `TOOLS` list. Drift here is caught by `tests/test_manifest_sync.py`.
+- `UnrealAIConnection/Source/UnrealAIConnection/Private/MCP/Handlers/Handler_*.cpp` — one MCP method per file. **One handler = one .cpp file** (this is the project's load-bearing convention; do not consolidate).
+- `UnrealAIConnection/Source/UnrealAIConnection/Private/UnrealAIConnectionModule.cpp` — handler registration. Every handler needs a forward `extern` and a `Reg.Register(...)` line here.
+- `UnrealAIConnection/Resources/mcp_manifest.json` — declarative MCP tool manifest. Mirrors `bridge/unreal_ai_connection_bridge.py`'s `TOOLS` list. Drift here is caught by `tests/test_manifest_sync.py`.
 - `bridge/unreal_ai_connection_bridge.py` — the Python stdio↔TCP bridge. Holds the static tool catalog (`TOOLS`), the synthetic-tool dispatch dict (`SYNTHETIC_TOOLS`), and the 34 `synthetic_*` functions that compose existing handlers bridge-side.
 - `tests/` — pytest suite for the bridge. **No UE required.** 537 pytest cases.
 - `scripts/drift_sweep.py` — mechanical doc-drift guard. Scans 16 high-traffic files and rejects stale counts.
@@ -43,8 +43,8 @@ If you're only touching the bridge / tests / docs: no UE needed. The bridge test
 **Adding a new tool?** Read [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) first, then follow the 10-step playbook in [`docs/RESUME.md`](docs/RESUME.md):
 
 1. Decide: C++ handler or bridge-side synthetic? Use a synthetic when the new tool *composes* existing handlers or runs `unreal.*` Python via the marker pattern. Use C++ when the tool needs UE native API access that the existing handlers don't expose.
-2. C++ track: add `Source/.../Handlers/Handler_<NewTool>.cpp`, add the `extern` + `Reg.Register` line in `UnrealClaudeMCPModule.cpp`.
-3. Either track: add the schema entry to `bridge/unreal_ai_connection_bridge.py`'s `TOOLS` list and `UnrealClaudeMCP/Resources/mcp_manifest.json`.
+2. C++ track: add `Source/.../Handlers/Handler_<NewTool>.cpp`, add the `extern` + `Reg.Register` line in `UnrealAIConnectionModule.cpp`.
+3. Either track: add the schema entry to `bridge/unreal_ai_connection_bridge.py`'s `TOOLS` list and `UnrealAIConnection/Resources/mcp_manifest.json`.
 4. Synthetic track: add the function `synthetic_<new_tool>(req_id, args: dict) -> dict` and register it in `SYNTHETIC_TOOLS`. Bump `EXPECTED_SYNTHETIC_TOOL_COUNT` in `tests/conftest.py`.
 5. Add behavioural tests to `tests/test_bridge.py`: schema + happy path + at least one error path + at least one input-validation path.
 6. Run `python scripts/drift_sweep.py` — apply every doc bump it flags (typically 8 files).

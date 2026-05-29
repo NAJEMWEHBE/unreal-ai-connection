@@ -18,7 +18,7 @@ mcpServers:
   - name: unreal-ai-connection
     command: py
     args:
-      - C:\full\path\to\UnrealClaudeMCP\bridge\unreal_ai_connection_bridge.py
+      - C:\full\path\to\UnrealAIConnection\bridge\unreal_ai_connection_bridge.py
 ```
 
 **macOS / Linux:**
@@ -27,7 +27,7 @@ mcpServers:
   - name: unreal-ai-connection
     command: python3
     args:
-      - /full/path/to/UnrealClaudeMCP/bridge/unreal_ai_connection_bridge.py
+      - /full/path/to/UnrealAIConnection/bridge/unreal_ai_connection_bridge.py
 ```
 
 ## Verification

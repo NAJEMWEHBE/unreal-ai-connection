@@ -9,7 +9,7 @@
 #include "Serialization/JsonSerializer.h"
 #include "ScopedTransaction.h"
 
-#define LOCTEXT_NAMESPACE "UnrealClaudeMCP"
+#define LOCTEXT_NAMESPACE "UnrealAIConnection"
 
 DEFINE_LOG_CATEGORY_STATIC(LogUCMCPDispatcher, Log, All);
 

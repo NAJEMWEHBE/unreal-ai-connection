@@ -3,7 +3,7 @@
 // execute_unreal_python - universal escape hatch.
 //
 // Always writes the source to a unique temp .py file under
-// Intermediate/UnrealClaudeMCPPython/ and passes UE the file path.
+// Intermediate/UnrealAIConnectionPython/ and passes UE the file path.
 // ExecPythonCommandEx in ExecuteFile mode tries to resolve the Command
 // as a file path FIRST and only falls back to literal source on some
 // inputs. Multi-line scripts with comments / quotes / paths embedded
@@ -45,7 +45,7 @@ public:
 
         const FString TempDir = FPaths::Combine(
             FPaths::ProjectIntermediateDir(),
-            TEXT("UnrealClaudeMCPPython")
+            TEXT("UnrealAIConnectionPython")
         );
         IFileManager::Get().MakeDirectory(*TempDir, /*Tree=*/true);
 

@@ -85,7 +85,7 @@ def call(method: str, params: dict | None = None, request_id: int = 1) -> dict:
     except (ConnectionRefusedError, OSError) as e:
         s.close()
         return {"_error": f"Cannot reach UE at {HOST}:{PORT}: {e}. "
-                          f"Is the editor open with UnrealClaudeMCP enabled?"}
+                          f"Is the editor open with UnrealAIConnection enabled?"}
 
     try:
         _send_framed(s, raw)

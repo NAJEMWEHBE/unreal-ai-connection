@@ -45,13 +45,13 @@ sequenceDiagram
 ## The four C++ files that matter
 
 ```
-Source/UnrealClaudeMCP/
+Source/UnrealAIConnection/
   Public/MCP/
     MCPServer.h          (TCP listener interface)
     MCPDispatcher.h      (one static function: HandleMessage)
     MCPHandler.h         (handler interface + registry)
   Private/
-    UnrealClaudeMCPModule.cpp   (registers all handlers + starts the server in StartupModule)
+    UnrealAIConnectionModule.cpp   (registers all handlers + starts the server in StartupModule)
     MCP/
       MCPServer.cpp           (FTcpListener + per-tick recv/dispatch/send)
       MCPDispatcher.cpp       (parse JSON-RPC, look up handler, return JSON-RPC response)
@@ -83,7 +83,7 @@ TSharedRef<IUCMCPHandler> Make_Handler_Foo()
 }
 ```
 
-Then in `UnrealClaudeMCPModule.cpp::StartupModule`:
+Then in `UnrealAIConnectionModule.cpp::StartupModule`:
 
 ```cpp
 extern TSharedRef<IUCMCPHandler> Make_Handler_Foo();
@@ -93,7 +93,7 @@ FUCMCPHandlerRegistry::Get().Register(Make_Handler_Foo());
 
 ## Shared modules (v0.3.0+)
 
-Three helpers extract cross-cutting concerns from multiple handlers. Each lives in `Source/UnrealClaudeMCP/Private/MCP/` (alongside `MCPServer.cpp` etc., not under `Handlers/`):
+Three helpers extract cross-cutting concerns from multiple handlers. Each lives in `Source/UnrealAIConnection/Private/MCP/` (alongside `MCPServer.cpp` etc., not under `Handlers/`):
 
 - **`ActorIdentity`** — hybrid label-or-FName actor lookup. Used by `set_actor_transform`, `delete_actor`, `set_actor_property`, `add_component`. Returns `EResolveResult::Ambiguous` with the candidate FNames listed when a label matches multiple actors, so handlers can produce actionable `ambiguous_actor` errors.
 - **`PropertyCoercion`** — JSON ↔ FProperty value bridge. Supports the v0.3.0 type list (primitives, strings, FName/FText, FVector/FVector2D/FRotator/FLinearColor/FColor, enums, TSoftObjectPtr). Used by `spawn_actor.properties`, `set_actor_property`, and `add_component.relative_transform`. Returns `ECoerceResult::Unsupported` with the FProperty class name for types deferred to v0.4.0 (USTRUCT, TArray, TMap, FObjectProperty, FInstancedStruct).
@@ -147,7 +147,7 @@ If you don't use Claude Code, you don't need the bridge — connect to the TCP s
 
 ## Build dependencies
 
-`Source/UnrealClaudeMCP/UnrealClaudeMCP.Build.cs`:
+`Source/UnrealAIConnection/UnrealAIConnection.Build.cs`:
 
 ```csharp
 // PublicDependencyModuleNames
@@ -181,7 +181,7 @@ If a handler references a UE class whose owning module isn't in this list, the l
 ## Adding a new handler — full recipe
 
 1. Decide the method name and the JSON shape of params + result.
-2. Create `Source/UnrealClaudeMCP/Private/MCP/Handlers/Handler_NewThing.cpp`:
+2. Create `Source/UnrealAIConnection/Private/MCP/Handlers/Handler_NewThing.cpp`:
    ```cpp
    #include "MCP/MCPHandler.h"
    // ... include UE headers you need
@@ -190,7 +190,7 @@ If a handler references a UE class whose owning module isn't in this list, the l
        return MakeShared<FHandler_NewThing>();
    }
    ```
-3. In `UnrealClaudeMCPModule.cpp`, near the other `extern` declarations:
+3. In `UnrealAIConnectionModule.cpp`, near the other `extern` declarations:
    ```cpp
    extern TSharedRef<IUCMCPHandler> Make_Handler_NewThing();
    ```
@@ -209,7 +209,7 @@ If a handler references a UE class whose owning module isn't in this list, the l
 These are real bugs / surprises that cost hours to find. Documented here as a defensive scar collection:
 
 - `FImageUtils::PNGCompressImageArray` takes `TArrayView64<const FColor>` source and `TArray64<uint8>` output. `CompressImageArray` is deprecated in 5.1 and writes a thumbnail-sized JPEG, not a PNG. (A reviewer subagent specifically told us the opposite — the source is the ground truth, not the model.)
-- `EPythonCommandExecutionMode::ExecuteFile` accepts EITHER a file path OR literal source text — but its file-vs-source heuristic fails on multi-line scripts with comments. The handler always writes the source to a temp `.py` file under `Intermediate/UnrealClaudeMCPPython/` and passes the file path. Bulletproof.
+- `EPythonCommandExecutionMode::ExecuteFile` accepts EITHER a file path OR literal source text — but its file-vs-source heuristic fails on multi-line scripts with comments. The handler always writes the source to a temp `.py` file under `Intermediate/UnrealAIConnectionPython/` and passes the file path. Bulletproof.
 - `FPluginDescriptor::EnabledByDefault` is `EPluginEnabledByDefault` (enum: `Unspecified` / `Enabled` / `Disabled`), NOT a bool. Cast to a string before serializing.
 - `OnClicked.AddDynamic(this, &Class::Method)` is a preprocessor macro that captures the function name as a string at the call site. Wrapping it in a C++ template breaks the capture and crashes at runtime. Each binding is its own inline call.
 - `BlueprintEditorLibrary.reparent_blueprint` crashes UE for `EditorUtilityWidgetBlueprint`. Workaround: delete the asset and recreate with `EditorUtilityWidgetBlueprintFactory.parent_class = <CustomClass>` from inception.
