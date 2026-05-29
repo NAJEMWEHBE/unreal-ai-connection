@@ -29,6 +29,9 @@ public class UnrealAIConnection : ModuleRules
             "PythonScriptPlugin",
             "GraphEditor",
             "Kismet",
+            // Blueprint authoring (Lane 3) — UEdGraphSchema_K2::PC_* pin
+            // categories from EdGraphSchema_K2.h live in BlueprintGraph.
+            "BlueprintGraph",
             "EngineSettings",
             "UMG",
             "UMGEditor",

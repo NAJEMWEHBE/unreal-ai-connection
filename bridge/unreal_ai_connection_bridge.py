@@ -13,7 +13,7 @@ plugin speaks raw JSON-RPC over a local TCP socket (default
 Behaviour:
   - "initialize"             returned synthetically (does NOT hit the UE server)
   - "notifications/*"        consumed silently
-  - "tools/list"             returns a static list of all 116 tools (81
+  - "tools/list"             returns a static list of all 119 tools (84
                              dispatched to the UE plugin's C++ handlers
                              plus 35 bridge-side synthetic tools served by
                              SYNTHETIC_TOOLS without crossing the wire as
@@ -1113,6 +1113,46 @@ TOOLS = [
                 "class_path": {"type": "string", "description": "Full path to a UDataAsset subclass, e.g. /Script/Engine.PrimaryDataAsset or a /Game BP-based DataAsset class. Abstract classes are rejected."},
             },
             "required": ["path", "name", "class_path"],
+        },
+    },
+    {
+        "name": "create_blueprint",
+        "description": "Create a new UBlueprint asset under /Game/ from a parent class (default /Script/Engine.Actor).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "Destination folder under /Game/."},
+                "name": {"type": "string", "description": "Leaf asset name."},
+                "parent_class": {"type": "string", "description": "Full path to the parent UClass, e.g. /Script/Engine.Pawn or a /Game BP generated class. Defaults to /Script/Engine.Actor. Abstract classes are rejected."},
+            },
+            "required": ["path", "name"],
+        },
+    },
+    {
+        "name": "add_blueprint_variable",
+        "description": "Add a typed member variable to an existing UBlueprint.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "blueprint": {"type": "string", "description": "/Game path to the UBlueprint asset."},
+                "var_name": {"type": "string", "description": "New variable name."},
+                "type": {"type": "string", "enum": ["bool", "int", "float", "string", "name", "vector", "rotator", "transform", "object"], "description": "Variable type."},
+                "object_class": {"type": "string", "description": "Full path to a UClass. Required only when type is 'object'."},
+                "default_value": {"type": "string", "description": "Optional default value as a string."},
+            },
+            "required": ["blueprint", "var_name", "type"],
+        },
+    },
+    {
+        "name": "add_blueprint_function",
+        "description": "Add a new empty function graph to an existing UBlueprint.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "blueprint": {"type": "string", "description": "/Game path to the UBlueprint asset."},
+                "function_name": {"type": "string", "description": "New function name. Must not collide with an existing function graph."},
+            },
+            "required": ["blueprint", "function_name"],
         },
     },
     {
