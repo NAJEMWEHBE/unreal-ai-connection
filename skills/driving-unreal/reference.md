@@ -228,6 +228,45 @@ on quality change). `find_console_variables` iterates the live `IConsoleManager`
 registered CVars from loaded plugins are included. The `set_by` field helps distinguish CVars you
 set from those owned by the engine scalability system.
 
+## 11. Blender → Unreal asset (PROVEN)
+
+Goal: get genuinely-modelled 3D geometry into the level **for free** — author in
+Blender (free, open-source; drive it via a separate Blender-automation MCP server if one is
+connected, or by hand), then ingest through this plugin. No paid text-to-3D service is required;
+this is the open-stack alternative to bundled Meshy/Tripo-style generators.
+
+This plugin does **not** model assets — it consumes finished ones (two-MCP separation, see
+[`docs/ASSET-PIPELINE-BLENDER.md`](../../docs/ASSET-PIPELINE-BLENDER.md) and ADR-0002). The Blender
+server authors; this server imports/places/lights/renders.
+
+1. **Author in Blender** — model + UV-unwrap + PBR-texture **one asset at a time**. For UE 5.7:
+   single non-overlapping UV set (add a 2nd lightmap UV if not relying purely on Lumen), proportionate
+   tri-count, and **apply transforms** (scale=1, rotation=0) before export so it lands at a predictable
+   size. CC0 PBR (Poly Haven / AmbientCG) into a principled BSDF gives a sane exported material.
+2. **Export to a gitignored scratch dir** — prefer **`.glb`** (glTF 2.0 binary, embedded — geometry +
+   textures in one file). `.fbx` + a sidecar texture folder also works. Scratch dirs (`blender-exports/`,
+   `asset-src/`, `*.blend`) are gitignored build inputs, never committed.
+3. **Import into Unreal** — `import_mesh` with `source_path` (the `.glb`/`.gltf`/`.fbx`/`.obj` on disk),
+   `dest_path` (under `/Game/`), and `import_materials` (bool). It runs UE's **Interchange** pipeline and
+   returns the created `static_meshes` / `created` asset paths. (`import_mesh` is the supported wrapper
+   over the import seam — it honors ADR-0002: a bridge synthetic over `execute_unreal_python`, not new
+   plugin C++.) For a standalone loose texture not embedded in the file, use `import_texture` +
+   `configure_texture` instead.
+4. **Verify the import** — `inspect_static_mesh` on a returned path (LODs, materials, bounds) and
+   `inspect_material_instance` if `import_materials=true`. Import success means the file parsed, **not**
+   that it looks right — Interchange often leaves material texture params on white placeholders; fix with
+   `set_mi_parameter` (textures by full asset path) or `create_material_instance`.
+5. **Place + dress** — `spawn_actor` a `StaticMeshActor` (or set the mesh via `set_actor_property`'s
+   `StaticMeshComponent.StaticMesh` / `OverrideMaterials` array), `set_actor_transform` to position,
+   then run the **Photo → Unreal scene** atmosphere rig (recipe 5) for lighting.
+6. **Capture + persist** — `render_camera_to_png` for a deterministic hero still; `save_dirty_assets`.
+
+Notes: honest ceiling — the seam imports **faithfully**, it does not fix authoring mistakes (overlapping
+UVs, missing lightmap UV, un-applied transforms all survive into UE). No automatic LOD generation —
+author LODs in Blender or accept single-LOD. CC0 + procedural is a *competent* real-time result, not
+hand-authored AAA. This round-trip was host-verified live on UE 5.7 (2026-05-18) — see
+`docs/validation/blender-to-unreal-hifi-2026-05-18.md`.
+
 ---
 
 ## UE 5.x behavior notes (caller-relevant)

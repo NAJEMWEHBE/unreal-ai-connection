@@ -94,6 +94,7 @@ These rules matter more than any single recipe. Internalize them.
 | PIE validation loop | PROVEN | Start/observe/stop a Play-In-Editor session to validate live behavior |
 | Component authoring | PROVEN | Attach + configure a component on an existing actor |
 | Console variable management | PROVEN | Discover, read, write, and restore CVars; run one-off console commands |
+| Blender → Unreal asset | PROVEN | Ingest a Blender-authored mesh (free) via import_mesh; verify, place, light, render |
 
 Open [`reference.md`](reference.md) for the ordered tool sequences, verification checkpoints, and the
 UE 5.x gotcha table before running any of these.

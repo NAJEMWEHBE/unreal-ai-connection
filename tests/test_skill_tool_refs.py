@@ -54,6 +54,9 @@ NON_TOOL_TOKENS = {
     "relative_transform",
     "name_contains",
     "path_under",
+    "source_path",
+    "dest_path",
+    "import_materials",
     # error codes returned by actor-targeting tools
     "ambiguous_actor",
     # error codes returned by pie_control action=start/stop
@@ -65,6 +68,7 @@ NON_TOOL_TOKENS = {
     "is_simulating",
     "set_by",
     "value_string",
+    "static_meshes",
     # anti-example: the docs explicitly state this tool does NOT exist
     # (the real entry point is register_subscription)
     "start_event_subscription",
