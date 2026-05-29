@@ -30,7 +30,9 @@
 
 <div align="center">
 
-**Native C++ handlers — not Python Remote Execution.** ~50 ms round-trips across 107 tools · 532 tests · MIT · works with Claude Code, Cursor, Cline, Codex, Gemini, Continue, Windsurf & Zed.
+**Native C++ handlers — not Python Remote Execution.** ~50 ms round-trips across 121 tools · 546 tests · MIT · works with Claude Code, Cursor, Cline, Codex, Gemini, Continue, Windsurf & Zed.
+
+The suite now spans **inspection and authoring** — read existing assets and *create* them: actors, levels, data tables/assets, Blueprints, and material graphs, all over the same socket.
 
 ⭐ **If this saves you time, a star helps other devs find it.**
 
@@ -95,7 +97,7 @@ Also discoverable in the [official MCP Registry](https://github.com/modelcontext
 - [How it fits together](#how-it-fits-together) — architecture diagram + per-call sequence
 - [Why it exists](#why-it-exists) — the UE 5.7 Python dead-ends this plugin sidesteps
 - [Why MCP specifically](#why-mcp-specifically) — one protocol, every conforming client
-- [Tools](#tools) — 107 tools grouped into 14 expandable categories
+- [Tools](#tools) — 121 tools grouped into 15 expandable categories
 - [Quick start](#quick-start) — copy-paste path to a running editor with the plugin live
 - [What's in the box](#whats-in-the-box) — directory tree
 - [Status](#status) — release / test / build state
@@ -177,7 +179,7 @@ The wire format is `stdio MCP` between client and bridge, then a tight `length-p
 
 </details>
 
-### Project / asset registry (8 tools)
+### Project / asset registry (10 tools)
 
 <details>
 <summary><b>Project / asset registry</b> — click to expand the tool table</summary>
@@ -192,13 +194,15 @@ The wire format is `stdio MCP` between client and bridge, then a tight `length-p
 | `duplicate_asset` | Copy an asset to a new path. |
 | `delete_asset` | Delete an asset; refuses if referenced by other packages unless `force=true`. |
 | `fix_up_redirectors` | Resolve all object redirectors under a folder. |
+| `create_data_table` | Create a new `UDataTable` asset whose rows conform to a given row `UScriptStruct`. |
+| `create_data_asset` | Create a new `UDataAsset` (or subclass) asset from a `UDataAsset` subclass path. |
 
 </details>
 
-### Blueprint / widget / animation introspection (14 tools)
+### Blueprint / widget / animation — introspection + authoring (17 tools)
 
 <details>
-<summary><b>Blueprint / widget / animation introspection</b> — click to expand the tool table</summary>
+<summary><b>Blueprint / widget / animation — introspection + authoring</b> — click to expand the tool table</summary>
 
 | Tool | Purpose |
 |---|---|
@@ -216,10 +220,13 @@ The wire format is `stdio MCP` between client and bridge, then a tight `length-p
 | `inspect_landscape` | Components, layers, and material info for a landscape actor. |
 | `inspect_data_table` | RowStruct identity, sorted row names, per-property name+type for every `FProperty` on the row struct, plus client-strip / ignore-extra/missing-fields flags. |
 | `inspect_curve` | UCurveBase channel layout (1ch UCurveFloat / 4ch UCurveLinearColor / 3ch UCurveVector), per-channel name + key count + per-channel + global time/value range. |
+| `create_blueprint` | Create a new `UBlueprint` asset under `/Game/` from a parent class (default `/Script/Engine.Actor`). |
+| `add_blueprint_variable` | Add a typed member variable (bool/int/float/string/name/vector/rotator/transform/object) to an existing `UBlueprint`. |
+| `add_blueprint_function` | Add a new empty function graph to an existing `UBlueprint`. |
 
 </details>
 
-### Materials (4 tools)
+### Materials (6 tools)
 
 <details>
 <summary><b>Materials</b> — click to expand the tool table</summary>
@@ -230,6 +237,8 @@ The wire format is `stdio MCP` between client and bridge, then a tight `length-p
 | `set_mi_parameter` | Override a scalar/vector/texture parameter on a material instance. Type discriminator picks value shape. |
 | `inspect_material` | List parameter names declared by a `UMaterial` or `UMaterialInstance` (scalar/vector/texture/static-switch). |
 | `inspect_material_instance` | Read a material instance's parent + currently-overridden parameter values. |
+| `add_material_expression` | Create a `UMaterialExpression` node inside an existing `UMaterial`'s graph, then recompile the material. |
+| `connect_material_expression` | Wire an expression's output to a material property input (`property:BaseColor`) or another expression's input (`node:<ExprName>:<InputName>`), then recompile. |
 
 </details>
 
@@ -259,7 +268,7 @@ The wire format is `stdio MCP` between client and bridge, then a tight `length-p
 
 </details>
 
-### Level / actor authoring (16 tools)
+### Level / actor authoring (21 tools)
 
 <details>
 <summary><b>Level / actor authoring</b> — click to expand the tool table</summary>
@@ -272,8 +281,13 @@ The wire format is `stdio MCP` between client and bridge, then a tight `length-p
 | `delete_actor` | Remove an actor by name. Force flag overrides children-attached safety check. |
 | `set_actor_property` | Mutate any UPROPERTY on an actor. Supports primitives, FName/FText, vectors, rotators, colors, enums, and TSoftObjectPtr. |
 | `add_component` | Attach a component (UActorComponent / USceneComponent subclass) to an existing actor at runtime, optionally socketed. |
+| `duplicate_actor` | Clone an existing level actor (label or FName), optionally offset and relabel. Undoable (single Ctrl+Z). |
+| `set_actor_folder` | Set an actor's World Outliner folder path (e.g. `Lighting/Key`); empty string moves it to the outliner root. Undoable. |
+| `rename_actor` | Change an actor's World Outliner display label (`SetActorLabel`); the stable FName is unchanged. Undoable. |
 | `focus_actor` | Select an actor by label and frame the viewport on it. |
 | `load_level_by_path` | Open a level by package path. |
+| `create_level` | Create a new empty level (`UWorld`) asset under `/Game/` and open it as the active level. |
+| `build_lighting` | Invoke a static-lighting build on the active editor world. Non-interactive; may take time on large levels. |
 | `find_actors_by_class` | Filter the active level's actors by class. Composes `get_actors_in_level` and matches against the short class name. Bridge-side synthetic. |
 | `bulk_focus_actors` | Frame the viewport on each actor in a sequence, optionally screenshotting each one. Composes `focus_actor` (+ `get_viewport_screenshot`) per name. Bridge-side synthetic. |
 | `bulk_screenshot_actors` | Focus + screenshot each actor in a sequence. Composes `screenshot_actor` per name. Bridge-side synthetic. |
@@ -368,6 +382,18 @@ The wire format is `stdio MCP` between client and bridge, then a tight `length-p
 
 </details>
 
+### Editor state / undo (2 tools)
+
+<details>
+<summary><b>Editor state / undo</b> — click to expand the tool table</summary>
+
+| Tool | Purpose |
+|---|---|
+| `undo_transaction` | Step the editor undo stack backward — the programmatic Ctrl+Z. Each mutating MCP edit (spawn/delete/transform/property/component) is one transaction, so this reverts the last such edit (or the last N via `count`). |
+| `redo_transaction` | Step the editor undo stack forward — the programmatic Ctrl+Y. Re-applies transactions previously reverted by `undo_transaction` (or Ctrl+Z), up to `count` steps. |
+
+</details>
+
 ### Self-introspection (1 tool)
 
 <details>
@@ -379,7 +405,7 @@ The wire format is `stdio MCP` between client and bridge, then a tight `length-p
 
 </details>
 
-Adding a 73rd C++ handler is one `.cpp` file plus one line of registration — see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). New synthetic tools are an entry in `SYNTHETIC_TOOLS` plus a function in [`bridge/unreal_ai_connection_bridge.py`](bridge/unreal_ai_connection_bridge.py).
+Adding the next C++ handler is one `.cpp` file plus one line of registration — see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). New synthetic tools are an entry in `SYNTHETIC_TOOLS` plus a function in [`bridge/unreal_ai_connection_bridge.py`](bridge/unreal_ai_connection_bridge.py).
 
 ---
 
@@ -394,7 +420,7 @@ Adding a 73rd C++ handler is one `.cpp` file plus one line of registration — s
    ```
    [LogUnrealAIConnection] Module started
    LogUCMCPHandler: Registered handler 'execute_unreal_python'
-     ... (71 more handler lines)
+     ... (85 more handler lines)
    [LogUCMCP] Listening on 127.0.0.1:18888
    ```
 5. **Wire your MCP client.** Copy `examples/.mcp.json.example` to your project root as `.mcp.json`, edit the path to point at `bridge/unreal_ai_connection_bridge.py`, restart your client, and approve the new MCP server. Same bridge works with Claude Code, Claude Desktop, Cursor, Codex CLI, Windsurf, Continue, Cline, Zed, Gemini CLI, and VS Code Copilot — see [`docs/setup/`](docs/setup/) for per-client copy-paste recipes.
