@@ -64,6 +64,8 @@ extern TSharedRef<IUCMCPHandler> Make_Handler_ImportTexture();
 extern TSharedRef<IUCMCPHandler> Make_Handler_ConfigureTexture();
 extern TSharedRef<IUCMCPHandler> Make_Handler_FindAssets();
 extern TSharedRef<IUCMCPHandler> Make_Handler_SpawnActor();
+extern TSharedRef<IUCMCPHandler> Make_Handler_UndoTransaction();
+extern TSharedRef<IUCMCPHandler> Make_Handler_RedoTransaction();
 extern TSharedRef<IUCMCPHandler> Make_Handler_SetActorTransform();
 extern TSharedRef<IUCMCPHandler> Make_Handler_DeleteActor();
 extern TSharedRef<IUCMCPHandler> Make_Handler_SetActorProperty();
@@ -155,6 +157,8 @@ void FUnrealClaudeMCPModule::StartupModule()
     Reg.Register(Make_Handler_ConfigureTexture());
     Reg.Register(Make_Handler_FindAssets());
     Reg.Register(Make_Handler_SpawnActor());
+    Reg.Register(Make_Handler_UndoTransaction());
+    Reg.Register(Make_Handler_RedoTransaction());
     Reg.Register(Make_Handler_SetActorTransform());
     Reg.Register(Make_Handler_DeleteActor());
     Reg.Register(Make_Handler_SetActorProperty());
