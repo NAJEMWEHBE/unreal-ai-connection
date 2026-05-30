@@ -740,6 +740,37 @@ def main() -> None:
                     f"(expected ~100+) — build likely failed mid-script. "
                     f"labels sample: {sorted(elv)[:10]}"
                 )
+
+            # --- (b.5) accent Niagara FX -----------------------------------
+            # Exercises the new spawn_niagara_at_location tool (lane 1). Engine
+            # Niagara template systems, scaled up so the particle systems read
+            # at the city-scale orbit distance (radius ~9000). The continuous
+            # fountains animate across the orbit; the radial bursts add motion.
+            print("\n[2.6/5] placing Niagara FX (spawn_niagara_at_location) ...")
+            _FOUNTAIN = "/Niagara/DefaultAssets/Templates/Systems/FountainLightweight"
+            _BURST = "/Niagara/DefaultAssets/Templates/Systems/RadialBurst"
+            fx_plan = [
+                (_FOUNTAIN, 2000.0, 0.0, 0.0, 90.0, "FX_Fountain_Center"),
+                (_FOUNTAIN, 600.0, -1600.0, 0.0, 60.0, "FX_Fountain_B"),
+                (_FOUNTAIN, 3600.0, -700.0, 0.0, 60.0, "FX_Fountain_C"),
+                (_FOUNTAIN, 1400.0, 1700.0, 0.0, 60.0, "FX_Fountain_D"),
+                (_BURST, 2000.0, 0.0, 2200.0, 45.0, "FX_Burst_Center"),
+                (_BURST, 3200.0, 1400.0, 1400.0, 38.0, "FX_Burst_E"),
+            ]
+            fx_ok = 0
+            for _sys, _fx, _fy, _fz, _fs, _lbl in fx_plan:
+                _r = call(host, port, "spawn_niagara_at_location", {
+                    "system": _sys,
+                    "location": {"x": _fx, "y": _fy, "z": _fz},
+                    "scale": {"x": _fs, "y": _fs, "z": _fs},
+                    "label": _lbl,
+                }, request_id=25, timeout=30.0)
+                if "error" not in _r and "_error" not in _r:
+                    fx_ok += 1
+                else:
+                    print(f"  FX spawn failed for {_lbl}: "
+                          f"{_r.get('error') or _r.get('_error')}")
+            print(f"  Niagara FX placed: {fx_ok}/{len(fx_plan)}.")
         else:
             print("\n[2/5] --skip-build: capturing the current level as-is.")
 
