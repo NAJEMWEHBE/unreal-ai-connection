@@ -15,6 +15,6 @@ sys.path.insert(0, os.path.join(ROOT, "bridge"))
 # Bumps as new C++ handlers register or new synthetic tools land in
 # bridge/unreal_ai_connection_bridge.py::SYNTHETIC_TOOLS. The split below is
 # informational; tests assert against the total via EXPECTED_TOOL_COUNT.
-EXPECTED_CPP_HANDLER_COUNT = 94  # bumped from 89 — added set_sequence_playback_range + add_cine_camera_to_sequence + add_camera_cut_track + add_audio_track + add_visibility_track native handlers (Sequencer / cinematics authoring lane)
+EXPECTED_CPP_HANDLER_COUNT = 95  # bumped from 94 — added render_sequence_mrq native handler (Movie Render Queue render lane)
 EXPECTED_SYNTHETIC_TOOL_COUNT = 35  # bumped from 34 — added material_auto_remap
 EXPECTED_TOOL_COUNT = EXPECTED_CPP_HANDLER_COUNT + EXPECTED_SYNTHETIC_TOOL_COUNT

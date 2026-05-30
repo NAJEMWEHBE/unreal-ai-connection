@@ -13,7 +13,7 @@ plugin speaks raw JSON-RPC over a local TCP socket (default
 Behaviour:
   - "initialize"             returned synthetically (does NOT hit the UE server)
   - "notifications/*"        consumed silently
-  - "tools/list"             returns a static list of all 129 tools (94
+  - "tools/list"             returns a static list of all 130 tools (95
                              dispatched to the UE plugin's C++ handlers
                              plus 35 bridge-side synthetic tools served by
                              SYNTHETIC_TOOLS without crossing the wire as
@@ -1091,6 +1091,28 @@ TOOLS = [
                 "start_frame": {"type": "integer", "description": "Frame for the visible_at_start convenience key (default 0)."},
             },
             "required": ["sequence_path", "binding_guid"],
+        },
+    },
+    {
+        "name": "render_sequence_mrq",
+        "description": "Render a Level Sequence to an image sequence (PNG/JPG/BMP/EXR) on disk via the Movie Render Queue. ASYNC: builds an MRQ queue+job, kicks off a PIE-based (or out-of-process) render on the game thread, and returns a task_id immediately. Poll with poll_task; the completed result carries {success, output_dir, files_written, frame_count}. An optional map_path also covers the render-a-level case (defaults to the current editor world). Requires the MovieRenderPipeline engine plugin. cancel_task is not wired for this task type in v1.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "sequence_path": {"type": "string", "description": "Level Sequence asset path (object or package path)."},
+                "output_dir": {"type": "string", "description": "Absolute filesystem directory for the output image sequence (written verbatim into the MRQ OutputDirectory)."},
+                "map_path": {"type": "string", "description": "UWorld asset path to render the sequence against. Defaults to the currently-loaded editor world."},
+                "format": {"type": "string", "enum": ["png", "jpg", "bmp", "exr"], "description": "Output image container (default 'png')."},
+                "file_name_format": {"type": "string", "description": "MRQ file-name format (default '{sequence_name}.{frame_number}')."},
+                "resolution": {"type": "object", "description": "Output resolution {width:int, height:int} (default 1920x1080)."},
+                "output_frame_rate": {"type": "number", "description": "Output frame rate; if >0 enables a custom frame rate (else uses the sequence's display rate)."},
+                "use_custom_playback_range": {"type": "object", "description": "Optional {start_frame:int, end_frame:int} (display-rate frames) to override the rendered range; supply both keys together."},
+                "overwrite_existing": {"type": "boolean", "description": "Overwrite existing output files (default true)."},
+                "render_pass": {"type": "string", "enum": ["lit", "unlit", "detail_lighting", "lighting_only", "reflections_only", "path_tracer"], "description": "Deferred render pass (default 'lit')."},
+                "use_new_process": {"type": "boolean", "description": "false (default) = in-editor PIE executor; true = out-of-process executor (no per-file enumeration)."},
+                "render_offscreen": {"type": "boolean", "description": "PIE executor only: render without a progress window (default true)."},
+            },
+            "required": ["sequence_path", "output_dir"],
         },
     },
     {

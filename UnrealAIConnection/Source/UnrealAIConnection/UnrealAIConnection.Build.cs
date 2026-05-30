@@ -68,7 +68,22 @@ public class UnrealAIConnection : ModuleRules
             // render_camera_to_png (Path A+B sync render)
             "RenderCore",
             "RHI",
-            "ImageWrapper"
+            "ImageWrapper",
+            // Movie Render Queue render lane (render_sequence_mrq) — all three
+            // are used only inside Handler_RenderSequenceMrq.cpp, so Private:
+            //   MovieRenderPipelineCore         — queue / job / config / output-setting / executor base + data types
+            //   MovieRenderPipelineEditor       — UMoviePipelineQueueSubsystem + PIE / NewProcess executors
+            //   MovieRenderPipelineRenderPasses — image-output containers (PNG/JPG/BMP/EXR) + deferred passes
+            "MovieRenderPipelineCore",
+            "MovieRenderPipelineEditor",
+            "MovieRenderPipelineRenderPasses",
+            // MoviePipelineEXROutput.h (pulled in by the _EXR output format) includes
+            // Imath/OpenEXR headers. RenderPasses keeps Imath/UEOpenExr PRIVATE
+            // (its Build.cs:20-22), so the include paths are NOT propagated to dependents —
+            // add them here so the EXR public header resolves when compiled in this module.
+            "Imath",
+            "UEOpenExr",
+            "UEOpenExrRTTI"
         });
     }
 }

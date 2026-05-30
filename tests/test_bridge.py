@@ -84,6 +84,7 @@ def test_tool_names_are_unique_and_match_handlers():
         "inspect_sequence", "create_sequence", "bind_actor_to_sequence",
         "set_sequence_playback_range", "add_cine_camera_to_sequence",
         "add_camera_cut_track", "add_audio_track", "add_visibility_track",
+        "render_sequence_mrq",
         "create_material_instance", "set_mi_parameter", "inspect_material",
         "inspect_material_instance",
         "create_level", "build_lighting", "create_data_table", "create_data_asset",

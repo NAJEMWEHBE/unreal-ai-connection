@@ -1,7 +1,7 @@
 {
  "name": "UnrealAIConnection",
  "version": "0.9.1",
- "description": "Drive Unreal Engine 5.7 from any MCP-compliant client over a local TCP socket. 129 tools total (94 native C++ handlers plus 35 bridge-side synthetic tools) that work with any UE 5.7 project.",
+ "description": "Drive Unreal Engine 5.7 from any MCP-compliant client over a local TCP socket. 130 tools total (95 native C++ handlers plus 35 bridge-side synthetic tools) that work with any UE 5.7 project.",
  "transport": {
   "type": "tcp",
   "host": "127.0.0.1",
@@ -595,6 +595,35 @@
     "track_class": "string",
     "section_index": "int",
     "key_count": "int"
+   }
+  },
+  {
+   "name": "render_sequence_mrq",
+   "description": "Render a Level Sequence to an image sequence (PNG/JPG/BMP/EXR) on disk via the Movie Render Queue. ASYNC: returns a task_id immediately; poll_task delivers {success, output_dir, files_written, frame_count}. Optional map_path also covers the render-a-level case (defaults to the current editor world). Requires the MovieRenderPipeline engine plugin. cancel_task is not wired for this task type in v1.",
+   "params": {
+    "sequence_path": "string (required) - Level Sequence asset path (object or package path)",
+    "output_dir": "string (required) - absolute filesystem directory for the output image sequence",
+    "map_path": "string (optional) - UWorld asset path; defaults to the currently-loaded editor world",
+    "format": "string (optional, default 'png') - png|jpg|bmp|exr output container",
+    "file_name_format": "string (optional, default '{sequence_name}.{frame_number}') - MRQ file-name format",
+    "resolution": "object (optional, default 1920x1080) - {width:int, height:int}",
+    "output_frame_rate": "number (optional) - if >0 enables a custom output frame rate",
+    "use_custom_playback_range": "object (optional) - {start_frame:int, end_frame:int} display-rate frames; supply both keys together to override the rendered range",
+    "overwrite_existing": "bool (optional, default true) - overwrite existing output files",
+    "render_pass": "string (optional, default 'lit') - lit|unlit|detail_lighting|lighting_only|reflections_only|path_tracer",
+    "use_new_process": "bool (optional, default false) - false = in-editor PIE executor; true = out-of-process",
+    "render_offscreen": "bool (optional, default true) - PIE executor only: render without a progress window"
+   },
+   "returns": {
+    "ok": "bool",
+    "task_id": "string",
+    "type": "string ('mrq_render')",
+    "status": "string ('pending')",
+    "sequence_path": "string",
+    "map_path": "string",
+    "output_dir": "string",
+    "format": "string",
+    "note": "string"
    }
   },
   {
