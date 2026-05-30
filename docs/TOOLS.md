@@ -5047,7 +5047,7 @@ The proven end-to-end pipeline (sequence load → GUID parse → binding lookup 
 
 **Implementation:** bridge-side synthetic (`execute_unreal_python` via UE Interchange). **Min engine:** 5.0.
 
-Imports a 3D mesh file (`.glb` / `.gltf` / `.fbx` / `.obj`) from disk into the project as StaticMesh asset(s). Fills the gap left by `import_texture` (images only). Drives UE's Interchange import to a `/Game/` path and returns the **exact** created StaticMesh asset paths by diffing the destination folder before/after the import — so the caller never has to guess Interchange's sub-folder nesting before binding the mesh to an actor (a real friction point when iterating Blender → UE). Embedded materials (e.g. glTF PBR) import by default.
+Imports a 3D mesh file (`.glb` / `.gltf` / `.fbx` / `.obj`) from disk into the project as StaticMesh asset(s). Fills the gap left by `import_texture` (images only). Drives UE's Interchange import to a `/Game/` path and returns the **exact** created StaticMesh asset paths by diffing the destination folder before/after the import — so the caller never has to guess Interchange's sub-folder nesting before binding the mesh to an actor (a real friction point in any DCC-to-UE mesh round-trip). Embedded materials (e.g. glTF PBR) import by default.
 
 **Params:** `source_path` (string, required — absolute filesystem path, extension `.glb`/`.gltf`/`.fbx`/`.obj`), `dest_path` (string, required — `/Game` or `/Game/...`), `import_materials` (bool, optional, default `true`).
 
