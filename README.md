@@ -22,9 +22,9 @@
 
 <div align="center">
 
-![Live demo: an MCP client procedurally builds an elven city in Unreal Engine 5.7 and orbits a camera](docs/images/demo.gif)
+![Live demo: an MCP client procedurally builds a city in Unreal Engine 5.7, places Niagara FX, and orbits a camera](docs/images/demo.gif)
 
-*Live capture — an MCP client builds the scene and orbits the camera entirely over the local TCP socket. Reproduce with [`scripts/capture_demo_gif.py`](scripts/capture_demo_gif.py).*
+*Live capture — an MCP client builds the scene, places **Niagara FX** (`spawn_niagara_at_location`), and orbits a camera, entirely over the local TCP socket. Reproduce with [`scripts/capture_demo_gif.py`](scripts/capture_demo_gif.py).*
 
 </div>
 
