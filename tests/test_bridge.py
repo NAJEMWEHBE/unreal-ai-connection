@@ -175,6 +175,7 @@ def test_tool_names_are_unique_and_match_handlers():
         "post_process_grade_preset",
         "sequence_snapshot",
         "material_blend_override",
+        "export_actor_as_gltf",
     }
     assert set(names) == expected
 
