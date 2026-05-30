@@ -59,7 +59,7 @@ The Wave A + Wave A.5 C++ handlers (`get_engine_version`, `list_levels`, `save_d
 
 **Verification runbook** (6 steps, PowerShell, run on the user's host machine):
 
-1. `cd "F:\ai\Unreal ai conncetion" && git pull origin main`
+1. `cd <repo-root> && git pull origin main`  (`<repo-root>` = your local clone of `unreal-ai-connection`)
 2. `taskkill /IM UnrealEditor.exe /F` (Live Coding holds the DLL otherwise; safe if UE isn't running). Or, with the module: `Import-Module .\scripts\UnrealAIConnection-Editor.psm1; Stop-UCMCPEditor`.
 3. **Sync dev plugin → host plugin.** The host project's `Plugins/UnrealAIConnection/` may be a plain copy on this machine, in which case it drifts from the dev tree silently. Verify with `Get-Item "<host-project>\Plugins\UnrealAIConnection" | Select-Object LinkType` — a `Junction` or `SymbolicLink` value means it auto-tracks; empty means it's a plain copy and you must sync. To sync (always quote both paths — Windows project locations like `F:\ax plug in\…` contain spaces):
    ```

@@ -43,12 +43,9 @@ public class UnrealAIConnection : ModuleRules
             "MovieSceneTracks",
             // Cinematics authoring lane — ACineCameraActor / UCineCameraComponent
             // (add_cine_camera_to_sequence) live in the CinematicCamera module.
-            "CinematicCamera",
-            // DMX patch authoring (create_dmx_patch handler, v0.9.2)
-            "DMXRuntime",
-            // DMX continuous output streamer (dmx_stream_* handlers, v0.9.3) —
-            // FDMXPortManager / FDMXOutputPort live in the DMXProtocol module.
-            "DMXProtocol"
+            "CinematicCamera"
+            // NOTE: DMX (DMXRuntime/DMXProtocol) moved to the optional companion
+            // plugin UnrealAIConnectionDMX so the core has no forced DMX dependency.
         });
 
         PrivateDependencyModuleNames.AddRange(new string[]

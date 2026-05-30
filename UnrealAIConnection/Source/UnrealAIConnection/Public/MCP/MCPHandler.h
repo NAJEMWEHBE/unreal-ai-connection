@@ -46,6 +46,11 @@ public:
     /** Add a handler. Last write wins on method-name collision. */
     void Register(TSharedRef<IUCMCPHandler> Handler);
 
+    /** Remove a handler by method name. Used by companion modules (e.g. the DMX
+     *  plugin) on ShutdownModule / Live-Coding reload so the registry never holds a
+     *  TSharedRef to a handler whose owning module has unloaded. No-op if absent. */
+    void Unregister(const FString& Method);
+
     /** Find a handler by method name. Returns nullptr if absent. */
     IUCMCPHandler* Find(const FString& Method) const;
 

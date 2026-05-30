@@ -17,6 +17,14 @@ void FUCMCPHandlerRegistry::Register(TSharedRef<IUCMCPHandler> Handler)
     UE_LOG(LogUCMCPHandler, Log, TEXT("Registered handler '%s'"), *Method);
 }
 
+void FUCMCPHandlerRegistry::Unregister(const FString& Method)
+{
+    if (Handlers.Remove(Method) > 0)
+    {
+        UE_LOG(LogUCMCPHandler, Log, TEXT("Unregistered handler '%s'"), *Method);
+    }
+}
+
 IUCMCPHandler* FUCMCPHandlerRegistry::Find(const FString& Method) const
 {
     if (const TSharedRef<IUCMCPHandler>* Found = Handlers.Find(Method))

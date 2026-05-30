@@ -28,8 +28,6 @@
         { "Name": "LevelSequenceEditor",      "Enabled": true },
         { "Name": "Niagara",                  "Enabled": true },
         { "Name": "MovieRenderPipeline",      "Enabled": true },
-        { "Name": "GLTFExporter",             "Enabled": true, "Optional": true },
-        { "Name": "DMXEngine",                "Enabled": true },
-        { "Name": "DMXProtocol",              "Enabled": true }
+        { "Name": "GLTFExporter",             "Enabled": true, "Optional": true }
     ]
 }
