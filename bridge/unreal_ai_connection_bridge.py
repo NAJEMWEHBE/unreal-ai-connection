@@ -13,7 +13,7 @@ plugin speaks raw JSON-RPC over a local TCP socket (default
 Behaviour:
   - "initialize"             returned synthetically (does NOT hit the UE server)
   - "notifications/*"        consumed silently
-  - "tools/list"             returns a static list of all 139 tools (102
+  - "tools/list"             returns a static list of all 140 tools (102
                              dispatched to the UE plugin's C++ handlers
                              plus 37 bridge-side synthetic tools served by
                              SYNTHETIC_TOOLS without crossing the wire as
@@ -1967,6 +1967,19 @@ TOOLS = [
                 "enabled": {"type": "boolean", "description": "Target Nanite-enabled state: true to enable Nanite, false to disable (so raycasts hit real geometry)."},
             },
             "required": ["enabled"],
+        },
+    },
+    {
+        "name": "post_process_grade_preset",
+        "description": "Save a PostProcessVolume's color grade to a JSON file, or load one back onto a volume. Native C++ handler — captures the 8 global color-grade fields (white temp/tint, the saturation/contrast/gamma/gain/offset wheels, and auto-exposure bias) plus each field's bOverride flag, so a saved look reapplies exactly. Look-dev use: save a 'golden hour' or 'warm interview' grade once, then reapply it across shots or push the same look onto another volume without re-dialling the wheels. On load it edits the volume — run save_dirty_assets to persist the level.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "action": {"type": "string", "enum": ["save", "load"], "description": "'save' writes the target volume's grade to preset_path; 'load' applies the preset_path JSON onto the target volume."},
+                "target": {"type": "string", "description": "Label/FName of the PostProcessVolume actor."},
+                "preset_path": {"type": "string", "description": "Absolute filesystem path to the .json preset file (written on save, read on load)."},
+            },
+            "required": ["action", "target", "preset_path"],
         },
     },
 ]

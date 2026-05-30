@@ -172,6 +172,7 @@ def test_tool_names_are_unique_and_match_handlers():
         "nanite_collision_toggle",
         "batch_capture_cameras",
         "batch_spawn_from_csv",
+        "post_process_grade_preset",
     }
     assert set(names) == expected
 
