@@ -256,6 +256,35 @@ def test_get_selected_actors_in_tools_catalog():
     assert "get_selected_actors" not in bridge.SYNTHETIC_TOOLS
 
 
+def test_get_project_summary_has_optional_verbose_param():
+    """Token-trim: get_project_summary defaults to plugin COUNTS only; the
+    fat per-plugin plugins[] array is opt-in via verbose=true. The param is
+    optional (not in required[]) so the default trimmed call needs no args.
+    C++ handler — not synthetic; runtime output is exercised by the live
+    smoke test, not here."""
+    tool = next((t for t in bridge.TOOLS if t["name"] == "get_project_summary"), None)
+    assert tool is not None, "get_project_summary must be in TOOLS catalog"
+    props = tool["inputSchema"]["properties"]
+    assert "verbose" in props
+    assert props["verbose"]["type"] == "boolean"
+    # Optional: trimmed default must work with no arguments.
+    assert "verbose" not in tool["inputSchema"].get("required", [])
+    assert "get_project_summary" not in bridge.SYNTHETIC_TOOLS
+
+
+def test_inspect_data_table_has_optional_verbose_param():
+    """Token-trim: inspect_data_table omits the (potentially huge) rows[]
+    array by default; row_count is always present. verbose=true restores
+    rows[]. Optional param, C++ handler."""
+    tool = next((t for t in bridge.TOOLS if t["name"] == "inspect_data_table"), None)
+    assert tool is not None
+    props = tool["inputSchema"]["properties"]
+    assert "verbose" in props
+    assert props["verbose"]["type"] == "boolean"
+    assert "verbose" not in tool["inputSchema"].get("required", [])
+    assert "inspect_data_table" not in bridge.SYNTHETIC_TOOLS
+
+
 def test_inspect_input_mappings_in_tools_catalog():
     """Wave A: inspect_input_mappings is a new C++ handler. Returns the
     project's legacy UInputSettings (action_mappings + axis_mappings) plus
@@ -310,11 +339,16 @@ def test_bulk_inspect_assets_is_synthetic():
 
 
 def test_bulk_inspect_assets_happy_path_composes_inspect_asset():
-    """Loop over paths, dispatch one call_ue('inspect_asset', ...) per entry,
-    accumulate per-path results with full inspection data on success."""
+    """Loop over paths, dispatch one call_ue('inspect_asset', ...) per entry.
+    DEFAULT (verbose=false) accumulates a per-path SUMMARY: class +
+    dependency/referencer counts, with the full `data` blob OMITTED."""
     inspect_responses = [
-        {"jsonrpc": "2.0", "id": 1, "result": {"ok": True, "path": "/Game/A", "class": "Texture2D"}},
-        {"jsonrpc": "2.0", "id": 1, "result": {"ok": True, "path": "/Game/B", "class": "StaticMesh"}},
+        {"jsonrpc": "2.0", "id": 1, "result": {
+            "ok": True, "path": "/Game/A", "class": "Texture2D",
+            "dependencies": ["/Game/X", "/Game/Y"], "referencers": ["/Game/Z"]}},
+        {"jsonrpc": "2.0", "id": 1, "result": {
+            "ok": True, "path": "/Game/B", "class": "StaticMesh",
+            "dependencies": [], "referencers": []}},
     ]
     with patch.object(bridge, "call_ue", side_effect=inspect_responses) as m:
         resp = bridge.handle({
@@ -333,8 +367,59 @@ def test_bulk_inspect_assets_happy_path_composes_inspect_asset():
     assert body["total"] == 2
     assert body["inspected"] == 2
     assert body["failed"] == 0
+    assert body["verbose"] is False
+    # Default summary shape: class + counts, NO full `data` blob.
+    assert body["results"][0]["class"] == "Texture2D"
+    assert body["results"][0]["dependency_count"] == 2
+    assert body["results"][0]["referencer_count"] == 1
+    assert "data" not in body["results"][0]
+    assert body["results"][1]["class"] == "StaticMesh"
+    assert body["results"][1]["dependency_count"] == 0
+    assert body["results"][1]["referencer_count"] == 0
+
+
+def test_bulk_inspect_assets_verbose_returns_full_data():
+    """verbose=true restores the backward-compatible full per-asset blob
+    under `data` (the pre-trim shape)."""
+    inspect_responses = [
+        {"jsonrpc": "2.0", "id": 1, "result": {
+            "ok": True, "path": "/Game/A", "class": "Texture2D",
+            "dependencies": ["/Game/X"], "referencers": [], "tags": {"k": "v"}}},
+        {"jsonrpc": "2.0", "id": 1, "result": {
+            "ok": True, "path": "/Game/B", "class": "StaticMesh",
+            "dependencies": [], "referencers": []}},
+    ]
+    with patch.object(bridge, "call_ue", side_effect=inspect_responses):
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 305, "method": "tools/call",
+            "params": {
+                "name": "bulk_inspect_assets",
+                "arguments": {"paths": ["/Game/A", "/Game/B"], "verbose": True},
+            },
+        })
+
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert body["ok"] is True
+    assert body["verbose"] is True
+    # Full blob preserved verbatim under `data`; no summary count keys.
     assert body["results"][0]["data"]["class"] == "Texture2D"
+    assert body["results"][0]["data"]["tags"] == {"k": "v"}
+    assert body["results"][0]["data"]["dependencies"] == ["/Game/X"]
+    assert "dependency_count" not in body["results"][0]
     assert body["results"][1]["data"]["class"] == "StaticMesh"
+
+
+def test_bulk_inspect_assets_rejects_non_bool_verbose():
+    """verbose must be a boolean when supplied -> -32602."""
+    resp = bridge.handle({
+        "jsonrpc": "2.0", "id": 306, "method": "tools/call",
+        "params": {
+            "name": "bulk_inspect_assets",
+            "arguments": {"paths": ["/Game/A"], "verbose": "yes"},
+        },
+    })
+    assert resp["error"]["code"] == -32602
+    assert "verbose" in resp["error"]["message"]
 
 
 def test_bulk_inspect_assets_partial_failure_continues_when_continue_on_error_true():
@@ -5212,6 +5297,9 @@ def test_inspect_dependency_graph_is_synthetic():
     assert props["path"]["type"] == "string"
     assert props["depth"]["type"] == "integer"
     assert props["include_referencers"]["type"] == "boolean"
+    # Token-trim: max_nodes caps the visited set (default 100), optional.
+    assert props["max_nodes"]["type"] == "integer"
+    assert "max_nodes" not in tool["inputSchema"]["required"]
     assert "inspect_dependency_graph" in bridge.SYNTHETIC_TOOLS
     assert bridge.SYNTHETIC_TOOLS["inspect_dependency_graph"] is bridge.synthetic_inspect_dependency_graph
 
@@ -5349,6 +5437,50 @@ def test_inspect_dependency_graph_surfaces_root_not_found():
         })
     assert resp["error"]["code"] == -32602
     assert "asset_not_found" in resp["error"]["message"]
+
+
+def test_inspect_dependency_graph_max_nodes_caps_and_truncates():
+    """Token-trim: max_nodes bounds the visited set. With max_nodes=2 the
+    root + its first dependency fill the cap; the second dependency is NOT
+    admitted (no node, no dangling edge) and truncated=true. Default cap is
+    100, but this exercises the explicit low cap deterministically."""
+    root_resp = {"jsonrpc": "2.0", "id": 1, "result": {
+        "dependencies": ["/Game/A", "/Game/B"], "referencers": [],
+    }}
+    # Only /Game/A is admitted (visited hits the cap of 2 = root + A), so only
+    # /Game/A is inspected on the next frontier; /Game/B is never expanded.
+    leaf = {"jsonrpc": "2.0", "id": 1, "result": {"dependencies": [], "referencers": []}}
+    with patch.object(bridge, "call_ue", side_effect=[root_resp, leaf]) as m:
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 627, "method": "tools/call",
+            "params": {"name": "inspect_dependency_graph", "arguments": {
+                "path": "/Game/Root", "depth": 3, "max_nodes": 2,
+            }},
+        })
+    body = json.loads(resp["result"]["content"][0]["text"])
+    assert body["ok"] is True
+    assert body["max_nodes"] == 2
+    assert body["node_count"] == 2
+    assert body["nodes"] == ["/Game/A", "/Game/Root"]
+    # /Game/B was dropped at the cap -> no node and no edge referencing it.
+    assert "/Game/B" not in body["nodes"]
+    assert all(e["to"] != "/Game/B" for e in body["edges"])
+    assert body["edges"] == [{"from": "/Game/Root", "to": "/Game/A", "direction": "down"}]
+    assert body["truncated"] is True
+    # Only root + /Game/A inspected; /Game/B never queued.
+    assert m.call_count == 2
+
+
+def test_inspect_dependency_graph_rejects_invalid_max_nodes():
+    for bad in (0, -1, 100001, "100", 1.5, True):
+        resp = bridge.handle({
+            "jsonrpc": "2.0", "id": 628, "method": "tools/call",
+            "params": {"name": "inspect_dependency_graph", "arguments": {
+                "path": "/Game/Root", "max_nodes": bad,
+            }},
+        })
+        assert resp["error"]["code"] == -32602, f"max_nodes={bad!r} should be rejected"
+        assert "invalid_max_nodes" in resp["error"]["message"]
 
 
 # ---- bulk_fix_redirectors (Wave D) ------------------------------------------

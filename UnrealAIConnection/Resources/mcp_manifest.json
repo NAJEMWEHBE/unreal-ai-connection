@@ -93,17 +93,20 @@
   },
   {
    "name": "bulk_inspect_assets",
-   "description": "Inspect multiple assets in one MCP call by composing inspect_asset bridge-side. Returns per-path inspection data plus aggregate counts; mirrors the bulk_*_assets family shape.",
+   "description": "Inspect multiple assets in one MCP call by composing inspect_asset bridge-side. By default each result is a summary (path, class, dependency_count, referencer_count); verbose=true returns the full per-asset blob. Aggregate counts always present; mirrors the bulk_*_assets family shape.",
    "params": {
     "paths": "array of string (required) - asset object paths to inspect",
-    "continue_on_error": "bool (optional, default true) - when false, stop at first failure"
+    "continue_on_error": "bool (optional, default true) - when false, stop at first failure",
+    "verbose": "bool (optional, default false) - when true, each result carries the full inspect_asset blob under data; when false, a trimmed summary"
    },
    "returns": "see docs/TOOLS.md"
   },
   {
    "name": "get_project_summary",
-   "description": "Project name, engine version, enabled plugins, asset counts.",
-   "params": {},
+   "description": "Project name/id/version, company, engine version, asset_count, and plugin counts (plugin_count + enabled_plugin_count). Per-plugin list omitted by default; verbose=true includes the full plugins[] array.",
+   "params": {
+    "verbose": "bool (optional, default false) - when true, include the full per-plugin plugins[] array; when false, plugin counts only"
+   },
    "returns": "see docs/TOOLS.md"
   },
   {
@@ -1383,9 +1386,10 @@
   },
   {
    "name": "inspect_data_table",
-   "description": "Read structural properties of a UDataTable: RowStruct identity (asset path + name), row count, sorted row names, per-property name+type on the RowStruct (TFieldIterator skipping super fields), strip-from-client-builds flag, ignore-extra/missing-fields tolerance flags, optional ImportKeyField. C++ handler. No new Build.cs deps (Engine + CoreUObject cover UDataTable / UScriptStruct / FProperty). Null-guards RowStruct.",
+   "description": "Read structural properties of a UDataTable: RowStruct identity (asset path + name), row count, per-property name+type on the RowStruct (TFieldIterator skipping super fields), strip-from-client-builds flag, ignore-extra/missing-fields tolerance flags, optional ImportKeyField. The sorted row-name list (rows[]) is omitted by default; row_count is always present. Pass verbose=true to include rows[]. C++ handler. No new Build.cs deps (Engine + CoreUObject cover UDataTable / UScriptStruct / FProperty). Null-guards RowStruct.",
    "params": {
-    "path": "string (required) - UE asset path of a UDataTable"
+    "path": "string (required) - UE asset path of a UDataTable",
+    "verbose": "bool (optional, default false) - when true, include the full sorted rows[] array of row names; when false, row_count only"
    },
    "returns": {
     "ok": "bool",
@@ -1394,7 +1398,7 @@
     "row_struct": "string (conditional, when RowStruct is non-null; asset path of the UScriptStruct)",
     "row_struct_name": "string (conditional, when RowStruct is non-null)",
     "row_count": "int",
-    "rows": "array of string (sorted, stable across calls)",
+    "rows": "array of string (conditional, only when verbose=true; sorted, stable across calls)",
     "row_property_count": "int",
     "row_properties": "array of {name, type} where type is FProperty::GetCPPType (e.g. int32, FString, FVector)",
     "strip_from_client_builds": "bool",
@@ -1971,22 +1975,24 @@
   },
   {
    "name": "inspect_dependency_graph",
-   "description": "Walk the asset dependency graph BFS from a root (dependencies, downward by default). SYNTHETIC bridge-side handler that composes inspect_asset recursively. Optionally also follows referencers (upward) for a single bidirectional sweep. Distinct from get_reference_chain in that it defaults to direction=down (packaging-audit framing) and supports a bidirectional pass instead of two separate calls. De-duplicates visited nodes across both directions.",
+   "description": "Walk the asset dependency graph BFS from a root (dependencies, downward by default). SYNTHETIC bridge-side handler that composes inspect_asset recursively. Optionally also follows referencers (upward) for a single bidirectional sweep. Distinct from get_reference_chain in that it defaults to direction=down (packaging-audit framing) and supports a bidirectional pass instead of two separate calls. De-duplicates visited nodes across both directions. Bounded by max_nodes (default 100) so a large graph returns a truncated subgraph; raise it for an exhaustive sweep.",
    "params": {
     "path": "string (required) - root asset path to walk from",
     "depth": "int (optional, default 2, range 1..8) - BFS depth bound",
-    "include_referencers": "bool (optional, default false) - when true, also follow referencers upward in the same BFS"
+    "include_referencers": "bool (optional, default false) - when true, also follow referencers upward in the same BFS",
+    "max_nodes": "int (optional, default 100, range 1..100000) - cap on distinct nodes visited; once hit, frontier expansion halts and truncated=true (root counts as node 1)"
    },
    "returns": {
     "ok": "bool",
     "root": "string (echo of input)",
     "depth": "int (echo of input)",
     "include_referencers": "bool (echo of input)",
+    "max_nodes": "int (echo of the effective cap)",
     "node_count": "int (de-duplicated visited count, including root)",
     "edge_count": "int (length of edges array)",
     "nodes": "array of string (sorted asset paths visited)",
     "edges": "array of {from: string, to: string, direction: string ('down' for dependency edges, 'up' for referencer edges)}",
-    "truncated": "bool (true when the BFS hit depth and there were still neighbors to expand)"
+    "truncated": "bool (true when the BFS hit the depth bound with neighbors still to expand, OR the max_nodes cap was reached)"
    }
   },
   {

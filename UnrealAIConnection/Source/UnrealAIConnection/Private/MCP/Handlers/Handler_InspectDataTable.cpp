@@ -5,6 +5,13 @@
 // name+type of the row struct so callers can introspect "what shape are
 // my rows?" without loading + walking row payloads themselves.
 //
+// Default (verbose=false): the `rows[]` array (one string per row name) is
+// OMITTED — gameplay/localization tables routinely hold thousands of rows,
+// and that array dominated the response's token footprint. `row_count` is
+// always present, so callers still know the table size. Pass verbose=true to
+// include the full sorted `rows[]` array (backward-compatible pre-trim shape).
+// The small, bounded `row_properties[]` (the column schema) is always present.
+//
 // UE 5.7 surface used (header:line citations for reviewer traceability):
 //   DataTable.h:79   -- class UDataTable : UObject
 //   DataTable.h:94   -- TObjectPtr<UScriptStruct> RowStruct
@@ -54,6 +61,11 @@ public:
             return nullptr;
         }
 
+        // verbose defaults to false. Defensive parse: TryGetBoolField leaves
+        // bVerbose untouched if the field is absent or not a bool.
+        bool bVerbose = false;
+        Params->TryGetBoolField(TEXT("verbose"), bVerbose);
+
         const FString ObjectPath = UCMCPAssetPath::ToObjectPath(InputPath);
 
         UObject* Loaded = UEditorAssetLibrary::LoadAsset(ObjectPath);
@@ -80,21 +92,28 @@ public:
         // --- sorted row names (TMap iteration order is unspecified; sort for
         //     stable cross-call output -- same convention as
         //     inspect_widget_blueprint::inherited_slots_with_content) ---
+        //
+        // Only materialized when verbose: the row-name list is the fat part of
+        // this response and is omitted by default. row_count below still comes
+        // straight from RowMap.Num() either way.
 
         const TMap<FName, uint8*>& RowMap = DataTable->GetRowMap();
-        TArray<FString> SortedRowNames;
-        SortedRowNames.Reserve(RowMap.Num());
-        for (const TPair<FName, uint8*>& Row : RowMap)
-        {
-            SortedRowNames.Add(Row.Key.ToString());
-        }
-        SortedRowNames.Sort();
-
         TArray<TSharedPtr<FJsonValue>> RowsArray;
-        RowsArray.Reserve(SortedRowNames.Num());
-        for (const FString& RowName : SortedRowNames)
+        if (bVerbose)
         {
-            RowsArray.Add(MakeShared<FJsonValueString>(RowName));
+            TArray<FString> SortedRowNames;
+            SortedRowNames.Reserve(RowMap.Num());
+            for (const TPair<FName, uint8*>& Row : RowMap)
+            {
+                SortedRowNames.Add(Row.Key.ToString());
+            }
+            SortedRowNames.Sort();
+
+            RowsArray.Reserve(SortedRowNames.Num());
+            for (const FString& RowName : SortedRowNames)
+            {
+                RowsArray.Add(MakeShared<FJsonValueString>(RowName));
+            }
         }
 
         // --- per-property name + type (only when RowStruct is non-null) ---
@@ -132,7 +151,11 @@ public:
         }
 
         Out->SetNumberField(TEXT("row_count"), static_cast<double>(RowMap.Num()));
-        Out->SetArrayField(TEXT("rows"), RowsArray);
+        // `rows[]` is opt-in (verbose); its absence signals summary mode.
+        if (bVerbose)
+        {
+            Out->SetArrayField(TEXT("rows"), RowsArray);
+        }
         Out->SetNumberField(TEXT("row_property_count"), static_cast<double>(RowPropertiesArray.Num()));
         Out->SetArrayField(TEXT("row_properties"), RowPropertiesArray);
 

@@ -42,12 +42,17 @@ Universal escape hatch. Runs an arbitrary block of Python in the editor's embedd
 
 Top-level snapshot of the open project.
 
-**Params** — none
+**Params**
+- `verbose` (bool, optional, default false) — when false, the per-plugin `plugins[]` array is omitted and only the plugin counts are returned. When true, the full `plugins[]` array is included (the backward-compatible pre-trim shape). A full editor commonly has 200+ enabled plugins, so the default trims the response's dominant token cost.
 
-**Result**
+**Result** (default, `verbose=false`)
 - `project_name`, `project_id`, `project_version`, `company_name`, `engine_version` (strings)
-- `plugins` (array) — `{name, version, category, enabled_by_default}`. `enabled_by_default` is a string: `"enabled"` / `"disabled"` / `"unspecified"`.
+- `plugin_count` (int) — total number of enabled plugins
+- `enabled_plugin_count` (int) — how many of those enabled plugins are enabled-by-default per their descriptor (`EnabledByDefault == Enabled`)
 - `asset_count` (int) — assets under `/Game` and any plugin-content roots
+
+**Result** (`verbose=true`) — all of the above, plus:
+- `plugins` (array) — `{name, version, category, enabled_by_default}`. `enabled_by_default` is a string: `"enabled"` / `"disabled"` / `"unspecified"`.
 
 ---
 
@@ -3115,19 +3120,22 @@ Clear all user-defined names from UE Python's public globals dict. Pairs with `e
 
 **`TFieldIterator` flag choice:** the handler iterates with `EFieldIterationFlags::None` (NOT the default `IncludeSuper = true`) to skip inherited UObject/UScriptStruct base fields and surface only the user-declared row fields. This matches the row author's mental model — they expect "the columns of my CSV" not "all reachable FProperty objects on the C++ struct hierarchy."
 
-**Null-safety:** a freshly-created `UDataTable` can exist with `RowStruct == nullptr` until the user assigns a struct in the editor. The handler null-guards: when `RowStruct` is null it omits the `row_struct` / `row_struct_name` fields and emits `row_property_count: 0`, `row_properties: []`. The data-only fields (row count, row names, flags) still emit so callers can still introspect a partially-set-up DataTable.
+**Null-safety:** a freshly-created `UDataTable` can exist with `RowStruct == nullptr` until the user assigns a struct in the editor. The handler null-guards: when `RowStruct` is null it omits the `row_struct` / `row_struct_name` fields and emits `row_property_count: 0`, `row_properties: []`. The data-only fields (`row_count`, flags, and — under `verbose=true` — `rows`) still emit so callers can still introspect a partially-set-up DataTable.
 
-**Stable row ordering:** `TMap<FName, uint8*>` iteration order is unspecified. The `rows` array is sorted before emission for cross-call stability. Same convention as `inspect_widget_blueprint::inherited_slots_with_content`.
+**Stable row ordering:** `TMap<FName, uint8*>` iteration order is unspecified. When emitted (verbose), the `rows` array is sorted before emission for cross-call stability. Same convention as `inspect_widget_blueprint::inherited_slots_with_content`.
+
+**Token footprint:** gameplay/localization data tables routinely hold thousands of rows, and the `rows[]` array (one string per row name) dominated this response's size. It is **omitted by default**; `row_count` is always present so callers still know the table size. Pass `verbose=true` to materialize the full `rows[]` array (the backward-compatible pre-trim shape). The bounded `row_properties[]` column schema is always present.
 
 **Params**
 - `path` (string, required) — UE asset path of a `UDataTable`, e.g. `/Game/Data/DT_Items`.
+- `verbose` (bool, optional, default false) — when true, include the full sorted `rows[]` array of row names; when false, return `row_count` only.
 
 **Result**
 - `ok`, `name`, `path` (normalized via `UCMCPAssetPath::ToObjectPath`)
 - `row_struct` (string) — engine ground-truth asset path of the `UScriptStruct`. **Omitted** when `RowStruct` is null.
 - `row_struct_name` (string) — bare `GetName()` of the `UScriptStruct`. **Omitted** when `RowStruct` is null.
-- `row_count` (int) — `RowMap.Num()`
-- `rows` (array of string) — sorted row names from `RowMap` keys
+- `row_count` (int) — `RowMap.Num()`. Always present.
+- `rows` (array of string) — sorted row names from `RowMap` keys. **Omitted** unless `verbose=true`.
 - `row_property_count` (int)
 - `row_properties` (array of `{ name, type }`) — `name` from `FProperty::GetName()`, `type` from `FProperty::GetCPPType()` (language-friendly form like `int32`, `FString`, `FVector`, `TArray<...>`)
 - `strip_from_client_builds` (bool) — from `bStripFromClientBuilds`
@@ -3810,6 +3818,51 @@ Duplicate multiple assets into per-entry destinations in one MCP call by composi
     {"path": "/Game/T_Stamp", "dest_path": "/Game/Variants", "new_name": "T_Stamp_A"},
     {"path": "/Game/T_Stamp", "dest_path": "/Game/Variants", "new_name": "T_Stamp_B"}
   ]
+}}
+```
+
+---
+
+## bulk_inspect_assets
+
+Inspect multiple assets in one MCP call by composing the [`inspect_asset`](#inspect_asset) C++ handler bridge-side. For pipeline audits ("inspect 500 textures and report which lack a power-of-two source"), one batched call replaces 500 round-trips.
+
+**Bridge-side synthetic tool.** Pure Python — loops over `paths` and dispatches one `call_ue("inspect_asset", {"path": ...})` per entry. Mirrors the `bulk_*_assets` family partial-failure shape.
+
+**Token footprint:** each `inspect_asset` blob carries the full tags dict plus the (possibly long) `dependencies`/`referencers` arrays, so a large batch dominates the response. By default (`verbose=false`) each successful result is a **summary** — `path`, `class`, `dependency_count`, `referencer_count`. Pass `verbose=true` to restore the full per-asset `data` blob (the backward-compatible pre-trim shape). Failed results are unaffected: `error_code` / `error_message` are preserved in both modes.
+
+**Partial-failure model:** `continue_on_error: true` (default) keeps going after individual failures; `continue_on_error: false` stops at the first per-path failure and returns the partial results.
+
+**Params**
+- `paths` (array of string, required) — asset object paths to inspect (each non-empty; NUL byte and `..` segments rejected envelope-level).
+- `continue_on_error` (bool, optional, default `true`) — when `false`, stop at the first per-path failure.
+- `verbose` (bool, optional, default `false`) — when `false`, each success is a trimmed summary; when `true`, each success carries the full `inspect_asset` blob under `data`.
+
+**Result**
+- `ok` (bool) — `true` only when `failed == 0`
+- `total` (int) — `paths.length`
+- `inspected` (int) — count of per-path successes
+- `failed` (int) — count of per-path failures
+- `verbose` (bool) — echo of the effective mode
+- `results` (array) — one entry per attempted path, in input order. On success:
+  - default (`verbose=false`): `{ path, ok: true, class, dependency_count, referencer_count, error_code: null, error_message: null }`
+  - verbose (`verbose=true`): `{ path, ok: true, data: <full inspect_asset result>, error_code: null, error_message: null }`
+  - on failure (either mode): `{ path, ok: false, data: null, error_code, error_message }`
+
+**Errors (envelope-level):** `-32602` (missing or non-list `paths`, non-string / NUL / `..` entry, non-bool `continue_on_error`, non-bool `verbose`).
+
+**Example — summary (default)**
+```json
+{"jsonrpc":"2.0","id":1,"method":"bulk_inspect_assets","params":{
+  "paths": ["/Game/Textures/T_A.T_A", "/Game/Meshes/SM_B.SM_B"]
+}}
+```
+
+**Example — full per-asset detail**
+```json
+{"jsonrpc":"2.0","id":2,"method":"bulk_inspect_assets","params":{
+  "paths": ["/Game/Textures/T_A.T_A"],
+  "verbose": true
 }}
 ```
 
@@ -4609,7 +4662,9 @@ Walk the asset dependency graph BFS from a root, defaulting to following depende
 
 **Edge orientation:** each edge carries a `direction` field — `"down"` for dependency edges (`node -> neighbor`) and `"up"` for referencer edges (`neighbor -> node`).
 
-**Truncation:** `truncated: true` when the BFS hit the depth bound and there were still neighbors to expand at that frontier. Increase `depth` to widen the walk.
+**Truncation:** `truncated: true` when the BFS hit the depth bound with neighbors still to expand at that frontier, OR the `max_nodes` cap was reached. Increase `depth` to widen the walk; raise `max_nodes` to lift the node cap.
+
+**Token footprint / node cap:** a bidirectional sweep past depth ~3 can enumerate thousands of nodes/edges in a non-trivial project. `max_nodes` (default 100) bounds the response — once that many distinct nodes have been visited, frontier expansion halts and `truncated=true`. The root counts as node 1. Edges are only recorded for nodes actually admitted to the graph, so `edges` never references a node absent from `nodes`. Raise `max_nodes` (up to 100000) for an exhaustive sweep.
 
 **Soft-failure semantics:** non-root per-node `inspect_asset` failures are swallowed (BFS continues from known neighbors). Root failure SURFACES (`asset_not_found` -> `-32602`, other inspect failures -> `-32603`).
 
@@ -4617,19 +4672,21 @@ Walk the asset dependency graph BFS from a root, defaulting to following depende
 - `path` (string, required) — root asset path
 - `depth` (int, optional, default 2, range 1..8) — BFS depth bound
 - `include_referencers` (bool, optional, default `false`) — when `true`, also follow referencers upward in the same BFS
+- `max_nodes` (int, optional, default 100, range 1..100000) — cap on distinct nodes visited; once hit, expansion halts and `truncated=true`
 
 **Result**
 - `ok` (bool) — always `true` on success
 - `root` (string) — echo of input
 - `depth` (int) — echo of input
 - `include_referencers` (bool) — echo of input
+- `max_nodes` (int) — echo of the effective node cap
 - `node_count` (int) — de-duplicated visited count, including the root
 - `edge_count` (int) — length of `edges`
 - `nodes` (array of string) — sorted asset paths visited
 - `edges` (array of `{from, to, direction}`) — `direction` is `"down"` or `"up"`
 - `truncated` (bool)
 
-**Errors (envelope-level):** `-32602` (`missing_required_field` for `path`, `invalid_depth`, NUL or `..` in `path`, non-bool `include_referencers`, root `asset_not_found`); `-32603` (transport / non-not-found root inspect failure).
+**Errors (envelope-level):** `-32602` (`missing_required_field` for `path`, `invalid_depth`, `invalid_max_nodes`, NUL or `..` in `path`, non-bool `include_referencers`, root `asset_not_found`); `-32603` (transport / non-not-found root inspect failure).
 
 **Example — packaging audit (downstream only)**
 ```json
