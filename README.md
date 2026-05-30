@@ -30,7 +30,7 @@
 
 <div align="center">
 
-**Native C++ handlers — not Python Remote Execution.** ~50 ms round-trips across 129 tools · 559 tests · MIT · works with any MCP-compliant client (Claude Code, Cursor, Cline, Codex, Gemini, Continue, Windsurf, Zed, …).
+**Native C++ handlers — not Python Remote Execution.** ~50 ms round-trips across 133 tools · 569 tests · MIT · works with any MCP-compliant client (Claude Code, Cursor, Cline, Codex, Gemini, Continue, Windsurf, Zed, …).
 
 The suite now spans **inspection and authoring** — read existing assets and *create* them: actors, levels, data tables/assets, Blueprints, and material graphs, all over the same socket.
 

@@ -5395,7 +5395,7 @@ def synthetic_inspect_dependency_graph(req_id, args: dict) -> dict:
 
     # max_nodes bounds the visited set (default 100). Once the cap is hit, no
     # further neighbors are queued and `truncated` is set. The root counts as
-    # node 1, so a cap of 1 returns just the root's edges with no expansion.
+    # node 1, so a cap of 1 returns just the root node with no edges and no expansion.
     max_nodes = args.get("max_nodes", 100)
     if not isinstance(max_nodes, int) or isinstance(max_nodes, bool) or max_nodes < 1 or max_nodes > 100000:
         return make_response(req_id, error={
