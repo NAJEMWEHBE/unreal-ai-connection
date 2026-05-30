@@ -2231,7 +2231,7 @@
    },
    "returns": "see docs/TOOLS.md"
   },
-{
+  {
    "name": "sequence_snapshot",
    "description": "Crash-safety checkpoint  -  duplicate the current editor level and optionally named Level Sequence assets into a timestamped folder under /Game/_Snapshots/ so a risky edit can be rolled back. Call before bulk destructive edits (material reassign, scene restructure, animation bake). Returns snapshot_folder, level_snapshot path, per-sequence {source, snapshot, ok} pairs, and a note to run save_dirty_assets to flush the duplicates to disk.",
    "params": {
@@ -2247,7 +2247,7 @@
     "note": "string"
    }
   },
-{
+  {
    "name": "material_blend_override",
    "description": "Set/override a named material parameter (scalar OR color) across many actors' mesh materials via dynamic material instances. Native C++ handler. Resolves targets via exactly one of by_label / by_folder / by_name_regex, then for each actor and mesh component calls CreateDynamicMaterialInstance + SetScalarParameterValue or SetVectorParameterValue. Time-of-day / look-dev: push a parameter change across an entire set folder in one call.",
    "params": {

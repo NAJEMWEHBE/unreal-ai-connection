@@ -5223,8 +5223,6 @@ Pairs with `save_dirty_assets` (flush the snapshot packages to disk) and `batch_
 
 ---
 
----
-
 ## material_blend_override
 
 **Implementation:** native C++ handler. **Mutating:** yes (single undo step).

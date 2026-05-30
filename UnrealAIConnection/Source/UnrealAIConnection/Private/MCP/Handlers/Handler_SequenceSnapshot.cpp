@@ -219,9 +219,12 @@ public:
             SequenceResults.Add(MakeShared<FJsonValueObject>(Entry));
         }
 
-        // Build result.
+        // Build result. The level was duplicated successfully by this point (we
+        // returned early otherwise); top-level ok is true only if every requested
+        // sequence also duplicated, so a partial failure is not masked as success.
+        const bool bAllOk = (SequencesSnapped == SequencePaths.Num());
         TSharedPtr<FJsonObject> Result = MakeShared<FJsonObject>();
-        Result->SetBoolField(TEXT("ok"), true);
+        Result->SetBoolField(TEXT("ok"), bAllOk);
         Result->SetStringField(TEXT("snapshot_folder"), DestFolder);
         Result->SetStringField(TEXT("level_snapshot"), LevelDestPath);
         Result->SetArrayField(TEXT("sequences"), SequenceResults);

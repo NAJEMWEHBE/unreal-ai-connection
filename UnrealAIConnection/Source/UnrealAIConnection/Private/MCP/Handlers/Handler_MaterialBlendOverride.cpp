@@ -167,10 +167,12 @@ public:
             return nullptr;
         }
 
-        // Compile regex once if needed (FRegexPattern on empty string is safe but
-        // we only use it when bHaveRegex; keep it unconditional to satisfy the
-        // compiler  -  the pattern object is trivially constructed).
-        const FRegexPattern NamePattern(ByNameRegex);
+        // Compile the regex once, only when by_name_regex is actually in use.
+        TOptional<FRegexPattern> NamePattern;
+        if (bHaveRegex)
+        {
+            NamePattern.Emplace(ByNameRegex);
+        }
 
         UWorld* World = GEditor ? GEditor->GetEditorWorldContext().World() : nullptr;
         if (!World)
@@ -201,8 +203,12 @@ public:
             }
             if (!bMatch && bHaveRegex)
             {
-                FRegexMatcher LabelMatcher(NamePattern, Actor->GetActorLabel());
-                FRegexMatcher NameMatcher(NamePattern, Actor->GetFName().ToString());
+                // FRegexMatcher does not copy its input string — feeding it a
+                // temporary FString would dangle, so bind to named locals first.
+                const FString ActorLabelStr = Actor->GetActorLabel();
+                const FString ActorFNameStr = Actor->GetFName().ToString();
+                FRegexMatcher LabelMatcher(*NamePattern, ActorLabelStr);
+                FRegexMatcher NameMatcher(*NamePattern, ActorFNameStr);
                 if (LabelMatcher.FindNext() || NameMatcher.FindNext())
                 {
                     bMatch = true;
