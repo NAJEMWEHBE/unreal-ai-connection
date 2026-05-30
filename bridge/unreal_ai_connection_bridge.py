@@ -13,9 +13,9 @@ plugin speaks raw JSON-RPC over a local TCP socket (default
 Behaviour:
   - "initialize"             returned synthetically (does NOT hit the UE server)
   - "notifications/*"        consumed silently
-  - "tools/list"             returns a static list of all 133 tools (98
+  - "tools/list"             returns a static list of all 139 tools (102
                              dispatched to the UE plugin's C++ handlers
-                             plus 35 bridge-side synthetic tools served by
+                             plus 37 bridge-side synthetic tools served by
                              SYNTHETIC_TOOLS without crossing the wire as
                              a single UE round-trip)
   - "tools/call"             unpacks {name, arguments} and forwards to the
@@ -1881,6 +1881,93 @@ TOOLS = [
         },
         "min_engine_version": "5.0",
         "max_engine_version": None,
+    },
+    {
+        "name": "place_actors_raycast",
+        "description": "Raycast straight down onto level geometry at a set of XY targets and spawn one actor of a given class at each surface hit. Targets are either an explicit 'points' list or a generated 'grid'. Native C++ handler — traces from (x, y, trace_start_z) down through the world (ECC_Visibility) and spawns at the hit's ImpactPoint + z_offset; with align_to_normal the actor's up-axis is rotated onto the surface normal. The studio-builder use case is 'drop a book into every arched niche / scatter props onto a shelf' without pre-computing surface heights. Tip: a Nanite source mesh traces against its coarse fallback — run nanite_collision_toggle to hit real geometry first.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "class_path": {"type": "string", "description": "Actor class to spawn at each hit (e.g. '/Script/Engine.StaticMeshActor' or a Blueprint class path)."},
+                "points": {"type": "array", "items": {"type": "object"}, "description": "Explicit XY targets [{x, y}, ...]; each is traced from trace_start_z downward. Ignored when 'grid' is supplied."},
+                "grid": {"type": "object", "description": "Generate targets on a grid instead of 'points': {min_x, min_y, max_x, max_y, count_x, count_y}. count_x/count_y must be >= 1; samples are spread evenly across each span (midpoint when count==1)."},
+                "trace_start_z": {"type": "number", "description": "Z height the downward trace starts from (and the negative of which it ends at). Default 100000. Must be > 0."},
+                "align_to_normal": {"type": "boolean", "description": "When true, rotate each spawned actor's up-axis onto the surface normal. Default false."},
+                "z_offset": {"type": "number", "description": "Added to the hit point's Z before spawning (lift the actor off the surface). Default 0."},
+                "label_prefix": {"type": "string", "description": "When set, each spawned actor is labelled '<prefix><index>'."},
+            },
+            "required": ["class_path"],
+        },
+    },
+    {
+        "name": "batch_material_assign",
+        "description": "Assign one Material (UMaterial or UMaterialInstance) to the mesh-component material slots of many actors in a single call. Native C++ handler — resolves the target actor set via exactly one selector (by_label list, by_folder World-Outliner path prefix, or by_name_regex), then for each actor walks its mesh components and calls SetMaterial. The studio-builder use case is 'retexture every wall in the /Set/Walls folder to the new marble material' in one shot — the bulk extension of the single-actor material_auto_remap.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "material": {"type": "string", "description": "Path to the UMaterial / UMaterialInstance to assign (e.g. '/Game/Mats/M_Marble')."},
+                "targets": {"type": "object", "description": "Actor selector — set exactly one of: by_label (list of actor labels), by_folder (World-Outliner folder path; matched as a prefix so '/Set/Walls' also catches '/Set/Walls/Sub'), or by_name_regex (regex matched against each actor's label and FName)."},
+                "slot": {"type": "integer", "description": "Material slot index to assign. Default -1 = assign every slot on each matched mesh component."},
+            },
+            "required": ["material", "targets"],
+        },
+    },
+    {
+        "name": "light_raycast_placement",
+        "description": "Spawn and configure lights along a surface raycast sweep. Native C++ handler — sample points come from either a 'sweep' {start, end, count} (spaced evenly, inclusive) or an explicit 'points' list; each sample is traced downward onto level geometry and a light is placed at the hit's ImpactPoint pushed out along the surface normal by surface_offset, then configured (intensity / color / attenuation radius). light_type selects APointLight / ARectLight / ASpotLight. The studio-builder use case is 'run a row of rect lights along this wall / shelf' without hand-placing each fixture.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "light_type": {"type": "string", "enum": ["point", "rect", "spot"], "description": "Which light actor to spawn: 'point' (APointLight), 'rect' (ARectLight), or 'spot' (ASpotLight)."},
+                "sweep": {"type": "object", "description": "Sample line: {start{x,y,z}, end{x,y,z}, count}. count points are spaced evenly from start to end (inclusive); count must be >= 1. Each sample is traced straight down onto geometry."},
+                "points": {"type": "array", "items": {"type": "object"}, "description": "Explicit sample points [{x,y,z}, ...] instead of a sweep; each is traced straight down onto geometry."},
+                "surface_offset": {"type": "number", "description": "Distance the light is pushed out from the hit surface along its normal. Default 50."},
+                "intensity": {"type": "number", "description": "Light intensity. When omitted, the light's class default is left untouched."},
+                "light_color": {"type": "object", "description": "Linear RGB color {r, g, b} (0..1). When omitted, the light's default color is left untouched."},
+                "attenuation_radius": {"type": "number", "description": "Attenuation radius (applies to point/spot/rect — all are local lights). When omitted, the class default is left untouched."},
+                "label_prefix": {"type": "string", "description": "When set, each spawned light is labelled '<prefix><index>'."},
+            },
+            "required": ["light_type"],
+        },
+    },
+    {
+        "name": "batch_capture_cameras",
+        "description": "Render every CineCamera in the level to disk in one call. SYNTHETIC bridge-side handler — composes get_actors_in_level (filtered to CineCameraActor) plus render_camera_to_png per camera. Optionally restrict to named cameras and set a per-render resolution. The studio-builder use case is a thumbnail / contact-sheet pass over a set's coverage cameras without one render_camera_to_png call per camera by hand.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "output_dir": {"type": "string", "description": "Directory the .png files are written to (one per camera)."},
+                "camera_names": {"type": "array", "items": {"type": "string"}, "description": "Optional list of camera labels (or names) to restrict the render to. Default = every ACineCameraActor in the level."},
+                "resolution": {"type": "object", "description": "Optional per-render pixel size {width, height} (both positive integers). When omitted, the live viewport resolution is used."},
+                "file_name_format": {"type": "string", "description": "Output file-name template; '{camera}' is replaced with the sanitized camera label. Default '{camera}.png'."},
+            },
+            "required": ["output_dir"],
+        },
+    },
+    {
+        "name": "batch_spawn_from_csv",
+        "description": "Spawn N actors from a CSV file or an inline list of row objects. SYNTHETIC bridge-side handler — parses the table, then dispatches spawn_actor once per row. CSV columns / row keys: class, x, y, z, pitch, yaw, roll, label, properties (a JSON object — a JSON-string cell in CSV, a nested object inline). Rows that omit 'class' fall back to default_class. The studio-builder use case is data-driven set-dressing scatter (read a table, spawn a row each).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "csv_path": {"type": "string", "description": "Filesystem path to a .csv with a header row. Supply this OR 'rows' (exactly one)."},
+                "rows": {"type": "array", "items": {"type": "object"}, "description": "Inline list of row objects [{class, x, y, z, pitch, yaw, roll, label, properties}, ...]. Supply this OR 'csv_path' (exactly one)."},
+                "default_class": {"type": "string", "description": "Actor class used for any row that omits 'class' (e.g. '/Script/Engine.StaticMeshActor')."},
+            },
+        },
+    },
+    {
+        "name": "nanite_collision_toggle",
+        "description": "Toggle a StaticMesh's Nanite-enabled flag so line traces hit the full source geometry instead of the coarse Nanite fallback. Native C++ handler — resolves the mesh from either an asset_path (/Game StaticMesh) or an actor (whose StaticMeshComponent's mesh is used), flips FMeshNaniteSettings.bEnabled via the UE 5.7 accessor, and fires the settings-changed rebuild. The documented gotcha: a raycast-placement pass (place_actors_raycast / light_raycast_placement) against a Nanite mesh lands props on the low-detail fallback; turn Nanite off, place, then turn it back on. Edits asset content — run save_dirty_assets to persist.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "asset_path": {"type": "string", "description": "A /Game StaticMesh path to toggle directly. Supply this OR 'actor'."},
+                "actor": {"type": "string", "description": "An actor label/FName whose StaticMeshComponent's mesh is toggled. Supply this OR 'asset_path'."},
+                "enabled": {"type": "boolean", "description": "Target Nanite-enabled state: true to enable Nanite, false to disable (so raycasts hit real geometry)."},
+            },
+            "required": ["enabled"],
+        },
     },
 ]
 
@@ -7714,9 +7801,356 @@ def synthetic_material_auto_remap(req_id, args: dict) -> dict:
     return _wrap_tool_result(req_id, body)
 
 
+def synthetic_batch_capture_cameras(req_id, args: dict) -> dict:
+    """Render every CineCamera in the level to disk in one call.
+
+    Composition (bridge-side, no dedicated C++ handler):
+      1. call_ue("get_actors_in_level", {}) -- one round-trip to enumerate
+         every actor. Filter to CineCameraActor client-side (matching the
+         find_actors_by_class needle logic). When the caller supplies
+         `camera_names`, intersect with that list so only the requested
+         cameras render.
+      2. For each surviving camera, call_ue("render_camera_to_png",
+         {out_path, camera_label, [width, height]}) -- the native handler
+         renders an off-screen SceneCapture2D from that actor's transform.
+
+    Synthetic rather than C++ because it is pure protocol-level composition
+    over get_actors_in_level + render_camera_to_png; a C++ handler would
+    only duplicate logic the bridge already has.
+
+    Args (object):
+      output_dir (str, required) -- directory the .png files are written to.
+      camera_names (list[str], optional) -- restrict to these camera labels;
+        default = every ACineCameraActor found.
+      resolution {width, height} (object, optional) -- per-render pixel size;
+        when omitted the native handler uses the live viewport resolution.
+      file_name_format (str, optional, default "{camera}.png") -- output file
+        name template; "{camera}" is replaced with the (sanitized) label.
+
+    Returns: ok, output_dir, total, succeeded, results[{camera, ok,
+      out_path, error?}].
+    """
+    if not isinstance(args, dict):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "batch_capture_cameras: invalid_arguments: arguments must be an object",
+        })
+
+    output_dir = args.get("output_dir")
+    if not isinstance(output_dir, str) or not output_dir:
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "batch_capture_cameras: missing_required_field: 'output_dir' must be a non-empty string",
+        })
+
+    camera_names = args.get("camera_names")
+    if camera_names is not None:
+        if not isinstance(camera_names, list) or not all(
+            isinstance(n, str) and n for n in camera_names
+        ):
+            return make_response(req_id, error={
+                "code": -32602,
+                "message": "batch_capture_cameras: invalid_field: 'camera_names' must be a list of non-empty strings when supplied",
+            })
+
+    file_name_format = args.get("file_name_format", "{camera}.png")
+    if not isinstance(file_name_format, str) or "{camera}" not in file_name_format:
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "batch_capture_cameras: invalid_field: 'file_name_format' must be a string containing '{camera}'",
+        })
+
+    width = height = None
+    resolution = args.get("resolution")
+    if resolution is not None:
+        if not isinstance(resolution, dict):
+            return make_response(req_id, error={
+                "code": -32602,
+                "message": "batch_capture_cameras: invalid_field: 'resolution' must be an object with width and height",
+            })
+        width = resolution.get("width")
+        height = resolution.get("height")
+        for label, val in (("width", width), ("height", height)):
+            if not isinstance(val, int) or isinstance(val, bool) or val <= 0:
+                return make_response(req_id, error={
+                    "code": -32602,
+                    "message": f"batch_capture_cameras: invalid_field: resolution['{label}'] must be a positive integer",
+                })
+
+    actors_resp = call_ue("get_actors_in_level", {})
+    if "error" in actors_resp:
+        upstream = actors_resp.get("error", {}) or {}
+        return make_response(req_id, error={
+            "code": upstream.get("code", -32603) or -32603,
+            "message": f"batch_capture_cameras: get_actors_failed: {upstream.get('message') or 'get_actors_in_level returned an error'}",
+        })
+
+    all_actors = (actors_resp.get("result") or {}).get("actors") or []
+    # CineCameraActor short-class match (case-insensitive), mirroring the
+    # find_actors_by_class needle logic.
+    cine_cameras = [
+        a for a in all_actors
+        if isinstance(a, dict) and isinstance(a.get("class"), str)
+        and a["class"].lower() == "cinecameraactor"
+    ]
+
+    # Restrict to requested names when supplied (match on label OR name).
+    if camera_names is not None:
+        wanted = set(camera_names)
+        cine_cameras = [
+            a for a in cine_cameras
+            if a.get("label") in wanted or a.get("name") in wanted
+        ]
+
+    if not cine_cameras:
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "batch_capture_cameras: no_cameras_matched: no CineCameraActor found in the level (or none matched 'camera_names')",
+        })
+
+    sep = "" if output_dir.endswith(("/", "\\")) else "/"
+    succeeded = 0
+    results: list[dict] = []
+    for cam in cine_cameras:
+        label = cam.get("label") or cam.get("name") or "camera"
+        safe = "".join(c if (c.isalnum() or c in ("_", "-")) else "_" for c in str(label))
+        out_path = f"{output_dir}{sep}{file_name_format.replace('{camera}', safe)}"
+
+        render_args = {"out_path": out_path, "camera_label": label}
+        if width and height:
+            render_args["width"] = width
+            render_args["height"] = height
+
+        render_resp = call_ue("render_camera_to_png", render_args)
+        if "error" in render_resp:
+            upstream = render_resp.get("error", {}) or {}
+            results.append({
+                "camera": label,
+                "ok": False,
+                "out_path": out_path,
+                "error": {
+                    "code": upstream.get("code", -32603) or -32603,
+                    "message": upstream.get("message") or f"batch_capture_cameras: render_failed: render_camera_to_png on '{label}' failed",
+                },
+            })
+        else:
+            succeeded += 1
+            results.append({"camera": label, "ok": True, "out_path": out_path})
+
+    return _wrap_tool_result(req_id, {
+        "ok": succeeded == len(cine_cameras),
+        "output_dir": output_dir,
+        "total": len(cine_cameras),
+        "succeeded": succeeded,
+        "results": results,
+    })
+
+
+# Column / row keys understood by batch_spawn_from_csv. `class` and `label`
+# are strings; the six transform keys are floats; `properties` is a JSON
+# object string (CSV) or a nested object (inline rows) forwarded verbatim to
+# spawn_actor's `properties`.
+_CSV_SPAWN_TRANSFORM_KEYS = ("x", "y", "z", "pitch", "yaw", "roll")
+
+
+def _parse_spawn_rows_from_csv(csv_text: str) -> tuple[list[dict] | None, str | None]:
+    """Parse CSV text into a list of row dicts using the stdlib csv module.
+
+    Returns (rows, error_message). On success error_message is None. The
+    `properties` column, when present and non-empty, is JSON-decoded into an
+    object so it can be forwarded to spawn_actor; a malformed properties cell
+    aborts the whole parse with a row-numbered error.
+    """
+    import csv
+    import io as _csv_io
+
+    reader = csv.DictReader(_csv_io.StringIO(csv_text))
+    if reader.fieldnames is None:
+        return None, "csv has no header row"
+
+    rows: list[dict] = []
+    for lineno, raw in enumerate(reader, start=2):  # header is line 1
+        row: dict = {}
+        for key, val in raw.items():
+            if key is None or val is None:
+                continue
+            val = val.strip()
+            if val == "":
+                continue
+            if key in _CSV_SPAWN_TRANSFORM_KEYS:
+                try:
+                    row[key] = float(val)
+                except ValueError:
+                    return None, f"row {lineno}: column '{key}' value {val!r} is not a number"
+            elif key == "properties":
+                try:
+                    parsed = json.loads(val)
+                except (ValueError, TypeError):
+                    return None, f"row {lineno}: column 'properties' is not valid JSON: {val!r}"
+                if not isinstance(parsed, dict):
+                    return None, f"row {lineno}: column 'properties' must be a JSON object"
+                row["properties"] = parsed
+            else:
+                row[key] = val
+        rows.append(row)
+    return rows, None
+
+
+def synthetic_batch_spawn_from_csv(req_id, args: dict) -> dict:
+    """Spawn N actors from a CSV file or an inline list of row objects.
+
+    Composition (bridge-side, no dedicated C++ handler):
+      For each row, call_ue("spawn_actor", {class_path, location, rotation,
+      label, properties}) -- one round-trip per row. Rows that omit `class`
+      fall back to `default_class`.
+
+    CSV columns / row keys: class, x, y, z, pitch, yaw, roll, label,
+    properties (a JSON object — a JSON-string cell in CSV, a nested object in
+    inline rows). Missing transform keys default to 0; missing label is left
+    to spawn_actor (auto-named).
+
+    Synthetic rather than C++ because it is a thin parse-then-loop over the
+    existing spawn_actor handler — the set-dressing scatter use case
+    (04_dress_set.py) is exactly "read a table, spawn a row each".
+
+    Args (object): exactly one of csv_path (filesystem path to a .csv) OR
+      rows (inline list of objects); default_class (str, optional) supplies
+      the class for rows that omit one.
+
+    Returns: ok, total, succeeded, results[{row, ok, name?, label?, error?}].
+    """
+    if not isinstance(args, dict):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "batch_spawn_from_csv: invalid_arguments: arguments must be an object",
+        })
+
+    csv_path = args.get("csv_path")
+    rows = args.get("rows")
+    if (csv_path is None) == (rows is None):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "batch_spawn_from_csv: invalid_field: supply exactly one of 'csv_path' or 'rows'",
+        })
+
+    default_class = args.get("default_class")
+    if default_class is not None and (not isinstance(default_class, str) or not default_class):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "batch_spawn_from_csv: invalid_field: 'default_class' must be a non-empty string when supplied",
+        })
+
+    # Resolve the row list from either source.
+    if csv_path is not None:
+        if not isinstance(csv_path, str) or not csv_path:
+            return make_response(req_id, error={
+                "code": -32602,
+                "message": "batch_spawn_from_csv: invalid_field: 'csv_path' must be a non-empty string",
+            })
+        try:
+            with open(csv_path, "r", encoding="utf-8-sig", newline="") as f:
+                csv_text = f.read()
+        except OSError as e:
+            return make_response(req_id, error={
+                "code": -32602,
+                "message": f"batch_spawn_from_csv: csv_read_failed: could not read '{csv_path}': {e}",
+            })
+        rows, parse_err = _parse_spawn_rows_from_csv(csv_text)
+        if parse_err is not None:
+            return make_response(req_id, error={
+                "code": -32602,
+                "message": f"batch_spawn_from_csv: csv_parse_failed: {parse_err}",
+            })
+    else:
+        if not isinstance(rows, list):
+            return make_response(req_id, error={
+                "code": -32602,
+                "message": "batch_spawn_from_csv: invalid_field: 'rows' must be a list of objects",
+            })
+
+    if not rows:
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "batch_spawn_from_csv: no_rows: the CSV / rows list produced zero spawn rows",
+        })
+
+    succeeded = 0
+    results: list[dict] = []
+    for i, row in enumerate(rows):
+        if not isinstance(row, dict):
+            results.append({
+                "row": i,
+                "ok": False,
+                "error": {"code": -32602, "message": f"batch_spawn_from_csv: bad_row: rows[{i}] must be an object"},
+            })
+            continue
+
+        class_path = row.get("class") or default_class
+        if not isinstance(class_path, str) or not class_path:
+            results.append({
+                "row": i,
+                "ok": False,
+                "error": {
+                    "code": -32602,
+                    "message": f"batch_spawn_from_csv: missing_class: rows[{i}] has no 'class' and no 'default_class' was supplied",
+                },
+            })
+            continue
+
+        spawn_args: dict = {
+            "class_path": class_path,
+            "location": {
+                "x": float(row.get("x", 0) or 0),
+                "y": float(row.get("y", 0) or 0),
+                "z": float(row.get("z", 0) or 0),
+            },
+            "rotation": {
+                "pitch": float(row.get("pitch", 0) or 0),
+                "yaw": float(row.get("yaw", 0) or 0),
+                "roll": float(row.get("roll", 0) or 0),
+            },
+        }
+        label = row.get("label")
+        if isinstance(label, str) and label:
+            spawn_args["label"] = label
+        props = row.get("properties")
+        if isinstance(props, dict) and props:
+            spawn_args["properties"] = props
+
+        spawn_resp = call_ue("spawn_actor", spawn_args)
+        if "error" in spawn_resp:
+            upstream = spawn_resp.get("error", {}) or {}
+            results.append({
+                "row": i,
+                "ok": False,
+                "error": {
+                    "code": upstream.get("code", -32603) or -32603,
+                    "message": upstream.get("message") or f"batch_spawn_from_csv: spawn_failed: spawn_actor for rows[{i}] failed",
+                },
+            })
+        else:
+            succeeded += 1
+            result = spawn_resp.get("result") or {}
+            results.append({
+                "row": i,
+                "ok": True,
+                "name": result.get("name"),
+                "label": result.get("label"),
+            })
+
+    return _wrap_tool_result(req_id, {
+        "ok": succeeded == len(rows),
+        "total": len(rows),
+        "succeeded": succeeded,
+        "results": results,
+    })
+
+
 SYNTHETIC_TOOLS = {
     "import_mesh": synthetic_import_mesh,
     "material_auto_remap": synthetic_material_auto_remap,
+    "batch_capture_cameras": synthetic_batch_capture_cameras,
+    "batch_spawn_from_csv": synthetic_batch_spawn_from_csv,
     "wait_for_events": synthetic_wait_for_events,
     "get_camera_transform": synthetic_get_camera_transform,
     "set_camera_transform": synthetic_set_camera_transform,

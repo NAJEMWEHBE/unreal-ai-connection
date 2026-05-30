@@ -1,6 +1,6 @@
 # MCP Tools Reference
 
-**133 tools total.** 98 are JSON-RPC 2.0 methods served on `127.0.0.1:18888` directly by the plugin's C++ handlers. The remaining 35 — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`, `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap`, `sequencer_add_transform_keyframe`, `import_mesh`, `material_auto_remap` — are bridge-side **synthetic tools** that are intercepted by `bridge/unreal_ai_connection_bridge.py` and served by composing existing handlers (or running Python via `execute_unreal_python`, or — for `compile_mod_pak` — shelling out to `RunUAT.bat` entirely outside the UE process). They are visible to MCP clients exactly like the C++ tools but cannot be reached by sending raw JSON-RPC to the TCP socket — only via the MCP bridge or by replicating their composition manually. The "Implementation" header on each entry below indicates whether a tool is C++ or bridge-side.
+**139 tools total.** 102 are JSON-RPC 2.0 methods served on `127.0.0.1:18888` directly by the plugin's C++ handlers. The remaining 37 — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`, `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap`, `sequencer_add_transform_keyframe`, `import_mesh`, `material_auto_remap`, `batch_capture_cameras`, `batch_spawn_from_csv` — are bridge-side **synthetic tools** that are intercepted by `bridge/unreal_ai_connection_bridge.py` and served by composing existing handlers (or running Python via `execute_unreal_python`, or — for `compile_mod_pak` — shelling out to `RunUAT.bat` entirely outside the UE process). They are visible to MCP clients exactly like the C++ tools but cannot be reached by sending raw JSON-RPC to the TCP socket — only via the MCP bridge or by replicating their composition manually. The "Implementation" header on each entry below indicates whether a tool is C++ or bridge-side.
 
 Each tool's params and result are documented with a working example.
 
@@ -5074,6 +5074,116 @@ Builds a PBR `Material` from a set of UE texture assets and assigns it to a leve
 ```json
 {"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"material_auto_remap","arguments":{"actor_label":"R8_Books_v8","textures":{"base_color":"/Game/HDM_books/T_BookSpines_D","normal":"/Game/HDM_books/T_BookSpines_N","roughness":"/Game/HDM_books/T_BookSpines_R"}}}}
 ```
+
+---
+
+## place_actors_raycast
+
+**Implementation:** native C++ handler. **Mutating:** yes (single undo step).
+
+Raycasts straight down onto level geometry at a set of XY targets and spawns one actor of a given class at each surface hit — so the caller never pre-computes surface Z heights. Targets are either an explicit `points` list or a generated `grid`. For each target it traces from `(x, y, trace_start_z)` down through the world on `ECC_Visibility` and, on a blocking hit, spawns the actor at the hit `ImpactPoint + z_offset`; with `align_to_normal` the spawned actor's up-axis is rotated onto the surface normal. The studio-builder use case is "drop a book into every arched niche / scatter props onto a shelf" in one call.
+
+> **Nanite gotcha:** a line trace against a Nanite source mesh hits its coarse *fallback* geometry, not the full-detail mesh, so props can land in the wrong spot. Run [`nanite_collision_toggle`](#nanite_collision_toggle) (`enabled:false`) on the surface mesh first, then re-enable it after placing.
+
+**Params:** `class_path` (string, **required** — actor class to spawn), `points` (array of `{x, y}`, optional — explicit targets; ignored when `grid` is set), `grid` (object, optional — `{min_x, min_y, max_x, max_y, count_x, count_y}`; `count_*` ≥ 1, samples spread evenly, midpoint when `count==1`), `trace_start_z` (number, optional, default `100000`, must be `> 0`), `align_to_normal` (bool, optional, default `false`), `z_offset` (number, optional, default `0`), `label_prefix` (string, optional — labels each actor `<prefix><index>`). Supply `points` **or** `grid`.
+
+**Returns:** `ok`, `class`, `requested`, `placed_count`, `missed_count`, `placed` (array of `{name, label, location{x,y,z}, hit_normal{x,y,z}, hit_actor}`), `missed` (array of `{x, y, error?}`).
+
+```json
+{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"place_actors_raycast","arguments":{"class_path":"/Script/Engine.StaticMeshActor","points":[{"x":0,"y":0},{"x":200,"y":0}],"z_offset":2,"align_to_normal":true,"label_prefix":"Prop_"}}}
+```
+
+Pairs with `batch_material_assign` to re-skin the placed actors and `nanite_collision_toggle` to make traces hit real geometry.
+
+---
+
+## batch_material_assign
+
+**Implementation:** native C++ handler. **Mutating:** yes (single undo step).
+
+Assigns one `Material` (or `MaterialInstance`) to the mesh-component material slots of many actors in a single call. Resolves the target actor set via **exactly one** selector — `by_label` (list of labels), `by_folder` (World-Outliner path, matched as a prefix so `/Set/Walls` also catches `/Set/Walls/Sub`), or `by_name_regex` (regex against each actor's label and FName) — then for each actor walks its mesh components and calls `SetMaterial`. The studio-builder use case is "retexture every wall in the `/Set/Walls` folder to the new marble material" in one shot — the bulk extension of `material_auto_remap`.
+
+**Params:** `material` (string, **required** — `/Game` path to the `UMaterialInterface`), `targets` (object, **required** — set exactly one of `by_label`, `by_folder`, `by_name_regex`), `slot` (integer, optional, default `-1` = assign every slot on each matched mesh component; otherwise the single slot index — out-of-range on a component is silently skipped).
+
+**Returns:** `ok`, `material` (full path), `slot` (echo), `actors_matched`, `actors_assigned`, `components_touched`, `slots_assigned`, `actors` (array of `{label, name, slots_assigned}`).
+
+```json
+{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"batch_material_assign","arguments":{"material":"/Game/Mats/M_Marble","targets":{"by_folder":"/Set/Walls"}}}}
+```
+
+Pairs with `place_actors_raycast` (skin freshly-placed props) and `find_actors_by_class` (preview the selector match).
+
+---
+
+## light_raycast_placement
+
+**Implementation:** native C++ handler. **Mutating:** yes (single undo step).
+
+Spawns and configures lights along a surface raycast sweep. Sample points come from either a `sweep` `{start, end, count}` (spaced evenly, inclusive) or an explicit `points` list; each sample is traced straight down onto level geometry and a light is placed at the hit `ImpactPoint` pushed out along the surface normal by `surface_offset`, then configured (intensity / color / attenuation radius). `light_type` selects `APointLight` / `ARectLight` / `ASpotLight`. The studio-builder use case is "run a row of rect lights along this wall / shelf" without hand-placing each fixture.
+
+**Params:** `light_type` (string, **required** — `point` | `rect` | `spot`), `sweep` (object, optional — `{start{x,y,z}, end{x,y,z}, count}`; `count` ≥ 1), `points` (array of `{x,y,z}`, optional — used when `sweep` is absent), `surface_offset` (number, optional, default `50` — distance pushed out along the hit normal), `intensity` (number, optional — class default left untouched when omitted), `light_color` (object `{r,g,b}` linear 0..1, optional), `attenuation_radius` (number, optional — applies to all three local-light types), `label_prefix` (string, optional). Supply `sweep` **or** `points`.
+
+**Returns:** `ok`, `light_type`, `requested`, `placed_count`, `missed_count`, `placed` (array of `{name, label, location{x,y,z}}`), `missed` (array of `{x, y, z, error?}`).
+
+```json
+{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"light_raycast_placement","arguments":{"light_type":"rect","sweep":{"start":{"x":0,"y":300,"z":500},"end":{"x":600,"y":300,"z":500},"count":4},"intensity":5000,"light_color":{"r":1,"g":0.9,"b":0.8},"label_prefix":"WallLight_"}}}
+```
+
+Pairs with `set_actor_property` to fine-tune individual fixtures after the sweep.
+
+---
+
+## nanite_collision_toggle
+
+**Implementation:** native C++ handler. **Mutating:** no (edits asset content — run `save_dirty_assets` to persist).
+
+Toggles a `StaticMesh`'s Nanite-enabled flag so line traces hit the full source geometry instead of the coarse Nanite fallback. Resolves the mesh from either an `asset_path` (`/Game` StaticMesh) or an `actor` (whose `StaticMeshComponent`'s mesh is used), flips `FMeshNaniteSettings.bEnabled` via the UE 5.7 `GetNaniteSettings()` accessor, and fires `NotifyNaniteSettingsChanged()` (which runs the engine's own rebuild). The documented workflow: a raycast-placement pass against a Nanite mesh lands props on the low-detail fallback, so turn Nanite **off**, place, then turn it back **on** to restore rendering performance.
+
+**Params:** `enabled` (bool, **required** — target Nanite state), `asset_path` (string, optional — `/Game` StaticMesh path), `actor` (string, optional — actor label/FName). Supply `asset_path` **or** `actor`.
+
+**Returns:** `ok`, `mesh` (full path), `resolved_via` (`asset_path` | `actor`), `actor_label` (when resolved via actor), `prior_enabled`, `new_enabled`, `note`.
+
+```json
+{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"nanite_collision_toggle","arguments":{"asset_path":"/Game/Set/SM_ArchWall","enabled":false}}}
+```
+
+Pairs with `place_actors_raycast` / `light_raycast_placement` (toggle off → place → toggle on) and `save_dirty_assets` (persist the change).
+
+---
+
+## batch_capture_cameras
+
+**Implementation:** bridge-side synthetic (composes `get_actors_in_level` + `render_camera_to_png`). **Min engine:** 5.0.
+
+Renders every `CineCamera` in the level to disk in one call — a thumbnail / contact-sheet pass over a set's coverage cameras. Enumerates actors via `get_actors_in_level`, filters to `CineCameraActor` client-side (optionally intersected with a supplied `camera_names` list), then calls `render_camera_to_png` once per camera with an output filename derived from `file_name_format`.
+
+**Params:** `output_dir` (string, **required** — directory the `.png` files are written to), `camera_names` (array of strings, optional — restrict to these camera labels/names; default = every `ACineCameraActor`), `resolution` (object `{width, height}` positive integers, optional — per-render pixel size; live viewport resolution when omitted), `file_name_format` (string, optional, default `"{camera}.png"` — must contain `{camera}`, replaced with the sanitized label).
+
+**Returns:** `ok` (true only if every camera rendered), `output_dir` (echo), `total`, `succeeded`, `results` (array of `{camera, ok, out_path, error?}`).
+
+```json
+{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"batch_capture_cameras","arguments":{"output_dir":"F:/renders/coverage","resolution":{"width":1920,"height":1080}}}}
+```
+
+Pairs with `find_actors_by_class` (audit the camera set first) and `get_camera_transform` (inspect a single camera).
+
+---
+
+## batch_spawn_from_csv
+
+**Implementation:** bridge-side synthetic (loops `spawn_actor`). **Min engine:** 5.0.
+
+Spawns N actors from a CSV file or an inline list of row objects — data-driven set-dressing scatter. Parses the table (stdlib `csv` when `csv_path` is given) then dispatches `spawn_actor` once per row. Rows that omit `class` fall back to `default_class`. Per-row failures are collected rather than aborting the batch.
+
+**Params:** exactly one of `csv_path` (string — filesystem path to a `.csv` with a header row) **or** `rows` (array of objects); `default_class` (string, optional — class for rows that omit one). Row keys / CSV columns: `class`, `x`, `y`, `z`, `pitch`, `yaw`, `roll`, `label`, `properties` (a JSON object — a JSON-string cell in CSV, a nested object inline; forwarded verbatim to `spawn_actor`). Missing transform keys default to `0`.
+
+**Returns:** `ok` (true only if every row spawned), `total`, `succeeded`, `results` (array of `{row, ok, name?, label?, error?}`).
+
+```json
+{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"batch_spawn_from_csv","arguments":{"default_class":"/Script/Engine.StaticMeshActor","rows":[{"x":0,"y":0,"z":0,"label":"ChairA"},{"x":120,"y":0,"z":0,"label":"ChairB"}]}}}
+```
+
+Pairs with `place_actors_raycast` (snap the scattered rows onto a surface) and `batch_material_assign` (skin them by label or folder).
 
 ---
 

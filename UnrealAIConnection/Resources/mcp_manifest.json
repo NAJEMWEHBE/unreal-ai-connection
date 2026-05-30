@@ -1,7 +1,7 @@
 {
  "name": "UnrealAIConnection",
  "version": "0.9.1",
- "description": "Drive Unreal Engine 5.7 from any MCP-compliant client over a local TCP socket. 133 tools total (98 native C++ handlers plus 35 bridge-side synthetic tools) that work with any UE 5.7 project.",
+ "description": "Drive Unreal Engine 5.7 from any MCP-compliant client over a local TCP socket. 139 tools total (102 native C++ handlers plus 37 bridge-side synthetic tools) that work with any UE 5.7 project.",
  "transport": {
   "type": "tcp",
   "host": "127.0.0.1",
@@ -2150,6 +2150,76 @@
    },
    "min_engine_version": "5.0",
    "max_engine_version": null
+  },
+  {
+   "name": "place_actors_raycast",
+   "description": "Raycast straight down onto level geometry at a set of XY targets and spawn one actor of a given class at each surface hit (explicit 'points' or a generated 'grid'). Native C++ handler. With align_to_normal the actor is oriented to the surface. Use case: drop a prop into every niche. Tip: toggle Nanite off first so traces hit real geometry.",
+   "params": {
+    "class_path": "string (required) - actor class to spawn at each hit",
+    "points": "array of {x,y} (optional) - XY targets traced from trace_start_z down; ignored when 'grid' is set",
+    "grid": "object (optional) - {min_x,min_y,max_x,max_y,count_x,count_y}; generates targets on an even grid",
+    "trace_start_z": "number (optional, default 100000, >0) - Z the downward trace starts from",
+    "align_to_normal": "bool (optional, default false) - orient each actor's up-axis to the surface normal",
+    "z_offset": "number (optional, default 0) - added to the hit Z before spawning",
+    "label_prefix": "string (optional) - label each actor '<prefix><index>'"
+   },
+   "returns": "see docs/TOOLS.md"
+  },
+  {
+   "name": "batch_material_assign",
+   "description": "Assign one Material (UMaterial / UMaterialInstance) to the mesh-component slots of many actors at once. Native C++ handler. Resolves targets via exactly one of by_label / by_folder / by_name_regex, then SetMaterial on each matched mesh component. Bulk extension of material_auto_remap.",
+   "params": {
+    "material": "string (required) - path to the UMaterial / UMaterialInstance to assign",
+    "targets": "object (required) - set exactly one of by_label (list), by_folder (Outliner path prefix), by_name_regex (regex on label+FName)",
+    "slot": "int (optional, default -1) - material slot index; -1 = every slot on each matched component"
+   },
+   "returns": "see docs/TOOLS.md"
+  },
+  {
+   "name": "light_raycast_placement",
+   "description": "Spawn + configure lights along a surface raycast sweep. Native C++ handler. Samples come from a 'sweep' {start,end,count} or explicit 'points'; each is traced down onto geometry and a light is placed offset along the surface normal, then configured. light_type picks APointLight / ARectLight / ASpotLight. Use case: a row of rect lights along a wall.",
+   "params": {
+    "light_type": "string (required) - point | rect | spot",
+    "sweep": "object (optional) - {start{x,y,z}, end{x,y,z}, count}; count points spaced evenly (inclusive)",
+    "points": "array of {x,y,z} (optional) - explicit sample points instead of a sweep",
+    "surface_offset": "number (optional, default 50) - push the light out from the hit along its normal",
+    "intensity": "number (optional) - light intensity; class default left untouched when omitted",
+    "light_color": "object (optional) - linear RGB {r,g,b}; default color left untouched when omitted",
+    "attenuation_radius": "number (optional) - attenuation radius (local lights); class default when omitted",
+    "label_prefix": "string (optional) - label each light '<prefix><index>'"
+   },
+   "returns": "see docs/TOOLS.md"
+  },
+  {
+   "name": "batch_capture_cameras",
+   "description": "Render every CineCamera in the level to disk in one call. SYNTHETIC bridge-side handler composing get_actors_in_level (filtered to CineCameraActor) plus render_camera_to_png per camera. Optionally restrict to named cameras and set a per-render resolution. Use case: a thumbnail / contact-sheet pass over a set's coverage cameras.",
+   "params": {
+    "output_dir": "string (required) - directory the .png files are written to",
+    "camera_names": "array of string (optional) - restrict to these camera labels/names; default = every CineCameraActor",
+    "resolution": "object (optional) - {width, height} positive ints; defaults to the live viewport resolution",
+    "file_name_format": "string (optional, default '{camera}.png') - file-name template; '{camera}' -> sanitized label"
+   },
+   "returns": "see docs/TOOLS.md"
+  },
+  {
+   "name": "batch_spawn_from_csv",
+   "description": "Spawn N actors from a CSV file or an inline list of row objects. SYNTHETIC bridge-side handler that parses the table then dispatches spawn_actor per row. Columns/keys: class, x, y, z, pitch, yaw, roll, label, properties (JSON object). Rows that omit 'class' fall back to default_class. Use case: data-driven set-dressing scatter.",
+   "params": {
+    "csv_path": "string (optional) - filesystem path to a .csv with a header row; supply this OR 'rows'",
+    "rows": "array of object (optional) - inline rows; supply this OR 'csv_path'",
+    "default_class": "string (optional) - actor class for any row that omits 'class'"
+   },
+   "returns": "see docs/TOOLS.md"
+  },
+  {
+   "name": "nanite_collision_toggle",
+   "description": "Toggle a StaticMesh's Nanite-enabled flag so line traces hit the full source geometry instead of the coarse Nanite fallback. Native C++ handler. Resolves the mesh from asset_path (/Game StaticMesh) or actor (its StaticMeshComponent's mesh), flips FMeshNaniteSettings.bEnabled via the UE 5.7 accessor, fires the rebuild. Edits asset content — run save_dirty_assets to persist.",
+   "params": {
+    "asset_path": "string (optional) - /Game StaticMesh path to toggle; supply this OR 'actor'",
+    "actor": "string (optional) - actor label/FName whose StaticMeshComponent's mesh is toggled; supply this OR 'asset_path'",
+    "enabled": "bool (required) - target Nanite-enabled state (false so raycasts hit real geometry)"
+   },
+   "returns": "see docs/TOOLS.md"
   }
  ]
 }
