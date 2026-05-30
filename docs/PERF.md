@@ -23,12 +23,12 @@ while an MCP client drives it.
 
 | Tool                     | Latency (best of 3) |
 |--------------------------|---------------------|
-| `get_engine_version`     | 49.1 ms             |
-| `get_actors_in_level`    | 49.7 ms             |
-| `list_levels`            | 48.5 ms             |
-| `get_project_summary`    | 49.8 ms             |
+| `get_engine_version`     | 35.6 ms             |
+| `get_actors_in_level`    | 47.4 ms             |
+| `list_levels`            | 49.7 ms             |
+| `get_project_summary`    | 50.1 ms             |
 
-**≈49 ms/call.** This is per-call dispatch overhead (length-framed TCP request →
+**Sub-50 ms/call (35–50 ms).** This is per-call dispatch overhead (length-framed TCP request →
 game-thread execution → framed response); it is independent of how many tools the
 catalog exposes, since each call is a single round-trip.
 
@@ -43,8 +43,8 @@ small unless it explicitly asks for detail.
 
 | Tool                         | Default        | `verbose=true` | Cut  |
 |------------------------------|----------------|----------------|------|
-| `get_project_summary`        | **273 B**      | 25,248 B       | ~99% |
-| `inspect_dependency_graph`   | 73 B (`max_nodes=100`, bounded) | — (capped) | — |
+| `get_project_summary`        | **352 B**      | 32,385 B       | ~99% |
+| `inspect_dependency_graph`   | 133 B (`max_nodes=100`, bounded) | — (capped) | — |
 
 Also trimmed under the same opt-in pattern:
 - **`bulk_inspect_assets`** — each result is a summary (`path`, `class`,
@@ -54,7 +54,7 @@ Also trimmed under the same opt-in pattern:
   omitted; `row_count` is always present; `verbose=true` materializes `rows[]`.
 
 A full editor exposes 200+ plugins and assets number in the thousands, so the default
-summaries are the difference between a ~273-byte reply and a ~25 KB one for a single
+summaries are the difference between a ~352-byte reply and a ~32 KB one for a single
 `get_project_summary` call — a meaningful saving across an agent session.
 
 ---
