@@ -1,6 +1,6 @@
 # MCP Tools Reference
 
-**130 tools total.** 95 are JSON-RPC 2.0 methods served on `127.0.0.1:18888` directly by the plugin's C++ handlers. The remaining 35 — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`, `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap`, `sequencer_add_transform_keyframe`, `import_mesh`, `material_auto_remap` — are bridge-side **synthetic tools** that are intercepted by `bridge/unreal_ai_connection_bridge.py` and served by composing existing handlers (or running Python via `execute_unreal_python`, or — for `compile_mod_pak` — shelling out to `RunUAT.bat` entirely outside the UE process). They are visible to MCP clients exactly like the C++ tools but cannot be reached by sending raw JSON-RPC to the TCP socket — only via the MCP bridge or by replicating their composition manually. The "Implementation" header on each entry below indicates whether a tool is C++ or bridge-side.
+**133 tools total.** 98 are JSON-RPC 2.0 methods served on `127.0.0.1:18888` directly by the plugin's C++ handlers. The remaining 35 — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`, `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap`, `sequencer_add_transform_keyframe`, `import_mesh`, `material_auto_remap` — are bridge-side **synthetic tools** that are intercepted by `bridge/unreal_ai_connection_bridge.py` and served by composing existing handlers (or running Python via `execute_unreal_python`, or — for `compile_mod_pak` — shelling out to `RunUAT.bat` entirely outside the UE process). They are visible to MCP clients exactly like the C++ tools but cannot be reached by sending raw JSON-RPC to the TCP socket — only via the MCP bridge or by replicating their composition manually. The "Implementation" header on each entry below indicates whether a tool is C++ or bridge-side.
 
 Each tool's params and result are documented with a working example.
 
@@ -1568,6 +1568,126 @@ Add a new empty function graph to an existing `UBlueprint` (via `FBlueprintEdito
 {"jsonrpc":"2.0","id":1,"method":"add_blueprint_function","params":{
   "blueprint": "/Game/Blueprints/BP_Enemy",
   "function_name": "TakeDamage"
+}}
+```
+
+---
+
+## add_blueprint_node
+
+**Implementation:** C++
+
+Add one K2 graph node into a `UBlueprint`'s event or function graph (via `FGraphNodeCreator<T>`), at an optional X/Y position, then mark the Blueprint structurally modified so it compiles in. The returned `pins` list lets `connect_blueprint_pins` and `set_blueprint_node_pin_default` address the node's pins without guessing their names.
+
+Supported `node_type` values:
+- `call_function` — a `UK2Node_CallFunction` configured via `SetFromFunction`. Resolve the `UFunction` from `function_class` (or the Blueprint's own generated class for a self-context call).
+- `variable_get` — a `UK2Node_VariableGet` whose `VariableReference` is set as a self-member of `var_name`.
+- `variable_set` — a `UK2Node_VariableSet`, same reference handling.
+- `branch` — a `UK2Node_IfThenElse` (the standard Branch node; auto-allocates its `Exec`/`Then`/`Else`/`Condition` pins).
+
+**Params**
+- `blueprint` (string, required) — `/Game` path to the `UBlueprint` asset.
+- `graph` (string, required) — target graph name; resolved across `UbergraphPages` then `FunctionGraphs`. The event graph is usually `EventGraph`.
+- `node_type` (string, required) — `call_function` | `variable_get` | `variable_set` | `branch`.
+- `function_name` (string, required when `node_type=call_function`) — `UFunction` name.
+- `function_class` (string, optional) — `/Script` or `/Game` class path that owns the function; defaults to the Blueprint's own generated class (self-context).
+- `var_name` (string, required when `node_type=variable_get` or `variable_set`) — variable name, resolved as a self-member.
+- `node_pos_x` (number, optional) — X position of the node in the graph. Default `0`.
+- `node_pos_y` (number, optional) — Y position of the node in the graph. Default `0`.
+
+**Result**
+- `ok` (bool)
+- `blueprint`, `graph` (strings) — echoed back.
+- `node_type` (string) — normalized node type.
+- `node_guid` (string) — the node's `NodeGuid`; pass as `from_node` / `to_node` / `node` to the sibling tools.
+- `node_name` (string) — the node's internal name.
+- `pins` (array) — each `{name, direction ("input"|"output"), category}`.
+
+**Errors:** `missing_params`, `missing_required_field`, `invalid_field` (includes `function_class_not_found` / `no_self_class`), `blueprint_not_found`, `graph_not_found`, `unsupported_node_type`, `function_not_found`, `variable_not_found`, `node_create_failed`.
+
+**Behavior note:** a freshly-added `call_function` node for a member function on another object has an unwired `self`/target input pin — wire it with `connect_blueprint_pins`. The node is fully formed but its graph is not complete until its exec/data pins are connected and the Blueprint is recompiled (`compile_blueprint`).
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"add_blueprint_node","params":{
+  "blueprint": "/Game/Blueprints/BP_Enemy",
+  "graph": "EventGraph",
+  "node_type": "branch",
+  "node_pos_x": 320,
+  "node_pos_y": 128
+}}
+```
+
+---
+
+## connect_blueprint_pins
+
+**Implementation:** C++
+
+Wire two pins (exec or data) between two existing K2 nodes in the same graph, using the **schema-validated** path (`UEdGraphSchema_K2::TryCreateConnection`) so an illegal link (e.g. an `int` output into an `exec` input) is rejected with the schema's own reason rather than silently corrupting the graph. Nodes are addressed by the `NodeGuid` returned from `add_blueprint_node` (names are not stable across reconstruction; GUIDs are).
+
+**Params**
+- `blueprint` (string, required) — `/Game` path to the `UBlueprint` asset.
+- `graph` (string, required) — graph name (same resolution as `add_blueprint_node`).
+- `from_node` (string, required) — source node GUID.
+- `from_pin` (string, required) — output pin name on `from_node`.
+- `to_node` (string, required) — target node GUID.
+- `to_pin` (string, required) — input pin name on `to_node`.
+
+**Result**
+- `ok` (bool)
+- `blueprint`, `graph`, `from_node`, `from_pin`, `to_node`, `to_pin` (strings) — echoed back.
+
+**Errors:** `missing_params`, `missing_required_field`, `blueprint_not_found`, `graph_not_found`, `from_node_not_found`, `to_node_not_found`, `from_pin_not_found`, `to_pin_not_found`, `connect_failed` (carries the schema's human-readable rejection message).
+
+**Behavior note:** wiring a single-input data pin that is already connected will (by the schema's normal `BREAK_OTHERS` response) replace the prior link — this is expected, not an error.
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"connect_blueprint_pins","params":{
+  "blueprint": "/Game/Blueprints/BP_Enemy",
+  "graph": "EventGraph",
+  "from_node": "A1B2C3D4E5F6...",
+  "from_pin": "then",
+  "to_node": "F6E5D4C3B2A1...",
+  "to_pin": "execute"
+}}
+```
+
+---
+
+## set_blueprint_node_pin_default
+
+**Implementation:** C++
+
+Set a literal default value on an **unconnected input pin** of an existing K2 node, via the schema's validated setter (`UEdGraphSchema_K2::TrySetDefaultValue`, or `TrySetDefaultObject` for object-reference pins) so the value is parsed/validated against the pin type. Because those setters are `void`, success is confirmed by reading the pin back.
+
+**Params**
+- `blueprint` (string, required) — `/Game` path to the `UBlueprint` asset.
+- `graph` (string, required) — graph name.
+- `node` (string, required) — node GUID.
+- `pin` (string, required) — input pin name.
+- `value` (string, provide this **or** `object_value`) — literal default; numbers/bools are passed as their string form (`"42"`, `"true"`, `"1.5"`; struct literals use UE's bracketed form, e.g. `"(X=1.0,Y=2.0,Z=3.0)"`).
+- `object_value` (string, optional) — `/Game` or `/Script` object path; resolved via `LoadObject` and applied to a `PC_Object` reference pin's `DefaultObject` instead of `value`.
+
+**Result**
+- `ok` (bool)
+- `blueprint`, `graph`, `node`, `pin` (strings) — echoed back.
+- `value` (string) — present when a literal was set.
+- `object_value` (string) — present when an object reference was set.
+
+**Errors:** `missing_params`, `missing_required_field`, `blueprint_not_found`, `graph_not_found`, `node_not_found`, `pin_not_found`, `pin_is_output`, `pin_is_connected`, `object_value_not_found`, `set_failed`.
+
+**Behavior note:** a pin's default is only honored by the compiler while the pin is **unconnected** — a connected pin is rejected (`pin_is_connected`) so a no-op doesn't look like success.
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"set_blueprint_node_pin_default","params":{
+  "blueprint": "/Game/Blueprints/BP_Enemy",
+  "graph": "EventGraph",
+  "node": "A1B2C3D4E5F6...",
+  "pin": "Damage",
+  "value": "25.0"
 }}
 ```
 

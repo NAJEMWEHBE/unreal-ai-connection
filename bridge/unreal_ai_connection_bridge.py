@@ -13,7 +13,7 @@ plugin speaks raw JSON-RPC over a local TCP socket (default
 Behaviour:
   - "initialize"             returned synthetically (does NOT hit the UE server)
   - "notifications/*"        consumed silently
-  - "tools/list"             returns a static list of all 130 tools (95
+  - "tools/list"             returns a static list of all 133 tools (98
                              dispatched to the UE plugin's C++ handlers
                              plus 35 bridge-side synthetic tools served by
                              SYNTHETIC_TOOLS without crossing the wire as
@@ -1113,6 +1113,56 @@ TOOLS = [
                 "render_offscreen": {"type": "boolean", "description": "PIE executor only: render without a progress window (default true)."},
             },
             "required": ["sequence_path", "output_dir"],
+        },
+    },
+    {
+        "name": "add_blueprint_node",
+        "description": "Add one K2 graph node (call_function | variable_get | variable_set | branch) into a UBlueprint's event or function graph at an optional X/Y position. Returns the new node's GUID + name + a list of its pins (name/direction/category) so connect_blueprint_pins and set_blueprint_node_pin_default can address it without guessing pin names.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "blueprint": {"type": "string", "description": "/Game path to the UBlueprint asset."},
+                "graph": {"type": "string", "description": "Target graph name; resolved across UbergraphPages then FunctionGraphs. The event graph is usually 'EventGraph'."},
+                "node_type": {"type": "string", "enum": ["call_function", "variable_get", "variable_set", "branch"], "description": "Kind of K2 node to create."},
+                "function_name": {"type": "string", "description": "UFunction name (required when node_type='call_function')."},
+                "function_class": {"type": "string", "description": "Optional /Script or /Game class path that owns the function; defaults to the Blueprint's own generated class (self-context call)."},
+                "var_name": {"type": "string", "description": "Variable name (required when node_type='variable_get' or 'variable_set'); resolved as a self-member."},
+                "node_pos_x": {"type": "number", "description": "X position of the node in the graph (default 0)."},
+                "node_pos_y": {"type": "number", "description": "Y position of the node in the graph (default 0)."},
+            },
+            "required": ["blueprint", "graph", "node_type"],
+        },
+    },
+    {
+        "name": "connect_blueprint_pins",
+        "description": "Wire two pins (exec or data) between two existing K2 nodes in the same graph of a UBlueprint, using the schema-validated path (UEdGraphSchema_K2::TryCreateConnection) so type-incompatible or illegal links are rejected with the schema's reason rather than silently corrupting the graph. Nodes are addressed by the NodeGuid returned from add_blueprint_node.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "blueprint": {"type": "string", "description": "/Game path to the UBlueprint asset."},
+                "graph": {"type": "string", "description": "Graph name (same resolution as add_blueprint_node)."},
+                "from_node": {"type": "string", "description": "Source node GUID (as returned by add_blueprint_node)."},
+                "from_pin": {"type": "string", "description": "Output pin name on from_node."},
+                "to_node": {"type": "string", "description": "Target node GUID."},
+                "to_pin": {"type": "string", "description": "Input pin name on to_node."},
+            },
+            "required": ["blueprint", "graph", "from_node", "from_pin", "to_node", "to_pin"],
+        },
+    },
+    {
+        "name": "set_blueprint_node_pin_default",
+        "description": "Set a literal default value on an unconnected input pin of an existing K2 node, via the schema's validated setter so the value is parsed/validated for the pin's type. Pass 'value' (a literal string, e.g. '42', 'true', '1.5') for most pins, or 'object_value' (an object/asset path) for object-reference pins. A connected pin is rejected (its default is ignored by the compiler).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "blueprint": {"type": "string", "description": "/Game path to the UBlueprint asset."},
+                "graph": {"type": "string", "description": "Graph name."},
+                "node": {"type": "string", "description": "Node GUID (as returned by add_blueprint_node)."},
+                "pin": {"type": "string", "description": "Input pin name."},
+                "value": {"type": "string", "description": "Literal default (numbers/bools passed as their string form). Use this for non-object pins."},
+                "object_value": {"type": "string", "description": "Optional /Game or /Script object path; resolved via LoadObject and applied to PC_Object reference pins instead of 'value'."},
+            },
+            "required": ["blueprint", "graph", "node", "pin"],
         },
     },
     {
