@@ -226,38 +226,39 @@ public:
         // Per-field load. Two type-specific macros (NOT if-constexpr in a non-template
         // function, which would semantic-check the dead branch). bOverride_##Field
         // token-pastes onto the bitfield. Override flag defaults to true when absent.
-#define PPG_LOAD_FLOAT(KeyLit, Field)                                                            \
-        {                                                                                        \
-            const TSharedPtr<FJsonObject>* FO = nullptr;                                         \
-            if (GradeObj->TryGetObjectField(TEXT(KeyLit), FO) && FO && (*FO).IsValid())          \
-            {                                                                                    \
-                double Num = 0.0;                                                                \
-                const bool bGot = (*FO)->TryGetNumberField(TEXT("value"), Num);                  \
-                if (bGot) { Volume->Settings.Field = static_cast<float>(Num); }                  \
-                bool bOv = true; (*FO)->TryGetBoolField(TEXT("override"), bOv);                  \
-                Volume->Settings.bOverride_##Field = bOv ? 1 : 0;                                \
-                if (bGot) { AppliedKeys.Add(MakeShared<FJsonValueString>(TEXT(KeyLit))); ++AppliedCount; } \
-            }                                                                                    \
+#define PPG_LOAD_FLOAT(KeyLit, Field) \
+        { \
+            const TSharedPtr<FJsonObject>* FO = nullptr; \
+            if (GradeObj->TryGetObjectField(TEXT(KeyLit), FO) && FO && (*FO).IsValid()) \
+            { \
+                double Num = 0.0; \
+                if ((*FO)->TryGetNumberField(TEXT("value"), Num)) \
+                { \
+                    Volume->Settings.Field = static_cast<float>(Num); \
+                    bool bOv = true; (*FO)->TryGetBoolField(TEXT("override"), bOv); \
+                    Volume->Settings.bOverride_##Field = bOv ? 1 : 0; \
+                    AppliedKeys.Add(MakeShared<FJsonValueString>(TEXT(KeyLit))); ++AppliedCount; \
+                } \
+            } \
         }
 
-#define PPG_LOAD_VEC(KeyLit, Field)                                                              \
-        {                                                                                        \
-            const TSharedPtr<FJsonObject>* FO = nullptr;                                         \
-            if (GradeObj->TryGetObjectField(TEXT(KeyLit), FO) && FO && (*FO).IsValid())          \
-            {                                                                                    \
-                const TArray<TSharedPtr<FJsonValue>>* Arr = nullptr;                             \
-                const bool bGot = (*FO)->TryGetArrayField(TEXT("value"), Arr) && Arr && Arr->Num() == 4; \
-                if (bGot)                                                                        \
-                {                                                                                \
-                    double C0 = 0, C1 = 0, C2 = 0, C3 = 0;                                       \
-                    (*Arr)[0]->TryGetNumber(C0); (*Arr)[1]->TryGetNumber(C1);                    \
-                    (*Arr)[2]->TryGetNumber(C2); (*Arr)[3]->TryGetNumber(C3);                    \
-                    Volume->Settings.Field = FVector4(C0, C1, C2, C3);                           \
-                }                                                                                \
-                bool bOv = true; (*FO)->TryGetBoolField(TEXT("override"), bOv);                  \
-                Volume->Settings.bOverride_##Field = bOv ? 1 : 0;                                \
-                if (bGot) { AppliedKeys.Add(MakeShared<FJsonValueString>(TEXT(KeyLit))); ++AppliedCount; } \
-            }                                                                                    \
+#define PPG_LOAD_VEC(KeyLit, Field) \
+        { \
+            const TSharedPtr<FJsonObject>* FO = nullptr; \
+            if (GradeObj->TryGetObjectField(TEXT(KeyLit), FO) && FO && (*FO).IsValid()) \
+            { \
+                const TArray<TSharedPtr<FJsonValue>>* Arr = nullptr; \
+                if ((*FO)->TryGetArrayField(TEXT("value"), Arr) && Arr && Arr->Num() == 4) \
+                { \
+                    double C0 = 0, C1 = 0, C2 = 0, C3 = 0; \
+                    (*Arr)[0]->TryGetNumber(C0); (*Arr)[1]->TryGetNumber(C1); \
+                    (*Arr)[2]->TryGetNumber(C2); (*Arr)[3]->TryGetNumber(C3); \
+                    Volume->Settings.Field = FVector4(C0, C1, C2, C3); \
+                    bool bOv = true; (*FO)->TryGetBoolField(TEXT("override"), bOv); \
+                    Volume->Settings.bOverride_##Field = bOv ? 1 : 0; \
+                    AppliedKeys.Add(MakeShared<FJsonValueString>(TEXT(KeyLit))); ++AppliedCount; \
+                } \
+            } \
         }
 
         PPG_LOAD_FLOAT("white_temp", WhiteTemp);

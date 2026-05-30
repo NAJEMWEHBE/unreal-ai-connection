@@ -13,7 +13,7 @@ plugin speaks raw JSON-RPC over a local TCP socket (default
 Behaviour:
   - "initialize"             returned synthetically (does NOT hit the UE server)
   - "notifications/*"        consumed silently
-  - "tools/list"             returns a static list of all 140 tools (102
+  - "tools/list"             returns a static list of all 140 tools (103
                              dispatched to the UE plugin's C++ handlers
                              plus 37 bridge-side synthetic tools served by
                              SYNTHETIC_TOOLS without crossing the wire as
