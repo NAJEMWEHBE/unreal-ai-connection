@@ -8,7 +8,7 @@ Single source of truth for resuming work on Unreal AI Connection in a fresh sess
 
 ## Project at a glance
 
-**What this is:** An Unreal Engine 5.7 plugin + Python bridge that exposes editor automation to **any MCP-compliant client** (Claude Code, Codex CLI, Cursor, Gemini CLI, Continue, …) over a localhost TCP socket. The plugin adds a JSON-RPC server inside the editor; each "handler" is one MCP tool (~150 LoC of C++ in `Source/UnrealClaudeMCP/Private/MCP/Handlers/`). The bridge translates between the client's stdio MCP protocol and the plugin's TCP wire format. **Vendor-neutral by design** — the wire protocol is open MCP (created by Anthropic, but any conforming client works); the project's repo/folder names retain "Claude" for legacy reasons but the capability is universal.
+**What this is:** An Unreal Engine 5.7 plugin + Python bridge that exposes editor automation to **any MCP-compliant client** (Claude Code, Codex CLI, Cursor, Gemini CLI, Continue, …) over a localhost TCP socket. The plugin adds a JSON-RPC server inside the editor; each "handler" is one MCP tool (~150 LoC of C++ in `Source/UnrealAIConnection/Private/MCP/Handlers/`). The bridge translates between the client's stdio MCP protocol and the plugin's TCP wire format. **Vendor-neutral by design** — the wire protocol is open MCP (created by Anthropic, but any conforming client works); the repo, plugin folder, and module are all named "Unreal AI Connection".
 
 **Where it stands (post-PR #218 — #216 README/HANDOFF honesty, #217 Phase H remaining clusters + `.uplugin` per-bucket generator, #218 ~17-handler UE 5.1 port; all merged):** **105 tools total** (72 UE-side C++ handlers + 33 bridge-side synthetic). Plugin version `0.9.1`. pytest baseline: **498** passing. **UE 5.1 (T2 bucket) is now compile- AND runtime-host-verified** — `RunUAT BuildPlugin` vs `F:\UE_5.1` (5.1.1) returned `ExitCode=0`, and a live-editor smoke proved `LogUCMCP: Listening on 127.0.0.1:18888` + all handlers registered + a real `get_viewport_screenshot` PNG (1014×582). UE 5.7 (T1) verified prior. UE 4.27 (T3) is untested — build-from-source at own risk, PR-welcome. *(**UE 5.7 is the officially supported & tested version; see `## Project scope` / ADR-0001.** Other UE versions are open / best-effort / community — the cross-engine scaffold is kept available, uncertified, not actively maintained; the 5.1/T2 host-verification is a useful data point for non-5.7 builds.)* **Host-build prerequisite (load-bearing):** UE ≤5.3 will NOT compile with VS2026/MSVC 14.51 or VS2022 14.44 (engine's own `__has_feature` header is a fatal C4668 under installed-build `-WarningsAsErrors`); host now has **MSVC 14.34.31933** — builds must pin it (UBT `BuildConfiguration.xml` `<WindowsPlatform><CompilerVersion>14.34.31933</CompilerVersion>`; `dist/build-tools/build51.sh` does this + restores the global config). All non-source artifacts live under gitignored `dist/` per the standing no-external-folders rule. (Current HEAD: `git log -1 origin/main`; latest milestone PR #218.)
 
@@ -59,11 +59,11 @@ The Wave A + Wave A.5 C++ handlers (`get_engine_version`, `list_levels`, `save_d
 
 **Verification runbook** (6 steps, PowerShell, run on the user's host machine):
 
-1. `cd F:\UnrealClaudeMCP && git pull origin main`
-2. `taskkill /IM UnrealEditor.exe /F` (Live Coding holds the DLL otherwise; safe if UE isn't running). Or, with the module: `Import-Module .\scripts\UnrealClaudeMCP-Editor.psm1; Stop-UCMCPEditor`.
-3. **Sync dev plugin → host plugin.** The host project's `Plugins/UnrealClaudeMCP/` may be a plain copy on this machine, in which case it drifts from the dev tree silently. Verify with `Get-Item "<host-project>\Plugins\UnrealClaudeMCP" | Select-Object LinkType` — a `Junction` or `SymbolicLink` value means it auto-tracks; empty means it's a plain copy and you must sync. To sync (always quote both paths — Windows project locations like `F:\ax plug in\…` contain spaces):
+1. `cd "F:\ai\Unreal ai conncetion" && git pull origin main`
+2. `taskkill /IM UnrealEditor.exe /F` (Live Coding holds the DLL otherwise; safe if UE isn't running). Or, with the module: `Import-Module .\scripts\UnrealAIConnection-Editor.psm1; Stop-UCMCPEditor`.
+3. **Sync dev plugin → host plugin.** The host project's `Plugins/UnrealAIConnection/` may be a plain copy on this machine, in which case it drifts from the dev tree silently. Verify with `Get-Item "<host-project>\Plugins\UnrealAIConnection" | Select-Object LinkType` — a `Junction` or `SymbolicLink` value means it auto-tracks; empty means it's a plain copy and you must sync. To sync (always quote both paths — Windows project locations like `F:\ax plug in\…` contain spaces):
    ```
-   robocopy "<repo>\UnrealClaudeMCP" "<host-project>\Plugins\UnrealClaudeMCP" /MIR /XD Binaries Intermediate .vs /NFL /NDL /NJH /NJS /NP
+   robocopy "<repo>\UnrealAIConnection" "<host-project>\Plugins\UnrealAIConnection" /MIR /XD Binaries Intermediate .vs /NFL /NDL /NJH /NJS /NP
    ```
    Robocopy exit codes 0–7 mean success. The `/XD Binaries Intermediate` exclusion preserves the host's UBT cache so step 4 stays incremental.
 4. `& "F:\UE_5.7\Engine\Build\BatchFiles\Build.bat" <HostProjectName>Editor Win64 Development -project="<full path to host .uproject>"` — must end with `Result: Succeeded`. The target is `<HostProjectName>Editor`, NOT `<PluginName>Editor`. For the canonical host project, that's `HDMediaVirtualStudioEditor`.
@@ -141,7 +141,7 @@ These are the bugs that bit prior sessions. Don't re-discover them. (Historical 
 | `EmptyAndAddUninitializedValues` for TArray leaves slots uninitialized on mid-loop early return → UB | Pre-initialize every slot via `Inner->InitializeValue` before the coercion loop. |
 | `UMaterialInstanceConstantFactoryNew::InitialParent` is declared as a bare `UPROPERTY()` without `EditAnywhere`/`BlueprintReadWrite`, so it is **not** reachable via Python's `set_editor_property`. | Skip the factory's `InitialParent`; create the MI without a parent, then set `UMaterialInstance::Parent` (`MaterialInstance.h:647`) post-creation. See `scripts/seed_test_project.py`. |
 | `FPythonCommandEx::ExecuteFile` mode does not capture script stdout / eval-result back through `CommandResult`; `EvaluateStatement` mode captures only the last expression's value. | For Python-script results that need to round-trip back to the bridge, emit a marker via `unreal.log("__MARKER__<json>__END__")` and retrieve through `get_log_lines{category_filter:"LogPython"}`. Use a per-call UUID in the marker to disambiguate from stale entries. |
-| `FPythonCommandEx::ExecuteFile` mode tries to resolve `Cmd.Command` as a file path FIRST. Multi-line literal Python source can be misclassified as a path → `ExecPythonCommandEx` returns false silently. | All `ExecuteFile`-mode handlers MUST write the source to a real temp `.py` file (under `Intermediate/UnrealClaudeMCPPython/`) via `FFileHelper::SaveStringToFile` + `ON_SCOPE_EXIT` deletion, then pass the file path. |
+| `FPythonCommandEx::ExecuteFile` mode tries to resolve `Cmd.Command` as a file path FIRST. Multi-line literal Python source can be misclassified as a path → `ExecPythonCommandEx` returns false silently. | All `ExecuteFile`-mode handlers MUST write the source to a real temp `.py` file (under `Intermediate/UnrealAIConnectionPython/`) via `FFileHelper::SaveStringToFile` + `ON_SCOPE_EXIT` deletion, then pass the file path. |
 | `static_cast<int32>(double)` for values > `INT_MAX` is **undefined behavior** — could overflow to negative, wrap, or worse. | Always **clamp on the wide type FIRST, narrow LAST**: `static_cast<int32>(FMath::Min(Raw, static_cast<double>(kMax)))`. |
 | **`FPlatformProcess::Sleep` on the game thread freezes the editor.** UE's MCP dispatcher runs on the game thread. A blocking handler stalls every game-thread system AND the very delegates that fire the events you'd be waiting for. | Don't write blocking handlers in C++ for editor-event waits. The right home for "wait for X" logic is **bridge-side synthetic tools** (`SYNTHETIC_TOOLS` dict in `bridge/unreal_ai_connection_bridge.py`). |
 | **Off-by-one cursor on poll-with-pass-next-seq-back contracts.** Exclusive `>` filter silently skips the very next event whose seq exactly equals the previous `next_seq`. | Use **inclusive** cursor semantics: filter `seq < since_seq` to skip (return `seq >= since_seq`). Drop detection: `since_seq < first_seq_in_buffer`. |
@@ -176,9 +176,9 @@ These are the bugs that bit prior sessions. Don't re-discover them. (Historical 
 ### Vertical-slice task decomposition
 
 When implementing a bundle, each task is one self-contained vertical slice that ends with a green commit:
-1. Create `Handler_<Name>.cpp` + register in `UnrealClaudeMCPModule.cpp`
+1. Create `Handler_<Name>.cpp` + register in `UnrealAIConnectionModule.cpp`
 2. Add bridge `TOOLS` entry in `bridge/unreal_ai_connection_bridge.py` (or a `SYNTHETIC_TOOLS` entry if it's bridge-side)
-3. Add manifest entry in `UnrealClaudeMCP/Resources/mcp_manifest.json`
+3. Add manifest entry in `UnrealAIConnection/Resources/mcp_manifest.json`
 4. Add bridge schema test in `tests/test_bridge.py`
 5. Bump `EXPECTED_TOOL_COUNT` (+ `EXPECTED_CPP_HANDLER_COUNT` or `EXPECTED_SYNTHETIC_TOOL_COUNT`) in `tests/conftest.py` and `tests/test_manifest_sync.py`. The parametrized `test_every_tool_routes_through_tools_call` automatically picks up new UE handlers; for synthetic tools it auto-skips.
 6. Add `## <name>` section in `docs/TOOLS.md`
@@ -206,10 +206,10 @@ Every bundle follows this sequence:
 ## Repository file map
 
 ```
-UnrealClaudeMCP/                               UE plugin (drops into <Project>/Plugins/)
-  Source/UnrealClaudeMCP/
+UnrealAIConnection/                               UE plugin (drops into <Project>/Plugins/)
+  Source/UnrealAIConnection/
     Public/MCP/MCPServer.h                     TCP server header (per-client state structs)
-    Public/UnrealClaudeMCPModule.h             Module class -- retains FDelegateHandle members
+    Public/UnrealAIConnectionModule.h             Module class -- retains FDelegateHandle members
                                                for the event-bus subscriptions
     Private/MCP/
       MCPServer.cpp                            TCP server impl (state-machine framing as of v0.9.1).
@@ -239,9 +239,9 @@ UnrealClaudeMCP/                               UE plugin (drops into <Project>/P
                                                inspect_audio_bus / inspect_material_function /
                                                inspect_metasound are SYNTHETIC (bridge-side) -- they
                                                do NOT have a Handler_*.cpp file. 33 synthetics total.
-    UnrealClaudeMCP.Build.cs                   Module deps.
+    UnrealAIConnection.Build.cs                   Module deps.
   Resources/mcp_manifest.json                  Tool catalog (mirrors bridge TOOLS, 105 entries)
-  UnrealClaudeMCP.uplugin                      Plugin manifest (v0.9.1 / UE 5.7)
+  UnrealAIConnection.uplugin                      Plugin manifest (v0.9.1 / UE 5.7)
 
 bridge/
   unreal_ai_connection_bridge.py                  stdio↔TCP bridge.
@@ -259,7 +259,7 @@ examples/
   hello_run_python_file.py                     Test fixture for run_python_file
 
 scripts/
-  UnrealClaudeMCP-Editor.psm1                  PowerShell module for editor lifecycle
+  UnrealAIConnection-Editor.psm1                  PowerShell module for editor lifecycle
                                                (Start/Stop/Wait/Test functions)
   seed_test_project.py                         Idempotent seeder for /Game/SmokeTest_*
                                                throwaway assets

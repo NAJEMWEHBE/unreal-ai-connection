@@ -120,7 +120,7 @@ For any future bridge-side synthetic:
 2. Add TOOLS schema entry (input + required fields).
 3. Add to the `SYNTHETIC_TOOLS = {...}` dispatch dict.
 4. Bump `EXPECTED_SYNTHETIC_TOOL_COUNT` in `tests/conftest.py`.
-5. Add manifest entry in `UnrealClaudeMCP/Resources/mcp_manifest.json`.
+5. Add manifest entry in `UnrealAIConnection/Resources/mcp_manifest.json`.
 6. Add tool name to the expected-set in
    `test_tool_names_are_unique_and_match_handlers`.
 7. Add behavioural tests in `tests/test_bridge.py` (schema + happy + at least
