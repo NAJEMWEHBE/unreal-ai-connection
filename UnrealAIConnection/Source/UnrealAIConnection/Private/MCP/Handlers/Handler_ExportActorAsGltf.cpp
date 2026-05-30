@@ -38,6 +38,7 @@
 #include "Editor.h"
 #include "Exporters/GLTFExporter.h"
 #include "GLTFExporterModule.h"
+#include "Options/GLTFExportOptions.h"
 #include "GameFramework/Actor.h"
 #include "Misc/Paths.h"
 #include "Selection.h"
@@ -208,11 +209,22 @@ public:
         // Pass nullptr as Object so ExportToGLTF resolves to the editor world
         // (see GLTFExporter.cpp:86-101). The SelectedActors set filters which
         // actors are included; an empty set exports all actors in the level.
+        // Build export options with material baking + texture export DISABLED. In an
+        // editor with rendering enabled (CanEverRender()==true), the exporter's
+        // material-bake path renders materials to textures and can access-violate on
+        // some content (SanitizeExportOptions only auto-disables it when
+        // !CanEverRender()). Disabling it here keeps the export robust (geometry +
+        // material parameters, no render-baked textures) and avoids the GLTFCore fault.
+        UGLTFExportOptions* Options = NewObject<UGLTFExportOptions>();
+        Options->ResetToDefault();
+        Options->BakeMaterialInputs = EGLTFMaterialBakeMode::Disabled;
+        Options->TextureImageFormat = EGLTFTextureImageFormat::None;
+
         FGLTFExportMessages Messages;
         const bool bSuccess = UGLTFExporter::ExportToGLTF(
             /*Object=*/nullptr,
             OutputPath,
-            /*Options=*/nullptr,   // uses project's user-specific editor settings
+            Options,
             SelectedActors,
             Messages);
 
