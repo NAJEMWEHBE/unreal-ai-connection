@@ -21,9 +21,11 @@
 //
 // Error format: "place_actors_raycast: <error_code>: <detail>".
 // Stable error codes: missing_params, missing_required_field, invalid_class_path,
-// class_not_spawnable, no_targets, invalid_grid, too_many_targets, no_world.
+// class_not_spawnable, no_targets, invalid_grid, invalid_field,
+// too_many_targets, no_world.
 
 #include "MCP/MCPHandler.h"
+#include "MCP/Handlers/AssetPathUtil.h"
 
 #include "Dom/JsonObject.h"
 #include "Dom/JsonValue.h"
@@ -72,7 +74,7 @@ public:
             return nullptr;
         }
 
-        UClass* Class = LoadClass<AActor>(nullptr, *ClassPath);
+        UClass* Class = UCMCPAssetPath::ResolveClassByPath(ClassPath);
         if (!Class)
         {
             OutError = FString::Printf(TEXT("place_actors_raycast: invalid_class_path: '%s' did not resolve to a UClass"), *ClassPath);
@@ -182,6 +184,7 @@ public:
                 Missed.Add(MakeShared<FJsonValueObject>(M));
                 continue;
             }
+            TraceParams.AddIgnoredActor(Actor);
 
             // Fold the post-spawn label edit into the dispatcher's transaction.
             Actor->Modify();
@@ -273,14 +276,22 @@ private:
         const TArray<TSharedPtr<FJsonValue>>* PointsArr = nullptr;
         if (Params->TryGetArrayField(TEXT("points"), PointsArr) && PointsArr)
         {
-            for (const TSharedPtr<FJsonValue>& V : *PointsArr)
+            for (int32 PointIndex = 0; PointIndex < PointsArr->Num(); ++PointIndex)
             {
+                const TSharedPtr<FJsonValue>& V = (*PointsArr)[PointIndex];
                 const TSharedPtr<FJsonObject>* PtObj = nullptr;
                 if (V.IsValid() && V->TryGetObject(PtObj) && PtObj && (*PtObj).IsValid())
                 {
                     FXYTarget T;
-                    (*PtObj)->TryGetNumberField(TEXT("x"), T.X);
-                    (*PtObj)->TryGetNumberField(TEXT("y"), T.Y);
+                    const bool bHaveX = (*PtObj)->TryGetNumberField(TEXT("x"), T.X);
+                    const bool bHaveY = (*PtObj)->TryGetNumberField(TEXT("y"), T.Y);
+                    if (!bHaveX || !bHaveY)
+                    {
+                        OutError = FString::Printf(
+                            TEXT("place_actors_raycast: invalid_field: points[%d] requires numeric x and y"),
+                            PointIndex);
+                        return false;
+                    }
                     Targets.Add(T);
                 }
             }

@@ -29,7 +29,7 @@
 //
 // Error format: "light_raycast_placement: <error_code>: <detail>".
 // Stable error codes: missing_params, missing_required_field, invalid_light_type,
-// no_samples, invalid_sweep, too_many_lights, no_world.
+// no_samples, invalid_sweep, invalid_field, too_many_lights, no_world.
 
 #include "MCP/MCPHandler.h"
 
@@ -58,9 +58,13 @@ namespace
     {
         if (!Obj.IsValid()) { return false; }
         double X = 0, Y = 0, Z = 0;
-        Obj->TryGetNumberField(TEXT("x"), X);
-        Obj->TryGetNumberField(TEXT("y"), Y);
-        Obj->TryGetNumberField(TEXT("z"), Z);
+        const bool bHaveX = Obj->TryGetNumberField(TEXT("x"), X);
+        const bool bHaveY = Obj->TryGetNumberField(TEXT("y"), Y);
+        const bool bHaveZ = Obj->TryGetNumberField(TEXT("z"), Z);
+        if (!bHaveX || !bHaveY || !bHaveZ)
+        {
+            return false;
+        }
         Out = FVector(X, Y, Z);
         return true;
     }
@@ -271,14 +275,24 @@ private:
             const TSharedPtr<FJsonObject>* StartObj = nullptr;
             const TSharedPtr<FJsonObject>* EndObj = nullptr;
             FVector Start, End;
-            const bool bHaveStart = (*SweepObj)->TryGetObjectField(TEXT("start"), StartObj) && StartObj && ReadVector(*StartObj, Start);
-            const bool bHaveEnd = (*SweepObj)->TryGetObjectField(TEXT("end"), EndObj) && EndObj && ReadVector(*EndObj, End);
+            const bool bHaveStart = (*SweepObj)->TryGetObjectField(TEXT("start"), StartObj) && StartObj && (*StartObj).IsValid();
+            const bool bHaveEnd = (*SweepObj)->TryGetObjectField(TEXT("end"), EndObj) && EndObj && (*EndObj).IsValid();
             int32 Count = 0;
             const bool bHaveCount = (*SweepObj)->TryGetNumberField(TEXT("count"), Count);
 
             if (!bHaveStart || !bHaveEnd || !bHaveCount)
             {
                 OutError = TEXT("light_raycast_placement: invalid_sweep: 'sweep' requires start{x,y,z}, end{x,y,z}, count");
+                return false;
+            }
+            if (!ReadVector(*StartObj, Start))
+            {
+                OutError = TEXT("light_raycast_placement: invalid_field: 'sweep.start' requires numeric x, y, and z");
+                return false;
+            }
+            if (!ReadVector(*EndObj, End))
+            {
+                OutError = TEXT("light_raycast_placement: invalid_field: 'sweep.end' requires numeric x, y, and z");
                 return false;
             }
             if (Count < 1)
@@ -297,13 +311,20 @@ private:
         const TArray<TSharedPtr<FJsonValue>>* PointsArr = nullptr;
         if (Params->TryGetArrayField(TEXT("points"), PointsArr) && PointsArr)
         {
-            for (const TSharedPtr<FJsonValue>& V : *PointsArr)
+            for (int32 PointIndex = 0; PointIndex < PointsArr->Num(); ++PointIndex)
             {
+                const TSharedPtr<FJsonValue>& V = (*PointsArr)[PointIndex];
                 const TSharedPtr<FJsonObject>* PtObj = nullptr;
                 if (V.IsValid() && V->TryGetObject(PtObj) && PtObj && (*PtObj).IsValid())
                 {
                     FVector P;
-                    ReadVector(*PtObj, P);
+                    if (!ReadVector(*PtObj, P))
+                    {
+                        OutError = FString::Printf(
+                            TEXT("light_raycast_placement: invalid_field: points[%d] requires numeric x, y, and z"),
+                            PointIndex);
+                        return false;
+                    }
                     Samples.Add(P);
                 }
             }

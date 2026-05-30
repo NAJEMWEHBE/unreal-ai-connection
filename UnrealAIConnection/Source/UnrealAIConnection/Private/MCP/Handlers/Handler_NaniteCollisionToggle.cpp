@@ -34,7 +34,7 @@
 //
 // Error format: "nanite_collision_toggle: <error_code>: <detail>".
 // Stable error codes: missing_params, missing_required_field, no_target,
-// asset_not_found, asset_wrong_type, actor_not_found, ambiguous_actor,
+// invalid_field, asset_not_found, asset_wrong_type, actor_not_found, ambiguous_actor,
 // actor_has_no_mesh, no_world.
 
 #include "MCP/MCPHandler.h"
@@ -96,6 +96,11 @@ public:
         FString ActorName;
         const bool bHaveActor = Params->TryGetStringField(TEXT("actor"), ActorName) && !ActorName.IsEmpty();
 
+        if (bHaveAsset && bHaveActor)
+        {
+            OutError = TEXT("nanite_collision_toggle: invalid_field: supply either 'asset_path' or 'actor', not both");
+            return nullptr;
+        }
         if (!bHaveAsset && !bHaveActor)
         {
             OutError = TEXT("nanite_collision_toggle: no_target: supply either 'asset_path' (/Game StaticMesh) or 'actor' (label)");

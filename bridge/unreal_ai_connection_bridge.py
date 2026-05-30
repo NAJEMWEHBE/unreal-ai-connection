@@ -7842,6 +7842,7 @@ def synthetic_batch_capture_cameras(req_id, args: dict) -> dict:
             "code": -32602,
             "message": "batch_capture_cameras: missing_required_field: 'output_dir' must be a non-empty string",
         })
+    output_dir = os.path.normpath(output_dir)
 
     camera_names = args.get("camera_names")
     if camera_names is not None:
@@ -7894,12 +7895,13 @@ def synthetic_batch_capture_cameras(req_id, args: dict) -> dict:
         and a["class"].lower() == "cinecameraactor"
     ]
 
-    # Restrict to requested names when supplied (match on label OR name).
+    # Restrict to requested camera labels when supplied. render_camera_to_png
+    # consumes camera_label, not the actor's unstable internal FName.
     if camera_names is not None:
         wanted = set(camera_names)
         cine_cameras = [
             a for a in cine_cameras
-            if a.get("label") in wanted or a.get("name") in wanted
+            if a.get("label") in wanted
         ]
 
     if not cine_cameras:
@@ -7908,13 +7910,12 @@ def synthetic_batch_capture_cameras(req_id, args: dict) -> dict:
             "message": "batch_capture_cameras: no_cameras_matched: no CineCameraActor found in the level (or none matched 'camera_names')",
         })
 
-    sep = "" if output_dir.endswith(("/", "\\")) else "/"
     succeeded = 0
     results: list[dict] = []
     for cam in cine_cameras:
         label = cam.get("label") or cam.get("name") or "camera"
         safe = "".join(c if (c.isalnum() or c in ("_", "-")) else "_" for c in str(label))
-        out_path = f"{output_dir}{sep}{file_name_format.replace('{camera}', safe)}"
+        out_path = os.path.join(output_dir, file_name_format.replace("{camera}", safe))
 
         render_args = {"out_path": out_path, "camera_label": label}
         if width and height:
@@ -8097,23 +8098,55 @@ def synthetic_batch_spawn_from_csv(req_id, args: dict) -> dict:
             })
             continue
 
+        numbers: dict[str, float] = {}
+        bad_number = None
+        for key in _CSV_SPAWN_TRANSFORM_KEYS:
+            raw_value = row.get(key, 0) or 0
+            try:
+                numbers[key] = float(raw_value)
+            except (TypeError, ValueError):
+                bad_number = (key, raw_value)
+                break
+        if bad_number is not None:
+            key, raw_value = bad_number
+            results.append({
+                "row": i,
+                "ok": False,
+                "error": {
+                    "code": -32602,
+                    "message": f"batch_spawn_from_csv: invalid_field: rows[{i}]['{key}'] value {raw_value!r} is not a number",
+                },
+            })
+            continue
+
+        props = row.get("properties")
+        if "properties" in row and props is not None and not isinstance(props, dict):
+            results.append({
+                "row": i,
+                "ok": False,
+                "error": {
+                    "code": -32602,
+                    "message": f"batch_spawn_from_csv: invalid_field: rows[{i}]['properties'] must be an object when supplied",
+                },
+            })
+            continue
+
         spawn_args: dict = {
             "class_path": class_path,
             "location": {
-                "x": float(row.get("x", 0) or 0),
-                "y": float(row.get("y", 0) or 0),
-                "z": float(row.get("z", 0) or 0),
+                "x": numbers["x"],
+                "y": numbers["y"],
+                "z": numbers["z"],
             },
             "rotation": {
-                "pitch": float(row.get("pitch", 0) or 0),
-                "yaw": float(row.get("yaw", 0) or 0),
-                "roll": float(row.get("roll", 0) or 0),
+                "pitch": numbers["pitch"],
+                "yaw": numbers["yaw"],
+                "roll": numbers["roll"],
             },
         }
         label = row.get("label")
         if isinstance(label, str) and label:
             spawn_args["label"] = label
-        props = row.get("properties")
         if isinstance(props, dict) and props:
             spawn_args["properties"] = props
 

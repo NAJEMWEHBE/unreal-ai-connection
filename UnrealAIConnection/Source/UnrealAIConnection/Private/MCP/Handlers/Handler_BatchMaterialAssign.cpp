@@ -17,8 +17,8 @@
 //   FRegexPattern / FRegexMatcher                               -- Core: Internationalization/Regex.h
 //
 // Error format: "batch_material_assign: <error_code>: <detail>".
-// Stable error codes: missing_params, missing_required_field, material_not_found,
-// material_wrong_type, no_target_selector, invalid_regex, no_world,
+// Stable error codes: missing_params, missing_required_field, invalid_field,
+// material_not_found, material_wrong_type, invalid_regex, no_world,
 // no_actors_matched.
 
 #include "MCP/MCPHandler.h"
@@ -97,6 +97,11 @@ public:
         // slot: -1 (default) = all slots; otherwise the single slot index.
         int32 Slot = -1;
         Params->TryGetNumberField(TEXT("slot"), Slot);
+        if (Slot < -1)
+        {
+            OutError = TEXT("batch_material_assign: invalid_field: 'slot' must be -1 for all slots or a non-negative slot index");
+            return nullptr;
+        }
 
         // Parse the targets selector (exactly one of by_label / by_folder /
         // by_name_regex). All three resolve to a predicate over the world.
@@ -130,11 +135,13 @@ public:
         const bool bHaveLabel = ByLabel.Num() > 0;
         const bool bHaveFolder = !ByFolder.IsEmpty();
         const bool bHaveRegex = !ByNameRegex.IsEmpty();
-        if (!bHaveLabel && !bHaveFolder && !bHaveRegex)
+        const int32 SelectorCount = (bHaveLabel ? 1 : 0) + (bHaveFolder ? 1 : 0) + (bHaveRegex ? 1 : 0);
+        if (SelectorCount != 1)
         {
-            OutError = TEXT("batch_material_assign: no_target_selector: 'targets' must set one of by_label, by_folder, or by_name_regex");
+            OutError = TEXT("batch_material_assign: invalid_field: 'targets' must set exactly one of by_label, by_folder, or by_name_regex");
             return nullptr;
         }
+        const FRegexPattern NamePattern(ByNameRegex);
 
         UWorld* World = GEditor ? GEditor->GetEditorWorldContext().World() : nullptr;
         if (!World)
@@ -166,12 +173,10 @@ public:
             }
             if (!bMatch && bHaveRegex)
             {
-                // Compile once outside the loop would be cleaner, but the pattern
-                // object is cheap and matching needs a fresh FRegexMatcher per
-                // input anyway. Match against both label and FName.
-                FRegexPattern Pattern(ByNameRegex);
-                FRegexMatcher LabelMatcher(Pattern, Actor->GetActorLabel());
-                FRegexMatcher NameMatcher(Pattern, Actor->GetFName().ToString());
+                // Match against both label and FName. The pattern is compiled
+                // once above; each input still needs its own matcher.
+                FRegexMatcher LabelMatcher(NamePattern, Actor->GetActorLabel());
+                FRegexMatcher NameMatcher(NamePattern, Actor->GetFName().ToString());
                 if (LabelMatcher.FindNext() || NameMatcher.FindNext())
                 {
                     bMatch = true;
