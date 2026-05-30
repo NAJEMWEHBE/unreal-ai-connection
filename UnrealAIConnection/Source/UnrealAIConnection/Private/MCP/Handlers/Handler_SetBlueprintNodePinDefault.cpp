@@ -125,6 +125,11 @@ public:
             OutError = TEXT("set_blueprint_node_pin_default: missing_required_field: provide 'value' (a literal) or 'object_value' (an object path)");
             return nullptr;
         }
+        if (bHasObjectValue && bHasValue)
+        {
+            OutError = TEXT("set_blueprint_node_pin_default: invalid_field: provide exactly one of 'value' or 'object_value', not both");
+            return nullptr;
+        }
 
         UBlueprint* BP = LoadObject<UBlueprint>(nullptr, *BlueprintPath);
         if (!BP)
@@ -230,11 +235,16 @@ public:
             // UE canonicalizes some literals (e.g. '1.0' -> '1.000000'), so we
             // accept either an exact match or a non-empty normalized result when
             // the requested value is itself non-empty.
+            const FString PriorValue = Pin->DefaultValue;
             K2Schema->TrySetDefaultValue(*Pin, LiteralValue);
             const FString ReadBack = Pin->DefaultValue;
+            // Success = exact match OR the value actually CHANGED (covers UE
+            // canonicalization like '1.0' -> '1.000000'). The old check accepted
+            // any non-empty read-back, a false positive when a rejected set left a
+            // pre-existing non-empty default untouched.
             const bool bTook =
-                (ReadBack == LiteralValue)               // exact
-                || (!LiteralValue.IsEmpty() && !ReadBack.IsEmpty()); // canonicalized
+                (ReadBack == LiteralValue)                          // exact match
+                || (ReadBack != PriorValue && !ReadBack.IsEmpty()); // canonicalized change
             if (!bTook)
             {
                 OutError = FString::Printf(

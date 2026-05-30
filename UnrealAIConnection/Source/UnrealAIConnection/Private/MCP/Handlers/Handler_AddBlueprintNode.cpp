@@ -226,6 +226,21 @@ public:
                     *NodeTypeLower);
                 return nullptr;
             }
+
+            // Verify the variable exists (BP-local or inherited) before authoring a
+            // node — otherwise we'd create an unresolved VariableReference that only
+            // surfaces as a compile error later.
+            const bool bVarExists =
+                FBlueprintEditorUtils::FindNewVariableIndex(BP, FName(*VarName)) != INDEX_NONE
+                || (BP->SkeletonGeneratedClass && BP->SkeletonGeneratedClass->FindPropertyByName(FName(*VarName)) != nullptr)
+                || (BP->GeneratedClass && BP->GeneratedClass->FindPropertyByName(FName(*VarName)) != nullptr);
+            if (!bVarExists)
+            {
+                OutError = FString::Printf(
+                    TEXT("add_blueprint_node: var_not_found: no variable named '%s' on '%s' (declare it first, or compile the Blueprint if it was just added)"),
+                    *VarName, *BlueprintPath);
+                return nullptr;
+            }
         }
 
         // Reject unknown node types before any creator is constructed.
