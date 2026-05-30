@@ -1,6 +1,6 @@
 # MCP Tools Reference
 
-**140 tools total.** 103 are JSON-RPC 2.0 methods served on `127.0.0.1:18888` directly by the plugin's C++ handlers. The remaining 37 — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`, `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap`, `sequencer_add_transform_keyframe`, `import_mesh`, `material_auto_remap`, `batch_capture_cameras`, `batch_spawn_from_csv` — are bridge-side **synthetic tools** that are intercepted by `bridge/unreal_ai_connection_bridge.py` and served by composing existing handlers (or running Python via `execute_unreal_python`, or — for `compile_mod_pak` — shelling out to `RunUAT.bat` entirely outside the UE process). They are visible to MCP clients exactly like the C++ tools but cannot be reached by sending raw JSON-RPC to the TCP socket — only via the MCP bridge or by replicating their composition manually. The "Implementation" header on each entry below indicates whether a tool is C++ or bridge-side.
+**142 tools total.** 105 are JSON-RPC 2.0 methods served on `127.0.0.1:18888` directly by the plugin's C++ handlers. The remaining 37 — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`, `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap`, `sequencer_add_transform_keyframe`, `import_mesh`, `material_auto_remap`, `batch_capture_cameras`, `batch_spawn_from_csv` — are bridge-side **synthetic tools** that are intercepted by `bridge/unreal_ai_connection_bridge.py` and served by composing existing handlers (or running Python via `execute_unreal_python`, or — for `compile_mod_pak` — shelling out to `RunUAT.bat` entirely outside the UE process). They are visible to MCP clients exactly like the C++ tools but cannot be reached by sending raw JSON-RPC to the TCP socket — only via the MCP bridge or by replicating their composition manually. The "Implementation" header on each entry below indicates whether a tool is C++ or bridge-side.
 
 Each tool's params and result are documented with a working example.
 
@@ -5202,6 +5202,48 @@ Saves a `PostProcessVolume`'s color grade to a JSON file, or loads one back onto
 ```
 
 Pairs with `light_raycast_placement` (set the rig, then grade the look) and `save_dirty_assets` (persist a loaded grade to the level).
+
+---
+
+## sequence_snapshot
+
+**Implementation:** native C++ handler. **Mutating:** no (creates new assets  -  run `save_dirty_assets` to flush the duplicates to disk, or they will be lost on editor restart).
+
+Crash-safety checkpoint: duplicates the current editor level (its `UWorld` package) and optionally named `Level Sequence` assets into a timestamped folder under `/Game/_Snapshots/<label>_<YYYYmmdd_HHMMSS>/`. Call this before any bulk or risky edit  -  material reassigns, scene restructures, animation bakes  -  so you have a restore point. Internally it resolves `GEditor->GetEditorWorldContext().World()` to the live `UWorld`, reads the world's package path via `GetOutermost()->GetName()`, builds the destination folder, then calls `UEditorAssetSubsystem::DuplicateAsset()` for the level and for each sequence path. The level must be saved under `/Game/` (transient or unsaved levels return `no_level_path`).
+
+**Params:** `label` (string, optional, default `"snapshot"`  -  embedded in the snapshot folder name; non-alphanumeric characters are replaced with `_`), `sequence_paths` (array of string, optional  -  `/Game` Level Sequence asset paths to snapshot alongside the level; each must start with `/Game/`).
+
+**Returns:** `ok`, `snapshot_folder` (full `/Game/_Snapshots/...` path), `level_snapshot` (destination path of the duplicated level), `sequences` (array of `{source, snapshot, ok, error?}`  -  one entry per requested sequence), `count` (total assets duplicated successfully), `note` (reminder to run `save_dirty_assets`).
+
+```json
+{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"sequence_snapshot","arguments":{"label":"pre_bake","sequence_paths":["/Game/Cinematics/Shot01","/Game/Cinematics/Shot02"]}}}
+```
+
+Pairs with `save_dirty_assets` (flush the snapshot packages to disk) and `batch_material_assign` or `light_raycast_placement` (the risky operations you snapshot before running).
+
+---
+
+---
+
+## material_blend_override
+
+**Implementation:** native C++ handler. **Mutating:** yes (single undo step).
+
+Sets or overrides a named material parameter (scalar or color) across many actors' mesh materials via dynamic material instances  -  the time-of-day / look-dev bulk override. Resolves the target actor set via **exactly one** selector  -  `by_label` (string or list of labels), `by_folder` (World-Outliner path, matched as a prefix so `/Set/Exterior` also catches `/Set/Exterior/Props`), or `by_name_regex` (regex against each actor's label and FName)  -  then for each actor walks its `UMeshComponent`(s). For every target slot it calls `CreateDynamicMaterialInstance` to get or promote the slot to a `UMaterialInstanceDynamic`, then calls `SetScalarParameterValue` or `SetVectorParameterValue`. Use case: push `"GoldenHour_Intensity"` or `"SkyColor"` across every prop in `/Set/Exterior` in one call without touching each asset.
+
+**Params:** `targets` (object, **required**  -  set exactly one of `by_label`, `by_folder`, `by_name_regex`; `by_label` accepts a bare string or an array of strings), `parameter` (string, **required**  -  the material parameter name), `scalar` (number, optional  -  scalar float), `color` (object `{r,g,b,a}` linear 0..1, optional  -  `a` defaults to 1.0 when omitted), `slot` (integer, optional, default `-1` = all slots; out-of-range on a component is silently skipped). Supply **exactly one** of `scalar` or `color`.
+
+**Returns:** `ok`, `parameter` (echo), `value` (the scalar number or `{r,g,b,a}` object set), `slot` (echo), `actors_matched`, `components_touched`, `mids_created`, `slots_set`.
+
+```json
+{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"material_blend_override","arguments":{"targets":{"by_folder":"/Set/Exterior"},"parameter":"GoldenHour_Intensity","scalar":2.4}}}
+```
+
+```json
+{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"material_blend_override","arguments":{"targets":{"by_label":["WallA","WallB","CeilingMain"]},"parameter":"SkyColor","color":{"r":0.9,"g":0.7,"b":0.4,"a":1.0}}}}
+```
+
+Pairs with `batch_material_assign` (assign a base material before overriding parameters) and `post_process_grade_preset` (combine a per-prop parameter sweep with a volume color grade for a full look-dev pass).
 
 ---
 

@@ -1,7 +1,7 @@
 {
  "name": "UnrealAIConnection",
  "version": "0.9.1",
- "description": "Drive Unreal Engine 5.7 from any MCP-compliant client over a local TCP socket. 140 tools total (103 native C++ handlers plus 37 bridge-side synthetic tools) that work with any UE 5.7 project.",
+ "description": "Drive Unreal Engine 5.7 from any MCP-compliant client over a local TCP socket. 142 tools total (105 native C++ handlers plus 37 bridge-side synthetic tools) that work with any UE 5.7 project.",
  "transport": {
   "type": "tcp",
   "host": "127.0.0.1",
@@ -2228,6 +2228,34 @@
     "action": "string (required) - 'save' writes the grade to preset_path; 'load' applies preset_path onto the volume",
     "target": "string (required) - label/FName of the PostProcessVolume actor",
     "preset_path": "string (required) - absolute filesystem path to the .json preset file"
+   },
+   "returns": "see docs/TOOLS.md"
+  },
+{
+   "name": "sequence_snapshot",
+   "description": "Crash-safety checkpoint  -  duplicate the current editor level and optionally named Level Sequence assets into a timestamped folder under /Game/_Snapshots/ so a risky edit can be rolled back. Call before bulk destructive edits (material reassign, scene restructure, animation bake). Returns snapshot_folder, level_snapshot path, per-sequence {source, snapshot, ok} pairs, and a note to run save_dirty_assets to flush the duplicates to disk.",
+   "params": {
+    "label": "string (optional, default 'snapshot') - short name embedded in the snapshot folder; alphanumeric/hyphens/underscores only",
+    "sequence_paths": "array of string (optional) - /Game Level Sequence asset paths to also snapshot"
+   },
+   "returns": {
+    "ok": "bool",
+    "snapshot_folder": "string",
+    "level_snapshot": "string",
+    "sequences": "array of {source, snapshot, ok, error?}",
+    "count": "number",
+    "note": "string"
+   }
+  },
+{
+   "name": "material_blend_override",
+   "description": "Set/override a named material parameter (scalar OR color) across many actors' mesh materials via dynamic material instances. Native C++ handler. Resolves targets via exactly one of by_label / by_folder / by_name_regex, then for each actor and mesh component calls CreateDynamicMaterialInstance + SetScalarParameterValue or SetVectorParameterValue. Time-of-day / look-dev: push a parameter change across an entire set folder in one call.",
+   "params": {
+    "targets": "object (required) - set exactly one of by_label (string or list), by_folder (Outliner path prefix), by_name_regex (regex on label+FName)",
+    "parameter": "string (required) - the material parameter name to override",
+    "scalar": "number (optional) - scalar float value; supply this OR color",
+    "color": "object (optional) - linear color {r,g,b,a} (0..1); supply this OR scalar",
+    "slot": "int (optional, default -1) - slot index; -1 = every slot on each matched component"
    },
    "returns": "see docs/TOOLS.md"
   }
