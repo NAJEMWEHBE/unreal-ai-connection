@@ -4,15 +4,15 @@
 
 **Drive Unreal Engine 5.7 from any MCP-compliant client over a local TCP socket.**
 
-139 tools total. Zero pixel-clicking. ~50ms round-trip.
+140 tools total. Zero pixel-clicking. ~50ms round-trip.
 
 [![CI](https://github.com/NAJEMWEHBE/unreal-ai-connection/actions/workflows/tests.yml/badge.svg)](https://github.com/NAJEMWEHBE/unreal-ai-connection/actions/workflows/tests.yml)
 [![License](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
 [![Unreal Engine](https://img.shields.io/badge/Unreal_Engine-5.7_official_(5.4--5.8_best--effort)-313131?logo=unrealengine)](docs/PHASE-H-COMPAT.md)
 [![Python](https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![MCP](https://img.shields.io/badge/MCP-compatible-7c3aed)](https://modelcontextprotocol.io/)
-[![Tests](https://img.shields.io/badge/pytest-573_passing-success?logo=pytest&logoColor=white)](tests/)
-[![Tools](https://img.shields.io/badge/tools-139-blue)](docs/TOOLS.md)
+[![Tests](https://img.shields.io/badge/pytest-574_passing-success?logo=pytest&logoColor=white)](tests/)
+[![Tools](https://img.shields.io/badge/tools-140-blue)](docs/TOOLS.md)
 [![Changelog](https://img.shields.io/badge/changelog-keep_a_changelog-orange)](CHANGELOG.md)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](#contributing)
 
@@ -30,7 +30,7 @@
 
 <div align="center">
 
-**Native C++ handlers — not Python Remote Execution.** ~50 ms round-trips across 139 tools · 573 tests · MIT · works with any MCP-compliant client (Claude Code, Cursor, Cline, Codex, Gemini, Continue, Windsurf, Zed, …).
+**Native C++ handlers — not Python Remote Execution.** ~50 ms round-trips across 140 tools · 574 tests · MIT · works with any MCP-compliant client (Claude Code, Cursor, Cline, Codex, Gemini, Continue, Windsurf, Zed, …).
 
 The suite now spans **inspection and authoring** — read existing assets and *create* them: actors, levels, data tables/assets, Blueprints (incl. K2 graph nodes), material graphs, **Niagara FX, Level Sequence cinematics (camera cuts, audio, visibility), and Movie Render Queue renders** — all over the same socket.
 
@@ -97,7 +97,7 @@ Also discoverable in the [official MCP Registry](https://github.com/modelcontext
 - [How it fits together](#how-it-fits-together) — architecture diagram + per-call sequence
 - [Why it exists](#why-it-exists) — the UE 5.7 Python dead-ends this plugin sidesteps
 - [Why MCP specifically](#why-mcp-specifically) — one protocol, every conforming client
-- [Tools](#tools) — 139 tools grouped into 15 expandable categories
+- [Tools](#tools) — 140 tools grouped into 15 expandable categories
 - [Quick start](#quick-start) — copy-paste path to a running editor with the plugin live
 - [What's in the box](#whats-in-the-box) — directory tree
 - [Status](#status) — release / test / build state
@@ -154,7 +154,7 @@ The plugin sidesteps these limits by calling UE's native C++ APIs directly insid
 
 ## Why MCP specifically
 
-MCP (Model Context Protocol) is a vendor-neutral I/O protocol designed for LLM tool-use. Because this plugin speaks MCP rather than baking in any one client, **every conforming client gets all 139 tools for free**: Claude Code, Codex CLI, Cursor, Gemini CLI, Continue, Zed, Cline, and any future entrant. Switch clients without changing the plugin or the bridge.
+MCP (Model Context Protocol) is a vendor-neutral I/O protocol designed for LLM tool-use. Because this plugin speaks MCP rather than baking in any one client, **every conforming client gets all 140 tools for free**: Claude Code, Codex CLI, Cursor, Gemini CLI, Continue, Zed, Cline, and any future entrant. Switch clients without changing the plugin or the bridge.
 
 The wire format is `stdio MCP` between client and bridge, then a tight `length-prefixed JSON-RPC over TCP 127.0.0.1:18888` between bridge and the running UE editor. Either side can be reimplemented in another language; the contract is the JSON.
 
@@ -162,7 +162,7 @@ The wire format is `stdio MCP` between client and bridge, then a tight `length-p
 
 ## Tools
 
-**139 tools total.** 102 are native C++ handlers registered by the plugin at editor startup; 37 are bridge-side synthetic tools (`wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`, `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap`, `sequencer_add_transform_keyframe`, `import_mesh`, `material_auto_remap`, `batch_capture_cameras`, `batch_spawn_from_csv`) that compose existing handlers without a dedicated UE round-trip (or, for `compile_mod_pak` and `compile_mod_pak_direct`, shell out to RunUAT or UnrealPak entirely outside the UE process) — see `bridge/unreal_ai_connection_bridge.py`'s `SYNTHETIC_TOOLS`. Per-tool JSON schemas and examples live in [`docs/TOOLS.md`](docs/TOOLS.md). Grouped overview:
+**140 tools total.** 103 are native C++ handlers registered by the plugin at editor startup; 37 are bridge-side synthetic tools (`wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`, `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap`, `sequencer_add_transform_keyframe`, `import_mesh`, `material_auto_remap`, `batch_capture_cameras`, `batch_spawn_from_csv`) that compose existing handlers without a dedicated UE round-trip (or, for `compile_mod_pak` and `compile_mod_pak_direct`, shell out to RunUAT or UnrealPak entirely outside the UE process) — see `bridge/unreal_ai_connection_bridge.py`'s `SYNTHETIC_TOOLS`. Per-tool JSON schemas and examples live in [`docs/TOOLS.md`](docs/TOOLS.md). Grouped overview:
 
 ### Python execution (5 tools)
 
@@ -487,10 +487,10 @@ tests/                            Pytest suite for the bridge (no UE required)
 | | |
 |---|---|
 | **Latest release** | v0.9.1 — 2026-05-23 (plus [`v0.9.1-ue5.6`](https://github.com/NAJEMWEHBE/unreal-ai-connection/releases/tag/v0.9.1-ue5.6) prebuilt 5.6 binaries — 2026-05-25) |
-| **Tools** | **139 live** — 102 native C++ handlers (one MCP method per `Handler_*.cpp`) plus 37 bridge-side synthetic tools (Python-only composition over existing handlers; never crosses the TCP wire as a dedicated round-trip). See [`docs/TOOLS.md`](docs/TOOLS.md) for the per-tool reference. |
+| **Tools** | **140 live** — 103 native C++ handlers (one MCP method per `Handler_*.cpp`) plus 37 bridge-side synthetic tools (Python-only composition over existing handlers; never crosses the TCP wire as a dedicated round-trip). See [`docs/TOOLS.md`](docs/TOOLS.md) for the per-tool reference. |
 | **Tested on** | UE 5.7.4 / Windows 11 / Visual Studio Build Tools 2022 / MSVC 14.44 / NETFXSDK 4.8.1 |
-| **Build status** | Plugin compiles + loads against UE 5.7.4 host on Windows 11; 102 handlers register, TCP server binds `127.0.0.1:18888`, bridge round-trip via `tools/call list_tools` returns full registry. |
-| **Bridge tests** | 573 pytest cases, ~99% coverage |
+| **Build status** | Plugin compiles + loads against UE 5.7.4 host on Windows 11; 103 handlers register, TCP server binds `127.0.0.1:18888`, bridge round-trip via `tools/call list_tools` returns full registry. |
+| **Bridge tests** | 574 pytest cases, ~99% coverage |
 | **CI** | GitHub Actions on every push and PR |
 | **Development workflow** | Multi-agent ensemble — Opus orchestrates, Codex authors C++, Sonnet handles Python + recon, NVIDIA cloud + local OSS LLMs run pre-PR diff review, Copilot CLI gives a second opinion, Gemini auto-review fires on every PR open. No single model gates a merge. |
 

@@ -1,6 +1,6 @@
 # MCP Tools Reference
 
-**139 tools total.** 102 are JSON-RPC 2.0 methods served on `127.0.0.1:18888` directly by the plugin's C++ handlers. The remaining 37 — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`, `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap`, `sequencer_add_transform_keyframe`, `import_mesh`, `material_auto_remap`, `batch_capture_cameras`, `batch_spawn_from_csv` — are bridge-side **synthetic tools** that are intercepted by `bridge/unreal_ai_connection_bridge.py` and served by composing existing handlers (or running Python via `execute_unreal_python`, or — for `compile_mod_pak` — shelling out to `RunUAT.bat` entirely outside the UE process). They are visible to MCP clients exactly like the C++ tools but cannot be reached by sending raw JSON-RPC to the TCP socket — only via the MCP bridge or by replicating their composition manually. The "Implementation" header on each entry below indicates whether a tool is C++ or bridge-side.
+**140 tools total.** 103 are JSON-RPC 2.0 methods served on `127.0.0.1:18888` directly by the plugin's C++ handlers. The remaining 37 — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`, `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap`, `sequencer_add_transform_keyframe`, `import_mesh`, `material_auto_remap`, `batch_capture_cameras`, `batch_spawn_from_csv` — are bridge-side **synthetic tools** that are intercepted by `bridge/unreal_ai_connection_bridge.py` and served by composing existing handlers (or running Python via `execute_unreal_python`, or — for `compile_mod_pak` — shelling out to `RunUAT.bat` entirely outside the UE process). They are visible to MCP clients exactly like the C++ tools but cannot be reached by sending raw JSON-RPC to the TCP socket — only via the MCP bridge or by replicating their composition manually. The "Implementation" header on each entry below indicates whether a tool is C++ or bridge-side.
 
 Each tool's params and result are documented with a working example.
 
@@ -5184,6 +5184,24 @@ Spawns N actors from a CSV file or an inline list of row objects — data-driven
 ```
 
 Pairs with `place_actors_raycast` (snap the scattered rows onto a surface) and `batch_material_assign` (skin them by label or folder).
+
+---
+
+## post_process_grade_preset
+
+**Implementation:** native C++ handler. **Mutating:** yes on `load` (edits the volume — run `save_dirty_assets` to persist the level); `save` only reads.
+
+Saves a `PostProcessVolume`'s color grade to a JSON file, or loads one back onto a volume — look-dev preset capture and reapply. Resolves the `target` actor and casts it to `APostProcessVolume`, then handles the 8 global color-grade fields of `FPostProcessSettings`: `WhiteTemp`, `WhiteTint`, the `ColorSaturation` / `ColorContrast` / `ColorGamma` / `ColorGain` / `ColorOffset` wheels (each an RGBA `FVector4`), and `AutoExposureBias`. Each field's `bOverride_*` flag is saved alongside its value and restored on load — a volume ignores any field whose override flag is off, so this preserves exactly which knobs the preset drives. Save a "golden hour" or "warm interview" grade once, then reapply it across shots or push it onto another volume without re-dialling the wheels.
+
+**Params:** `action` (string, **required** — `"save"` or `"load"`), `target` (string, **required** — PostProcessVolume label/FName), `preset_path` (string, **required** — absolute path to the `.json` preset; written on save, read on load).
+
+**Returns:** `ok`, `action`, `target` (resolved label), `preset_path`, `fields` (count saved = 8, or count applied on load), and on load `applied` (array of the grade keys set), plus a `note`.
+
+```json
+{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"post_process_grade_preset","arguments":{"action":"save","target":"PostProcessVolume_Stage","preset_path":"F:/grades/golden_hour.json"}}}
+```
+
+Pairs with `light_raycast_placement` (set the rig, then grade the look) and `save_dirty_assets` (persist a loaded grade to the level).
 
 ---
 

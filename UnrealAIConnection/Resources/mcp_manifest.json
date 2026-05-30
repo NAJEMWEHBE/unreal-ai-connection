@@ -1,7 +1,7 @@
 {
  "name": "UnrealAIConnection",
  "version": "0.9.1",
- "description": "Drive Unreal Engine 5.7 from any MCP-compliant client over a local TCP socket. 139 tools total (102 native C++ handlers plus 37 bridge-side synthetic tools) that work with any UE 5.7 project.",
+ "description": "Drive Unreal Engine 5.7 from any MCP-compliant client over a local TCP socket. 140 tools total (103 native C++ handlers plus 37 bridge-side synthetic tools) that work with any UE 5.7 project.",
  "transport": {
   "type": "tcp",
   "host": "127.0.0.1",
@@ -2218,6 +2218,16 @@
     "asset_path": "string (optional) - /Game StaticMesh path to toggle; supply this OR 'actor'",
     "actor": "string (optional) - actor label/FName whose StaticMeshComponent's mesh is toggled; supply this OR 'asset_path'",
     "enabled": "bool (required) - target Nanite-enabled state (false so raycasts hit real geometry)"
+   },
+   "returns": "see docs/TOOLS.md"
+  },
+  {
+   "name": "post_process_grade_preset",
+   "description": "Save a PostProcessVolume's color grade to a JSON file, or load one back onto a volume. Native C++ handler. Captures the 8 global color-grade fields (white temp/tint, saturation/contrast/gamma/gain/offset wheels, auto-exposure bias) plus each bOverride flag. Look-dev: save a grade once, reapply later or onto another volume. On load it edits the volume - run save_dirty_assets to persist.",
+   "params": {
+    "action": "string (required) - 'save' writes the grade to preset_path; 'load' applies preset_path onto the volume",
+    "target": "string (required) - label/FName of the PostProcessVolume actor",
+    "preset_path": "string (required) - absolute filesystem path to the .json preset file"
    },
    "returns": "see docs/TOOLS.md"
   }
