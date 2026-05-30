@@ -145,6 +145,13 @@ extern TSharedRef<IUCMCPHandler> Make_Handler_RenderSequenceMrq();
 extern TSharedRef<IUCMCPHandler> Make_Handler_AddBlueprintNode();
 extern TSharedRef<IUCMCPHandler> Make_Handler_ConnectBlueprintPins();
 extern TSharedRef<IUCMCPHandler> Make_Handler_SetBlueprintNodePinDefault();
+// Wave 1 studio-builder lane — raycast actor/light placement onto level
+// geometry, bulk material assignment, and a Nanite-collision toggle so
+// raycasts hit real source geometry instead of the coarse Nanite fallback.
+extern TSharedRef<IUCMCPHandler> Make_Handler_PlaceActorsRaycast();
+extern TSharedRef<IUCMCPHandler> Make_Handler_BatchMaterialAssign();
+extern TSharedRef<IUCMCPHandler> Make_Handler_LightRaycastPlacement();
+extern TSharedRef<IUCMCPHandler> Make_Handler_NaniteCollisionToggle();
 
 static constexpr int32 kMCPDefaultPort = 18888;
 
@@ -262,6 +269,10 @@ void FUnrealAIConnectionModule::StartupModule()
     Reg.Register(Make_Handler_AddBlueprintNode());
     Reg.Register(Make_Handler_ConnectBlueprintPins());
     Reg.Register(Make_Handler_SetBlueprintNodePinDefault());
+    Reg.Register(Make_Handler_PlaceActorsRaycast());
+    Reg.Register(Make_Handler_BatchMaterialAssign());
+    Reg.Register(Make_Handler_LightRaycastPlacement());
+    Reg.Register(Make_Handler_NaniteCollisionToggle());
 
     // -----------------------------------------------------------------
     // Tier 2 (PR #40): wire 3 starter delegates into the FUCMCPEventBus.

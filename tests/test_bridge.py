@@ -166,6 +166,12 @@ def test_tool_names_are_unique_and_match_handlers():
         "sequencer_add_transform_keyframe",
         "import_mesh",
         "material_auto_remap",
+        "place_actors_raycast",
+        "batch_material_assign",
+        "light_raycast_placement",
+        "nanite_collision_toggle",
+        "batch_capture_cameras",
+        "batch_spawn_from_csv",
     }
     assert set(names) == expected
 

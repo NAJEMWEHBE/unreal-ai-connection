@@ -32,7 +32,7 @@ mcpServers:
 
 ## Verification
 
-In the Continue panel, click the gear icon → **Tools**. You should see `unreal-ai-connection` listed; clicking it shows all 133 tools.
+In the Continue panel, click the gear icon → **Tools**. You should see `unreal-ai-connection` listed; clicking it shows all 139 tools.
 
 ## Notes
 
