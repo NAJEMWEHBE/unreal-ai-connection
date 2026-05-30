@@ -173,6 +173,8 @@ def test_tool_names_are_unique_and_match_handlers():
         "batch_capture_cameras",
         "batch_spawn_from_csv",
         "post_process_grade_preset",
+        "sequence_snapshot",
+        "material_blend_override",
     }
     assert set(names) == expected
 

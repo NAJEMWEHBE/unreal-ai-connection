@@ -13,7 +13,7 @@ plugin speaks raw JSON-RPC over a local TCP socket (default
 Behaviour:
   - "initialize"             returned synthetically (does NOT hit the UE server)
   - "notifications/*"        consumed silently
-  - "tools/list"             returns a static list of all 140 tools (103
+  - "tools/list"             returns a static list of all 142 tools (105
                              dispatched to the UE plugin's C++ handlers
                              plus 37 bridge-side synthetic tools served by
                              SYNTHETIC_TOOLS without crossing the wire as
@@ -1980,6 +1980,39 @@ TOOLS = [
                 "preset_path": {"type": "string", "description": "Absolute filesystem path to the .json preset file (written on save, read on load)."},
             },
             "required": ["action", "target", "preset_path"],
+        },
+    },
+    {
+        "name": "sequence_snapshot",
+        "description": "Crash-safety checkpoint  -  duplicate the current editor level and optionally named Level Sequence assets into a timestamped folder under /Game/_Snapshots/ so a risky edit can be rolled back. Call before bulk destructive edits (material reassign, scene restructure, animation bake). Returns snapshot_folder, level_snapshot path, per-sequence {source, snapshot, ok} pairs, and a note to run save_dirty_assets to flush the duplicates to disk.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "label": {
+                    "type": "string",
+                    "description": "Short name embedded in the snapshot folder (default 'snapshot'). Alphanumeric, hyphens, underscores only; other characters are replaced with '_'.",
+                },
+                "sequence_paths": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Optional list of /Game Level Sequence asset paths to also snapshot alongside the level.",
+                },
+            },
+        },
+    },
+    {
+        "name": "material_blend_override",
+        "description": "Set or override a named material parameter (scalar or color) across many actors' mesh materials via dynamic material instances  -  time-of-day / look-dev use. Native C++ handler  -  resolves the target actor set via exactly one selector (by_label, by_folder, or by_name_regex), then for each actor walks its UMeshComponent(s) and calls CreateDynamicMaterialInstance per slot, followed by SetScalarParameterValue or SetVectorParameterValue. Use case: push 'GoldenHour_Intensity' or 'SkyColor' across every prop in /Set/Exterior in one call.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "targets": {"type": "object", "description": "Actor selector  -  set exactly one of: by_label (string or list of strings), by_folder (World-Outliner folder path, matched as a prefix so '/Set/Walls' also catches '/Set/Walls/Sub'), or by_name_regex (regex matched against each actor's label and FName)."},
+                "parameter": {"type": "string", "description": "The material parameter name to set (e.g. 'GoldenHour_Intensity' or 'SkyColor')."},
+                "scalar": {"type": "number", "description": "Scalar float value to set. Supply this OR 'color' (exactly one)."},
+                "color": {"type": "object", "description": "Linear color value {r, g, b, a} (floats 0..1, 'a' defaults to 1.0). Supply this OR 'scalar' (exactly one)."},
+                "slot": {"type": "integer", "description": "Material slot index to target. Default -1 = all slots on each matched mesh component. Out-of-range slots on a component are silently skipped."},
+            },
+            "required": ["targets", "parameter"],
         },
     },
 ]
