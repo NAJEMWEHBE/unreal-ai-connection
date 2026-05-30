@@ -140,6 +140,11 @@ extern TSharedRef<IUCMCPHandler> Make_Handler_AddVisibilityTrack();
 // Movie Render Queue render lane (v0.9.x) — async ULevelSequence -> image
 // sequence via MRQ; completes via the executor's game-thread OnExecutorFinished.
 extern TSharedRef<IUCMCPHandler> Make_Handler_RenderSequenceMrq();
+// Blueprint graph node authoring lane — add/wire/default K2 graph nodes inside a
+// UBlueprint's event or function graph (FGraphNodeCreator + schema-validated links).
+extern TSharedRef<IUCMCPHandler> Make_Handler_AddBlueprintNode();
+extern TSharedRef<IUCMCPHandler> Make_Handler_ConnectBlueprintPins();
+extern TSharedRef<IUCMCPHandler> Make_Handler_SetBlueprintNodePinDefault();
 
 static constexpr int32 kMCPDefaultPort = 18888;
 
@@ -254,6 +259,9 @@ void FUnrealAIConnectionModule::StartupModule()
     Reg.Register(Make_Handler_AddAudioTrack());
     Reg.Register(Make_Handler_AddVisibilityTrack());
     Reg.Register(Make_Handler_RenderSequenceMrq());
+    Reg.Register(Make_Handler_AddBlueprintNode());
+    Reg.Register(Make_Handler_ConnectBlueprintPins());
+    Reg.Register(Make_Handler_SetBlueprintNodePinDefault());
 
     // -----------------------------------------------------------------
     // Tier 2 (PR #40): wire 3 starter delegates into the FUCMCPEventBus.

@@ -1,7 +1,7 @@
 {
  "name": "UnrealAIConnection",
  "version": "0.9.1",
- "description": "Drive Unreal Engine 5.7 from any MCP-compliant client over a local TCP socket. 130 tools total (95 native C++ handlers plus 35 bridge-side synthetic tools) that work with any UE 5.7 project.",
+ "description": "Drive Unreal Engine 5.7 from any MCP-compliant client over a local TCP socket. 133 tools total (98 native C++ handlers plus 35 bridge-side synthetic tools) that work with any UE 5.7 project.",
  "transport": {
   "type": "tcp",
   "host": "127.0.0.1",
@@ -624,6 +624,71 @@
     "output_dir": "string",
     "format": "string",
     "note": "string"
+   }
+  },
+  {
+   "name": "add_blueprint_node",
+   "description": "Add one K2 graph node (call_function | variable_get | variable_set | branch) into a UBlueprint's event or function graph at an optional X/Y position. Returns the new node's GUID + name + a list of its pins (name/direction/category) so connect_blueprint_pins and set_blueprint_node_pin_default can address it.",
+   "params": {
+    "blueprint": "string (required) - /Game path to the UBlueprint asset",
+    "graph": "string (required) - target graph name; resolved across UbergraphPages then FunctionGraphs ('EventGraph' is the usual event graph)",
+    "node_type": "string (required) - one of: call_function | variable_get | variable_set | branch",
+    "function_name": "string (needed when node_type=call_function) - UFunction name",
+    "function_class": "string (optional) - /Script or /Game class path owning the function; defaults to the Blueprint's own generated class (self-context)",
+    "var_name": "string (needed when node_type=variable_get|variable_set) - variable name, resolved as a self-member",
+    "node_pos_x": "number (optional, default 0) - X position of the node in the graph",
+    "node_pos_y": "number (optional, default 0) - Y position of the node in the graph"
+   },
+   "returns": {
+    "ok": "bool",
+    "blueprint": "string",
+    "graph": "string",
+    "node_type": "string",
+    "node_guid": "string",
+    "node_name": "string",
+    "pins": "array of {name, direction, category}"
+   }
+  },
+  {
+   "name": "connect_blueprint_pins",
+   "description": "Wire two pins (exec or data) between two existing K2 nodes in the same graph of a UBlueprint, using the schema-validated path so type-incompatible or illegal links are rejected with the schema's reason. Nodes are addressed by the NodeGuid returned from add_blueprint_node.",
+   "params": {
+    "blueprint": "string (required) - /Game path to the UBlueprint asset",
+    "graph": "string (required) - graph name (same resolution as add_blueprint_node)",
+    "from_node": "string (required) - source node GUID (as returned by add_blueprint_node)",
+    "from_pin": "string (required) - output pin name on from_node",
+    "to_node": "string (required) - target node GUID",
+    "to_pin": "string (required) - input pin name on to_node"
+   },
+   "returns": {
+    "ok": "bool",
+    "blueprint": "string",
+    "graph": "string",
+    "from_node": "string",
+    "from_pin": "string",
+    "to_node": "string",
+    "to_pin": "string"
+   }
+  },
+  {
+   "name": "set_blueprint_node_pin_default",
+   "description": "Set a literal default value on an unconnected input pin of an existing K2 node, via the schema's validated setter. Pass 'value' (a literal string) for most pins, or 'object_value' (an object/asset path) for object-reference pins. A connected pin is rejected.",
+   "params": {
+    "blueprint": "string (required) - /Game path to the UBlueprint asset",
+    "graph": "string (required) - graph name",
+    "node": "string (required) - node GUID (as returned by add_blueprint_node)",
+    "pin": "string (required) - input pin name",
+    "value": "string (provide this or object_value) - literal default; numbers/bools passed as their string form, e.g. '42', 'true', '1.5'",
+    "object_value": "string (optional) - /Game or /Script object path resolved via LoadObject and applied to PC_Object reference pins instead of 'value'"
+   },
+   "returns": {
+    "ok": "bool",
+    "blueprint": "string",
+    "graph": "string",
+    "node": "string",
+    "pin": "string",
+    "value": "string (when a literal was set)",
+    "object_value": "string (when an object reference was set)"
    }
   },
   {
