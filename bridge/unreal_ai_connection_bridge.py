@@ -159,7 +159,7 @@ TOOLS = [
     },
     {
         "name": "bulk_inspect_assets",
-        "description": "Inspect multiple assets in one MCP call by composing the inspect_asset C++ handler bridge-side. Returns per-path inspection data plus aggregate counts; partial failures isolated per result. Mirrors the bulk_*_assets family shape. Use for pipeline audits (e.g. enumerate 500 textures and report which lack a power-of-two source).",
+        "description": "Inspect multiple assets in one MCP call by composing the inspect_asset C++ handler bridge-side. By default each result is a SUMMARY (path, class, dependency_count, referencer_count); pass verbose=true for the full per-asset inspect_asset blob under `data`. Aggregate counts always present; partial failures isolated per result. Mirrors the bulk_*_assets family shape. Use for pipeline audits (e.g. enumerate 500 textures and report which lack a power-of-two source).",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -171,6 +171,10 @@ TOOLS = [
                 "continue_on_error": {
                     "type": "boolean",
                     "description": "Default true. When false, stop at first per-path failure and return the partial results."
+                },
+                "verbose": {
+                    "type": "boolean",
+                    "description": "Default false. When false, each successful result is a trimmed summary (path, class, dependency_count, referencer_count). When true, each result carries the full inspect_asset blob under `data` (backward-compatible)."
                 },
             },
             "required": ["paths"],
@@ -385,7 +389,7 @@ TOOLS = [
     },
     {
         "name": "inspect_dependency_graph",
-        "description": "Walk the asset dependency graph BFS from a root (dependencies, downward by default). Composes inspect_asset recursively; optionally also follows referencers (upward) for a bidirectional sweep. Distinct from get_reference_chain in that it defaults to direction=down (dependencies, packaging-audit framing) and supports a single bidirectional pass instead of forcing two separate calls. De-duplicates visited nodes across both directions.",
+        "description": "Walk the asset dependency graph BFS from a root (dependencies, downward by default). Composes inspect_asset recursively; optionally also follows referencers (upward) for a bidirectional sweep. Distinct from get_reference_chain in that it defaults to direction=down (dependencies, packaging-audit framing) and supports a single bidirectional pass instead of forcing two separate calls. De-duplicates visited nodes across both directions. Bounded by max_nodes (default 100) so a large graph returns a truncated subgraph rather than thousands of nodes; raise it for an exhaustive sweep.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -400,6 +404,10 @@ TOOLS = [
                 "include_referencers": {
                     "type": "boolean",
                     "description": "Default false. When true, also follow referencers upward in the same BFS; edges record direction ('up' for referencer edges, 'down' for dependency edges)."
+                },
+                "max_nodes": {
+                    "type": "integer",
+                    "description": "Cap on distinct nodes visited. Default 100, range 1..100000. Once hit, frontier expansion halts and `truncated`=true. The root counts as node 1. Raise for an exhaustive sweep."
                 },
             },
             "required": ["path"],
@@ -430,8 +438,16 @@ TOOLS = [
     },
     {
         "name": "get_project_summary",
-        "description": "Project name, engine version, enabled plugins, asset counts.",
-        "inputSchema": {"type": "object", "properties": {}},
+        "description": "Project name/id/version, company, engine version, asset_count, and plugin counts (plugin_count + enabled_plugin_count). By default the per-plugin list is OMITTED (a full editor has 200+ plugins); pass verbose=true to include the full plugins[] array (name/version/category/enabled_by_default).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "verbose": {
+                    "type": "boolean",
+                    "description": "Default false. When true, include the full per-plugin plugins[] array; when false, return plugin counts only."
+                },
+            },
+        },
     },
     {
         "name": "inspect_blueprint",
@@ -1656,11 +1672,12 @@ TOOLS = [
     },
     {
         "name": "inspect_data_table",
-        "description": "Read structural properties of a UDataTable: RowStruct asset path + name, row count, sorted row names (FName.ToString), per-property name+type for each FProperty on the RowStruct (TFieldIterator with EFieldIterationFlags::None to skip super fields), client-strip flag, missing/extra-field tolerance flags, optional ImportKeyField. C++ handler; no new Build.cs deps (Engine + CoreUObject cover UDataTable / UScriptStruct / FProperty). Null-guards RowStruct (freshly-created DataTables can have no struct assigned).",
+        "description": "Read structural properties of a UDataTable: RowStruct asset path + name, row count, per-property name+type for each FProperty on the RowStruct (TFieldIterator with EFieldIterationFlags::None to skip super fields), client-strip flag, missing/extra-field tolerance flags, optional ImportKeyField. The sorted row-name list (rows[]) is OMITTED by default (tables can hold thousands of rows); row_count is always present. Pass verbose=true to include rows[]. C++ handler; no new Build.cs deps (Engine + CoreUObject cover UDataTable / UScriptStruct / FProperty). Null-guards RowStruct (freshly-created DataTables can have no struct assigned).",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "path": {"type": "string", "description": "UE asset path of a UDataTable, e.g. /Game/Data/DT_Items."},
+                "verbose": {"type": "boolean", "description": "Default false. When true, include the full sorted rows[] array of row names; when false, return row_count only."},
             },
             "required": ["path"],
         },
@@ -4002,6 +4019,15 @@ def synthetic_bulk_inspect_assets(req_id, args: dict) -> dict:
     existing handler. For pipeline audits ("inspect 500 textures and
     report which lack a power-of-two source"), one batched MCP call
     replaces 500 individual round-trips.
+
+    Token footprint: each inspect_asset blob carries the full tags dict
+    plus the (possibly long) dependencies/referencers arrays. For a batch
+    of N assets that full payload dominates the response. By default
+    (`verbose=False`) each successful result records a SUMMARY — path,
+    class, and dependency/referencer counts — instead of the raw blob.
+    Pass `verbose=True` to restore the full per-asset `data` (the
+    backward-compatible pre-trim shape). Failed results are unaffected:
+    their error_code/error_message are preserved in both modes.
     """
     if not isinstance(args, dict):
         return make_response(req_id, error={
@@ -4047,6 +4073,16 @@ def synthetic_bulk_inspect_assets(req_id, args: dict) -> dict:
             "message": "bulk_inspect_assets: invalid_field: 'continue_on_error' must be a boolean",
         })
 
+    # verbose defaults to False -> per-asset SUMMARY (path/class + dep/ref
+    # counts). verbose=True -> full inspect_asset blob under `data`
+    # (backward-compatible pre-trim shape).
+    verbose = args.get("verbose", False)
+    if not isinstance(verbose, bool):
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "bulk_inspect_assets: invalid_field: 'verbose' must be a boolean",
+        })
+
     results = []
     inspected = 0
     failed = 0
@@ -4066,19 +4102,37 @@ def synthetic_bulk_inspect_assets(req_id, args: dict) -> dict:
                 break
         else:
             inspected += 1
-            results.append({
-                "path": path,
-                "ok": True,
-                "data": ue_resp.get("result", {}),
-                "error_code": None,
-                "error_message": None,
-            })
+            data = ue_resp.get("result", {}) or {}
+            if verbose:
+                # Full per-asset blob, unchanged from the pre-trim contract.
+                results.append({
+                    "path": path,
+                    "ok": True,
+                    "data": data,
+                    "error_code": None,
+                    "error_message": None,
+                })
+            else:
+                # Trimmed summary. Pull the high-signal scalars and collapse the
+                # (potentially long) dependencies/referencers arrays to counts.
+                deps = data.get("dependencies")
+                refs = data.get("referencers")
+                results.append({
+                    "path": path,
+                    "ok": True,
+                    "class": data.get("class"),
+                    "dependency_count": len(deps) if isinstance(deps, list) else None,
+                    "referencer_count": len(refs) if isinstance(refs, list) else None,
+                    "error_code": None,
+                    "error_message": None,
+                })
 
     body = {
         "ok": failed == 0,
         "total": len(paths),
         "inspected": inspected,
         "failed": failed,
+        "verbose": verbose,
         "results": results,
     }
     return _wrap_tool_result(req_id, body)
@@ -5297,6 +5351,13 @@ def synthetic_inspect_dependency_graph(req_id, args: dict) -> dict:
       - edges carry a `direction` field so the caller can render the
         bidirectional graph without losing edge orientation.
 
+    Token footprint: a bidirectional sweep past depth ~3 can enumerate
+    thousands of nodes/edges in a non-trivial project. A `max_nodes` cap
+    (default 100) bounds the response by halting frontier expansion once
+    that many distinct nodes have been visited — at which point
+    `truncated=true`. Raise `max_nodes` (up to 100000) for an exhaustive
+    sweep. The depth bound still applies independently.
+
     Per-node inspect failures are SWALLOWED (BFS continues from known
     neighbors). Root failure SURFACES (asset_not_found -> -32602,
     other inspect failures -> -32603).
@@ -5332,6 +5393,16 @@ def synthetic_inspect_dependency_graph(req_id, args: dict) -> dict:
             "message": "inspect_dependency_graph: invalid_field: 'include_referencers' must be a boolean",
         })
 
+    # max_nodes bounds the visited set (default 100). Once the cap is hit, no
+    # further neighbors are queued and `truncated` is set. The root counts as
+    # node 1, so a cap of 1 returns just the root's edges with no expansion.
+    max_nodes = args.get("max_nodes", 100)
+    if not isinstance(max_nodes, int) or isinstance(max_nodes, bool) or max_nodes < 1 or max_nodes > 100000:
+        return make_response(req_id, error={
+            "code": -32602,
+            "message": "inspect_dependency_graph: invalid_max_nodes: 'max_nodes' must be an integer between 1 and 100000",
+        })
+
     visited: set[str] = {root}
     edges: list[dict] = []
     frontier: list[str] = [root]
@@ -5365,10 +5436,17 @@ def synthetic_inspect_dependency_graph(req_id, args: dict) -> dict:
                 for neighbor in deps:
                     if not isinstance(neighbor, str) or not neighbor:
                         continue
-                    edges.append({"from": node, "to": neighbor, "direction": "down"})
-                    if neighbor not in visited:
+                    if neighbor in visited:
+                        # Already in the graph: keep the edge, no re-queue.
+                        edges.append({"from": node, "to": neighbor, "direction": "down"})
+                    elif len(visited) < max_nodes:
                         visited.add(neighbor)
                         next_frontier.append(neighbor)
+                        edges.append({"from": node, "to": neighbor, "direction": "down"})
+                    else:
+                        # max_nodes cap hit: don't add the node or a dangling
+                        # edge to it; flag the graph as truncated.
+                        truncated = True
 
             # Optionally also follow referencers (up).
             if include_referencers:
@@ -5377,21 +5455,26 @@ def synthetic_inspect_dependency_graph(req_id, args: dict) -> dict:
                     for neighbor in refs:
                         if not isinstance(neighbor, str) or not neighbor:
                             continue
-                        edges.append({"from": neighbor, "to": node, "direction": "up"})
-                        if neighbor not in visited:
+                        if neighbor in visited:
+                            edges.append({"from": neighbor, "to": node, "direction": "up"})
+                        elif len(visited) < max_nodes:
                             visited.add(neighbor)
                             next_frontier.append(neighbor)
+                            edges.append({"from": neighbor, "to": node, "direction": "up"})
+                        else:
+                            truncated = True
         if not next_frontier:
             break
         frontier = next_frontier
     else:
-        truncated = bool(frontier)
+        truncated = truncated or bool(frontier)
 
     return _wrap_tool_result(req_id, {
         "ok": True,
         "root": root,
         "depth": depth,
         "include_referencers": include_referencers,
+        "max_nodes": max_nodes,
         "node_count": len(visited),
         "edge_count": len(edges),
         "nodes": sorted(visited),
