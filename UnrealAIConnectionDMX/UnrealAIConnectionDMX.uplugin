@@ -1,0 +1,26 @@
+{
+    "FileVersion": 3,
+    "Version": 1,
+    "VersionName": "0.9.1",
+    "FriendlyName": "Unreal AI Connection - DMX",
+    "Description": "Optional companion to Unreal AI Connection. Adds the DMX editor-automation MCP tools (create_dmx_patch, dmx_stream_set, dmx_stream_stop, dmx_stream_status). Enable this only if you need DMX - it pulls in the DMXEngine and DMXProtocol plugins. The core Unreal AI Connection plugin runs without it.",
+    "Category": "Editor",
+    "CreatedBy": "HD Media",
+    "MarketplaceURL": "",
+    "DocsURL": "https://github.com/NAJEMWEHBE/unreal-ai-connection",
+    "EnabledByDefault": false,
+    "CanContainContent": false,
+    "Installed": false,
+    "Modules": [
+        {
+            "Name": "UnrealAIConnectionDMX",
+            "Type": "Editor",
+            "LoadingPhase": "PostEngineInit"
+        }
+    ],
+    "Plugins": [
+        { "Name": "UnrealAIConnection", "Enabled": true },
+        { "Name": "DMXEngine",          "Enabled": true },
+        { "Name": "DMXProtocol",        "Enabled": true }
+    ]
+}
