@@ -97,7 +97,7 @@ Also discoverable in the [official MCP Registry](https://github.com/modelcontext
 - [How it fits together](#how-it-fits-together) — architecture diagram + per-call sequence
 - [Why it exists](#why-it-exists) — the UE 5.7 Python dead-ends this plugin sidesteps
 - [Why MCP specifically](#why-mcp-specifically) — one protocol, every conforming client
-- [Tools](#tools) — 129 tools grouped into 15 expandable categories
+- [Tools](#tools) — 133 tools grouped into 15 expandable categories
 - [Quick start](#quick-start) — copy-paste path to a running editor with the plugin live
 - [What's in the box](#whats-in-the-box) — directory tree
 - [Status](#status) — release / test / build state
@@ -199,7 +199,7 @@ The wire format is `stdio MCP` between client and bridge, then a tight `length-p
 
 </details>
 
-### Blueprint / widget / animation — introspection + authoring (17 tools)
+### Blueprint / widget / animation — introspection + authoring (20 tools)
 
 <details>
 <summary><b>Blueprint / widget / animation — introspection + authoring</b> — click to expand the tool table</summary>
@@ -223,6 +223,9 @@ The wire format is `stdio MCP` between client and bridge, then a tight `length-p
 | `create_blueprint` | Create a new `UBlueprint` asset under `/Game/` from a parent class (default `/Script/Engine.Actor`). |
 | `add_blueprint_variable` | Add a typed member variable (bool/int/float/string/name/vector/rotator/transform/object) to an existing `UBlueprint`. |
 | `add_blueprint_function` | Add a new empty function graph to an existing `UBlueprint`. |
+| `add_blueprint_node` | Add a K2 node (`call_function` / `variable_get` / `variable_set` / `branch`) to a Blueprint event or function graph; returns the new node's GUID + pins. |
+| `connect_blueprint_pins` | Wire two pins (exec or data) between nodes by GUID + pin name, via the schema-validated `UEdGraphSchema_K2::TryCreateConnection`. |
+| `set_blueprint_node_pin_default` | Set a literal or object default on an input pin (verified by read-back). |
 
 </details>
 
@@ -255,7 +258,7 @@ The wire format is `stdio MCP` between client and bridge, then a tight `length-p
 
 </details>
 
-### Level Sequences (3 tools)
+### Level Sequences (9 tools)
 
 <details>
 <summary><b>Level Sequences</b> — click to expand the tool table</summary>
@@ -265,10 +268,16 @@ The wire format is `stdio MCP` between client and bridge, then a tight `length-p
 | `inspect_sequence` | Read structure of a Level Sequence: tracks, sections, bindings, frame rate, playback range. |
 | `create_sequence` | Create a new empty Level Sequence asset with a configured display rate and playback range. |
 | `bind_actor_to_sequence` | Add a level actor as a possessable binding to a Level Sequence. |
+| `set_sequence_playback_range` | Set a Level Sequence's playback start/end (display-rate frames). |
+| `add_cine_camera_to_sequence` | Spawn an `ACineCameraActor` and add it as a possessable binding; returns the binding GUID (feed it to `add_camera_cut_track`). |
+| `add_camera_cut_track` | Add (or reuse) the camera-cut track and bind a camera over a `[start, end]` frame range. |
+| `add_audio_track` | Add a master audio track + sound section to a Level Sequence. |
+| `add_visibility_track` | Add an actor-visibility track that keys an actor shown/hidden over time (inverted `bHidden`). |
+| `render_sequence_mrq` | Async-render a Level Sequence (optional map override) to PNG / JPG / BMP / EXR via Movie Render Queue; returns a `task_id` (completion via `poll_task`). |
 
 </details>
 
-### Level / actor authoring (21 tools)
+### Level / actor authoring (24 tools)
 
 <details>
 <summary><b>Level / actor authoring</b> — click to expand the tool table</summary>
@@ -288,6 +297,9 @@ The wire format is `stdio MCP` between client and bridge, then a tight `length-p
 | `load_level_by_path` | Open a level by package path. |
 | `create_level` | Create a new empty level (`UWorld`) asset under `/Game/` and open it as the active level. |
 | `build_lighting` | Invoke a static-lighting build on the active editor world. Non-interactive; may take time on large levels. |
+| `spawn_niagara_at_location` | Place a Niagara system in the level (`ANiagaraActor` + `SetAsset`) at a world transform; optional auto-activate. Undoable. |
+| `spawn_niagara_attached` | Attach a Niagara system component to an existing actor, optionally socketed. Undoable. |
+| `set_niagara_user_param` | Set a user-exposed Niagara parameter (float / vec3 / linear-color / bool) on a placed Niagara component, with type-match validation. Undoable. |
 | `find_actors_by_class` | Filter the active level's actors by class. Composes `get_actors_in_level` and matches against the short class name. Bridge-side synthetic. |
 | `bulk_focus_actors` | Frame the viewport on each actor in a sequence, optionally screenshotting each one. Composes `focus_actor` (+ `get_viewport_screenshot`) per name. Bridge-side synthetic. |
 | `bulk_screenshot_actors` | Focus + screenshot each actor in a sequence. Composes `screenshot_actor` per name. Bridge-side synthetic. |
