@@ -155,6 +155,7 @@ extern TSharedRef<IUCMCPHandler> Make_Handler_NaniteCollisionToggle();
 extern TSharedRef<IUCMCPHandler> Make_Handler_PostProcessGradePreset();  // Wave 2: look-dev grade save/load
 extern TSharedRef<IUCMCPHandler> Make_Handler_SequenceSnapshot();
 extern TSharedRef<IUCMCPHandler> Make_Handler_MaterialBlendOverride();
+extern TSharedRef<IUCMCPHandler> Make_Handler_ExportActorAsGltf();
 
 static constexpr int32 kMCPDefaultPort = 18888;
 
@@ -279,6 +280,7 @@ void FUnrealAIConnectionModule::StartupModule()
     Reg.Register(Make_Handler_PostProcessGradePreset());
     Reg.Register(Make_Handler_SequenceSnapshot());
     Reg.Register(Make_Handler_MaterialBlendOverride());
+    Reg.Register(Make_Handler_ExportActorAsGltf());
 
     // -----------------------------------------------------------------
     // Tier 2 (PR #40): wire 3 starter delegates into the FUCMCPEventBus.

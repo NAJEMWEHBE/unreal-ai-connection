@@ -83,7 +83,11 @@ public class UnrealAIConnection : ModuleRules
             // add them here so the EXR public header resolves when compiled in this module.
             "Imath",
             "UEOpenExr",
-            "UEOpenExrRTTI"
+            "UEOpenExrRTTI",
+            // glTF export lane (export_actor_as_gltf) — UGLTFExporter::ExportToGLTF
+            // from the Enterprise GLTFExporter plugin (declared in the .uplugin so it
+            // cascade-enables in the host project).
+            "GLTFExporter"
         });
     }
 }

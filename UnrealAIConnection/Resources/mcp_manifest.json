@@ -1,7 +1,7 @@
 {
  "name": "UnrealAIConnection",
  "version": "0.9.1",
- "description": "Drive Unreal Engine 5.7 from any MCP-compliant client over a local TCP socket. 142 tools total (105 native C++ handlers plus 37 bridge-side synthetic tools) that work with any UE 5.7 project.",
+ "description": "Drive Unreal Engine 5.7 from any MCP-compliant client over a local TCP socket. 143 tools total (106 native C++ handlers plus 37 bridge-side synthetic tools) that work with any UE 5.7 project.",
  "transport": {
   "type": "tcp",
   "host": "127.0.0.1",
@@ -2258,6 +2258,16 @@
     "slot": "int (optional, default -1) - slot index; -1 = every slot on each matched component"
    },
    "returns": "see docs/TOOLS.md"
-  }
+  },
+  {
+  "name": "export_actor_as_gltf",
+  "description": "Export selected or named actor(s) to a .gltf/.glb file for Blender/Aximmetry handoff. Native C++ handler via Epic's GLTFExporter plugin. Supply 'actors' (array of labels) for named actors, 'selected_only'=true for the current viewport selection, or omit both to export the entire visible level. Requires GLTFExporter plugin enabled in the host project.",
+  "params": {
+    "output_path": "string (required) - absolute filesystem path ending in .gltf or .glb",
+    "actors": "array of string (optional) - actor labels/FNames to export; omit for whole-level export",
+    "selected_only": "bool (optional) - if true, export only the current editor selection (ignored when 'actors' is set)"
+  },
+  "returns": "see docs/TOOLS.md"
+}
  ]
 }

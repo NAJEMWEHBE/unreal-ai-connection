@@ -1,6 +1,6 @@
 # MCP Tools Reference
 
-**142 tools total.** 105 are JSON-RPC 2.0 methods served on `127.0.0.1:18888` directly by the plugin's C++ handlers. The remaining 37 — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`, `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap`, `sequencer_add_transform_keyframe`, `import_mesh`, `material_auto_remap`, `batch_capture_cameras`, `batch_spawn_from_csv` — are bridge-side **synthetic tools** that are intercepted by `bridge/unreal_ai_connection_bridge.py` and served by composing existing handlers (or running Python via `execute_unreal_python`, or — for `compile_mod_pak` — shelling out to `RunUAT.bat` entirely outside the UE process). They are visible to MCP clients exactly like the C++ tools but cannot be reached by sending raw JSON-RPC to the TCP socket — only via the MCP bridge or by replicating their composition manually. The "Implementation" header on each entry below indicates whether a tool is C++ or bridge-side.
+**143 tools total.** 106 are JSON-RPC 2.0 methods served on `127.0.0.1:18888` directly by the plugin's C++ handlers. The remaining 37 — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`, `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap`, `sequencer_add_transform_keyframe`, `import_mesh`, `material_auto_remap`, `batch_capture_cameras`, `batch_spawn_from_csv` — are bridge-side **synthetic tools** that are intercepted by `bridge/unreal_ai_connection_bridge.py` and served by composing existing handlers (or running Python via `execute_unreal_python`, or — for `compile_mod_pak` — shelling out to `RunUAT.bat` entirely outside the UE process). They are visible to MCP clients exactly like the C++ tools but cannot be reached by sending raw JSON-RPC to the TCP socket — only via the MCP bridge or by replicating their composition manually. The "Implementation" header on each entry below indicates whether a tool is C++ or bridge-side.
 
 Each tool's params and result are documented with a working example.
 
@@ -5242,6 +5242,28 @@ Sets or overrides a named material parameter (scalar or color) across many actor
 ```
 
 Pairs with `batch_material_assign` (assign a base material before overriding parameters) and `post_process_grade_preset` (combine a per-prop parameter sweep with a volume color grade for a full look-dev pass).
+
+---
+
+## export_actor_as_gltf
+
+**Implementation:** native C++ handler. **Mutating:** no (writes to disk only; no actor or level state is changed).
+
+Export selected or named actor(s) from the current editor level to a `.gltf` or `.glb` file for handoff to Blender, Aximmetry, or any glTF-compliant renderer. Backed by Epic's built-in `GLTFExporter` plugin (`UGLTFExporter::ExportToGLTF`). Requires the `GLTFExporter` plugin to be enabled in the host project's `.uproject`.
+
+**Params:** `output_path` (string, **required**  -  absolute path ending in `.gltf` or `.glb`), `actors` (array of string, optional  -  actor labels/FNames to include; if omitted and `selected_only` is false, the entire visible level is exported), `selected_only` (bool, optional  -  if `true`, use the current viewport selection; ignored when `actors` is supplied).
+
+**Returns:** `ok`, `output_path`, `format` (`"gltf"` or `"glb"`), `actors_in_filter` (0 = whole level), `note`, and optionally `warnings` and `suggestions` from the glTF exporter.
+
+```json
+{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"export_actor_as_gltf","arguments":{"output_path":"F:/exports/stage_set.glb","actors":["SM_WallLeft","SM_WallRight","SM_Floor"]}}}
+```
+
+```json
+{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"export_actor_as_gltf","arguments":{"output_path":"F:/exports/selection.glb","selected_only":true}}}
+```
+
+Pairs with `get_selected_actors` (inspect what is selected before exporting) and `get_viewport_screenshot` (preview the result).
 
 ---
 

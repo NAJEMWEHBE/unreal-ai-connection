@@ -6,11 +6,11 @@ This file is read by Codex CLI, Copilot CLI, Gemini CLI, Cursor, and any other c
 
 ## Quick orientation
 
-UE 5.7 plugin + Python bridge exposing editor automation to MCP-compliant clients (Claude Code, Codex CLI, Copilot CLI, Cursor, Gemini CLI, Continue, …) over a localhost TCP socket. **142 tools total: 105 native C++ handlers + 37 bridge-side synthetic tools.** Vendor-neutral by design — the wire protocol is open MCP; the "Claude" in the repo name is decorative.
+UE 5.7 plugin + Python bridge exposing editor automation to MCP-compliant clients (Claude Code, Codex CLI, Copilot CLI, Cursor, Gemini CLI, Continue, …) over a localhost TCP socket. **143 tools total: 106 native C++ handlers + 37 bridge-side synthetic tools.** Vendor-neutral by design — the wire protocol is open MCP; the "Claude" in the repo name is decorative.
 
 ## Where to look first
 
-- **C++ handlers** (105) — `UnrealAIConnection/Source/UnrealAIConnection/Private/MCP/Handlers/Handler_*.cpp`. Registered in `UnrealAIConnectionModule.cpp`.
+- **C++ handlers** (106) — `UnrealAIConnection/Source/UnrealAIConnection/Private/MCP/Handlers/Handler_*.cpp`. Registered in `UnrealAIConnectionModule.cpp`.
 - **Bridge-side synthetic tools** (37) — `bridge/unreal_ai_connection_bridge.py`'s `SYNTHETIC_TOOLS` dict: `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`, `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap`, `sequencer_add_transform_keyframe`, `import_mesh`, `material_auto_remap`, `batch_capture_cameras`, `batch_spawn_from_csv`.
 - **Tool catalog (manual 3-place sync)** — `UnrealAIConnection/Resources/mcp_manifest.json`, `bridge/unreal_ai_connection_bridge.py`'s `TOOLS` list, `docs/TOOLS.md`. `tests/test_manifest_sync.py` catches drift between the first two.
 - **Architecture + UE 5.7 API gotchas** — `docs/ARCHITECTURE.md`.
@@ -35,7 +35,7 @@ The bridge is registered as `unreal-ai-connection` in this project's `.mcp.json`
 ```bash
 codex mcp add unreal-ai-connection -- py F:\UnrealAIConnection\bridge\unreal_ai_connection_bridge.py
 ```
-After registration, all 142 tools become available through the standard MCP `tools/list` + `tools/call` flow. Open the host UE project with the plugin enabled before any tool call (the bridge surfaces a clear error otherwise).
+After registration, all 143 tools become available through the standard MCP `tools/list` + `tools/call` flow. Open the host UE project with the plugin enabled before any tool call (the bridge surfaces a clear error otherwise).
 
 ## Cross-agent prompt-discipline recipe (validated PR #90 + #92)
 

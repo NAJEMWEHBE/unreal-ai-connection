@@ -13,7 +13,7 @@ plugin speaks raw JSON-RPC over a local TCP socket (default
 Behaviour:
   - "initialize"             returned synthetically (does NOT hit the UE server)
   - "notifications/*"        consumed silently
-  - "tools/list"             returns a static list of all 142 tools (105
+  - "tools/list"             returns a static list of all 143 tools (106
                              dispatched to the UE plugin's C++ handlers
                              plus 37 bridge-side synthetic tools served by
                              SYNTHETIC_TOOLS without crossing the wire as
@@ -2013,6 +2013,19 @@ TOOLS = [
                 "slot": {"type": "integer", "description": "Material slot index to target. Default -1 = all slots on each matched mesh component. Out-of-range slots on a component are silently skipped."},
             },
             "required": ["targets", "parameter"],
+        },
+    },
+    {
+        "name": "export_actor_as_gltf",
+        "description": "Export selected or named actor(s) to a .gltf or .glb file for Blender/Aximmetry handoff. Native C++ handler backed by Epic's GLTFExporter plugin. Supply 'actors' (array of labels) to export specific actors, 'selected_only'=true to export the current editor selection, or omit both to export the entire visible level. Requires the GLTFExporter plugin to be enabled in the host project.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "output_path": {"type": "string", "description": "Absolute filesystem path for the output file. Must end in .gltf (separate JSON + textures) or .glb (self-contained binary)."},
+                "actors": {"type": "array", "items": {"type": "string"}, "description": "Optional list of actor labels/FNames to export. If omitted and selected_only is false, the entire visible level is exported."},
+                "selected_only": {"type": "boolean", "description": "If true, export only the actors currently selected in the editor viewport. Ignored when 'actors' is supplied."},
+            },
+            "required": ["output_path"],
         },
     },
 ]
