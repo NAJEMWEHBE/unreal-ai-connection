@@ -160,10 +160,10 @@ When a follow-up commit on the same branch applies bot findings as **direct surg
 
 ### The 102 tools
 
-- **71 native C++ handlers** registered by the plugin DLL at editor startup (`UnrealClaudeMCPModule.cpp`).
+- **71 native C++ handlers** registered by the plugin DLL at editor startup (`UnrealAIConnectionModule.cpp`).
 - **31 bridge-side synthetic tools** — pure Python composition in `bridge/unreal_ai_connection_bridge.py`'s `SYNTHETIC_TOOLS`; no UE rebuild needed.
 - Per-tool schemas and examples: `docs/TOOLS.md`.
-- Three-way sync points (manual): `UnrealClaudeMCP/Resources/mcp_manifest.json`, `bridge/unreal_ai_connection_bridge.py`'s `TOOLS` list, `docs/TOOLS.md`. `tests/test_manifest_sync.py` catches drift between the first two.
+- Three-way sync points (manual): `UnrealAIConnection/Resources/mcp_manifest.json`, `bridge/unreal_ai_connection_bridge.py`'s `TOOLS` list, `docs/TOOLS.md`. `tests/test_manifest_sync.py` catches drift between the first two.
 
 ### Plugin diet — 12 enabled
 
@@ -190,7 +190,7 @@ Backups preserved at `~/.claude/settings.json.backup-*` for one-line revert.
 
 ### Memory archive
 
-- **Live:** `~/.claude/projects/F--UnrealClaudeMCP/memory/` — 10 entries indexed in `MEMORY.md`. Reloaded into every new session.
+- **Live:** `~/.claude/projects/F--UnrealAIConnection/memory/` — 10 entries indexed in `MEMORY.md`. Reloaded into every new session.
 - **Repo snapshot:** `docs/session-memory-archive/` — older snapshot kept in-repo for format-survival. Restore live from snapshot if the user's machine is reformatted.
 
 Memory entries to know about (live index):
