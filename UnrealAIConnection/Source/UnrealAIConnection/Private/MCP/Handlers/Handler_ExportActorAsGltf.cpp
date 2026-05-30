@@ -1,7 +1,7 @@
 // Copyright (c) 2026 HD Media. MIT licensed - see LICENSE.
 //
 // export_actor_as_gltf - export selected or named actor(s) to a .gltf/.glb
-// file for Blender/Aximmetry handoff. Wraps the Epic GLTFExporter plugin's
+// file for handoff to external DCC / glTF-compatible tools. Wraps the Epic GLTFExporter plugin's
 // public UGLTFExporter::ExportToGLTF static API which operates on a UWorld
 // with an optional actor filter set.
 //

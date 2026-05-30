@@ -2017,7 +2017,7 @@ TOOLS = [
     },
     {
         "name": "export_actor_as_gltf",
-        "description": "Export selected or named actor(s) to a .gltf or .glb file for Blender/Aximmetry handoff. Native C++ handler backed by Epic's GLTFExporter plugin. Supply 'actors' (array of labels) to export specific actors, 'selected_only'=true to export the current editor selection, or omit both to export the entire visible level. Requires the GLTFExporter plugin to be enabled in the host project.",
+        "description": "Export selected or named actor(s) to a .gltf or .glb file for handoff to external DCC / glTF-compatible tools. Native C++ handler backed by Epic's GLTFExporter plugin. Supply 'actors' (array of labels) to export specific actors, 'selected_only'=true to export the current editor selection, or omit both to export the entire visible level. GLTFExporter is an optional cascade-enabled dependency (no manual setup); material baking is disabled for stability.",
         "inputSchema": {
             "type": "object",
             "properties": {

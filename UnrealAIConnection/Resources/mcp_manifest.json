@@ -2261,7 +2261,7 @@
   },
   {
   "name": "export_actor_as_gltf",
-  "description": "Export selected or named actor(s) to a .gltf/.glb file for Blender/Aximmetry handoff. Native C++ handler via Epic's GLTFExporter plugin. Supply 'actors' (array of labels) for named actors, 'selected_only'=true for the current viewport selection, or omit both to export the entire visible level. Requires GLTFExporter plugin enabled in the host project.",
+  "description": "Export selected or named actor(s) to a .gltf/.glb file for handoff to external DCC / glTF-compatible tools. Native C++ handler via Epic's GLTFExporter plugin. Supply 'actors' (array of labels) for named actors, 'selected_only'=true for the current viewport selection, or omit both to export the entire visible level. GLTFExporter is an optional cascade-enabled dependency (no manual setup); material baking is disabled for stability.",
   "params": {
     "output_path": "string (required) - absolute filesystem path ending in .gltf or .glb",
     "actors": "array of string (optional) - actor labels/FNames to export; omit for whole-level export",
