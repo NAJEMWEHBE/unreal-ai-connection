@@ -86,7 +86,7 @@ namespace
                     *Label));
                 ++FailCount;
             }
-            else
+            else if (Actor)
             {
                 OutActors.AddUnique(Actor);
             }
@@ -131,8 +131,9 @@ public:
         // --- Guard: GLTFExporter plugin must be loaded ------------------------
         if (!IGLTFExporterModule::IsAvailable())
         {
-            OutError = TEXT("export_actor_as_gltf: exporter_unavailable: the GLTFExporter plugin is not loaded;"
-                " enable it in the host project's .uproject and rebuild");
+            OutError = TEXT("export_actor_as_gltf: exporter_unavailable: the GLTFExporter plugin is not loaded"
+                " (it is declared as an optional dependency in UnrealAIConnection.uplugin and normally"
+                " cascade-enables; verify the GLTFExporter plugin ships with this engine build)");
             return nullptr;
         }
 
@@ -157,12 +158,14 @@ public:
             TArray<AActor*> Resolved;
             const int32 FailCount = ResolveActorList(*ActorsArr, Resolved, ResolveErrors);
 
-            if (FailCount > 0 && Resolved.Num() == 0)
+            if (Resolved.Num() == 0)
             {
-                // Every name failed  -  surface the first error and abort.
+                // A non-empty 'actors' list was supplied but nothing resolved (all
+                // not-found / ambiguous / invalid). Do NOT fall through to an empty
+                // filter set, which would silently export the ENTIRE level.
                 OutError = ResolveErrors.IsValidIndex(0)
                     ? ResolveErrors[0]
-                    : TEXT("export_actor_as_gltf: no_actors: all named actors failed to resolve");
+                    : TEXT("export_actor_as_gltf: no_actors: 'actors' was given but no entry resolved to a valid actor");
                 return nullptr;
             }
 
@@ -184,8 +187,14 @@ public:
                     return nullptr;
                 }
 
+                USelection* Selection = GEditor->GetSelectedActors();
+                if (!Selection)
+                {
+                    OutError = TEXT("export_actor_as_gltf: no_actors: the editor actor-selection set is unavailable");
+                    return nullptr;
+                }
                 TArray<AActor*> SelectionArr;
-                GEditor->GetSelectedActors()->GetSelectedObjects<AActor>(SelectionArr);
+                Selection->GetSelectedObjects<AActor>(SelectionArr);
 
                 if (SelectionArr.Num() == 0)
                 {
@@ -209,6 +218,13 @@ public:
         // Pass nullptr as Object so ExportToGLTF resolves to the editor world
         // (see GLTFExporter.cpp:86-101). The SelectedActors set filters which
         // actors are included; an empty set exports all actors in the level.
+        // ExportToGLTF resolves a null Object via GEditor's editor world, so guard it.
+        if (!GEditor)
+        {
+            OutError = TEXT("export_actor_as_gltf: export_failed: GEditor is unavailable; no editor world to export");
+            return nullptr;
+        }
+
         // Build export options with material baking + texture export DISABLED. In an
         // editor with rendering enabled (CanEverRender()==true), the exporter's
         // material-bake path renders materials to textures and can access-violate on

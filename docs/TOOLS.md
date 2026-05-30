@@ -5249,7 +5249,7 @@ Pairs with `batch_material_assign` (assign a base material before overriding par
 
 **Implementation:** native C++ handler. **Mutating:** no (writes to disk only; no actor or level state is changed).
 
-Export selected or named actor(s) from the current editor level to a `.gltf` or `.glb` file for handoff to Blender, Aximmetry, or any glTF-compliant renderer. Backed by Epic's built-in `GLTFExporter` plugin (`UGLTFExporter::ExportToGLTF`). Requires the `GLTFExporter` plugin to be enabled in the host project's `.uproject`.
+Export selected or named actor(s) from the current editor level to a `.gltf` or `.glb` file for handoff to Blender, Aximmetry, or any glTF-compliant renderer. Backed by Epic's built-in `GLTFExporter` plugin (`UGLTFExporter::ExportToGLTF`). The plugin is declared as an **optional, cascade-enabled** dependency in `UnrealAIConnection.uplugin`, so no manual `.uproject` change is needed; if it is ever unavailable the tool returns `exporter_unavailable` instead of failing the plugin load. Material baking is disabled for export stability — geometry and material parameters are written, render-baked textures are not.
 
 **Params:** `output_path` (string, **required**  -  absolute path ending in `.gltf` or `.glb`), `actors` (array of string, optional  -  actor labels/FNames to include; if omitted and `selected_only` is false, the entire visible level is exported), `selected_only` (bool, optional  -  if `true`, use the current viewport selection; ignored when `actors` is supplied).
 

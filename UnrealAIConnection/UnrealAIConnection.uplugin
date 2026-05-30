@@ -28,6 +28,6 @@
         { "Name": "LevelSequenceEditor",      "Enabled": true },
         { "Name": "Niagara",                  "Enabled": true },
         { "Name": "MovieRenderPipeline",      "Enabled": true },
-        { "Name": "GLTFExporter",             "Enabled": true }
+        { "Name": "GLTFExporter",             "Enabled": true, "Optional": true }
     ]
 }
