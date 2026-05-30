@@ -105,9 +105,12 @@
 //
 // FILE-LIST HARVEST: the PIE executor's OnIndividualJobWorkFinished fires (per
 // job) just before OnExecutorFinished, carrying FMoviePipelineOutputData. Both
-// delegates are bound in THIS .cpp, so we stash the harvested paths in a
-// file-static map keyed by task_id (game-thread only, guarded for safety) and
-// drain it inside the OnExecutorFinished lambda. No cross-file infrastructure.
+// delegates are bound in THIS .cpp, so we bridge them with a
+// TSharedRef<TArray<FString>> captured by value into BOTH lambdas: the
+// work-finished lambda appends harvested paths, the finished lambda reads them
+// to build the result. The shared array lives exactly as long as the lambdas
+// (which the subsystem keeps alive via ActiveExecutor) and is freed with them --
+// no file-static state, no manual cleanup, no leak if the executor never fires.
 //
 // CANCEL (v1): cancel_task only sets the registry's atomic flag, which no MRQ
 // path reads (there is no polling worker). Wiring real cancel would require a
@@ -118,10 +121,10 @@
 // ============================ ERROR FORMAT ===================================
 // "render_sequence_mrq: <error_code>: <human-readable detail>"
 // Stable codes: missing_params, missing_required_field, invalid_path,
-// sequence_not_found, not_a_sequence, map_not_found, invalid_format,
-// invalid_render_pass, no_editor, mrq_subsystem_unavailable, already_rendering,
-// output_dir_invalid, queue_build_failed, executor_create_failed,
-// render_start_failed.
+// invalid_field, sequence_not_found, not_a_sequence, map_not_found,
+// invalid_format, invalid_render_pass, no_editor, mrq_subsystem_unavailable,
+// already_rendering, output_dir_invalid, queue_build_failed,
+// executor_create_failed, render_start_failed.
 
 #include "MCP/MCPHandler.h"
 
@@ -136,12 +139,12 @@
 #include "EditorAssetLibrary.h"
 #include "Engine/World.h"
 #include "Engine/Engine.h"
+#include "LevelSequence.h"
 #include "UObject/Package.h"
 #include "UObject/SoftObjectPath.h"
 #include "Misc/Paths.h"
 #include "Misc/FrameRate.h"
-#include "Misc/ScopeLock.h"
-#include "HAL/CriticalSection.h"
+#include "Templates/SharedPointer.h"
 #include "Templates/SubclassOf.h"
 
 // Movie Render Pipeline (engine plugin MovieRenderPipeline; modules
@@ -201,30 +204,6 @@ namespace
                 Files.Append(Pair.Value.FilePaths);
             }
         }
-        return Files;
-    }
-
-    // File-local bridge between the per-job work-finished callback (which has the
-    // file list) and the executor-finished callback (which builds the result).
-    // Keyed by task_id. Both callbacks fire on the game thread, but we guard with
-    // a critical section anyway -- the cost is negligible and it documents the
-    // shared-state intent. Entries are written by RecordHarvest and drained
-    // (removed) by TakeHarvest inside the finished lambda.
-    static FCriticalSection GHarvestMutex;
-    static TMap<FString, TArray<FString>> GHarvestByTask;
-
-    void RecordHarvest(const FString& TaskId, TArray<FString>&& Files)
-    {
-        FScopeLock Lock(&GHarvestMutex);
-        TArray<FString>& Slot = GHarvestByTask.FindOrAdd(TaskId);
-        Slot.Append(MoveTemp(Files));
-    }
-
-    TArray<FString> TakeHarvest(const FString& TaskId)
-    {
-        FScopeLock Lock(&GHarvestMutex);
-        TArray<FString> Files;
-        GHarvestByTask.RemoveAndCopyValue(TaskId, Files);
         return Files;
     }
 }
@@ -313,11 +292,11 @@ public:
             return nullptr;
         }
         // We don't strictly need the loaded UObject (the job takes an
-        // FSoftObjectPath), but loading + Cast is the only reliable not_a_sequence
+        // FSoftObjectPath), but loading + IsA is the only reliable not_a_sequence
         // guard short of a registry class query, and matches the rest of the
-        // sequencer lane. ULevelSequence lives in the LevelSequence module
-        // (already a Build.cs dep). We avoid a hard #include of LevelSequence.h
-        // here by checking the class name via the loaded object's UClass.
+        // sequencer lane. IsA<ULevelSequence>() correctly accepts ULevelSequence
+        // subclasses (a plain GetClass()->GetName() == "LevelSequence" string
+        // compare would reject them). LevelSequence is already a Build.cs dep.
         UObject* LoadedSeq = UEditorAssetLibrary::LoadAsset(SequenceObjectPath);
         if (!LoadedSeq)
         {
@@ -326,7 +305,7 @@ public:
                 *SequencePath);
             return nullptr;
         }
-        if (!LoadedSeq->GetClass()->GetName().Equals(TEXT("LevelSequence")))
+        if (!LoadedSeq->IsA<ULevelSequence>())
         {
             OutError = FString::Printf(
                 TEXT("render_sequence_mrq: not_a_sequence: '%s' is a %s, not a LevelSequence"),
@@ -347,6 +326,16 @@ public:
             {
                 OutError = FString::Printf(
                     TEXT("render_sequence_mrq: map_not_found: '%s' is not in the asset registry"),
+                    *MapPathIn);
+                return nullptr;
+            }
+            // A UMoviePipelineExecutorJob::Map must point at a UWorld; any other
+            // asset class would fail opaquely at render time. Load + IsA guard.
+            UObject* LoadedMap = UEditorAssetLibrary::LoadAsset(MapObj);
+            if (!LoadedMap || !LoadedMap->IsA<UWorld>())
+            {
+                OutError = FString::Printf(
+                    TEXT("render_sequence_mrq: invalid_field: map_path '%s' is not a UWorld"),
                     *MapPathIn);
                 return nullptr;
             }
@@ -402,11 +391,23 @@ public:
             double S = 0.0, E = 0.0;
             const bool bHasStart = (*RangeObj)->TryGetNumberField(TEXT("start_frame"), S);
             const bool bHasEnd = (*RangeObj)->TryGetNumberField(TEXT("end_frame"), E);
+            // Both ends are required together; a partial range is a caller error,
+            // not a silent fall-through to the sequence's own range.
+            if (bHasStart != bHasEnd)
+            {
+                OutError = TEXT("render_sequence_mrq: invalid_field: use_custom_playback_range requires both start_frame and end_frame");
+                return nullptr;
+            }
             if (bHasStart && bHasEnd)
             {
-                bUseCustomRange = true;
                 CustomStartFrame = static_cast<int32>(S);
                 CustomEndFrame = static_cast<int32>(E);
+                if (CustomStartFrame > CustomEndFrame)
+                {
+                    OutError = TEXT("render_sequence_mrq: invalid_field: use_custom_playback_range requires start_frame <= end_frame");
+                    return nullptr;
+                }
+                bUseCustomRange = true;
             }
         }
 
@@ -504,6 +505,14 @@ public:
         const FString TaskId = FUCMCPTaskRegistry::Get().CreateTask(TEXT("mrq_render"), CancelFlag);
         FUCMCPTaskRegistry::Get().MarkRunning(TaskId);
 
+        // Shared file-list sink bridging OnIndividualJobWorkFinished (appends) and
+        // OnExecutorFinished (reads). Captured BY VALUE (the shared ref) into both
+        // lambdas, so it lives exactly as long as they do -- the subsystem keeps
+        // the executor (and thus the bound lambdas) alive via ActiveExecutor until
+        // the render finishes, after which both are torn down and this array is
+        // freed. No file-static state, no manual cleanup, no leak on no-finish.
+        TSharedRef<TArray<FString>> HarvestedFiles = MakeShared<TArray<FString>>();
+
         // --- construct + configure the executor ------------------------------
         UMoviePipelineExecutorBase* Executor = nullptr;
         if (bUseNewProcess)
@@ -518,14 +527,13 @@ public:
             if (PIEExecutor)
             {
                 PIEExecutor->SetIsRenderingOffscreen(bRenderOffscreen);
-                // Per-job file list (PIE only). Bind BEFORE Render*; capture only
-                // the task_id (FString) -- never the executor/job -- to avoid
-                // lifetime tangles. This delegate fires just before
-                // OnExecutorFinished on the same job.
+                // Per-job file list (PIE only). Bind BEFORE Render*; capture the
+                // shared sink (never the executor/job) to avoid lifetime tangles.
+                // This delegate fires just before OnExecutorFinished on the same job.
                 PIEExecutor->OnIndividualJobWorkFinished().AddLambda(
-                    [TaskId](FMoviePipelineOutputData Data)
+                    [HarvestedFiles](FMoviePipelineOutputData Data)
                     {
-                        RecordHarvest(TaskId, HarvestFilePaths(Data));
+                        HarvestedFiles->Append(HarvestFilePaths(Data));
                     });
             }
             Executor = PIEExecutor;
@@ -545,9 +553,9 @@ public:
         const FString OutputDirCopy = OutputDir;
         const bool bNewProc = bUseNewProcess;
         Executor->OnExecutorFinished().AddLambda(
-            [TaskId, OutputDirCopy, bNewProc](UMoviePipelineExecutorBase* /*InExec*/, bool bSuccess)
+            [TaskId, OutputDirCopy, bNewProc, HarvestedFiles](UMoviePipelineExecutorBase* /*InExec*/, bool bSuccess)
             {
-                TArray<FString> Files = TakeHarvest(TaskId);
+                const TArray<FString>& Files = *HarvestedFiles;
 
                 TSharedPtr<FJsonObject> Result = MakeShared<FJsonObject>();
                 Result->SetBoolField(TEXT("ok"), true);
@@ -584,10 +592,9 @@ public:
                 // (with bSuccess=false). To avoid masking a later "completed",
                 // we record fatal errors as failures eagerly; OnExecutorFinished's
                 // MarkCompleted is then a no-op (registry terminal-state guard).
-                // Also drain any partial harvest so the entry does not leak.
+                // The shared harvest sink frees itself with the lambdas -- no drain.
                 if (bIsFatal)
                 {
-                    TakeHarvest(TaskId);
                     FUCMCPTaskRegistry::Get().MarkFailed(TaskId,
                         FString::Printf(TEXT("render_sequence_mrq: render failed: %s"), *ErrorText.ToString()));
                 }
@@ -602,7 +609,8 @@ public:
         // rendering state), it logs + returns without setting ActiveExecutor.
         if (QueueSubsystem->GetActiveExecutor() == nullptr)
         {
-            TakeHarvest(TaskId);
+            // The shared harvest sink frees itself once these lambdas are released
+            // (the subsystem never adopted the executor) -- no drain needed.
             FUCMCPTaskRegistry::Get().MarkFailed(TaskId,
                 TEXT("render_sequence_mrq: render_start_failed: the queue subsystem did not begin rendering "
                      "(another render may have started, or the job/queue was rejected)"));
