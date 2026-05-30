@@ -29,22 +29,39 @@ extern TSharedRef<IUCMCPHandler> Make_Handler_DmxStreamStatus();
 void FUnrealAIConnectionDMXModule::StartupModule()
 {
     FUCMCPHandlerRegistry& Reg = FUCMCPHandlerRegistry::Get();
-    Reg.Register(Make_Handler_CreateDmxPatch());
-    Reg.Register(Make_Handler_DmxStreamSet());
-    Reg.Register(Make_Handler_DmxStreamStop());
-    Reg.Register(Make_Handler_DmxStreamStatus());
+
+    // Register each handler and keep its TSharedRef so ShutdownModule can
+    // unregister by GetMethodName() (no hardcoded method strings to drift).
+    auto RegisterHandler = [this, &Reg](TSharedRef<IUCMCPHandler> Handler)
+    {
+        Reg.Register(Handler);
+        RegisteredHandlers.Add(Handler);
+    };
+
+    RegisterHandler(Make_Handler_CreateDmxPatch());
+    RegisterHandler(Make_Handler_DmxStreamSet());
+    RegisterHandler(Make_Handler_DmxStreamStop());
+    RegisterHandler(Make_Handler_DmxStreamStatus());
 }
 
 void FUnrealAIConnectionDMXModule::ShutdownModule()
 {
-    // Guard: the core module (which owns the registry singleton) may have already torn
-    // down on editor exit. FUCMCPHandlerRegistry::Get() returns a function-local static
-    // in the core module; if the core is still loaded this cleanly removes our entries.
-    FUCMCPHandlerRegistry& Reg = FUCMCPHandlerRegistry::Get();
-    Reg.Unregister(TEXT("create_dmx_patch"));
-    Reg.Unregister(TEXT("dmx_stream_set"));
-    Reg.Unregister(TEXT("dmx_stream_stop"));
-    Reg.Unregister(TEXT("dmx_stream_status"));
+    // The core module owns the registry singleton: FUCMCPHandlerRegistry::Get()
+    // is a function-local static compiled into UnrealEditor-UnrealAIConnection.
+    // This companion depends on the core, so UE unloads it BEFORE the core and
+    // Get() is normally safe here. Guard anyway: under a forced or out-of-order
+    // unload, calling into an already-unloaded core DLL would crash. Unregister
+    // by each handler's own GetMethodName() so the names can never drift from
+    // what StartupModule registered.
+    if (FModuleManager::Get().IsModuleLoaded(TEXT("UnrealAIConnection")))
+    {
+        FUCMCPHandlerRegistry& Reg = FUCMCPHandlerRegistry::Get();
+        for (const TSharedRef<IUCMCPHandler>& Handler : RegisteredHandlers)
+        {
+            Reg.Unregister(Handler->GetMethodName());
+        }
+    }
+    RegisteredHandlers.Empty();
 }
 
 IMPLEMENT_MODULE(FUnrealAIConnectionDMXModule, UnrealAIConnectionDMX)
