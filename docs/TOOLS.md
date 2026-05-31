@@ -1,6 +1,6 @@
 # MCP Tools Reference
 
-**143 tools total.** 106 are JSON-RPC 2.0 methods served on `127.0.0.1:18888` directly by the plugin's C++ handlers. The remaining 37 — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`, `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap`, `sequencer_add_transform_keyframe`, `import_mesh`, `material_auto_remap`, `batch_capture_cameras`, `batch_spawn_from_csv` — are bridge-side **synthetic tools** that are intercepted by `bridge/unreal_ai_connection_bridge.py` and served by composing existing handlers (or running Python via `execute_unreal_python`, or — for `compile_mod_pak` — shelling out to `RunUAT.bat` entirely outside the UE process). They are visible to MCP clients exactly like the C++ tools but cannot be reached by sending raw JSON-RPC to the TCP socket — only via the MCP bridge or by replicating their composition manually. The "Implementation" header on each entry below indicates whether a tool is C++ or bridge-side.
+**146 tools total.** 109 are JSON-RPC 2.0 methods served on `127.0.0.1:18888` directly by the plugin's C++ handlers. The remaining 37 — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`, `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap`, `sequencer_add_transform_keyframe`, `import_mesh`, `material_auto_remap`, `batch_capture_cameras`, `batch_spawn_from_csv` — are bridge-side **synthetic tools** that are intercepted by `bridge/unreal_ai_connection_bridge.py` and served by composing existing handlers (or running Python via `execute_unreal_python`, or — for `compile_mod_pak` — shelling out to `RunUAT.bat` entirely outside the UE process). They are visible to MCP clients exactly like the C++ tools but cannot be reached by sending raw JSON-RPC to the TCP socket — only via the MCP bridge or by replicating their composition manually. The "Implementation" header on each entry below indicates whether a tool is C++ or bridge-side.
 
 Each tool's params and result are documented with a working example.
 
@@ -4239,6 +4239,38 @@ Returns `{"ok": false, "error_code": "metasound_unavailable", "error_message": "
 
 ---
 
+## inspect_ocio_config
+
+**Implementation:** native C++ handler (companion `UnrealAIConnectionOCIO` plugin). **Mutating:** no (read-only).
+
+Inspect an OpenColorIO configuration asset (`UOpenColorIOConfiguration`): lists every color space, display, and view in the underlying `.ocio` file plus the asset's desired color-space / display-view subset and OCIO context. Provided by the **optional** `UnrealAIConnectionOCIO` companion plugin (needs the OpenColorIO engine plugin enabled); the tool is absent when that companion plugin is not installed.
+
+**Params:** `path` (string, **required** — package path to a `UOpenColorIOConfiguration` asset).
+
+```json
+{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"inspect_ocio_config","arguments":{"path":"/Game/Color/OCIO_Studio"}}}
+```
+
+Pairs with `inspect_asset` (generic metadata) and `post_process_grade_preset` (apply grading once the color pipeline is understood).
+
+---
+
+## inspect_ndisplay_config
+
+**Implementation:** native C++ handler (companion `UnrealAIConnectionNDisplay` plugin). **Mutating:** no (read-only).
+
+Inspect an nDisplay (DisplayCluster) configuration asset: cluster nodes (host, window rect), per-node viewports (region, projection policy type + parameters, view-point camera, GPU index), and the primary node. Provided by the **optional** `UnrealAIConnectionNDisplay` companion plugin (needs the nDisplay engine plugin enabled); the tool is absent when that companion plugin is not installed.
+
+**Params:** `path` (string, **required** — package path to an nDisplay config blueprint asset).
+
+```json
+{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"inspect_ndisplay_config","arguments":{"path":"/Game/nDisplay/NDC_Stage"}}}
+```
+
+Pairs with `inspect_asset` (generic metadata) and `batch_capture_cameras` (audit the stage's coverage cameras).
+
+---
+
 ## find_unused_assets
 
 Enumerate assets under a content path and report which have **zero referencers** — i.e. nothing in the project links to them. Useful for content cleanup audits before shipping (test fixtures, abandoned variants, generated-then-forgotten content).
@@ -5148,6 +5180,24 @@ Toggles a `StaticMesh`'s Nanite-enabled flag so line traces hit the full source 
 ```
 
 Pairs with `place_actors_raycast` / `light_raycast_placement` (toggle off → place → toggle on) and `save_dirty_assets` (persist the change).
+
+---
+
+## decal_scatter
+
+**Implementation:** native C++ handler. **Mutating:** yes (single undo step).
+
+Scatter `ADecalActor`s across level geometry by raycasting at XY targets and projecting a decal material onto each surface hit, with deterministic per-decal scale/rotation jitter. Targets are either an explicit `points` list, a generated `grid`, or a random `bounds` scatter (seeded by `seed`). Each target is traced straight down on `ECC_Visibility`; on a blocking hit a decal is spawned at the hit oriented to project **into** the surface (decals project along their local +X). The studio-builder use case is "scatter grime / puddle / leaf decals across this floor" with reproducible randomness.
+
+**Params:** `decal_material` (string, **required** — `/Game` path to the decal `UMaterialInterface`), `points` (array of `{x, y}`, optional — explicit targets), `grid` (object, optional — `{min_x, min_y, max_x, max_y, count_x, count_y}`), `bounds` (object, optional — `{min_x, min_y, max_x, max_y, count}` random scatter), `trace_start_z` (number, optional, default `100000`), `decal_size` (object `{x, y, z}`, optional, default `{16, 64, 64}` — `x` = projection depth, `y`/`z` = footprint), `scale_min` / `scale_max` (number, optional, default `1.0`), `rotation_jitter_deg` (number, optional, default `0`), `sort_order` (integer, optional, default `0`), `seed` (integer, optional, default `0`), `label_prefix` (string, optional). Supply `points`, `grid`, **or** `bounds`.
+
+**Returns:** `ok`, `decal_material` (full path), `requested`, `placed_count`, `missed_count`, `placed` (array of `{name, label, location{x,y,z}, hit_normal{x,y,z}, hit_actor}`), `missed` (array of `{x, y, error?}`).
+
+```json
+{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"decal_scatter","arguments":{"decal_material":"/Game/Decals/M_Grime","bounds":{"min_x":-500,"min_y":-500,"max_x":500,"max_y":500,"count":40},"scale_min":0.6,"scale_max":1.4,"rotation_jitter_deg":180,"seed":7}}}
+```
+
+Pairs with `place_actors_raycast` / `nanite_collision_toggle`.
 
 ---
 

@@ -176,6 +176,9 @@ def test_tool_names_are_unique_and_match_handlers():
         "sequence_snapshot",
         "material_blend_override",
         "export_actor_as_gltf",
+        "decal_scatter",
+        "inspect_ocio_config",
+        "inspect_ndisplay_config",
     }
     assert set(names) == expected
 

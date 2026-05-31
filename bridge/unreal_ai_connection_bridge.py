@@ -13,7 +13,7 @@ plugin speaks raw JSON-RPC over a local TCP socket (default
 Behaviour:
   - "initialize"             returned synthetically (does NOT hit the UE server)
   - "notifications/*"        consumed silently
-  - "tools/list"             returns a static list of all 143 tools (106
+  - "tools/list"             returns a static list of all 146 tools (109
                              dispatched to the UE plugin's C++ handlers
                              plus 37 bridge-side synthetic tools served by
                              SYNTHETIC_TOOLS without crossing the wire as
@@ -1967,6 +1967,50 @@ TOOLS = [
                 "enabled": {"type": "boolean", "description": "Target Nanite-enabled state: true to enable Nanite, false to disable (so raycasts hit real geometry)."},
             },
             "required": ["enabled"],
+        },
+    },
+    {
+        "name": "decal_scatter",
+        "description": "Scatter ADecalActors across level geometry by raycasting at a set of XY targets and projecting a decal material onto each surface hit, with deterministic per-decal scale/rotation jitter. Native C++ handler — targets come from an explicit 'points' list, a generated 'grid', or a 'bounds'+'count' random scatter (seeded by 'seed'); each is traced straight down (ECC_Visibility) and a decal is spawned at the hit oriented to project INTO the surface (decals project along +X, unlike upright mesh actors). The studio-builder use case is 'spray grime / posters / footprints / wear across this floor or wall' without hand-placing each decal.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "decal_material": {"type": "string", "description": "Path to the decal UMaterialInterface to project (e.g. '/Game/Decals/M_Grime')."},
+                "points": {"type": "array", "items": {"type": "object"}, "description": "Explicit XY targets [{x, y}, ...]. Use this OR 'grid' OR 'bounds'."},
+                "grid": {"type": "object", "description": "Generate targets on a grid: {min_x, min_y, max_x, max_y, count_x, count_y} (count_x/count_y >= 1, spread evenly). Preferred over 'points'/'bounds' when present."},
+                "bounds": {"type": "object", "description": "Random scatter: {min_x, min_y, max_x, max_y, count} — 'count' XY points drawn uniformly inside the box via the seeded stream."},
+                "trace_start_z": {"type": "number", "description": "Z height the downward trace starts from. Default 100000. Must be > 0."},
+                "decal_size": {"type": "object", "description": "Base decal half-extents {x, y, z}: x = projection depth, y/z = surface footprint. Default {16, 64, 64}."},
+                "scale_min": {"type": "number", "description": "Min uniform scale applied to decal_size per decal. Default 1.0; require 0 < scale_min <= scale_max."},
+                "scale_max": {"type": "number", "description": "Max uniform scale applied to decal_size per decal. Default 1.0."},
+                "rotation_jitter_deg": {"type": "number", "description": "Max random spin (degrees) about each decal's projection axis (roll). Default 0."},
+                "sort_order": {"type": "integer", "description": "Decal SortOrder (higher draws on top). Default 0."},
+                "seed": {"type": "integer", "description": "Seed for the deterministic scale/rotation/bounds RNG. Default 0."},
+                "label_prefix": {"type": "string", "description": "When set, each spawned decal is labelled '<prefix><index>'."},
+            },
+            "required": ["decal_material"],
+        },
+    },
+    {
+        "name": "inspect_ocio_config",
+        "description": "Inspect an OpenColorIO configuration asset (UOpenColorIOConfiguration): list every color space, display, and view defined in the underlying .ocio file, plus the asset's configured 'desired' color-space / display-view subset and OCIO context. Read-only. Provided by the OPTIONAL UnrealAIConnectionOCIO companion plugin (needs the OpenColorIO engine plugin enabled). Broadcast/VP color-pipeline use: see what transforms a stage's OCIO config exposes before wiring a viewport or media look.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "Package path to a UOpenColorIOConfiguration asset (e.g. '/Game/Color/OCIO_Studio')."},
+            },
+            "required": ["path"],
+        },
+    },
+    {
+        "name": "inspect_ndisplay_config",
+        "description": "Inspect an nDisplay (DisplayCluster) configuration asset: read the cluster topology — nodes (host, window rect), per-node viewports (region rect, projection policy type + parameters, view-point camera, GPU index), and the primary node. Read-only. Provided by the OPTIONAL UnrealAIConnectionNDisplay companion plugin (needs the nDisplay engine plugin enabled). LED-wall / virtual-production use: audit a stage's cluster layout — the single most VP-defining asset — without opening the nDisplay editor.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "Package path to an nDisplay config blueprint asset (e.g. '/Game/nDisplay/NDC_Stage')."},
+            },
+            "required": ["path"],
         },
     },
     {
