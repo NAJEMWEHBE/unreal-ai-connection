@@ -1,6 +1,6 @@
 # MCP Tools Reference
 
-**146 tools total.** 109 are JSON-RPC 2.0 methods served on `127.0.0.1:18888` directly by the plugin's C++ handlers. The remaining 37 — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`, `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap`, `sequencer_add_transform_keyframe`, `import_mesh`, `material_auto_remap`, `batch_capture_cameras`, `batch_spawn_from_csv` — are bridge-side **synthetic tools** that are intercepted by `bridge/unreal_ai_connection_bridge.py` and served by composing existing handlers (or running Python via `execute_unreal_python`, or — for `compile_mod_pak` — shelling out to `RunUAT.bat` entirely outside the UE process). They are visible to MCP clients exactly like the C++ tools but cannot be reached by sending raw JSON-RPC to the TCP socket — only via the MCP bridge or by replicating their composition manually. The "Implementation" header on each entry below indicates whether a tool is C++ or bridge-side.
+**147 tools total.** 110 are JSON-RPC 2.0 methods served on `127.0.0.1:18888` directly by the plugin's C++ handlers. The remaining 37 — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`, `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap`, `sequencer_add_transform_keyframe`, `import_mesh`, `material_auto_remap`, `batch_capture_cameras`, `batch_spawn_from_csv` — are bridge-side **synthetic tools** that are intercepted by `bridge/unreal_ai_connection_bridge.py` and served by composing existing handlers (or running Python via `execute_unreal_python`, or — for `compile_mod_pak` — shelling out to `RunUAT.bat` entirely outside the UE process). They are visible to MCP clients exactly like the C++ tools but cannot be reached by sending raw JSON-RPC to the TCP socket — only via the MCP bridge or by replicating their composition manually. The "Implementation" header on each entry below indicates whether a tool is C++ or bridge-side.
 
 Each tool's params and result are documented with a working example.
 
@@ -4268,6 +4268,24 @@ Inspect an nDisplay (DisplayCluster) configuration asset: cluster nodes (host, w
 ```
 
 Pairs with `inspect_asset` (generic metadata) and `batch_capture_cameras` (audit the stage's coverage cameras).
+
+---
+
+## mesh_bake_ao_to_vertex_color
+
+**Implementation:** native C++ handler (companion `UnrealAIConnectionGeometry` plugin). **Mutating:** yes (edits + saves the asset).
+
+Bake self-occlusion ambient occlusion into a Static Mesh asset's vertex colors, in place. Copies the mesh out via Geometry Scripting, bakes AO to the RGBA vertex-color channel (self-occlusion), optionally blurs the result, writes it back into the chosen `SourceModel` LOD, and saves. Provided by the **optional** `UnrealAIConnectionGeometry` companion plugin (needs the GeometryScripting engine plugin enabled); the tool is absent when that companion plugin is not installed. Look/optimization use: cheap baked occlusion stored in vertex colors for real-time shading.
+
+**Params:** `static_mesh` (string, **required** — `/Game` StaticMesh asset path), `occlusion_rays` (integer, optional, default `16`, clamped `1..256`), `max_distance` (number, optional, default `0` = infinite), `spread_angle` (number, optional, default `180`), `bias_angle` (number, optional, default `15`), `lod_index` (integer, optional, default `0` — `SourceModel` LOD to bake into and write back), `blur_iterations` (integer, optional, default `0` = no blur), `blur_strength` (number, optional, default `0.5`), `split_at_uv_seams` (bool, optional, default `false`), `split_at_normal_seams` (bool, optional, default `false`), `save` (bool, optional, default `true`).
+
+**Returns:** `ok`, `static_mesh` (full path), `lod_index`, `vertices`, `triangles`, `occlusion_rays`, `blurred`, `saved`.
+
+```json
+{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mesh_bake_ao_to_vertex_color","arguments":{"static_mesh":"/Game/Meshes/SM_Rock","occlusion_rays":32,"blur_iterations":2,"save":true}}}
+```
+
+Pairs with `inspect_static_mesh` (verify LODs / vertex count first) and `save_dirty_assets`.
 
 ---
 
