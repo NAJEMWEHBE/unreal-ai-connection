@@ -21,7 +21,7 @@
 //
 // Error format: "mesh_bake_ao_to_vertex_color: <error_code>: <human-readable detail>".
 // Stable error codes: missing_required_field, asset_not_found, not_a_static_mesh,
-// copy_from_failed, copy_to_failed, editor_only.
+// invalid_lod_index, copy_from_failed, copy_to_failed, editor_only.
 
 #include "MCP/MCPHandler.h"
 
@@ -90,9 +90,11 @@ public:
         Params->TryGetNumberField(TEXT("lod_index"), LODIndex);
         LODIndex = FMath::Max(LODIndex, 0);
 
+        // Clamp to [0, 64]: each pass is a game-thread vertex-color smoothing sweep;
+        // an unbounded count on a dense mesh would hang the editor.
         int32 BlurIterations = 0;
         Params->TryGetNumberField(TEXT("blur_iterations"), BlurIterations);
-        BlurIterations = FMath::Max(BlurIterations, 0);
+        BlurIterations = FMath::Clamp(BlurIterations, 0, 64);
 
         double BlurStrength = 0.5;
         Params->TryGetNumberField(TEXT("blur_strength"), BlurStrength);
@@ -128,6 +130,18 @@ public:
             OutError = FString::Printf(
                 TEXT("mesh_bake_ao_to_vertex_color: not_a_static_mesh: '%s' is a %s, not a UStaticMesh"),
                 *InputPath, *LoadedAsset->GetClass()->GetName());
+            return nullptr;
+        }
+
+        // Bound-check the requested LOD against the asset's source models so an
+        // out-of-range lod_index fails clearly here instead of as a generic
+        // copy_from_failed deeper in the pipeline.
+        const int32 NumSourceModels = Mesh->GetNumSourceModels();
+        if (LODIndex >= NumSourceModels)
+        {
+            OutError = FString::Printf(
+                TEXT("mesh_bake_ao_to_vertex_color: invalid_lod_index: LOD index %d is out of bounds for '%s' (mesh has %d source model(s))"),
+                LODIndex, *InputPath, NumSourceModels);
             return nullptr;
         }
 
