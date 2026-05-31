@@ -1,7 +1,7 @@
 {
  "name": "UnrealAIConnection",
  "version": "0.9.1",
- "description": "Drive Unreal Engine 5.7 from any MCP-compliant client over a local TCP socket. 146 tools total (109 native C++ handlers plus 37 bridge-side synthetic tools) that work with any UE 5.7 project.",
+ "description": "Drive Unreal Engine 5.7 from any MCP-compliant client over a local TCP socket. 147 tools total (110 native C++ handlers plus 37 bridge-side synthetic tools) that work with any UE 5.7 project.",
  "transport": {
   "type": "tcp",
   "host": "127.0.0.1",
@@ -2253,6 +2253,24 @@
    "description": "Inspect an nDisplay (DisplayCluster) configuration asset: cluster nodes (host, window rect), per-node viewports (region, projection policy type + parameters, view-point camera, GPU index), and the primary node. Read-only. Provided by the optional UnrealAIConnectionNDisplay companion plugin (needs the nDisplay engine plugin enabled).",
    "params": {
     "path": "string (required) - package path to an nDisplay config blueprint asset"
+   },
+   "returns": "see docs/TOOLS.md"
+  },
+  {
+   "name": "mesh_bake_ao_to_vertex_color",
+   "description": "Bake self-occlusion ambient occlusion into a Static Mesh asset's vertex colors, in place. Native C++ handler (optional UnrealAIConnectionGeometry companion). Copies the mesh out via Geometry Scripting, bakes AO to the RGBA vertex-color channel (self-occlusion), optionally blurs, writes back into the chosen SourceModel LOD and saves. Look/optimization use: cheap baked occlusion in vertex colors for real-time shading. Edits + saves the asset.",
+   "params": {
+    "static_mesh": "string (required) - /Game StaticMesh asset path to bake AO into",
+    "occlusion_rays": "int (optional, default 16, clamped 1..256) - occlusion rays cast per vertex",
+    "max_distance": "number (optional, default 0 = infinite) - max ray distance for occlusion",
+    "spread_angle": "number (optional, default 180) - hemisphere spread angle (deg) the rays sample over",
+    "bias_angle": "number (optional, default 15) - bias angle (deg) away from the surface to avoid self-shadowing",
+    "lod_index": "int (optional, default 0) - SourceModel LOD index to bake into and write back",
+    "blur_iterations": "int (optional, default 0 = no blur) - smoothing passes over the baked AO",
+    "blur_strength": "number (optional, default 0.5) - strength of each blur iteration",
+    "split_at_uv_seams": "bool (optional, default false) - split occlusion at UV seams",
+    "split_at_normal_seams": "bool (optional, default false) - split occlusion at hard-normal seams",
+    "save": "bool (optional, default true) - save the edited asset to disk after baking"
    },
    "returns": "see docs/TOOLS.md"
   },

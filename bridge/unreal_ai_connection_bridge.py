@@ -13,7 +13,7 @@ plugin speaks raw JSON-RPC over a local TCP socket (default
 Behaviour:
   - "initialize"             returned synthetically (does NOT hit the UE server)
   - "notifications/*"        consumed silently
-  - "tools/list"             returns a static list of all 146 tools (109
+  - "tools/list"             returns a static list of all 147 tools (110
                              dispatched to the UE plugin's C++ handlers
                              plus 37 bridge-side synthetic tools served by
                              SYNTHETIC_TOOLS without crossing the wire as
@@ -2011,6 +2011,27 @@ TOOLS = [
                 "path": {"type": "string", "description": "Package path to an nDisplay config blueprint asset (e.g. '/Game/nDisplay/NDC_Stage')."},
             },
             "required": ["path"],
+        },
+    },
+    {
+        "name": "mesh_bake_ao_to_vertex_color",
+        "description": "Bake self-occlusion ambient occlusion into a Static Mesh asset's vertex colors, in place. Native C++ handler (optional UnrealAIConnectionGeometry companion). Copies the mesh out via Geometry Scripting, bakes AO to the RGBA vertex-color channel (self-occlusion), optionally blurs, writes back into the chosen SourceModel LOD and saves. Look/optimization use: cheap baked occlusion in vertex colors for real-time shading. Edits + saves the asset.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "static_mesh": {"type": "string", "description": "A /Game StaticMesh asset path to bake AO into (required)."},
+                "occlusion_rays": {"type": "integer", "description": "Number of occlusion rays cast per vertex. Default 16, clamped to 1..256."},
+                "max_distance": {"type": "number", "description": "Max ray distance for occlusion. Default 0 = infinite."},
+                "spread_angle": {"type": "number", "description": "Hemisphere spread angle (degrees) the rays sample over. Default 180."},
+                "bias_angle": {"type": "number", "description": "Bias angle (degrees) away from the surface to avoid self-shadowing artifacts. Default 15."},
+                "lod_index": {"type": "integer", "description": "SourceModel LOD index to bake into and write back. Default 0."},
+                "blur_iterations": {"type": "integer", "description": "Number of smoothing passes over the baked AO. Default 0 = no blur."},
+                "blur_strength": {"type": "number", "description": "Strength of each blur iteration. Default 0.5."},
+                "split_at_uv_seams": {"type": "boolean", "description": "Split occlusion at UV seams when baking. Default false."},
+                "split_at_normal_seams": {"type": "boolean", "description": "Split occlusion at hard-normal seams when baking. Default false."},
+                "save": {"type": "boolean", "description": "Save the edited asset to disk after baking. Default true."},
+            },
+            "required": ["static_mesh"],
         },
     },
     {

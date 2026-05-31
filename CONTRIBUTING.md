@@ -2,7 +2,7 @@
 
 Thanks for considering a contribution! This project is **vendor-neutral MCP** — the wire protocol is open and the bridge is intentionally framework-agnostic. Anything that improves the editor-automation surface, hardens the bridge, or polishes the docs is welcome.
 
-Please skim this file before opening a PR. Three of the rules are slightly unusual for a standard open-source project; they exist because the codebase has 146 tools total and a non-trivial cross-language split between C++ (UE plugin) and Python (bridge).
+Please skim this file before opening a PR. Three of the rules are slightly unusual for a standard open-source project; they exist because the codebase has 147 tools total and a non-trivial cross-language split between C++ (UE plugin) and Python (bridge).
 
 ---
 
@@ -28,7 +28,7 @@ If you're only touching the bridge / tests / docs: no UE needed. The bridge test
 - `UnrealAIConnection/Source/UnrealAIConnection/Private/UnrealAIConnectionModule.cpp` — handler registration. Every handler needs a forward `extern` and a `Reg.Register(...)` line here.
 - `UnrealAIConnection/Resources/mcp_manifest.json` — declarative MCP tool manifest. Mirrors `bridge/unreal_ai_connection_bridge.py`'s `TOOLS` list. Drift here is caught by `tests/test_manifest_sync.py`.
 - `bridge/unreal_ai_connection_bridge.py` — the Python stdio↔TCP bridge. Holds the static tool catalog (`TOOLS`), the synthetic-tool dispatch dict (`SYNTHETIC_TOOLS`), and the 34 `synthetic_*` functions that compose existing handlers bridge-side.
-- `tests/` — pytest suite for the bridge. **No UE required.** 580 pytest cases.
+- `tests/` — pytest suite for the bridge. **No UE required.** 581 pytest cases.
 - `scripts/drift_sweep.py` — mechanical doc-drift guard. Scans 16 high-traffic files and rejects stale counts.
 - `skills/driving-unreal/` — bundled know-how skill (`SKILL.md` + `reference.md`). Auto-discovered by MCP clients; teaches which tools to chain for common UE workflows. Tool names cited here are guarded by `tests/test_skill_tool_refs.py` against the bridge catalog.
 - `docs/TOOLS.md` — per-tool reference (params, returns, error codes, examples).
@@ -51,7 +51,7 @@ If you're only touching the bridge / tests / docs: no UE needed. The bridge test
 7. Run `pytest tests/` — full suite green.
 8. Open a PR; let the multi-agent ensemble + Gemini auto-review do their pass before requesting human review.
 
-**Fixing a bug?** Open an issue first if it isn't obvious. Tests-first when reasonable. The bridge has 580 pytest cases — if the bug is in the bridge, write a failing test, then fix it.
+**Fixing a bug?** Open an issue first if it isn't obvious. Tests-first when reasonable. The bridge has 581 pytest cases — if the bug is in the bridge, write a failing test, then fix it.
 
 **Improving docs?** Welcome. Just keep the canonical-count phrasing in digit form (`107 tools`, not `One hundred five tools`) — `scripts/drift_sweep.py` enforces digit counts, and English-word counts silently survive the sweep.
 

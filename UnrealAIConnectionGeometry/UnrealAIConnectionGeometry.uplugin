@@ -1,0 +1,25 @@
+{
+    "FileVersion": 3,
+    "Version": 1,
+    "VersionName": "0.9.1",
+    "FriendlyName": "Unreal AI Connection - Geometry",
+    "Description": "Optional companion to Unreal AI Connection. Adds the mesh_bake_ao_to_vertex_color editor-automation MCP tool, which bakes self-occlusion ambient occlusion into a StaticMesh's vertex colors. Enable this only if you need geometry baking - it pulls in the Geometry Scripting plugin. The core Unreal AI Connection plugin runs without it.",
+    "Category": "Editor",
+    "CreatedBy": "HD Media",
+    "MarketplaceURL": "",
+    "DocsURL": "https://github.com/NAJEMWEHBE/unreal-ai-connection",
+    "EnabledByDefault": false,
+    "CanContainContent": false,
+    "Installed": false,
+    "Modules": [
+        {
+            "Name": "UnrealAIConnectionGeometry",
+            "Type": "Editor",
+            "LoadingPhase": "PostEngineInit"
+        }
+    ],
+    "Plugins": [
+        { "Name": "UnrealAIConnection", "Enabled": true },
+        { "Name": "GeometryScripting",  "Enabled": true }
+    ]
+}
