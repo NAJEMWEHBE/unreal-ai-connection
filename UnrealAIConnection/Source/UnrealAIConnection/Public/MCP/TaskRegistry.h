@@ -55,7 +55,7 @@ struct FUCMCPTaskInfo
     bool bCancelRequested = false;           // mirrors the atomic flag at snapshot time
 };
 
-class FUCMCPTaskRegistry
+class UNREALAICONNECTION_API FUCMCPTaskRegistry
 {
 public:
     static FUCMCPTaskRegistry& Get();
