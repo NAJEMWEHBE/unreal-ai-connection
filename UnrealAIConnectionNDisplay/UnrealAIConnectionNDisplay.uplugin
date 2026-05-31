@@ -1,0 +1,25 @@
+{
+    "FileVersion": 3,
+    "Version": 1,
+    "VersionName": "0.9.1",
+    "FriendlyName": "Unreal AI Connection - nDisplay",
+    "Description": "Optional companion to Unreal AI Connection. Adds the inspect_ndisplay_config editor-automation MCP tool, a read-only inspector for nDisplay cluster configuration blueprint assets. Enable this only if you need nDisplay introspection - it pulls in the nDisplay plugin. The core Unreal AI Connection plugin runs without it.",
+    "Category": "Editor",
+    "CreatedBy": "HD Media",
+    "MarketplaceURL": "",
+    "DocsURL": "https://github.com/NAJEMWEHBE/unreal-ai-connection",
+    "EnabledByDefault": false,
+    "CanContainContent": false,
+    "Installed": false,
+    "Modules": [
+        {
+            "Name": "UnrealAIConnectionNDisplay",
+            "Type": "Editor",
+            "LoadingPhase": "PostEngineInit"
+        }
+    ],
+    "Plugins": [
+        { "Name": "UnrealAIConnection", "Enabled": true },
+        { "Name": "nDisplay",           "Enabled": true }
+    ]
+}

@@ -148,6 +148,7 @@ extern TSharedRef<IUCMCPHandler> Make_Handler_PlaceActorsRaycast();
 extern TSharedRef<IUCMCPHandler> Make_Handler_BatchMaterialAssign();
 extern TSharedRef<IUCMCPHandler> Make_Handler_LightRaycastPlacement();
 extern TSharedRef<IUCMCPHandler> Make_Handler_NaniteCollisionToggle();
+extern TSharedRef<IUCMCPHandler> Make_Handler_DecalScatter();
 extern TSharedRef<IUCMCPHandler> Make_Handler_PostProcessGradePreset();  // Wave 2: look-dev grade save/load
 extern TSharedRef<IUCMCPHandler> Make_Handler_SequenceSnapshot();
 extern TSharedRef<IUCMCPHandler> Make_Handler_MaterialBlendOverride();
@@ -269,6 +270,7 @@ void FUnrealAIConnectionModule::StartupModule()
     Reg.Register(Make_Handler_BatchMaterialAssign());
     Reg.Register(Make_Handler_LightRaycastPlacement());
     Reg.Register(Make_Handler_NaniteCollisionToggle());
+    Reg.Register(Make_Handler_DecalScatter());
     Reg.Register(Make_Handler_PostProcessGradePreset());
     Reg.Register(Make_Handler_SequenceSnapshot());
     Reg.Register(Make_Handler_MaterialBlendOverride());

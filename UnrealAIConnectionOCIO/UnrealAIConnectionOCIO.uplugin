@@ -1,0 +1,25 @@
+{
+    "FileVersion": 3,
+    "Version": 1,
+    "VersionName": "0.9.1",
+    "FriendlyName": "Unreal AI Connection - OCIO",
+    "Description": "Optional companion to Unreal AI Connection. Adds the inspect_ocio_config editor-automation MCP tool, a read-only inspector for UOpenColorIOConfiguration assets. Enable this only if you need OCIO introspection - it pulls in the OpenColorIO plugin. The core Unreal AI Connection plugin runs without it.",
+    "Category": "Editor",
+    "CreatedBy": "HD Media",
+    "MarketplaceURL": "",
+    "DocsURL": "https://github.com/NAJEMWEHBE/unreal-ai-connection",
+    "EnabledByDefault": false,
+    "CanContainContent": false,
+    "Installed": false,
+    "Modules": [
+        {
+            "Name": "UnrealAIConnectionOCIO",
+            "Type": "Editor",
+            "LoadingPhase": "PostEngineInit"
+        }
+    ],
+    "Plugins": [
+        { "Name": "UnrealAIConnection", "Enabled": true },
+        { "Name": "OpenColorIO",        "Enabled": true }
+    ]
+}
