@@ -74,23 +74,25 @@ public:
         const FString ObjectPath = UCMCPAssetPath::ToObjectPath(InputPath);
         const FString PackagePath = UCMCPAssetPath::ToPackagePath(InputPath);
 
-        UOpenColorIOConfiguration* Config =
-            LoadObject<UOpenColorIOConfiguration>(nullptr, *ObjectPath);
+        // Load via UEditorAssetLibrary (resolves the registry + loads from disk if the
+        // package is not yet in memory) then cast - same pattern as
+        // Handler_InspectNdisplayConfig. A typed LoadObject<T> can return null on a
+        // not-yet-loaded asset and would then misreport a right-type asset as wrong_asset_type.
+        UObject* LoadedAsset = UEditorAssetLibrary::LoadAsset(ObjectPath);
+        if (!LoadedAsset)
+        {
+            OutError = FString::Printf(
+                TEXT("inspect_ocio_config: asset_not_found: '%s' is not in the asset registry"),
+                *InputPath);
+            return nullptr;
+        }
+
+        UOpenColorIOConfiguration* Config = Cast<UOpenColorIOConfiguration>(LoadedAsset);
         if (!Config)
         {
-            // Disambiguate "nothing there" from "wrong type" to help the caller.
-            if (UObject* AnyAsset = UEditorAssetLibrary::LoadAsset(ObjectPath))
-            {
-                OutError = FString::Printf(
-                    TEXT("inspect_ocio_config: wrong_asset_type: '%s' is a %s, not a UOpenColorIOConfiguration"),
-                    *InputPath, *AnyAsset->GetClass()->GetName());
-            }
-            else
-            {
-                OutError = FString::Printf(
-                    TEXT("inspect_ocio_config: asset_not_found: '%s' is not in the asset registry"),
-                    *InputPath);
-            }
+            OutError = FString::Printf(
+                TEXT("inspect_ocio_config: wrong_asset_type: '%s' is a %s, not a UOpenColorIOConfiguration"),
+                *InputPath, *LoadedAsset->GetClass()->GetName());
             return nullptr;
         }
 

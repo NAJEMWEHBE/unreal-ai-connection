@@ -208,19 +208,31 @@ public:
                 Missed.Add(MakeShared<FJsonValueObject>(M));
                 continue;
             }
-            TraceParams.AddIgnoredActor(Decal);
+            // Configure the decal component. ADecalActor builds its UDecalComponent
+            // as root in its constructor, so GetDecal() is normally non-null; treat a
+            // null component as a spawn failure rather than leaving an unconfigured
+            // decal in the world. No AddIgnoredActor: a decal carries no collision, so
+            // it can't block a later downward trace -- skipping it avoids needless
+            // O(N^2) growth of the ignore list across the scatter.
+            UDecalComponent* Comp = Decal->GetDecal();
+            if (!Comp)
+            {
+                Decal->Destroy();
+                TSharedRef<FJsonObject> M = MakeShared<FJsonObject>();
+                M->SetNumberField(TEXT("x"), Targets[i].X);
+                M->SetNumberField(TEXT("y"), Targets[i].Y);
+                M->SetStringField(TEXT("error"), TEXT("decal_component_null"));
+                Missed.Add(MakeShared<FJsonValueObject>(M));
+                continue;
+            }
 
             // Fold post-spawn edits into the dispatcher's transaction.
             Decal->Modify();
-            UDecalComponent* Comp = Decal->GetDecal();
-            if (Comp)
-            {
-                Comp->Modify();
-                Comp->SetDecalMaterial(DecalMaterial);
-                Comp->DecalSize = BaseSize * ScaleFactor;
-                Comp->SetSortOrder(SortOrder);
-                Comp->MarkRenderStateDirty();
-            }
+            Comp->Modify();
+            Comp->SetDecalMaterial(DecalMaterial);
+            Comp->DecalSize = BaseSize * ScaleFactor;
+            Comp->SetSortOrder(SortOrder);
+            Comp->MarkRenderStateDirty();
             if (!LabelPrefix.IsEmpty())
             {
                 Decal->SetActorLabel(FString::Printf(TEXT("%s%d"), *LabelPrefix, i));
@@ -293,6 +305,14 @@ private:
                 OutError = TEXT("decal_scatter: invalid_grid: count_x and count_y must each be >= 1");
                 return false;
             }
+            // Cap before generating so a huge grid can't allocate a giant target array.
+            if (static_cast<int64>(CountX) * static_cast<int64>(CountY) > kMaxTargets)
+            {
+                OutError = FString::Printf(
+                    TEXT("decal_scatter: too_many_targets: grid %d x %d exceeds the %d cap"),
+                    CountX, CountY, kMaxTargets);
+                return false;
+            }
             for (int32 iy = 0; iy < CountY; ++iy)
             {
                 const double ty = (CountY == 1) ? 0.5 : static_cast<double>(iy) / (CountY - 1);
@@ -312,6 +332,13 @@ private:
         const TArray<TSharedPtr<FJsonValue>>* PointsArr = nullptr;
         if (Params->TryGetArrayField(TEXT("points"), PointsArr) && PointsArr)
         {
+            if (PointsArr->Num() > kMaxTargets)
+            {
+                OutError = FString::Printf(
+                    TEXT("decal_scatter: too_many_targets: %d points exceeds the %d cap"),
+                    PointsArr->Num(), kMaxTargets);
+                return false;
+            }
             for (int32 PointIndex = 0; PointIndex < PointsArr->Num(); ++PointIndex)
             {
                 const TSharedPtr<FJsonValue>& V = (*PointsArr)[PointIndex];
@@ -354,6 +381,13 @@ private:
             if (Count < 1)
             {
                 OutError = TEXT("decal_scatter: invalid_bounds: 'count' must be >= 1");
+                return false;
+            }
+            if (Count > kMaxTargets)
+            {
+                OutError = FString::Printf(
+                    TEXT("decal_scatter: too_many_targets: count %d exceeds the %d cap"),
+                    Count, kMaxTargets);
                 return false;
             }
             if (MaxX < MinX || MaxY < MinY)
