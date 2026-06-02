@@ -6,6 +6,12 @@ on:
   pull_request:
     branches: [main]
 
+# Least-privilege default for GITHUB_TOKEN: every job only reads the repo
+# (checkout + git diff). No job writes contents, posts comments, or needs any
+# other scope, so drop the default broad grant down to read-only.
+permissions:
+  contents: read
+
 # Cancel in-flight runs when a new commit is pushed to the same PR/branch.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

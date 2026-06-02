@@ -11,6 +11,20 @@ execution, file write outside the project, or editor/host compromise** (e.g. via
 `execute_unreal_python`, path traversal in a `bulk_*`/asset path, or an SSRF in a
 marketplace download).
 
+## Hardening for operators
+
+The loopback bind is the entire network boundary — there is **no authentication
+layer**. Treat the ability to reach `127.0.0.1:18888` as equivalent to a shell
+on the host running the editor: a connected client can execute arbitrary Python
+via `execute_unreal_python`.
+
+- **Never expose the port off-host.** Do not bind to `0.0.0.0`, port-forward,
+  reverse-proxy, or SSH-tunnel `18888` to another machine. The loopback bind
+  *is* the access control; routing it elsewhere removes it entirely.
+- **Single-user dev workstation only.** On a shared or multi-user host, any
+  local user able to open a loopback socket can drive the editor. Run it only
+  where you trust every local user.
+
 ## Supported versions
 
 Security fixes land on `main` and ship in the next tagged release. Only the
