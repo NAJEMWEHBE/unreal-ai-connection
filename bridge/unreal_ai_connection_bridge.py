@@ -17,7 +17,11 @@ Behaviour:
                              dispatched to the UE plugin's C++ handlers
                              plus 37 bridge-side synthetic tools served by
                              SYNTHETIC_TOOLS without crossing the wire as
-                             a single UE round-trip)
+                             a single UE round-trip). With
+                             UCMCP_TOOL_MODE=progressive it instead returns a
+                             small CORE set + a `search_tools` discovery tool
+                             (progressive tool disclosure); every tool stays
+                             callable via tools/call in both modes.
   - "tools/call"             unpacks {name, arguments} and forwards to the
                              UE server as the matching method
   - All other methods        proxied as-is
@@ -27,6 +31,8 @@ rather than crashing, so the MCP client can show "MCP server not running -
 launch UE editor with the Unreal AI Connection plugin enabled".
 
 Override host/port via env: UCMCP_HOST, UCMCP_PORT.
+Tool-advertising mode via env: UCMCP_TOOL_MODE (unset/"all" = expose every
+tool, the default; "progressive" = core set + search_tools discovery).
 """
 
 import json
@@ -2094,6 +2100,306 @@ TOOLS = [
         },
     },
 ]
+
+
+# ===========================================================================
+# Progressive tool disclosure  (opt-in, off by default)
+#
+# State-of-the-art MCP servers no longer dump every tool schema into the
+# model's context up front. Past ~30-50 tools, tool-selection accuracy and
+# token cost both blow up (Anthropic "Tool Search Tool", arXiv 2603.20313
+# semantic discovery, modelcontextprotocol discussion #532). We advertise
+# ~147 tools; that is 3-5x over the documented safe ceiling.
+#
+# This block adds an OPT-IN progressive mode. When enabled, `tools/list`
+# returns only a small always-on CORE set plus one bridge-side `search_tools`
+# discovery tool. The model calls `search_tools(query=..., category=...)` to
+# pull the full schemas of just the tools it needs, on demand.
+#
+# Backward compatibility (default OFF):
+#   - UCMCP_TOOL_MODE unset / "all" / "full"  -> tools/list returns every
+#     tool exactly as before. No behaviour change for existing clients.
+#   - UCMCP_TOOL_MODE = "progressive"          -> tools/list returns CORE +
+#     search_tools; everything else is discoverable via search_tools.
+#
+# Crucially, EVERY tool in TOOLS remains directly callable via tools/call in
+# BOTH modes. Progressive mode only changes what is *advertised*, never what
+# is *dispatchable* -- a client that already knows a tool name keeps working.
+# `search_tools` is a bridge-only synthetic: it never reaches the UE server,
+# is not part of the C++ manifest, and is not counted in EXPECTED_TOOL_COUNT.
+# ===========================================================================
+
+# Always-advertised tools in progressive mode. Deliberately tiny: the few
+# observe/orient tools an agent needs before it knows what else to search for,
+# plus the universal Python escape hatch. Keep this list small -- every entry
+# here is permanent context cost.
+CORE_TOOL_NAMES = (
+    "get_project_summary",       # orient: what project / engine / maps
+    "list_tools",                # enumerate registered UE methods
+    "get_actors_in_level",       # observe current world
+    "execute_unreal_python",     # universal escape hatch
+    "take_high_res_screenshot",  # see the result
+    "get_viewport_screenshot",   # see the result (inline)
+    "poll_events",               # async/event awareness
+)
+
+# Coarse workflow categories, matched by keyword against each tool's name +
+# description. Used only to let `search_tools(category=...)` filter; a tool
+# may match several. Ordering is intentional (more specific first) so the
+# single "primary" category reported per tool is the best fit.
+_TOOL_CATEGORIES = (
+    ("sequencer", ("sequence", "sequencer", "keyframe", "camera_cut", "cine_camera", "mrq", "playback")),
+    ("material", ("material", "_mi_", "mi_parameter", "shader", "texture", "ocio", "pbr")),
+    ("blueprint", ("blueprint", "_bp_", "widget", "umg", "anim_blueprint", "node", "pin")),
+    ("niagara", ("niagara", "vfx", "particle")),
+    ("lighting", ("light", "lumen", "nanite", "build_lighting", "post_process", "hdri", "cubemap", "grade")),
+    ("actor", ("actor", "spawn", "transform", "component", "focus", "outliner", "folder")),
+    ("asset", ("asset", "import", "redirector", "data_table", "data_asset", "static_mesh", "skeletal_mesh", "metasound", "sound", "audio")),
+    ("level", ("level", "world", "map", "umap")),
+    ("rendering", ("screenshot", "render", "viewport", "capture", "screen", "png", "gltf")),
+    ("async", ("event", "subscription", "subscribe", "task", "poll", "sleep", "wait")),
+    ("python", ("python", "console", "command", "cvar", "console_variable")),
+    ("inspect", ("inspect", "audit", "find_", "list_", "get_", "compare", "dependency", "reference")),
+)
+
+# Hard caps so a hostile or buggy caller cannot make search_tools do
+# unbounded work or echo back the entire catalog as a single huge result.
+_SEARCH_QUERY_MAX_LEN = 256
+_SEARCH_RESULT_HARD_CAP = 25
+_SEARCH_RESULT_DEFAULT_LIMIT = 8
+
+# The descriptor advertised for the bridge-side discovery tool. Mirrors the
+# MCP tool shape of the entries in TOOLS so clients render it identically.
+SEARCH_TOOLS_DESCRIPTOR = {
+    "name": "search_tools",
+    "description": (
+        "Progressive tool discovery. This server exposes ~147 tools but only a "
+        "small core set is advertised up front to keep context lean. Call this "
+        "to find the full input schemas of the tools you need on demand. Pass a "
+        "free-text `query` (e.g. 'add a camera keyframe', 'import a PBR texture') "
+        "and/or a `category`. Returns the matching tools' name + description + "
+        "inputSchema, ranked by relevance. Every returned tool is callable "
+        "directly via tools/call by its name. Categories: "
+        + ", ".join(c for c, _ in _TOOL_CATEGORIES) + "."
+    ),
+    "inputSchema": {
+        "type": "object",
+        "properties": {
+            "query": {
+                "type": "string",
+                "description": "Free-text intent to match against tool names + descriptions.",
+            },
+            "category": {
+                "type": "string",
+                "description": "Optional workflow category filter (see description for the list).",
+                "enum": [c for c, _ in _TOOL_CATEGORIES],
+            },
+            "limit": {
+                "type": "integer",
+                "description": f"Max tools to return (1..{_SEARCH_RESULT_HARD_CAP}, default {_SEARCH_RESULT_DEFAULT_LIMIT}).",
+                "minimum": 1,
+                "maximum": _SEARCH_RESULT_HARD_CAP,
+            },
+        },
+    },
+}
+
+
+def tool_mode() -> str:
+    """Resolve the advertised-tool mode from the environment, at call time.
+
+    Read on every tools/list so the mode can be flipped without restarting
+    the bridge (and so tests can monkeypatch os.environ). Unknown / unset
+    values fail safe to "all" -- the legacy expose-everything behaviour --
+    so a typo never silently hides tools from a client.
+    """
+    raw = (os.environ.get("UCMCP_TOOL_MODE") or "").strip().lower()
+    if raw in ("progressive", "search", "deferred"):
+        return "progressive"
+    return "all"  # default + any unrecognised value: backward-compatible
+
+
+def _primary_category(tool: dict) -> str | None:
+    """Best-fit single category for a tool, or None if nothing matches."""
+    haystack = (str(tool.get("name", "")) + " " + str(tool.get("description", ""))).lower()
+    for cat, keywords in _TOOL_CATEGORIES:
+        if any(kw in haystack for kw in keywords):
+            return cat
+    return None
+
+
+def core_tools() -> list:
+    """The CORE tools advertised in progressive mode, in CORE_TOOL_NAMES order.
+
+    Resolved against the live TOOLS catalog so a renamed/removed core tool
+    simply drops out rather than advertising a phantom. Always followed by
+    the search_tools descriptor at the call site.
+    """
+    by_name = {t.get("name"): t for t in TOOLS}
+    return [by_name[n] for n in CORE_TOOL_NAMES if n in by_name]
+
+
+def advertised_tools() -> list:
+    """Tools to return from tools/list, honouring the current tool_mode().
+
+    - "all" (default): the full TOOLS catalog, byte-for-byte as before.
+    - "progressive": CORE tools + the search_tools discovery descriptor.
+    """
+    if tool_mode() == "progressive":
+        return core_tools() + [SEARCH_TOOLS_DESCRIPTOR]
+    return TOOLS
+
+
+def _score_tool(tool: dict, query_tokens: list, raw_query: str) -> int:
+    """Cheap, deterministic relevance score for a tool against a query.
+
+    No external deps (no embeddings) so the bridge stays a single zero-install
+    file. Scoring is purely lexical over the static catalog text:
+      - exact tool-name substring of the whole query    -> strong boost
+      - each query token found in the tool name          -> medium
+      - each query token found in the description        -> small
+    Returns 0 when nothing matches (caller drops it).
+    """
+    name = str(tool.get("name", "")).lower()
+    desc = str(tool.get("description", "")).lower()
+    score = 0
+    if raw_query and raw_query in name:
+        score += 50
+    for tok in query_tokens:
+        if tok in name:
+            score += 10
+        elif tok in desc:
+            score += 3
+    return score
+
+
+def search_tools_impl(args: dict) -> dict:
+    """Pure, side-effect-free tool discovery over the static TOOLS catalog.
+
+    SECURITY / fail-closed contract:
+      - Validates every input type; never raises on bad input -- returns a
+        structured `{"ok": False, "error_code": ...}` payload instead.
+      - Reads ONLY the in-process TOOLS list. It touches no filesystem, runs
+        no code, opens no socket, and interpolates nothing into a shell or
+        Python string. `query`/`category` are matched as plain lowercased
+        substrings -- there is no path, glob, or expression evaluation, so
+        path-traversal / injection inputs are inert data, not vectors.
+      - Never surfaces a tool that is not already in the publicly-advertised
+        TOOLS catalog. There are no hidden/internal handlers to leak: the
+        bridge-only `search_tools` descriptor itself is deliberately excluded
+        from results (a client already has it).
+      - Bounded work: query length is capped and the result count is hard-
+        capped (`_SEARCH_RESULT_HARD_CAP`) regardless of the requested limit.
+
+    Returns a plain result dict (NOT a JSON-RPC envelope); the caller wraps it
+    via _wrap_tool_result so logical errors ride back as ok:false success
+    envelopes, matching every other synthetic tool.
+    """
+    if not isinstance(args, dict):
+        return {"ok": False, "error_code": "invalid_arguments",
+                "message": "search_tools: arguments must be an object"}
+
+    query = args.get("query", "")
+    category = args.get("category")
+    limit = args.get("limit", _SEARCH_RESULT_DEFAULT_LIMIT)
+
+    # --- validate query -----------------------------------------------------
+    if query is None:
+        query = ""
+    if not isinstance(query, str):
+        return {"ok": False, "error_code": "invalid_query",
+                "message": "search_tools: 'query' must be a string"}
+    if len(query) > _SEARCH_QUERY_MAX_LEN:
+        return {"ok": False, "error_code": "query_too_long",
+                "message": f"search_tools: 'query' exceeds {_SEARCH_QUERY_MAX_LEN} characters"}
+
+    # --- validate category --------------------------------------------------
+    valid_categories = {c for c, _ in _TOOL_CATEGORIES}
+    if category is not None:
+        if not isinstance(category, str):
+            return {"ok": False, "error_code": "invalid_category",
+                    "message": "search_tools: 'category' must be a string"}
+        category = category.strip().lower()
+        if category and category not in valid_categories:
+            return {"ok": False, "error_code": "unknown_category",
+                    "message": f"search_tools: unknown category '{category}'. "
+                               f"Valid: {sorted(valid_categories)}"}
+        if not category:
+            category = None
+
+    # --- validate limit -----------------------------------------------------
+    if isinstance(limit, bool) or not isinstance(limit, int):
+        return {"ok": False, "error_code": "invalid_limit",
+                "message": "search_tools: 'limit' must be an integer"}
+    if limit < 1:
+        return {"ok": False, "error_code": "invalid_limit",
+                "message": "search_tools: 'limit' must be >= 1"}
+    limit = min(limit, _SEARCH_RESULT_HARD_CAP)
+
+    raw_query = query.strip().lower()
+    query_tokens = [t for t in raw_query.replace("_", " ").split() if t]
+
+    # An empty query with no category would match everything; require at least
+    # one of the two so the model gives a real signal (and we never dump the
+    # whole catalog through the search path -- that defeats the purpose).
+    if not raw_query and not category:
+        return {"ok": False, "error_code": "empty_search",
+                "message": "search_tools: supply a 'query' and/or a 'category'."}
+
+    # Hoist the category-keyword lookup out of the loop: build the {category: keywords}
+    # map ONCE (it was rebuilt up to 147x before, since _TOOL_CATEGORIES is a tuple of
+    # pairs) and cache each tool's primary category so it is computed once here, not
+    # again during result construction.
+    _cat_map = dict(_TOOL_CATEGORIES)
+    cat_keywords = _cat_map.get(category, ()) if category is not None else ()
+    matches = []
+    for tool in TOOLS:
+        pc = _primary_category(tool)
+        if category is not None and pc != category:
+            # Also allow a secondary keyword hit so category isn't too strict.
+            haystack = (str(tool.get("name", "")) + " " + str(tool.get("description", ""))).lower()
+            if not any(kw in haystack for kw in cat_keywords):
+                continue
+
+        if raw_query:
+            score = _score_tool(tool, query_tokens, raw_query)
+            if score <= 0:
+                continue
+        else:
+            score = 1  # category-only browse: flat score, name-sorted below
+
+        matches.append((score, tool, pc))
+
+    # Sort by score desc, then name asc for stable deterministic output.
+    matches.sort(key=lambda st: (-st[0], str(st[1].get("name", ""))))
+
+    results = []
+    for _score, tool, pc in matches[:limit]:
+        entry = {
+            "name": tool.get("name"),
+            "description": tool.get("description"),
+            "inputSchema": tool.get("inputSchema"),
+            "category": pc,
+        }
+        # Carry through engine gating so the model doesn't pick a tool the
+        # connected editor can't run (same metadata the real catalog exposes).
+        if tool.get("min_engine_version"):
+            entry["min_engine_version"] = tool["min_engine_version"]
+        results.append(entry)
+
+    return {
+        "ok": True,
+        "query": query,
+        "category": category,
+        "total_matches": len(matches),
+        "returned": len(results),
+        "tools": results,
+        "hint": (
+            "Call any returned tool directly via tools/call using its 'name'. "
+            "All ~147 tools remain callable even though only a core set is "
+            "advertised in progressive mode."
+        ),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -8474,13 +8780,23 @@ def handle(req: dict) -> dict | None:
         })
 
     if method == "tools/list":
-        return make_response(req_id, {"tools": TOOLS})
+        # Honour progressive disclosure when UCMCP_TOOL_MODE=progressive;
+        # defaults to the full catalog for backward compatibility.
+        return make_response(req_id, {"tools": advertised_tools()})
 
     if method == "tools/call":
         tool_name = params.get("name")
         tool_args = params.get("arguments", {}) or {}
         if not tool_name:
             return make_response(req_id, error={"code": -32602, "message": "tools/call missing 'name'"})
+
+        # Bridge-only progressive-disclosure discovery tool. Served entirely
+        # in-process: it never crosses the wire to UE and is always callable
+        # regardless of tool_mode() (so a client that found it in progressive
+        # mode can keep using it even if the mode flag changes). Pure, fail-
+        # closed: see search_tools_impl's security contract.
+        if tool_name == "search_tools":
+            return _wrap_tool_result(req_id, search_tools_impl(tool_args))
 
         # Synthetic tools are served bridge-side without a UE round-trip
         # (or, in wait_for_events's case, with multiple UE round-trips
