@@ -30,7 +30,7 @@
 
 <div align="center">
 
-**Native C++ handlers — not Python Remote Execution.** ~50 ms round-trips across 146 tools · 580 tests · MIT · works with any MCP-compliant client (Claude Code, Cursor, Cline, Codex, Gemini, Continue, Windsurf, Zed, …).
+**Native C++ handlers — not Python Remote Execution.** ~50 ms round-trips across 147 tools · 607 tests · MIT · works with any MCP-compliant client (Claude Code, Cursor, Cline, Codex, Gemini, Continue, Windsurf, Zed, …).
 
 The suite now spans **inspection and authoring** — read existing assets and *create* them: actors, levels, data tables/assets, Blueprints (incl. K2 graph nodes), material graphs, **Niagara FX, Level Sequence cinematics (camera cuts, audio, visibility), and Movie Render Queue renders** — all over the same socket.
 
@@ -97,7 +97,7 @@ Also discoverable in the [official MCP Registry](https://github.com/modelcontext
 - [How it fits together](#how-it-fits-together) — architecture diagram + per-call sequence
 - [Why it exists](#why-it-exists) — the UE 5.7 Python dead-ends this plugin sidesteps
 - [Why MCP specifically](#why-mcp-specifically) — one protocol, every conforming client
-- [Tools](#tools) — 146 tools grouped into 15 expandable categories
+- [Tools](#tools) — 147 tools grouped into 15 expandable categories
 - [Quick start](#quick-start) — copy-paste path to a running editor with the plugin live
 - [What's in the box](#whats-in-the-box) — directory tree
 - [Status](#status) — release / test / build state

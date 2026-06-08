@@ -2346,12 +2346,18 @@ def search_tools_impl(args: dict) -> dict:
         return {"ok": False, "error_code": "empty_search",
                 "message": "search_tools: supply a 'query' and/or a 'category'."}
 
+    # Hoist the category-keyword lookup out of the loop: build the {category: keywords}
+    # map ONCE (it was rebuilt up to 147x before, since _TOOL_CATEGORIES is a tuple of
+    # pairs) and cache each tool's primary category so it is computed once here, not
+    # again during result construction.
+    _cat_map = dict(_TOOL_CATEGORIES)
+    cat_keywords = _cat_map.get(category, ()) if category is not None else ()
     matches = []
     for tool in TOOLS:
-        if category is not None and _primary_category(tool) != category:
+        pc = _primary_category(tool)
+        if category is not None and pc != category:
             # Also allow a secondary keyword hit so category isn't too strict.
             haystack = (str(tool.get("name", "")) + " " + str(tool.get("description", ""))).lower()
-            cat_keywords = dict(_TOOL_CATEGORIES).get(category, ())
             if not any(kw in haystack for kw in cat_keywords):
                 continue
 
@@ -2362,18 +2368,18 @@ def search_tools_impl(args: dict) -> dict:
         else:
             score = 1  # category-only browse: flat score, name-sorted below
 
-        matches.append((score, tool))
+        matches.append((score, tool, pc))
 
     # Sort by score desc, then name asc for stable deterministic output.
     matches.sort(key=lambda st: (-st[0], str(st[1].get("name", ""))))
 
     results = []
-    for _score, tool in matches[:limit]:
+    for _score, tool, pc in matches[:limit]:
         entry = {
             "name": tool.get("name"),
             "description": tool.get("description"),
             "inputSchema": tool.get("inputSchema"),
-            "category": _primary_category(tool),
+            "category": pc,
         }
         # Carry through engine gating so the model doesn't pick a tool the
         # connected editor can't run (same metadata the real catalog exposes).
