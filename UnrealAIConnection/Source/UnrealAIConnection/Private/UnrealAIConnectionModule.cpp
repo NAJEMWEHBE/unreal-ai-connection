@@ -109,6 +109,10 @@ extern TSharedRef<IUCMCPHandler> Make_Handler_ListTasks();
 extern TSharedRef<IUCMCPHandler> Make_Handler_ExecPythonPersistent();
 extern TSharedRef<IUCMCPHandler> Make_Handler_ResetPythonState();
 extern TSharedRef<IUCMCPHandler> Make_Handler_RenderCameraToPng();
+// See-the-result loop (v0.9.x): project-dir-confined viewport PNG +
+// frame-actor/location-orientation viewport aiming.
+extern TSharedRef<IUCMCPHandler> Make_Handler_TakeScreenshot();
+extern TSharedRef<IUCMCPHandler> Make_Handler_FocusViewport();
 extern TSharedRef<IUCMCPHandler> Make_Handler_FindConsoleVariables();
 extern TSharedRef<IUCMCPHandler> Make_Handler_InspectStaticMesh();
 extern TSharedRef<IUCMCPHandler> Make_Handler_InspectNiagaraSystem();
@@ -238,6 +242,8 @@ void FUnrealAIConnectionModule::StartupModule()
     Reg.Register(Make_Handler_ExecPythonPersistent());
     Reg.Register(Make_Handler_ResetPythonState());
     Reg.Register(Make_Handler_RenderCameraToPng());
+    Reg.Register(Make_Handler_TakeScreenshot());
+    Reg.Register(Make_Handler_FocusViewport());
     Reg.Register(Make_Handler_FindConsoleVariables());
     Reg.Register(Make_Handler_InspectStaticMesh());
     Reg.Register(Make_Handler_InspectNiagaraSystem());

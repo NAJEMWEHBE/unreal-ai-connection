@@ -13,7 +13,7 @@ plugin speaks raw JSON-RPC over a local TCP socket (default
 Behaviour:
   - "initialize"             returned synthetically (does NOT hit the UE server)
   - "notifications/*"        consumed silently
-  - "tools/list"             returns a static list of all 147 tools (110
+  - "tools/list"             returns a static list of all 149 tools (112
                              dispatched to the UE plugin's C++ handlers
                              plus 37 bridge-side synthetic tools served by
                              SYNTHETIC_TOOLS without crossing the wire as
@@ -510,6 +510,33 @@ TOOLS = [
                 "fov": {"type": "number", "description": "Optional horizontal field of view in degrees; overrides the viewport / capture FOV for this render only."},
             },
             "required": ["out_path"],
+        },
+    },
+    {
+        "name": "take_screenshot",
+        "description": "Capture the active level-editor viewport as a PNG and write it to a path that MUST resolve UNDER the UE project directory (paths escaping the project — e.g. via '..' — are rejected). Unlike render_camera_to_png (writes anywhere via an absolute path), this is the project-confined, size-capped variant for the see-the-result loop. When width and height are both supplied they cap the output via an off-screen SceneCapture2D matching the viewport camera (each clamped to a hard 7680 px ceiling); otherwise the live viewport is captured at its current size. Synchronous redraw, so it works headless/backgrounded where deferred screenshots return blank.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "out_path": {"type": "string", "description": "Destination .png path. Relative paths resolve against the project dir; absolute paths must already be under it. A '.png' extension is appended if missing. Parent dirs are created as needed."},
+                "width": {"type": "integer", "minimum": 1, "description": "Optional output width in pixels (capped at 7680; clamped, not rejected). Triggers an off-screen capture only when BOTH width and height are > 0; otherwise ignored and the live viewport size is used."},
+                "height": {"type": "integer", "minimum": 1, "description": "Optional output height in pixels (capped at 7680; clamped, not rejected). See width."},
+                "fov": {"type": "number", "exclusiveMinimum": 0, "description": "Optional horizontal field of view in degrees; overrides the viewport / capture FOV for this capture only."},
+            },
+            "required": ["out_path"],
+        },
+    },
+    {
+        "name": "focus_viewport",
+        "description": "Aim the active level-editor viewport. Supply EXACTLY ONE of: 'actor' (frame that named actor — label or unique name — like focus_actor) OR 'location' (snap the camera to an explicit world location, with optional 'rotation' and 'fov'). Supplying both, or neither, is an error. Use this to frame a freshly spawned or edited actor before take_screenshot.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "actor": {"type": "string", "description": "Actor label or unique object name to select and frame. Mutually exclusive with 'location'."},
+                "location": {"type": "object", "description": "World-space camera location {x, y, z}. Mutually exclusive with 'actor'.", "properties": {"x": {"type": "number"}, "y": {"type": "number"}, "z": {"type": "number"}}},
+                "rotation": {"type": "object", "description": "Optional camera orientation {pitch, yaw, roll} in degrees, used only with 'location' (defaults to identity-forward when omitted).", "properties": {"pitch": {"type": "number"}, "yaw": {"type": "number"}, "roll": {"type": "number"}}},
+                "fov": {"type": "number", "exclusiveMinimum": 0, "description": "Optional horizontal field of view in degrees, used only with 'location'; overrides the viewport FOV."},
+            },
         },
     },
     {

@@ -1,6 +1,6 @@
 # MCP Tools Reference
 
-**147 tools total.** 110 are JSON-RPC 2.0 methods served on `127.0.0.1:18888` directly by the plugin's C++ handlers. The remaining 37 — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`, `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap`, `sequencer_add_transform_keyframe`, `import_mesh`, `material_auto_remap`, `batch_capture_cameras`, `batch_spawn_from_csv` — are bridge-side **synthetic tools** that are intercepted by `bridge/unreal_ai_connection_bridge.py` and served by composing existing handlers (or running Python via `execute_unreal_python`, or — for `compile_mod_pak` — shelling out to `RunUAT.bat` entirely outside the UE process). They are visible to MCP clients exactly like the C++ tools but cannot be reached by sending raw JSON-RPC to the TCP socket — only via the MCP bridge or by replicating their composition manually. The "Implementation" header on each entry below indicates whether a tool is C++ or bridge-side.
+**149 tools total.** 112 are JSON-RPC 2.0 methods served on `127.0.0.1:18888` directly by the plugin's C++ handlers. The remaining 37 — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`, `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap`, `sequencer_add_transform_keyframe`, `import_mesh`, `material_auto_remap`, `batch_capture_cameras`, `batch_spawn_from_csv` — are bridge-side **synthetic tools** that are intercepted by `bridge/unreal_ai_connection_bridge.py` and served by composing existing handlers (or running Python via `execute_unreal_python`, or — for `compile_mod_pak` — shelling out to `RunUAT.bat` entirely outside the UE process). They are visible to MCP clients exactly like the C++ tools but cannot be reached by sending raw JSON-RPC to the TCP socket — only via the MCP bridge or by replicating their composition manually. The "Implementation" header on each entry below indicates whether a tool is C++ or bridge-side.
 
 Each tool's params and result are documented with a working example.
 
@@ -180,6 +180,80 @@ Two render modes, selected automatically:
 | `read_failed` | `ReadPixels` returned false or an empty bitmap. |
 | `encode_failed` | PNG compression produced empty output. |
 | `write_failed` | Could not write the PNG to `out_path` (path/permissions). |
+
+---
+
+## take_screenshot
+
+Capture the active level-editor viewport as a PNG to a **project-confined** path with **width/height caps**. Closes the see-the-result loop with a safe, project-relative output. Distinct from the other screenshot tools: `get_viewport_screenshot` returns base64 inline (no file); `render_camera_to_png` writes to an **absolute** path **anywhere** on disk; `take_high_res_screenshot` uses `HighResShot` into the fixed `Saved/Screenshots` dir. `take_screenshot` **rejects any path that resolves outside the UE project directory** (including `..` traversal) and **clamps** width/height to a hard 7680-px ceiling. Uses the same synchronous draw chain as `render_camera_to_png`, so it works headless / backgrounded.
+
+Two modes, selected automatically:
+
+- **Viewport mode** (default) — synchronously redraws the active viewport and reads its pixels at the current size. Used when `width`/`height` are not both supplied.
+- **Off-screen mode** — when both `width` and `height` are > 0, spawns a transient `ASceneCapture2D` matching the viewport camera and captures at the requested resolution (each axis clamped to 1..7680).
+
+**Params**
+- `out_path` (string, required) — destination `.png` path. A **relative** path resolves under the project dir; an **absolute** path must already be under it. A `.png` extension is appended if missing, and parent directories are created as needed.
+- `width` (int, optional) — output width in pixels; capped at 7680 (clamped, not rejected). Triggers off-screen mode only when both `width` and `height` are > 0.
+- `height` (int, optional) — output height in pixels; capped at 7680 (clamped). See `width`.
+- `fov` (number, optional) — horizontal field of view in degrees; overrides the capture FOV for this capture only.
+
+**Result**
+- `ok` (bool)
+- `path` (string) — the resolved `.png` path that was written
+- `width`, `height` (int) — pixel dimensions of the written PNG
+- `bytes` (int) — size of the PNG file written
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"take_screenshot","params":{
+  "out_path": "Saved/Screenshots/hero.png",
+  "width": 1920,
+  "height": 1080
+}}
+```
+```json
+{"jsonrpc":"2.0","id":1,"result":{
+  "ok": true,
+  "path": "F:/MyProject/Saved/Screenshots/hero.png",
+  "width": 1920,
+  "height": 1080,
+  "bytes": 1843201
+}}
+```
+
+**Errors:** `take_screenshot: <error_code>: <detail>`. Stable codes: `no_editor`, `bad_param` (missing `out_path`), `path_escapes_project` (resolves outside the project dir), `dir_create_failed`, `no_world`, `no_level_editor`, `no_viewport`, `read_failed`, `encode_failed`, `write_failed`.
+
+---
+
+## focus_viewport
+
+Aim the active level-editor viewport, either by **framing a named actor** or by **snapping the camera to an explicit location + orientation**. Companion to `focus_actor` (which only frames a named actor and changes selection): `focus_viewport` adds the location/orientation branch and is the "look at the result" step before `take_screenshot`. Supply **exactly one** of `actor` or `location`.
+
+**Params** (exactly one of `actor` / `location` required)
+- `actor` (string) — actor label or unique name to select and frame (uses `MoveViewportCamerasToActor`). Mutually exclusive with `location`.
+- `location` (object) — `{x, y, z}` world-space camera location. Mutually exclusive with `actor`.
+- `rotation` (object, optional) — `{pitch, yaw, roll}` in degrees; used only with `location` (defaults to identity-forward when omitted).
+- `fov` (number, optional) — horizontal field of view in degrees; used only with `location`.
+
+**Result**
+- `ok` (bool)
+- `mode` (string) — `"actor"` or `"location"`
+- `focused` (string), `name` (string) — actor label / unique name (actor mode only)
+- `location` (object) — `{x, y, z}`
+- `rotation` (object) — `{pitch, yaw, roll}` (location mode only)
+- `fov` (number) — effective FOV (location mode only)
+
+**Example**
+```json
+{"jsonrpc":"2.0","id":1,"method":"focus_viewport","params":{
+  "location": {"x": 0, "y": -600, "z": 250},
+  "rotation": {"pitch": -15, "yaw": 90, "roll": 0},
+  "fov": 60
+}}
+```
+
+**Errors:** `focus_viewport: <error_code>: <detail>`. Stable codes: `no_editor`, `no_world`, `missing_target` (neither `actor` nor `location`), `ambiguous_target` (both supplied), `actor_not_found`, `no_level_editor`, `no_viewport`.
 
 ---
 
