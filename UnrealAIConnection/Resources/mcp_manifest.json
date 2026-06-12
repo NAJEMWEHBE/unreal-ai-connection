@@ -1,7 +1,7 @@
 {
  "name": "UnrealAIConnection",
  "version": "0.9.1",
- "description": "Drive Unreal Engine 5.7 from any MCP-compliant client over a local TCP socket. 149 tools total (112 native C++ handlers plus 37 bridge-side synthetic tools) that work with any UE 5.7 project.",
+ "description": "Drive Unreal Engine 5.7 from any MCP-compliant client over a local TCP socket. 151 tools total (114 native C++ handlers plus 37 bridge-side synthetic tools) that work with any UE 5.7 project.",
  "transport": {
   "type": "tcp",
   "host": "127.0.0.1",
@@ -134,13 +134,21 @@
   },
   {
    "name": "get_viewport_screenshot",
-   "description": "Capture the active editor viewport as base64 PNG.",
-   "params": {},
+   "description": "Capture the active editor viewport as a PNG written to disk (project-confined), forcing a fresh frame first (throttle-proof). Optional small base64 thumbnail.",
+   "params": {
+    "out_path": "string (optional) - output .png path, confined under the project dir; default Saved/AIConnection/Screenshots/viewport_<utc>.png",
+    "include_thumb": "bool (optional, default false) - also return thumb_base64",
+    "thumb_max_dim": "int (optional, 64 to 1024, default 320) - max thumbnail dimension"
+   },
    "returns": {
+    "ok": "bool",
+    "path": "string",
     "width": "int",
     "height": "int",
-    "png_bytes": "int",
-    "png_base64": "string"
+    "bytes": "int",
+    "thumb_base64": "string (only with include_thumb)",
+    "thumb_width": "int (only with include_thumb)",
+    "thumb_height": "int (only with include_thumb)"
    }
   },
   {
@@ -1149,6 +1157,34 @@
     "dropped": "bool",
     "events": "array of {seq, event, ts, data}",
     "note": "string (only when dropped=true)"
+   }
+  },
+  {
+   "name": "start_python_task",
+   "description": "Execute inline Python code as an ASYNC task on the game thread (later tick). Returns task_id immediately; poll via poll_task. Use for long ops instead of execute_unreal_python. cancel_task only works before execution starts.",
+   "params": {
+    "code": "string (required) - Python source code to execute"
+   },
+   "returns": {
+    "ok": "bool",
+    "task_id": "string",
+    "type": "string (= 'python')",
+    "status": "string (= 'pending')",
+    "note": "string"
+   }
+  },
+  {
+   "name": "start_python_file_task",
+   "description": "Execute a .py file as an ASYNC task on the game thread (later tick). Returns task_id immediately; poll via poll_task. Use for long ops instead of run_python_file. cancel_task only works before execution starts.",
+   "params": {
+    "path": "string (required) - absolute or relative path to a .py file (must exist)"
+   },
+   "returns": {
+    "ok": "bool",
+    "task_id": "string",
+    "type": "string (= 'python_file')",
+    "status": "string (= 'pending')",
+    "note": "string"
    }
   },
   {

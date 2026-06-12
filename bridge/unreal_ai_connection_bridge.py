@@ -13,7 +13,7 @@ plugin speaks raw JSON-RPC over a local TCP socket (default
 Behaviour:
   - "initialize"             returned synthetically (does NOT hit the UE server)
   - "notifications/*"        consumed silently
-  - "tools/list"             returns a static list of all 149 tools (112
+  - "tools/list"             returns a static list of all 151 tools (112
                              dispatched to the UE plugin's C++ handlers
                              plus 37 bridge-side synthetic tools served by
                              SYNTHETIC_TOOLS without crossing the wire as
@@ -494,8 +494,15 @@ TOOLS = [
     },
     {
         "name": "get_viewport_screenshot",
-        "description": "Capture the active editor viewport as a PNG, return base64-encoded inline.",
-        "inputSchema": {"type": "object", "properties": {}},
+        "description": "Capture the active editor viewport as a PNG written to DISK (project-confined), returning the file path + dimensions. Forces a fresh frame first, so the capture is correct even when the editor is backgrounded/Slate-throttled. Optionally returns a small base64 thumbnail for quick inline look checks. (v0.10: no longer returns the full image base64-inline -- that produced multi-MB tool results.)",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "out_path": {"type": "string", "description": "Optional output .png path; relative paths resolve against the project dir and the result MUST stay under the project dir. Default: Saved/AIConnection/Screenshots/viewport_<utc>.png."},
+                "include_thumb": {"type": "boolean", "description": "When true, also return thumb_base64 -- a small PNG thumbnail (default false)."},
+                "thumb_max_dim": {"type": "integer", "minimum": 64, "maximum": 1024, "description": "Max thumbnail dimension in pixels (64..1024, default 320). Only used with include_thumb."},
+            },
+        },
     },
     {
         "name": "render_camera_to_png",
@@ -788,7 +795,7 @@ TOOLS = [
     },
     {
         "name": "take_high_res_screenshot",
-        "description": "Trigger UE's HighResShot. Output -> Saved/Screenshots/<Platform>Editor/ (Windows/Mac/Linux). Optional multiplier (1..8).",
+        "description": "Trigger UE's HighResShot. Output -> Saved/Screenshots/<Platform>Editor/ (Windows/Mac/Linux). Optional multiplier (1..8). v0.10: forces a viewport redraw after dispatch (throttle-proof when backgrounded) and scans once for the new file -- response includes found + path when the PNG already landed; the write can be async, so poll the dir when found=false.",
         "inputSchema": {
             "type": "object",
             "properties": {"multiplier": {"type": "number", "default": 1, "description": "Resolution multiplier applied to the viewport size (1..8). Default 1."}},
@@ -1426,7 +1433,7 @@ TOOLS = [
     },
     {
         "name": "run_python_file",
-        "description": "Execute a .py file from disk via the editor's embedded Python. Complement to execute_unreal_python -- avoids escaping pain for non-trivial scripts. Output capture caveat: ExecuteFile mode does not return stdout/eval-result; use unreal.log marker + get_log_lines to round-trip results.",
+        "description": "Execute a .py file from disk via the editor's embedded Python. Complement to execute_unreal_python -- avoids escaping pain for non-trivial scripts. SYNCHRONOUS: blocks the dispatch tick until the script finishes; for long ops (FBX imports, builds, bakes) use start_python_file_task instead or the call will hit the 30s RPC timeout. Output capture caveat: ExecuteFile mode does not return stdout/eval-result; use unreal.log marker + get_log_lines to round-trip results.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -1560,6 +1567,28 @@ TOOLS = [
                 "duration_ms": {"type": "integer", "minimum": 1, "description": "How long the task should sleep (1 to 3600000 ms / 1 hour). Required."},
             },
             "required": ["duration_ms"],
+        },
+    },
+    {
+        "name": "start_python_task",
+        "description": "Execute inline Python code as an ASYNC task: returns a task_id immediately (no 30s RPC timeout risk), the code runs on the game thread on a later tick. Use for long ops (FBX imports, builds, bakes) instead of execute_unreal_python. The editor is busy while the script runs. Poll with poll_task; result fields: ok, output, log_output (capped 64KB). Output caveat: emit results via unreal.log markers -- they land in log_output. cancel_task only works before execution starts.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "code": {"type": "string", "description": "Python source code to execute."},
+            },
+            "required": ["code"],
+        },
+    },
+    {
+        "name": "start_python_file_task",
+        "description": "Execute a .py file as an ASYNC task: returns a task_id immediately (no 30s RPC timeout risk), the script runs on the game thread on a later tick. Use for long ops (FBX imports, builds, bakes) instead of run_python_file. The editor is busy while the script runs. Poll with poll_task; result fields: ok, output, log_output (capped 64KB). Output caveat: emit results via unreal.log markers -- they land in log_output. cancel_task only works before execution starts.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "Absolute or relative path to a .py file (must exist)."},
+            },
+            "required": ["path"],
         },
     },
     {
@@ -2170,6 +2199,34 @@ CORE_TOOL_NAMES = (
     "poll_events",               # async/event awareness
 )
 
+# Curated daily-driver profile, measured from real production sessions
+# (HDM rebuild-v2 benchmark, 2026-06): the tools actually used to assemble,
+# light, texture and capture a full broadcast set, plus the async-task
+# family that replaces sync python for long ops. Sits between CORE (7) and
+# the full catalog (149): big enough to drive a session without
+# search_tools round-trips, small enough to cut the advertised-schema
+# weight ~75% for clients that don't defer tool schemas.
+LEAN_TOOL_NAMES = (
+    # orient
+    "get_project_summary", "get_engine_version", "list_levels", "load_level_by_path",
+    # observe
+    "get_actors_in_level", "find_actors_by_class",
+    # actors
+    "spawn_actor", "delete_actor", "set_actor_transform", "set_actor_property", "focus_actor",
+    # camera
+    "get_camera_transform", "set_camera_transform",
+    # python
+    "execute_unreal_python", "exec_python_persistent", "reset_python_state", "run_python_file",
+    # async tasks
+    "start_python_task", "start_python_file_task", "poll_task", "list_tasks", "cancel_task",
+    # console + logs
+    "execute_console_command", "get_log_lines",
+    # see the result
+    "get_viewport_screenshot", "take_screenshot", "take_high_res_screenshot", "render_camera_to_png",
+    # materials + assets
+    "import_texture", "create_material_instance", "set_mi_parameter", "save_dirty_assets",
+)
+
 # Coarse workflow categories, matched by keyword against each tool's name +
 # description. Used only to let `search_tools(category=...)` filter; a tool
 # may match several. Ordering is intentional (more specific first) so the
@@ -2243,6 +2300,8 @@ def tool_mode() -> str:
     raw = (os.environ.get("UCMCP_TOOL_MODE") or "").strip().lower()
     if raw in ("progressive", "search", "deferred"):
         return "progressive"
+    if raw == "lean":
+        return "lean"
     return "all"  # default + any unrecognised value: backward-compatible
 
 
@@ -2266,14 +2325,28 @@ def core_tools() -> list:
     return [by_name[n] for n in CORE_TOOL_NAMES if n in by_name]
 
 
+def lean_tools() -> list:
+    """The curated LEAN profile, in LEAN_TOOL_NAMES order.
+
+    Same resolution discipline as core_tools(): names missing from the live
+    TOOLS catalog drop out silently rather than advertising a phantom.
+    """
+    by_name = {t.get("name"): t for t in TOOLS}
+    return [by_name[n] for n in LEAN_TOOL_NAMES if n in by_name]
+
+
 def advertised_tools() -> list:
     """Tools to return from tools/list, honouring the current tool_mode().
 
     - "all" (default): the full TOOLS catalog, byte-for-byte as before.
     - "progressive": CORE tools + the search_tools discovery descriptor.
+    - "lean": curated LEAN profile + the search_tools discovery descriptor.
     """
-    if tool_mode() == "progressive":
+    mode = tool_mode()
+    if mode == "progressive":
         return core_tools() + [SEARCH_TOOLS_DESCRIPTOR]
+    if mode == "lean":
+        return lean_tools() + [SEARCH_TOOLS_DESCRIPTOR]
     return TOOLS
 
 
@@ -3029,8 +3102,8 @@ def synthetic_screenshot_actor(req_id, args: dict) -> dict:
         },
         "width": shot_result.get("width"),
         "height": shot_result.get("height"),
-        "png_bytes": shot_result.get("png_bytes"),
-        "png_base64": shot_result.get("png_base64"),
+        "bytes": shot_result.get("bytes"),
+        "path": shot_result.get("path"),
     })
 
 
@@ -5401,7 +5474,7 @@ def synthetic_bulk_focus_actors(req_id, args: dict) -> dict:
                     shot_result = shot_resp.get("result", {}) or {}
                     screenshots.append({
                         "name": name,
-                        "png_base64": shot_result.get("png_base64"),
+                        "path": shot_result.get("path"),
                     })
 
         # Settle delay: when screenshot_each=true we sleep BEFORE the
@@ -5502,7 +5575,7 @@ def synthetic_bulk_screenshot_actors(req_id, args: dict) -> dict:
             results.append({
                 "name": name,
                 "ok": True,
-                "png_base64": inner.get("png_base64"),
+                "path": inner.get("path"),
                 "focused": inner.get("focused"),
                 "loc": inner.get("loc"),
             })
