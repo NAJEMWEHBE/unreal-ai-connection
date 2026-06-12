@@ -241,7 +241,7 @@ User brings a real photo. The plugin turns it into an Unreal output — studio b
 
 - One or more photos (JPG / PNG / TGA / BMP / HDR / EXR — anything UE's `Import` path accepts)
 - Optional: external AI-generated 3D mesh from the photo (Meshy / Tripo / Rodin / RealityCapture → FBX or glTF)
-- Optional: target host UE project (defaults to the canonical host at `F:/ax plug in/HDMediaVirtualStudio/HDMediaVirtualStudio.uproject`)
+- Optional: target host UE project (defaults to the canonical host at `F:/ai/ax plug in/HDMediaVirtualStudio/HDMediaVirtualStudio.uproject`)
 
 ### Pre-requisites
 

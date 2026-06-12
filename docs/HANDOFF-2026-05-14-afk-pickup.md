@@ -33,7 +33,7 @@ gh auth login
 Then re-run the PR creation. Suggested title + body live in the rejected `gh pr create` command in this conversation's history; the body is preserved verbatim in the section below ("PR body, ready to paste").
 
 ### 2. UE HighResShot pipeline jammed
-After successfully writing `HighresScreenshot00007` through `00019`, every subsequent `HighResShot` dispatch (both via `mcp__unreal-ai-connection__take_high_res_screenshot` and via direct `execute_console_command(None, 'HighResShot ...')`) reports `dispatched: true` but no new file appears in `F:/ax plug in/HDMediaVirtualStudio/Saved/Screenshots/WindowsEditor/`.
+After successfully writing `HighresScreenshot00007` through `00019`, every subsequent `HighResShot` dispatch (both via `mcp__unreal-ai-connection__take_high_res_screenshot` and via direct `execute_console_command(None, 'HighResShot ...')`) reports `dispatched: true` but no new file appears in `F:/ai/ax plug in/HDMediaVirtualStudio/Saved/Screenshots/WindowsEditor/`.
 
 Diagnostic state at jam time:
 - UE editor process still alive (`get_engine_version` still responds)

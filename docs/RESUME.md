@@ -36,7 +36,7 @@ tests passing.
 
 UE 5.7 editor was alive at compact with the bridge bound on
 `127.0.0.1:18888`. The host project is
-`F:/ax plug in/HDMediaVirtualStudio/HDMediaVirtualStudio.uproject`. If the
+`F:/ai/ax plug in/HDMediaVirtualStudio/HDMediaVirtualStudio.uproject`. If the
 editor has since been closed, relaunch with the **pre-quoted path** (PR #124's
 trap-table entry — `Start-Process -ArgumentList @('path with spaces')`
 silently tokenises and UE falls back to the Project Browser):
