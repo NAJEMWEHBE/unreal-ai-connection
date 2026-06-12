@@ -1,0 +1,7 @@
+{
+  "//": "README intentionally uses inline HTML (<details>/<summary>/<b> for GitHub collapsibles) and compact tables; long lines are fine for prose. Silence the style-only rules so the Problems panel reflects real issues.",
+  "default": true,
+  "MD013": false,
+  "MD033": false,
+  "MD060": false
+}
