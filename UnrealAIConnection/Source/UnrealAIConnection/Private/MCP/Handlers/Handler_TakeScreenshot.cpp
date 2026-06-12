@@ -264,6 +264,13 @@ private:
 
     TSharedPtr<FJsonObject> EncodeToPng(const TArray<FColor>& Bitmap, int32 W, int32 H, const FString& OutPath, FString& OutError)
     {
+        // ReadPixels can return a short/empty buffer on a failed or resized
+        // readback; encoding a mismatched buffer would read out of bounds.
+        if (Bitmap.Num() != W * H)
+        {
+            OutError = FString::Printf(TEXT("take_screenshot: encode_failed: bitmap size mismatch (expected %d pixels for %dx%d, got %d)"), W * H, W, H, Bitmap.Num());
+            return nullptr;
+        }
         TArray64<uint8> PngData;
         UCMCPCompat::EncodePngFColor(W, H, Bitmap, PngData);
         if (PngData.Num() == 0)
