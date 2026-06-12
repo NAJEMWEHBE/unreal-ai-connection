@@ -86,9 +86,16 @@ def set_camera(cam: str) -> None:
 
 # --- comparison ---------------------------------------------------------------
 
+def _rgb_pixels(img):
+    """Pixel tuples of an RGB image without Image.getdata() (deprecated in
+    Pillow 12, removed in 14): per-band tobytes() zipped back together."""
+    r, g, b = (band.tobytes() for band in img.split())
+    return list(zip(r, g, b))
+
+
 def _luma_sat(img):
     """Mean luminance + saturation of a (small) RGB image, 0-255 floats."""
-    px = list(img.getdata())
+    px = _rgb_pixels(img)
     n = max(1, len(px))
     luma = sum(0.2126 * r + 0.7152 * g + 0.0722 * b for r, g, b in px) / n
     sat = sum(max(p) - min(p) for p in px) / n
@@ -112,7 +119,7 @@ def compare(capture_path: str, ref_path: str, composite_path: str) -> dict:
     # Metrics on a normalized small grid so resolution doesn't matter.
     small_cap = cap.resize((96, 54))
     small_ref = ref.resize((96, 54))
-    cap_px, ref_px = list(small_cap.getdata()), list(small_ref.getdata())
+    cap_px, ref_px = _rgb_pixels(small_cap), _rgb_pixels(small_ref)
     mean_rgb_delta = sum(
         (abs(c[0] - r[0]) + abs(c[1] - r[1]) + abs(c[2] - r[2])) / 3.0
         for c, r in zip(cap_px, ref_px)) / len(cap_px)
