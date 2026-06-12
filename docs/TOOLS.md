@@ -4302,7 +4302,7 @@ When no `class_filter` is supplied, the synthetic falls back to `/Script/CoreUOb
 **Params**
 - `path_under` (string, optional, default `/Game`) — folder to scan recursively
 - `class_filter` (string, optional) — UE class path (e.g. `/Script/Engine.Texture2D`) to scan only assets of one type
-- `limit` (integer, optional, default 100, max 10000) — max unused assets to return; scan stops once this many are found
+- `limit` (integer, optional, default 100, max 500 — the underlying find_assets scan is capped at 500 candidates engine-side) — max unused assets to return; scan stops once this many are found
 
 **Result**
 - `ok` (bool) — always `true` on success (use the envelope-level error for failures)

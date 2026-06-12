@@ -145,8 +145,8 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "action": {"type": "string", "description": "One of: start, stop, query."},
-                "mode": {"type": "string", "description": "Only used when action=start. 'play' (default) launches a full PIE session in the active viewport; 'simulate' ticks the world without spawning a Player Controller."},
+                "action": {"type": "string", "enum": ["start", "stop", "query"], "description": "One of: start, stop, query."},
+                "mode": {"type": "string", "enum": ["play", "simulate"], "default": "play", "description": "Only used when action=start. 'play' (default) launches a full PIE session in the active viewport; 'simulate' ticks the world without spawning a Player Controller."},
             },
             "required": ["action"],
         },
@@ -201,8 +201,8 @@ TOOLS = [
                     "description": "Optional UE class path filter (e.g. /Script/Engine.Texture2D) to scan only assets of one type."
                 },
                 "limit": {
-                    "type": "integer",
-                    "description": "Max unused assets to return (default 100, max 10000). Scan halts once this many unused are found OR the scan exhausts."
+                    "type": "integer", "minimum": 1, "maximum": 500, "default": 100,
+                    "description": "Max unused assets to return (default 100, max 500 — the underlying find_assets scan is capped at 500 candidates engine-side). Scan halts once this many unused are found OR the scan exhausts."
                 },
             },
         },
@@ -218,7 +218,7 @@ TOOLS = [
                     "description": "Root asset path to walk from. Required."
                 },
                 "depth": {
-                    "type": "integer",
+                    "type": "integer", "minimum": 1, "maximum": 8, "default": 3,
                     "description": "BFS depth bound. Default 3, max 8 (8 hops is already a vast subgraph in any non-trivial project)."
                 },
                 "direction": {
@@ -296,7 +296,7 @@ TOOLS = [
                     "description": "Actor labels or unique names; each non-empty, max 100 entries."
                 },
                 "delay_ms": {
-                    "type": "integer",
+                    "type": "integer", "minimum": 0, "maximum": 10000, "default": 500,
                     "description": "Settle delay between focus calls in milliseconds (default 500, max 10000). Sleeps BETWEEN calls, not after the last."
                 },
                 "screenshot_each": {
@@ -319,7 +319,7 @@ TOOLS = [
                     "description": "Actor labels or unique names; each non-empty, max 50 entries (smaller cap than bulk_focus_actors because each entry yields a PNG)."
                 },
                 "delay_ms": {
-                    "type": "integer",
+                    "type": "integer", "minimum": 0, "maximum": 10000, "default": 500,
                     "description": "Settle delay between actors in milliseconds (default 500, max 10000). Sleeps BETWEEN actors, not after the last."
                 },
             },
@@ -404,7 +404,7 @@ TOOLS = [
                     "description": "Root asset path to walk from."
                 },
                 "depth": {
-                    "type": "integer",
+                    "type": "integer", "minimum": 1, "maximum": 8, "default": 2,
                     "description": "BFS depth bound. Default 2, range 1..8 (the bidirectional sweep can produce a vast subgraph past depth 4 in any non-trivial project)."
                 },
                 "include_referencers": {
@@ -412,7 +412,7 @@ TOOLS = [
                     "description": "Default false. When true, also follow referencers upward in the same BFS; edges record direction ('up' for referencer edges, 'down' for dependency edges)."
                 },
                 "max_nodes": {
-                    "type": "integer",
+                    "type": "integer", "minimum": 1, "maximum": 100000, "default": 100,
                     "description": "Cap on distinct nodes visited. Default 100, range 1..100000. Once hit, frontier expansion halts and `truncated`=true. The root counts as node 1. Raise for an exhaustive sweep."
                 },
             },
@@ -469,7 +469,7 @@ TOOLS = [
         "description": "Read the widget hierarchy of a UWidgetBlueprint or UEditorUtilityWidgetBlueprint.",
         "inputSchema": {
             "type": "object",
-            "properties": {"path": {"type": "string"}},
+            "properties": {"path": {"type": "string", "description": "Widget Blueprint asset path (UWidgetBlueprint or UEditorUtilityWidgetBlueprint)."}},
             "required": ["path"],
         },
     },
@@ -480,7 +480,7 @@ TOOLS = [
             "type": "object",
             "properties": {
                 "path": {"type": "string", "description": "Widget BP asset path"},
-                "op": {"type": "string", "enum": ["set_root", "add_child", "set_property"]},
+                "op": {"type": "string", "enum": ["set_root", "add_child", "set_property"], "description": "Mutation to perform: 'set_root' sets the tree root, 'add_child' nests a widget under a parent panel, 'set_property' assigns a UProperty on an existing widget."},
                 "class": {"type": "string", "description": "VerticalBox|HorizontalBox|CanvasPanel|TextBlock|Button|Border|Image|Spacer|EditableTextBox or fully-qualified class path"},
                 "name": {"type": "string", "description": "widget name to assign"},
                 "parent": {"type": "string", "description": "for add_child: the parent panel widget name"},
@@ -746,7 +746,7 @@ TOOLS = [
         "description": "Select an actor by label or unique name and frame the editor viewport on it.",
         "inputSchema": {
             "type": "object",
-            "properties": {"name": {"type": "string"}},
+            "properties": {"name": {"type": "string", "description": "Actor label or unique object name to select and frame in the viewport."}},
             "required": ["name"],
         },
     },
@@ -755,7 +755,7 @@ TOOLS = [
         "description": "Load a UE level by package path, e.g. /Game/Maps/MyMap.",
         "inputSchema": {
             "type": "object",
-            "properties": {"path": {"type": "string"}},
+            "properties": {"path": {"type": "string", "description": "Level package path to load, e.g. /Game/Maps/MyMap."}},
             "required": ["path"],
         },
     },
@@ -764,7 +764,7 @@ TOOLS = [
         "description": "Trigger UE's HighResShot. Output -> Saved/Screenshots/<Platform>Editor/ (Windows/Mac/Linux). Optional multiplier (1..8).",
         "inputSchema": {
             "type": "object",
-            "properties": {"multiplier": {"type": "number", "default": 1}},
+            "properties": {"multiplier": {"type": "number", "default": 1, "description": "Resolution multiplier applied to the viewport size (1..8). Default 1."}},
         },
     },
     {
@@ -808,7 +808,7 @@ TOOLS = [
                 "class_path": {"type": "string", "description": "UE class path, e.g. /Script/Engine.StaticMesh, /Script/Engine.Blueprint, /Script/Engine.Texture2D."},
                 "path_under": {"type": "string", "description": "Recursive path filter; defaults to /Game/. Must start with /Game/ or /Engine/."},
                 "name_contains": {"type": "string", "description": "Case-insensitive substring filter on asset name."},
-                "limit": {"type": "integer", "description": "Cap result count. Default 100, max 500."},
+                "limit": {"type": "integer", "default": 100, "description": "Cap result count. Default 100, max 500."},
                 "tags": {"type": "object", "description": "v0.7.0: map of tag-name -> required-value (string) or null (any value). AND-combined."},
                 "include_tags": {"type": "boolean", "description": "v0.7.0: when true, each result asset includes a 'tags' map of all its registry tags. Default false."},
             },
@@ -929,7 +929,7 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "count": {"type": "integer", "description": "Max lines to return (default 100, max 1000)."},
+                "count": {"type": "integer", "default": 100, "description": "Max lines to return (default 100, max 1000)."},
                 "category_filter": {"type": "string", "description": "Case-insensitive substring filter on log category (e.g. 'LogTemp')."},
                 "min_verbosity": {"type": "string", "enum": ["Fatal", "Error", "Warning", "Display", "Log", "Verbose", "VeryVerbose"], "description": "Return lines at or above this severity. Default 'Log'."},
             },
@@ -1209,7 +1209,7 @@ TOOLS = [
                 "path": {"type": "string", "description": "Material instance asset path."},
                 "parameter": {"type": "string", "description": "Parameter name as declared on the parent material."},
                 "type": {"type": "string", "enum": ["scalar", "vector", "texture"], "description": "Parameter type discriminator."},
-                "value": {"description": "Value shape varies by type: scalar -> number, vector -> {r,g,b,a}, texture -> string asset path."},
+                "value": {"type": ["number", "object", "string"], "description": "Value shape varies by type: scalar -> number, vector -> {r,g,b,a}, texture -> string asset path."},
             },
             "required": ["path", "parameter", "type", "value"],
         },
@@ -1530,7 +1530,7 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "duration_ms": {"type": "integer", "description": "How long the task should sleep (1 to 3600000 ms / 1 hour). Required."},
+                "duration_ms": {"type": "integer", "minimum": 1, "description": "How long the task should sleep (1 to 3600000 ms / 1 hour). Required."},
             },
             "required": ["duration_ms"],
         },
@@ -1565,7 +1565,7 @@ TOOLS = [
             "properties": {
                 "status_filter": {"type": "string", "enum": ["pending", "running", "completed", "cancelled", "failed"], "description": "Optional. If set, only tasks with this status are returned."},
                 "type_filter": {"type": "string", "description": "Optional. Exact-match filter on task type (e.g. 'sleep')."},
-                "limit": {"type": "integer", "description": "Optional. Max items to return. Default 100; clamped to [1, 500]."},
+                "limit": {"type": "integer", "default": 100, "description": "Optional. Max items to return. Default 100; clamped to [1, 500]."},
             },
         },
     },
@@ -1797,7 +1797,7 @@ TOOLS = [
                 "query": {"type": "string", "description": "Search keyword(s). Matched against name, tags, and categories on the source side. Empty string = list popular assets."},
                 "source": {"type": "string", "description": "Marketplace to query. 'polyhaven' (default), 'ambientcg', or 'all' to fan out across both.", "enum": ["polyhaven", "ambientcg", "all"]},
                 "asset_type": {"type": "string", "description": "Asset class filter. 'texture' (default), 'hdri', 'model', or 'all'.", "enum": ["texture", "hdri", "model", "all"]},
-                "limit": {"type": "integer", "description": "Max results to return (default 10, max 50)."},
+                "limit": {"type": "integer", "minimum": 1, "maximum": 50, "default": 10, "description": "Max results to return (default 10, max 50)."},
             },
         },
     },
@@ -1829,8 +1829,8 @@ TOOLS = [
                 "hdri_path": {"type": "string", "description": "UE asset path of the source longlat UTexture2D (must start with /Game/), e.g. /Game/Marketplace/HDRI_Venice_Sunset."},
                 "dest_path": {"type": "string", "description": "UE package path for the new cube. Defaults to the source HDRI's folder."},
                 "dest_name": {"type": "string", "description": "Asset name override for the new UTextureCube. Defaults to <source_basename>_Cube."},
-                "cube_size": {"type": "integer", "description": "Square face size in pixels for the render target. Range [16, 8192]; powers of two recommended. Default 1024."},
-                "compression": {"type": "string", "description": "Texture compression preset. One of TC_HDR (default), TC_HDR_COMPRESSED, TC_HDR_F32, TC_DEFAULT."},
+                "cube_size": {"type": "integer", "minimum": 16, "maximum": 8192, "default": 1024, "description": "Square face size in pixels for the render target. Range [16, 8192]; powers of two recommended. Default 1024."},
+                "compression": {"type": "string", "enum": ["TC_HDR", "TC_HDR_COMPRESSED", "TC_HDR_F32", "TC_DEFAULT"], "default": "TC_HDR", "description": "Texture compression preset. One of TC_HDR (default), TC_HDR_COMPRESSED, TC_HDR_F32, TC_DEFAULT."},
             },
             "required": ["hdri_path"],
         },
@@ -1845,11 +1845,11 @@ TOOLS = [
             "properties": {
                 "sequence_path": {"type": "string", "description": "UE asset path of the LevelSequence; must start with /Game/."},
                 "binding_id": {"type": "string", "description": "GUID string returned by bind_actor_to_sequence. Accepts the bare 32-hex form (no dashes) UE produces by default; dashed/braced forms also parse."},
-                "time_seconds": {"type": "number", "description": "Time in seconds (display rate) at which to place the keyframe. Must be >= 0; converted internally to a tick-resolution FrameNumber."},
+                "time_seconds": {"type": "number", "minimum": 0, "description": "Time in seconds (display rate) at which to place the keyframe. Must be >= 0; converted internally to a tick-resolution FrameNumber."},
                 "location": {"type": "array", "description": "Optional [x, y, z] translation. Omit to skip Location channels.", "items": {"type": "number"}, "minItems": 3, "maxItems": 3},
                 "rotation": {"type": "array", "description": "Optional [pitch, yaw, roll] in degrees (unreal.Rotator convention). Omit to skip Rotation channels.", "items": {"type": "number"}, "minItems": 3, "maxItems": 3},
                 "scale": {"type": "array", "description": "Optional [x, y, z] scale. Omit to skip Scale channels.", "items": {"type": "number"}, "minItems": 3, "maxItems": 3},
-                "interpolation": {"type": "string", "description": "Key interpolation. One of 'linear' (default), 'constant', 'auto', 'smart_auto', 'cubic'. 'cubic' is an alias for SMART_AUTO."},
+                "interpolation": {"type": "string", "enum": ["linear", "constant", "auto", "smart_auto", "cubic"], "default": "linear", "description": "Key interpolation. One of 'linear' (default), 'constant', 'auto', 'smart_auto', 'cubic'. 'cubic' is an alias for SMART_AUTO."},
                 "auto_extend_section": {"type": "boolean", "description": "If true (default), extends the track section's seconds-range to cover time_seconds when needed."},
             },
             "required": ["sequence_path", "binding_id", "time_seconds"],
@@ -1881,7 +1881,7 @@ TOOLS = [
                 "actor_label": {"type": "string", "description": "Label of the level actor whose StaticMesh component gets the new material (assigned to all slots)."},
                 "textures": {"type": "object", "description": "Map of PBR slot -> UE texture asset path (each must start with /Game/). Recognized keys: base_color (required), normal, roughness, metallic, ambient_occlusion. Unknown keys are ignored."},
                 "dest_material": {"type": "string", "description": "UE package path for the created Material, e.g. /Game/Mats/M_MyAsset. Must start with /Game/. Defaults to /Game/AutoMaterials/M_<actor_label>."},
-                "tiling": {"type": "number", "description": "UV tiling applied to all maps (U=V). Default 1.0. Must be > 0."},
+                "tiling": {"type": "number", "exclusiveMinimum": 0, "default": 1.0, "description": "UV tiling applied to all maps (U=V). Default 1.0. Must be > 0."},
             },
             "required": ["actor_label", "textures"],
         },
@@ -4705,10 +4705,10 @@ def synthetic_find_unused_assets(req_id, args: dict) -> dict:
         })
 
     limit = args.get("limit", 100)
-    if not isinstance(limit, int) or isinstance(limit, bool) or limit < 1 or limit > 10000:
+    if not isinstance(limit, int) or isinstance(limit, bool) or limit < 1 or limit > 500:
         return make_response(req_id, error={
             "code": -32602,
-            "message": "find_unused_assets: invalid_field: 'limit' must be an integer between 1 and 10000",
+            "message": "find_unused_assets: invalid_field: 'limit' must be an integer between 1 and 500",
         })
 
     # find_assets requires class_path. Default to UObject (root of every
