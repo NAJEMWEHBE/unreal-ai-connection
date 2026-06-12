@@ -118,7 +118,7 @@ If the working tree is clean (changes lost), the script content for the v4 edits
 ### Step 2 — launch UE 5.7 + run the v4 build
 
 ```powershell
-Start-Process 'F:\UE_5.7\Engine\Binaries\Win64\UnrealEditor.exe' -ArgumentList '"F:\ax plug in\HDMediaVirtualStudio\HDMediaVirtualStudio.uproject"'
+Start-Process 'F:\UE_5.7\Engine\Binaries\Win64\UnrealEditor.exe' -ArgumentList '"F:\ai\ax plug in\HDMediaVirtualStudio\HDMediaVirtualStudio.uproject"'
 ```
 
 Wait ~2 min for bind on `127.0.0.1:18888`. Dismiss any "Restore Packages" modal that pops (it's just autosave junk from prior runs — click **Skip Restore**).
@@ -209,7 +209,7 @@ The plan file at `%USERPROFILE%\.claude\plans\docs-session-continuity-md-lexical
 | Thing | Value |
 |---|---|
 | Repo root | `F:\UnrealClaudeMCP` |
-| Host UE 5.7 project | `F:\ax plug in\HDMediaVirtualStudio\HDMediaVirtualStudio.uproject` |
+| Host UE 5.7 project | `F:\ai\ax plug in\HDMediaVirtualStudio\HDMediaVirtualStudio.uproject` |
 | Host plugin sync | already linked (last `Get-Item .../Plugins/UnrealClaudeMCP` showed plain copy → robocopy was the recipe; CI is clean so this can be skipped unless you touch C++) |
 | Branch | `fix/scene-brightness-2026-05-14` |
 | MCP port | `127.0.0.1:18888` |

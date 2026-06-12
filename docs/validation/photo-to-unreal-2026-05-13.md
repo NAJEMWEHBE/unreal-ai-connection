@@ -74,7 +74,7 @@ Idempotent — re-runs wipe prior `Desert_*`/`Val*` actors and hide competing at
 | Branch | `feat/photo-to-unreal-validation-2026-05-13` |
 | Plugin version | `0.9.1` |
 | UE engine | `5.7.4-51494982+++UE5+Release-5.7` |
-| Host project | `F:\ax plug in\HDMediaVirtualStudio\HDMediaVirtualStudio.uproject` |
+| Host project | `F:\ai\ax plug in\HDMediaVirtualStudio\HDMediaVirtualStudio.uproject` |
 | Tool count | 100 = 71 native C++ + 29 bridge-side synthetic |
 | Cold-compile result | Succeeded (after 2 bug fixes — see commit `102e301`) |
 | Bind | `127.0.0.1:18888` ~ <50 s after launch (twice — UE was relaunched once mid-run after user pause) |
