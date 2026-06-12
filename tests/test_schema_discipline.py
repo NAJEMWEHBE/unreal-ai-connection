@@ -115,7 +115,7 @@ def test_enums_are_nonempty_and_match_declared_type():
         if py_types:
             for m in members:
                 # bool is a subclass of int; exclude it from integer/number checks
-                if isinstance(m, bool) and not (str in py_types):
+                if isinstance(m, bool) and not (bool in py_types):
                     bad.append(f"{tool}.{p}: enum member {m!r} is bool, type={types}")
                 elif not isinstance(m, py_types):
                     bad.append(f"{tool}.{p}: enum member {m!r} not of type {types}")
@@ -137,6 +137,8 @@ def test_defaults_satisfy_their_own_constraints():
                 bad.append(f"{tool}.{p}: default {d} > maximum {s['maximum']}")
             if "exclusiveMinimum" in s and d <= s["exclusiveMinimum"]:
                 bad.append(f"{tool}.{p}: default {d} <= exclusiveMinimum {s['exclusiveMinimum']}")
+            if "exclusiveMaximum" in s and d >= s["exclusiveMaximum"]:
+                bad.append(f"{tool}.{p}: default {d} >= exclusiveMaximum {s['exclusiveMaximum']}")
     assert not bad, f"defaults violating own constraints: {bad}"
 
 
@@ -148,7 +150,7 @@ def test_defaults_satisfy_their_own_constraints():
 # Mirrors the verified REJECT contract / safe defaults. CLAMP upper bounds
 # are deliberately absent (would be a behavior change to assert as maximum).
 LOCKED = {
-    ("find_unused_assets", "limit"): {"minimum": 1, "maximum": 10000, "default": 100},
+    ("find_unused_assets", "limit"): {"minimum": 1, "maximum": 500, "default": 100},
     ("get_reference_chain", "depth"): {"minimum": 1, "maximum": 8, "default": 3},
     ("bulk_focus_actors", "delay_ms"): {"minimum": 0, "maximum": 10000, "default": 500},
     ("bulk_screenshot_actors", "delay_ms"): {"minimum": 0, "maximum": 10000, "default": 500},

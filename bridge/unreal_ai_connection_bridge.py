@@ -201,8 +201,8 @@ TOOLS = [
                     "description": "Optional UE class path filter (e.g. /Script/Engine.Texture2D) to scan only assets of one type."
                 },
                 "limit": {
-                    "type": "integer", "minimum": 1, "maximum": 10000, "default": 100,
-                    "description": "Max unused assets to return (default 100, max 10000). Scan halts once this many unused are found OR the scan exhausts."
+                    "type": "integer", "minimum": 1, "maximum": 500, "default": 100,
+                    "description": "Max unused assets to return (default 100, max 500 — the underlying find_assets scan is capped at 500 candidates engine-side). Scan halts once this many unused are found OR the scan exhausts."
                 },
             },
         },
@@ -4705,10 +4705,10 @@ def synthetic_find_unused_assets(req_id, args: dict) -> dict:
         })
 
     limit = args.get("limit", 100)
-    if not isinstance(limit, int) or isinstance(limit, bool) or limit < 1 or limit > 10000:
+    if not isinstance(limit, int) or isinstance(limit, bool) or limit < 1 or limit > 500:
         return make_response(req_id, error={
             "code": -32602,
-            "message": "find_unused_assets: invalid_field: 'limit' must be an integer between 1 and 10000",
+            "message": "find_unused_assets: invalid_field: 'limit' must be an integer between 1 and 500",
         })
 
     # find_assets requires class_path. Default to UObject (root of every

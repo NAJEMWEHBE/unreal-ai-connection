@@ -30,7 +30,7 @@
 
 <div align="center">
 
-**Native C++ handlers — not Python Remote Execution.** ~50 ms round-trips across 147 tools · 607 tests · MIT · works with any MCP-compliant client (Claude Code, Cursor, Cline, Codex, Gemini, Continue, Windsurf, Zed, …).
+**Native C++ handlers — not Python Remote Execution.** ~50 ms round-trips across 147 tools · 632 tests · MIT · works with any MCP-compliant client (Claude Code, Cursor, Cline, Codex, Gemini, Continue, Windsurf, Zed, …).
 
 The suite now spans **inspection and authoring** — read existing assets and *create* them: actors, levels, data tables/assets, Blueprints (incl. K2 graph nodes), material graphs, **Niagara FX, Level Sequence cinematics (camera cuts, audio, visibility), and Movie Render Queue renders** — all over the same socket.
 
