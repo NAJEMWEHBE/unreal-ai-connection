@@ -74,6 +74,7 @@ def test_tool_names_are_unique_and_match_handlers():
         "list_tools", "get_actors_in_level", "focus_actor",
         "load_level_by_path", "take_high_res_screenshot",
         "render_camera_to_png",
+        "take_screenshot", "focus_viewport",
         "import_texture", "configure_texture",
         "find_assets", "spawn_actor", "set_actor_transform", "delete_actor",
         "set_actor_property", "add_component",
@@ -208,6 +209,60 @@ def test_inspect_asset_in_tools_catalog():
     assert inspect is not None, "inspect_asset must be in TOOLS catalog"
     assert "path" in inspect["inputSchema"]["properties"]
     assert inspect["inputSchema"]["required"] == ["path"]
+
+
+def test_take_screenshot_in_tools_catalog():
+    """See-the-result loop: take_screenshot writes a project-confined PNG with
+    width/height caps. out_path is the only required field."""
+    tool = next((t for t in bridge.TOOLS if t["name"] == "take_screenshot"), None)
+    assert tool is not None, "take_screenshot must be in TOOLS catalog"
+    props = tool["inputSchema"]["properties"]
+    assert tool["inputSchema"]["required"] == ["out_path"]
+    for p in ("out_path", "width", "height", "fov"):
+        assert p in props, f"take_screenshot schema must declare '{p}'"
+    assert props["out_path"]["type"] == "string"
+    assert props["width"]["type"] == "integer"
+    assert props["height"]["type"] == "integer"
+    # Caps are clamped UE-side, so width/height carry a floor but no hard max.
+    assert props["width"].get("minimum") == 1
+    assert props["height"].get("minimum") == 1
+    assert "maximum" not in props["width"]
+    assert "maximum" not in props["height"]
+    # Project-dir confinement is the defining behaviour — call it out in the desc.
+    assert "project" in tool["description"].lower()
+
+
+def test_focus_viewport_in_tools_catalog():
+    """See-the-result loop: focus_viewport frames a named actor OR aims at a
+    location+orientation. No field is required (exactly-one-of is enforced
+    handler-side), but the actor/location/rotation/fov surface must be declared."""
+    tool = next((t for t in bridge.TOOLS if t["name"] == "focus_viewport"), None)
+    assert tool is not None, "focus_viewport must be in TOOLS catalog"
+    props = tool["inputSchema"]["properties"]
+    # Exactly-one-of is validated in the C++ handler; schema leaves all optional.
+    assert "required" not in tool["inputSchema"] or tool["inputSchema"]["required"] == []
+    for p in ("actor", "location", "rotation", "fov"):
+        assert p in props, f"focus_viewport schema must declare '{p}'"
+    assert props["actor"]["type"] == "string"
+    assert props["location"]["type"] == "object"
+    assert props["rotation"]["type"] == "object"
+
+
+def test_take_screenshot_and_focus_viewport_route_to_ue():
+    """Both are native C++ handlers (not synthetic) — a tools/call forwards the
+    arguments verbatim to call_ue under the tool name."""
+    for tool, args in (
+        ("take_screenshot", {"out_path": "Saved/Screenshots/shot.png"}),
+        ("focus_viewport", {"actor": "MyCube"}),
+    ):
+        assert tool not in bridge.SYNTHETIC_TOOLS, f"{tool} must be a native handler"
+        with patch.object(bridge, "call_ue", return_value={"result": {"ok": True}}) as m:
+            resp = bridge.handle({
+                "jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                "params": {"name": tool, "arguments": args},
+            })
+        m.assert_called_once_with(tool, args)
+        assert resp["result"]["isError"] is False
 
 
 def test_get_engine_version_in_tools_catalog():

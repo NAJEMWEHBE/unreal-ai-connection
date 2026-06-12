@@ -1,7 +1,7 @@
 {
  "name": "UnrealAIConnection",
  "version": "0.9.1",
- "description": "Drive Unreal Engine 5.7 from any MCP-compliant client over a local TCP socket. 147 tools total (110 native C++ handlers plus 37 bridge-side synthetic tools) that work with any UE 5.7 project.",
+ "description": "Drive Unreal Engine 5.7 from any MCP-compliant client over a local TCP socket. 149 tools total (112 native C++ handlers plus 37 bridge-side synthetic tools) that work with any UE 5.7 project.",
  "transport": {
   "type": "tcp",
   "host": "127.0.0.1",
@@ -158,6 +158,42 @@
     "path": "string",
     "width": "int",
     "height": "int"
+   }
+  },
+  {
+   "name": "take_screenshot",
+   "description": "Capture the active level-editor viewport as a PNG to a path that MUST resolve under the UE project directory (paths escaping the project are rejected). Project-confined, size-capped counterpart to render_camera_to_png. Synchronous redraw; works headless.",
+   "params": {
+    "out_path": "string (required) - destination .png path; relative resolves under the project dir, absolute must already be under it. '.png' appended if missing",
+    "width": "int (optional) - output width in pixels, capped at 7680 (clamped). Off-screen capture only when both width and height are supplied; otherwise the live viewport size is used",
+    "height": "int (optional) - output height in pixels, capped at 7680 (clamped). See width",
+    "fov": "number (optional) - horizontal field of view in degrees; overrides the capture FOV"
+   },
+   "returns": {
+    "ok": "bool",
+    "path": "string - the resolved .png path written",
+    "width": "int",
+    "height": "int",
+    "bytes": "int - size of the PNG written"
+   }
+  },
+  {
+   "name": "focus_viewport",
+   "description": "Aim the active level-editor viewport: frame a named actor OR snap the camera to an explicit location/orientation. Supply exactly one of 'actor' or 'location'.",
+   "params": {
+    "actor": "string (needed when framing an actor; mutually exclusive with location) - actor label or unique name to select and frame",
+    "location": "object (needed when aiming at a point; mutually exclusive with actor) - {x, y, z} world-space camera location",
+    "rotation": "object (optional, used with location) - {pitch, yaw, roll} degrees; defaults to identity-forward",
+    "fov": "number (optional, used with location) - horizontal field of view in degrees"
+   },
+   "returns": {
+    "ok": "bool",
+    "mode": "string - 'actor' or 'location'",
+    "focused": "string - actor label (actor mode only)",
+    "name": "string - actor unique name (actor mode only)",
+    "location": "object - {x, y, z}",
+    "rotation": "object - {pitch, yaw, roll} (location mode only)",
+    "fov": "number - effective FOV (location mode only)"
    }
   },
   {
