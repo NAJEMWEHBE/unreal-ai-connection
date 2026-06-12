@@ -103,6 +103,8 @@ extern TSharedRef<IUCMCPHandler> Make_Handler_RegisterSubscription();
 extern TSharedRef<IUCMCPHandler> Make_Handler_Unsubscribe();
 extern TSharedRef<IUCMCPHandler> Make_Handler_PollSubscription();
 extern TSharedRef<IUCMCPHandler> Make_Handler_StartSleepTask();
+extern TSharedRef<IUCMCPHandler> Make_Handler_StartPythonTask();
+extern TSharedRef<IUCMCPHandler> Make_Handler_StartPythonFileTask();
 extern TSharedRef<IUCMCPHandler> Make_Handler_PollTask();
 extern TSharedRef<IUCMCPHandler> Make_Handler_CancelTask();
 extern TSharedRef<IUCMCPHandler> Make_Handler_ListTasks();
@@ -236,6 +238,8 @@ void FUnrealAIConnectionModule::StartupModule()
     Reg.Register(Make_Handler_Unsubscribe());
     Reg.Register(Make_Handler_PollSubscription());
     Reg.Register(Make_Handler_StartSleepTask());
+    Reg.Register(Make_Handler_StartPythonTask());
+    Reg.Register(Make_Handler_StartPythonFileTask());
     Reg.Register(Make_Handler_PollTask());
     Reg.Register(Make_Handler_CancelTask());
     Reg.Register(Make_Handler_ListTasks());
