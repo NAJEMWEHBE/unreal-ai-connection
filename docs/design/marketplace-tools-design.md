@@ -404,7 +404,7 @@ def synthetic_marketplace_import(req_id, args: dict) -> dict:
 Resolve the host project's `Saved/` dir via the existing convention (the bridge does not know it directly; the maintainer wires it as an env var). Add:
 
 ```
-UCMCP_HOST_PROJECT  (absolute path to .uproject's parent — e.g. F:\ax plug in\HDMediaVirtualStudio)
+UCMCP_HOST_PROJECT  (absolute path to .uproject's parent — e.g. F:\ai\ax plug in\HDMediaVirtualStudio)
 ```
 
 If unset, fall back to `os.path.expanduser("~/.unreal-ai-connection/marketplace/")`.

@@ -476,10 +476,10 @@ When picking up cold:
 
 ```powershell
 # Re-launch UE for live verification (pre-quote inside the array element)
-Start-Process 'F:\UE_5.7\Engine\Binaries\Win64\UnrealEditor.exe' -ArgumentList '"F:\ax plug in\HDMediaVirtualStudio\HDMediaVirtualStudio.uproject"'
+Start-Process 'F:\UE_5.7\Engine\Binaries\Win64\UnrealEditor.exe' -ArgumentList '"F:\ai\ax plug in\HDMediaVirtualStudio\HDMediaVirtualStudio.uproject"'
 
 # Cold-compile after a C++ change
-& "F:\UE_5.7\Engine\Build\BatchFiles\Build.bat" HDMediaVirtualStudioEditor Win64 Development -project="F:\ax plug in\HDMediaVirtualStudio\HDMediaVirtualStudio.uproject"
+& "F:\UE_5.7\Engine\Build\BatchFiles\Build.bat" HDMediaVirtualStudioEditor Win64 Development -project="F:\ai\ax plug in\HDMediaVirtualStudio\HDMediaVirtualStudio.uproject"
 
 # Close UE when verification finishes
 Get-Process UnrealEditor,UnrealTraceServer -ErrorAction SilentlyContinue | Stop-Process -Force

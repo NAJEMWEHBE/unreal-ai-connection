@@ -43,7 +43,7 @@ silently tokenises and UE falls back to the Project Browser):
 
 ```powershell
 Start-Process 'F:\UE_5.7\Engine\Binaries\Win64\UnrealEditor.exe' `
-    -ArgumentList '"F:\ax plug in\HDMediaVirtualStudio\HDMediaVirtualStudio.uproject"'
+    -ArgumentList '"F:\ai\ax plug in\HDMediaVirtualStudio\HDMediaVirtualStudio.uproject"'
 ```
 
 UE typically binds the bridge in ~2 minutes. If CPU stays at ~7 % one core and
