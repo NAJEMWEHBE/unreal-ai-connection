@@ -1,6 +1,6 @@
 # MCP Tools Reference
 
-**149 tools total.** 112 are JSON-RPC 2.0 methods served on `127.0.0.1:18888` directly by the plugin's C++ handlers. The remaining 37 — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`, `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap`, `sequencer_add_transform_keyframe`, `import_mesh`, `material_auto_remap`, `batch_capture_cameras`, `batch_spawn_from_csv` — are bridge-side **synthetic tools** that are intercepted by `bridge/unreal_ai_connection_bridge.py` and served by composing existing handlers (or running Python via `execute_unreal_python`, or — for `compile_mod_pak` — shelling out to `RunUAT.bat` entirely outside the UE process). They are visible to MCP clients exactly like the C++ tools but cannot be reached by sending raw JSON-RPC to the TCP socket — only via the MCP bridge or by replicating their composition manually. The "Implementation" header on each entry below indicates whether a tool is C++ or bridge-side.
+**151 tools total.** 114 are JSON-RPC 2.0 methods served on `127.0.0.1:18888` directly by the plugin's C++ handlers. The remaining 37 — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`, `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap`, `sequencer_add_transform_keyframe`, `import_mesh`, `material_auto_remap`, `batch_capture_cameras`, `batch_spawn_from_csv` — are bridge-side **synthetic tools** that are intercepted by `bridge/unreal_ai_connection_bridge.py` and served by composing existing handlers (or running Python via `execute_unreal_python`, or — for `compile_mod_pak` — shelling out to `RunUAT.bat` entirely outside the UE process). They are visible to MCP clients exactly like the C++ tools but cannot be reached by sending raw JSON-RPC to the TCP socket — only via the MCP bridge or by replicating their composition manually. The "Implementation" header on each entry below indicates whether a tool is C++ or bridge-side.
 
 Each tool's params and result are documented with a working example.
 
@@ -113,15 +113,22 @@ Mutate the widget tree of a `UWidgetBlueprint` / EUW. Three ops.
 
 ## get_viewport_screenshot
 
-Capture the active editor viewport as a PNG, return base64 inline.
+Capture the active editor viewport as a PNG written to **disk** (project-confined), returning the path. Forces a fresh frame first (`Invalidate` → `RedrawLevelEditingViewports(true)` → `Viewport->Draw(false)` → `FlushRenderingCommands`), so the capture is correct even when the editor is backgrounded and Slate-throttled. Optionally returns a small base64 thumbnail for quick inline look checks.
 
-**Params** — none
+> **Changed in v0.10:** this tool used to return the full PNG base64-inline — a 1920x1080 capture produced 1-3 MB tool results that blow MCP client token limits. The inline payload is gone; consume `path` instead (or request the bounded `thumb_base64`).
+
+**Params**
+- `out_path` (string, optional) — output `.png` path. Relative paths resolve against the project dir; the resolved path **must stay under the project dir** (`..` traversal rejected). Default: `Saved/AIConnection/Screenshots/viewport_<utc>.png`.
+- `include_thumb` (bool, optional, default false) — also return a small base64 thumbnail.
+- `thumb_max_dim` (int, optional, 64..1024, default 320) — max thumbnail dimension in pixels.
 
 **Result**
-- `width`, `height`, `png_bytes` (numbers)
-- `png_base64` (string) — the PNG bytes encoded as base64
+- `ok` (bool)
+- `path` (string) — absolute path of the written PNG
+- `width`, `height`, `bytes` (numbers)
+- `thumb_base64`, `thumb_width`, `thumb_height` — only when `include_thumb=true`
 
-Beware: a 1920x1080 PNG can be 1-3 MB of base64. If you're proxying through Claude, the response may exceed Claude's context — for big captures use `take_high_res_screenshot` instead, which writes to disk.
+**Errors:** `no_editor`, `no_viewport`, `zero_size`, `read_failed`, `encode_failed`, `write_failed`, `dir_create_failed`, `path_escapes_project`.
 
 ---
 
@@ -185,7 +192,7 @@ Two render modes, selected automatically:
 
 ## take_screenshot
 
-Capture the active level-editor viewport as a PNG to a **project-confined** path with **width/height caps**. Closes the see-the-result loop with a safe, project-relative output. Distinct from the other screenshot tools: `get_viewport_screenshot` returns base64 inline (no file); `render_camera_to_png` writes to an **absolute** path **anywhere** on disk; `take_high_res_screenshot` uses `HighResShot` into the fixed `Saved/Screenshots` dir. `take_screenshot` **rejects any path that resolves outside the UE project directory** (including `..` traversal) and **clamps** width/height to a hard 7680-px ceiling. Uses the same synchronous draw chain as `render_camera_to_png`, so it works headless / backgrounded.
+Capture the active level-editor viewport as a PNG to a **project-confined** path with **width/height caps**. Closes the see-the-result loop with a safe, project-relative output. Distinct from the other screenshot tools: `get_viewport_screenshot` writes to a project-confined path with the live viewport's native size (optional small thumb inline); `render_camera_to_png` writes to an **absolute** path **anywhere** on disk; `take_high_res_screenshot` uses `HighResShot` into the fixed `Saved/Screenshots` dir. `take_screenshot` **rejects any path that resolves outside the UE project directory** (including `..` traversal) and **clamps** width/height to a hard 7680-px ceiling. Uses the same synchronous draw chain as `render_camera_to_png`, so it works headless / backgrounded.
 
 Two modes, selected automatically:
 
@@ -2704,6 +2711,39 @@ The framework around this handler (`FUCMCPTaskRegistry`) is the durable bit; fut
 
 ---
 
+## start_python_task
+
+Execute inline Python code as an **async task** on the game thread. Returns the `task_id` immediately — the script runs on a *later* game-thread pump, after the response has gone out, so long operations (FBX imports, builds, bakes) never hit the bridge's 30s RPC timeout the way `execute_unreal_python` / `run_python_file` do.
+
+The exec itself still blocks the game thread while it runs (UE python is game-thread-only and non-interruptible) — the editor will be busy, and `poll_task` calls made *during* the run may themselves wait. Poll patiently; the task completes regardless.
+
+**Params**
+- `code` (string, required) — Python source to execute. Written to a temp file under `Intermediate/UnrealAIConnectionPython/` and executed in `ExecuteFile` mode (same pattern as `execute_unreal_python`).
+
+**Result** (returned immediately)
+- `ok` (bool), `task_id` (string), `type` (`"python"`), `status` (`"pending"`), `note` (string)
+
+**Task result** (via `poll_task` when `status="completed"`)
+- `ok` (bool) — whether python reported success; python-level errors are data (`ok:false`), not task failures
+- `output` (string) — `CommandResult` (often `"None"` in ExecuteFile mode)
+- `log_output` (string) — captured python log lines, capped at 64KB. **Round-trip results through `unreal.log(...)` markers — they land here.**
+- `temp_script` (string)
+
+**Errors:** `missing_required_field`, `python_unavailable`, `file_write_failed`. Cancellation: `cancel_task` only takes effect **before** execution starts.
+
+---
+
+## start_python_file_task
+
+`start_python_task`'s file twin: execute a `.py` file from disk as an **async task** on the game thread. Use instead of `run_python_file` for anything that can run long. Same threading model, result shape (`path` instead of `temp_script`), log capture and cancellation semantics as `start_python_task`.
+
+**Params**
+- `path` (string, required) — absolute or relative path to a `.py` file; must exist at call time (`file_not_found` otherwise).
+
+**Errors:** `missing_required_field`, `file_not_found`, `python_unavailable`.
+
+---
+
 ## poll_task
 
 Read the current state of a task started via any `start_*_task` handler. **Non-blocking** — returns the registry snapshot and never waits for the task to advance.
@@ -3528,7 +3568,7 @@ Frame the level-editor viewport on a specific actor and capture a focused PNG sc
 
 **Composition**
 1. `focus_actor { name }` — selects the actor and frames the viewport on it
-2. `get_viewport_screenshot {}` — captures the (now-framed) viewport as base64 PNG
+2. `get_viewport_screenshot {}` — captures the (now-framed) viewport to a project-confined PNG on disk
 
 **Params**
 - `name` (string, required) — actor label or unique name to focus on. Same matching rules as `focus_actor`.
@@ -3539,8 +3579,8 @@ Frame the level-editor viewport on a specific actor and capture a focused PNG sc
 - `name` (string) — the actor's unique name
 - `loc` (`{ x, y, z }`) — the focused actor's world location
 - `width`, `height` (int) — viewport dimensions in pixels
-- `png_bytes` (int) — size of the encoded PNG
-- `png_base64` (string) — the PNG, base64-encoded inline
+- `bytes` (int) — size of the written PNG
+- `path` (string) — absolute path of the written PNG (project-confined)
 
 **Errors:** `missing_required_field`, `focus_failed` (actor not found, no GEditor, no editor world), `screenshot_failed` (no active viewport, ReadPixels failed, viewport size zero).
 
@@ -4595,7 +4635,7 @@ Frame the viewport on each actor in a sequence, optionally capturing a screensho
 - `total` (int) — `names.length`
 - `focused` (int) — number of successful focuses
 - `failed` (array) — `{name, error: {code, message}}` per failure
-- `screenshots` (array) — `{name, png_base64}` entries; present **only** when `screenshot_each=true`
+- `screenshots` (array) — `{name, path}` entries (disk path per capture); present **only** when `screenshot_each=true`
 
 **Errors (envelope-level):** `-32602` (`missing_required_field` / `invalid_names_shape` / `name_must_be_string` / `too_many_names` / `invalid_delay` / non-bool `screenshot_each`).
 
@@ -4621,7 +4661,7 @@ Frame the viewport on each actor in a sequence, optionally capturing a screensho
 
 Frame and screenshot each actor in a sequence. Composes [`screenshot_actor`](#screenshot_actor) (itself a synthetic over `focus_actor` + `get_viewport_screenshot`) per name. Same shape as [`bulk_focus_actors`](#bulk_focus_actors) but every entry always yields a PNG — convenient for thumbnail-pipeline runs.
 
-**Bridge-side synthetic tool.** Pure Python. Caps at 50 entries (tighter than `bulk_focus_actors`' 100) because each entry yields a base64 PNG payload — at full cap the response body is non-trivial.
+**Bridge-side synthetic tool.** Pure Python. Caps at 50 entries (tighter than `bulk_focus_actors`' 100) — a historical bound from when each entry carried a base64 PNG payload; entries now carry disk paths, and the cap stays as a sane batch limit.
 
 **Params**
 - `names` (array of string, required) — actor labels or unique names, each non-empty, max 50 entries
@@ -4631,7 +4671,7 @@ Frame and screenshot each actor in a sequence. Composes [`screenshot_actor`](#sc
 - `ok` (bool) — `true` only when every entry succeeded
 - `total` (int) — `names.length`
 - `succeeded` (int) — count of per-name successes
-- `results` (array) — one entry per name in input order: `{name, ok, png_base64?, focused?, loc?, error?}`
+- `results` (array) — one entry per name in input order: `{name, ok, path?, focused?, loc?, error?}`
 
 **Errors (envelope-level):** `-32602` (`missing_required_field` / `invalid_names_shape` / `name_must_be_string` / `too_many_names` / `invalid_delay`).
 

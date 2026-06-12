@@ -15,6 +15,6 @@ sys.path.insert(0, os.path.join(ROOT, "bridge"))
 # Bumps as new C++ handlers register or new synthetic tools land in
 # bridge/unreal_ai_connection_bridge.py::SYNTHETIC_TOOLS. The split below is
 # informational; tests assert against the total via EXPECTED_TOOL_COUNT.
-EXPECTED_CPP_HANDLER_COUNT = 112  # Wave 1 native lane (place_actors_raycast, batch_material_assign, light_raycast_placement, nanite_collision_toggle) + Wave 2 (post_process_grade_preset, sequence_snapshot, material_blend_override, export_actor_as_gltf) + Wave 3/4 first-cut (decal_scatter in core; inspect_ocio_config + inspect_ndisplay_config in optional companions) + mesh_bake_ao_to_vertex_color (optional UnrealAIConnectionGeometry companion) + see-the-result loop (take_screenshot, focus_viewport)
+EXPECTED_CPP_HANDLER_COUNT = 114  # Wave 1 native lane (place_actors_raycast, batch_material_assign, light_raycast_placement, nanite_collision_toggle) + Wave 2 (post_process_grade_preset, sequence_snapshot, material_blend_override, export_actor_as_gltf) + Wave 3/4 first-cut (decal_scatter in core; inspect_ocio_config + inspect_ndisplay_config in optional companions) + mesh_bake_ao_to_vertex_color (optional UnrealAIConnectionGeometry companion) + see-the-result loop (take_screenshot, focus_viewport) + async python tasks (start_python_task, start_python_file_task — dive PR)
 EXPECTED_SYNTHETIC_TOOL_COUNT = 37  # bumped from 35 — added Wave 1 studio-builder synthetics: batch_capture_cameras, batch_spawn_from_csv
 EXPECTED_TOOL_COUNT = EXPECTED_CPP_HANDLER_COUNT + EXPECTED_SYNTHETIC_TOOL_COUNT

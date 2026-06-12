@@ -106,6 +106,8 @@ def test_tool_names_are_unique_and_match_handlers():
         "unsubscribe",
         "poll_subscription",
         "start_sleep_task",
+        "start_python_task",
+        "start_python_file_task",
         "poll_task",
         "cancel_task",
         "list_tasks",
@@ -3560,8 +3562,8 @@ def test_screenshot_actor_happy_path():
         "loc_x": 100.0, "loc_y": 200.0, "loc_z": 50.0,
     }}
     shot_resp = {"jsonrpc": "2.0", "id": 1, "result": {
-        "width": 1920, "height": 1080,
-        "png_bytes": 4242, "png_base64": "iVBORw0KGgo=",
+        "ok": True, "width": 1920, "height": 1080,
+        "bytes": 4242, "path": "C:/Proj/Saved/AIConnection/Screenshots/viewport_x.png",
     }}
     with patch.object(bridge, "call_ue", side_effect=[focus_resp, shot_resp]) as m:
         resp = bridge.handle({
@@ -3578,8 +3580,8 @@ def test_screenshot_actor_happy_path():
     assert body["name"] == "StaticMeshActor_3"
     assert body["loc"] == {"x": 100.0, "y": 200.0, "z": 50.0}
     assert body["width"] == 1920 and body["height"] == 1080
-    assert body["png_bytes"] == 4242
-    assert body["png_base64"] == "iVBORw0KGgo="
+    assert body["bytes"] == 4242
+    assert body["path"] == "C:/Proj/Saved/AIConnection/Screenshots/viewport_x.png"
 
 
 def test_screenshot_actor_propagates_focus_error():
@@ -4688,7 +4690,7 @@ def test_bulk_focus_actors_with_screenshot_each_emits_screenshots():
     """screenshot_each=true: get_viewport_screenshot runs after every
     focus. The screenshots array parallels the input order."""
     focus_resp = {"jsonrpc": "2.0", "id": 1, "result": {"focused": "L", "name": "N"}}
-    shot_resp = {"jsonrpc": "2.0", "id": 1, "result": {"png_base64": "AAA"}}
+    shot_resp = {"jsonrpc": "2.0", "id": 1, "result": {"ok": True, "path": "C:/Proj/Saved/AIConnection/Screenshots/a.png"}}
     with patch.object(bridge, "call_ue", side_effect=[
         focus_resp, shot_resp, focus_resp, shot_resp]) as m, \
          patch.object(bridge.time, "sleep"):
@@ -4705,7 +4707,7 @@ def test_bulk_focus_actors_with_screenshot_each_emits_screenshots():
     assert body["ok"] is True
     assert len(body["screenshots"]) == 2
     assert body["screenshots"][0]["name"] == "A"
-    assert body["screenshots"][0]["png_base64"] == "AAA"
+    assert body["screenshots"][0]["path"] == "C:/Proj/Saved/AIConnection/Screenshots/a.png"
 
 
 def test_bulk_focus_actors_partial_failure_other_items_still_run():
@@ -4798,7 +4800,7 @@ def test_bulk_screenshot_actors_is_synthetic():
 
 def test_bulk_screenshot_actors_happy_path_unwraps_inner_envelope():
     """screenshot_actor returns a wrapped envelope; bulk_screenshot_actors
-    must unwrap it so the inner png_base64 / focused / loc fields land
+    must unwrap it so the inner path / focused / loc fields land
     flat on each result entry."""
     # screenshot_actor composes focus_actor + get_viewport_screenshot,
     # so call_ue is hit twice per name.
@@ -4806,7 +4808,7 @@ def test_bulk_screenshot_actors_happy_path_unwraps_inner_envelope():
         "focused": "Label_A", "name": "A",
         "loc_x": 1.0, "loc_y": 2.0, "loc_z": 3.0}}
     shot_resp = {"jsonrpc": "2.0", "id": 1, "result": {
-        "width": 1920, "height": 1080, "png_base64": "AAA"}}
+        "ok": True, "width": 1920, "height": 1080, "path": "C:/Proj/Saved/AIConnection/Screenshots/a.png"}}
     with patch.object(bridge, "call_ue", side_effect=[
         focus_resp, shot_resp, focus_resp, shot_resp]) as m, \
          patch.object(bridge.time, "sleep"):
@@ -4824,7 +4826,7 @@ def test_bulk_screenshot_actors_happy_path_unwraps_inner_envelope():
     assert body["succeeded"] == 2
     assert body["results"][0]["name"] == "A"
     assert body["results"][0]["ok"] is True
-    assert body["results"][0]["png_base64"] == "AAA"
+    assert body["results"][0]["path"] == "C:/Proj/Saved/AIConnection/Screenshots/a.png"
     assert body["results"][0]["focused"] == "Label_A"
 
 
@@ -4833,7 +4835,7 @@ def test_bulk_screenshot_actors_partial_failure_other_items_still_run():
     still attempted. The first entry is failed; the second succeeded."""
     focus_err = {"jsonrpc": "2.0", "id": 1, "error": {"code": -32000, "message": "Actor not found: Bad"}}
     focus_ok = {"jsonrpc": "2.0", "id": 1, "result": {"focused": "L", "name": "Good"}}
-    shot_ok = {"jsonrpc": "2.0", "id": 1, "result": {"png_base64": "BBB"}}
+    shot_ok = {"jsonrpc": "2.0", "id": 1, "result": {"ok": True, "path": "C:/Proj/Saved/AIConnection/Screenshots/b.png"}}
     with patch.object(bridge, "call_ue", side_effect=[focus_err, focus_ok, shot_ok]) as m, \
          patch.object(bridge.time, "sleep"):
         resp = bridge.handle({

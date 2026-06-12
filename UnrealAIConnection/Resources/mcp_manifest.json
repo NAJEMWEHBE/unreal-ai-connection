@@ -1,7 +1,7 @@
 {
  "name": "UnrealAIConnection",
  "version": "0.9.1",
- "description": "Drive Unreal Engine 5.7 from any MCP-compliant client over a local TCP socket. 149 tools total (112 native C++ handlers plus 37 bridge-side synthetic tools) that work with any UE 5.7 project.",
+ "description": "Drive Unreal Engine 5.7 from any MCP-compliant client over a local TCP socket. 151 tools total (114 native C++ handlers plus 37 bridge-side synthetic tools) that work with any UE 5.7 project.",
  "transport": {
   "type": "tcp",
   "host": "127.0.0.1",
@@ -134,13 +134,21 @@
   },
   {
    "name": "get_viewport_screenshot",
-   "description": "Capture the active editor viewport as base64 PNG.",
-   "params": {},
+   "description": "Capture the active editor viewport as a PNG written to disk (project-confined), forcing a fresh frame first (throttle-proof). Optional small base64 thumbnail.",
+   "params": {
+    "out_path": "string (optional) - output .png path, confined under the project dir; default Saved/AIConnection/Screenshots/viewport_<utc>.png",
+    "include_thumb": "bool (optional, default false) - also return thumb_base64",
+    "thumb_max_dim": "int (optional, 64 to 1024, default 320) - max thumbnail dimension"
+   },
    "returns": {
+    "ok": "bool",
+    "path": "string",
     "width": "int",
     "height": "int",
-    "png_bytes": "int",
-    "png_base64": "string"
+    "bytes": "int",
+    "thumb_base64": "string (only with include_thumb)",
+    "thumb_width": "int (only with include_thumb)",
+    "thumb_height": "int (only with include_thumb)"
    }
   },
   {
@@ -1152,6 +1160,34 @@
    }
   },
   {
+   "name": "start_python_task",
+   "description": "Execute inline Python code as an ASYNC task on the game thread (later tick). Returns task_id immediately; poll via poll_task. Use for long ops instead of execute_unreal_python. cancel_task only works before execution starts.",
+   "params": {
+    "code": "string (required) - Python source code to execute"
+   },
+   "returns": {
+    "ok": "bool",
+    "task_id": "string",
+    "type": "string (= 'python')",
+    "status": "string (= 'pending')",
+    "note": "string"
+   }
+  },
+  {
+   "name": "start_python_file_task",
+   "description": "Execute a .py file as an ASYNC task on the game thread (later tick). Returns task_id immediately; poll via poll_task. Use for long ops instead of run_python_file. cancel_task only works before execution starts.",
+   "params": {
+    "path": "string (required) - absolute or relative path to a .py file (must exist)"
+   },
+   "returns": {
+    "ok": "bool",
+    "task_id": "string",
+    "type": "string (= 'python_file')",
+    "status": "string (= 'pending')",
+    "note": "string"
+   }
+  },
+  {
    "name": "start_sleep_task",
    "description": "PR #44 task-framework tracer: background-sleeps for duration_ms then completes. Returns task_id; poll via poll_task. Hard cap 1 hour.",
    "params": {
@@ -1186,7 +1222,7 @@
   },
   {
    "name": "cancel_task",
-   "description": "Request cooperative cancellation. Sets atomic flag; worker observes within ~50ms and transitions to status='cancelled'. Idempotent.",
+   "description": "Request cooperative cancellation. Sets atomic flag; effect depends on task type: sleep tasks observe within ~50ms; python tasks only before execution starts (running python cannot be interrupted); MRQ renders do not observe the flag (v1). Idempotent.",
    "params": {
     "task_id": "string (required) - id from start_*_task"
    },
@@ -1617,7 +1653,7 @@
   },
   {
    "name": "screenshot_actor",
-   "description": "Frame the editor viewport on an actor and capture a focused PNG screenshot. SYNTHETIC bridge-side handler that composes focus_actor + get_viewport_screenshot. Returns base64 PNG plus the focused actor's identity and world location.",
+   "description": "Frame the editor viewport on an actor and capture a focused PNG screenshot. SYNTHETIC bridge-side handler that composes focus_actor + get_viewport_screenshot. Returns the written PNG's disk path + size plus the focused actor's identity and world location.",
    "params": {
     "name": "string (required) - actor label or unique name to focus on"
    },
@@ -1628,8 +1664,8 @@
     "loc": "{x, y, z}",
     "width": "int",
     "height": "int",
-    "png_bytes": "int",
-    "png_base64": "string"
+    "bytes": "int",
+    "path": "string"
    }
   },
   {
@@ -1944,7 +1980,7 @@
     "total": "int (names.length)",
     "focused": "int (number of successful focuses)",
     "failed": "array of {name: string, error: {code: int, message: string}}",
-    "screenshots": "array of {name: string, png_base64: string} - present only when screenshot_each=true"
+    "screenshots": "array of {name: string, path: string} - present only when screenshot_each=true"
    }
   },
   {
@@ -1958,7 +1994,7 @@
     "ok": "bool (true only when every entry succeeded)",
     "total": "int (names.length)",
     "succeeded": "int (count of per-name successes)",
-    "results": "array of {name: string, ok: bool, png_base64?: string, focused?: string, loc?: {x,y,z}, error?: {code: int, message: string}}"
+    "results": "array of {name: string, ok: bool, path?: string, focused?: string, loc?: {x,y,z}, error?: {code: int, message: string}}"
    }
   },
   {

@@ -19,6 +19,12 @@
 // PostEditChangeProperty on the NaniteSettings property, which is what kicks the
 // mesh rebuild (StaticMesh.h:855-860).
 //
+// <=5.6 has NEITHER accessor (verified vs F:\UE_5.6 StaticMesh.h:741-742 - only
+// the public `FMeshNaniteSettings NaniteSettings` member exists, bEnabled is a
+// uint8:1 bitfield, EngineTypes.h:2986-2992), so pre-5.7 builds touch the member
+// directly and fire PostEditChangeProperty on the NaniteSettings FProperty
+// ourselves - the same event NotifyNaniteSettingsChanged() builds internally.
+//
 // Verified against UE 5.7 source:
 //   UStaticMesh::GetNaniteSettings() -> FMeshNaniteSettings&  -- Engine/StaticMesh.h:840
 //   UStaticMesh::NotifyNaniteSettingsChanged()                -- Engine/StaticMesh.h:855
@@ -39,6 +45,7 @@
 
 #include "MCP/MCPHandler.h"
 #include "MCP/ActorIdentity.h"
+#include "UCMCPCompat.h"            // UCMCP_ENGINE_AT_LEAST
 
 #include "Dom/JsonObject.h"
 #include "Editor.h"
@@ -172,6 +179,7 @@ public:
             ResolvedActorLabel = Actor->GetActorLabel();
         }
 
+#if UCMCP_ENGINE_AT_LEAST(5, 7)
         // Read prior state, mutate via the 5.7 accessor, fire the rebuild.
         const bool bPrior = (Mesh->GetNaniteSettings().bEnabled != 0);
 
@@ -185,6 +193,22 @@ public:
         Mesh->MarkPackageDirty();
 
         const bool bNew = (Mesh->GetNaniteSettings().bEnabled != 0);
+#else
+        // <=5.6: no accessors; the public member + a manual
+        // PostEditChangeProperty on the NaniteSettings FProperty replicate what
+        // NotifyNaniteSettingsChanged() does internally on 5.7.
+        const bool bPrior = (Mesh->NaniteSettings.bEnabled != 0);
+
+        Mesh->Modify();
+        Mesh->NaniteSettings.bEnabled = bEnabledIn ? 1 : 0;
+        FProperty* NaniteProp = FindFieldChecked<FProperty>(
+            UStaticMesh::StaticClass(), GET_MEMBER_NAME_CHECKED(UStaticMesh, NaniteSettings));
+        FPropertyChangedEvent NaniteChangedEvent(NaniteProp);
+        Mesh->PostEditChangeProperty(NaniteChangedEvent);
+        Mesh->MarkPackageDirty();
+
+        const bool bNew = (Mesh->NaniteSettings.bEnabled != 0);
+#endif
 
         TSharedPtr<FJsonObject> Result = MakeShared<FJsonObject>();
         Result->SetBoolField(TEXT("ok"), true);
