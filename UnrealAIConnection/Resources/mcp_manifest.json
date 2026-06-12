@@ -1222,7 +1222,7 @@
   },
   {
    "name": "cancel_task",
-   "description": "Request cooperative cancellation. Sets atomic flag; worker observes within ~50ms and transitions to status='cancelled'. Idempotent.",
+   "description": "Request cooperative cancellation. Sets atomic flag; effect depends on task type: sleep tasks observe within ~50ms; python tasks only before execution starts (running python cannot be interrupted); MRQ renders do not observe the flag (v1). Idempotent.",
    "params": {
     "task_id": "string (required) - id from start_*_task"
    },
@@ -1653,7 +1653,7 @@
   },
   {
    "name": "screenshot_actor",
-   "description": "Frame the editor viewport on an actor and capture a focused PNG screenshot. SYNTHETIC bridge-side handler that composes focus_actor + get_viewport_screenshot. Returns base64 PNG plus the focused actor's identity and world location.",
+   "description": "Frame the editor viewport on an actor and capture a focused PNG screenshot. SYNTHETIC bridge-side handler that composes focus_actor + get_viewport_screenshot. Returns the written PNG's disk path + size plus the focused actor's identity and world location.",
    "params": {
     "name": "string (required) - actor label or unique name to focus on"
    },
@@ -1664,8 +1664,8 @@
     "loc": "{x, y, z}",
     "width": "int",
     "height": "int",
-    "png_bytes": "int",
-    "png_base64": "string"
+    "bytes": "int",
+    "path": "string"
    }
   },
   {
@@ -1980,7 +1980,7 @@
     "total": "int (names.length)",
     "focused": "int (number of successful focuses)",
     "failed": "array of {name: string, error: {code: int, message: string}}",
-    "screenshots": "array of {name: string, png_base64: string} - present only when screenshot_each=true"
+    "screenshots": "array of {name: string, path: string} - present only when screenshot_each=true"
    }
   },
   {
@@ -1994,7 +1994,7 @@
     "ok": "bool (true only when every entry succeeded)",
     "total": "int (names.length)",
     "succeeded": "int (count of per-name successes)",
-    "results": "array of {name: string, ok: bool, png_base64?: string, focused?: string, loc?: {x,y,z}, error?: {code: int, message: string}}"
+    "results": "array of {name: string, ok: bool, path?: string, focused?: string, loc?: {x,y,z}, error?: {code: int, message: string}}"
    }
   },
   {

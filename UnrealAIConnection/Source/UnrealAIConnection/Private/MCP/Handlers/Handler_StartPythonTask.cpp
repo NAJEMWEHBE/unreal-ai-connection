@@ -82,13 +82,21 @@ namespace
 
         const bool bOk = Py->ExecPythonCommandEx(Cmd);
 
+        // Stop accumulating once the cap is hit - a runaway script can emit
+        // hundreds of MB of log; materializing it all before truncating would
+        // spike game-thread memory for nothing.
         FString LogOutputStr;
+        bool bTruncated = false;
         for (const FPythonLogOutputEntry& Entry : Cmd.LogOutput)
         {
+            if (LogOutputStr.Len() >= kMaxLogOutputChars)
+            {
+                bTruncated = true;
+                break;
+            }
             LogOutputStr += Entry.Output;
             LogOutputStr += TEXT("\n");
         }
-        bool bTruncated = false;
         if (LogOutputStr.Len() > kMaxLogOutputChars)
         {
             LogOutputStr.LeftInline(kMaxLogOutputChars);
@@ -165,7 +173,7 @@ public:
         if (!FFileHelper::SaveStringToFile(Code, *TempPath, FFileHelper::EEncodingOptions::ForceUTF8))
         {
             OutError = FString::Printf(
-                TEXT("start_python_task: file_write_failed: failed to write Python script to %s"), *TempPath);
+                TEXT("start_python_task: file_write_failed: failed to write Python script to '%s'"), *TempPath);
             return nullptr;
         }
 
@@ -209,7 +217,7 @@ public:
         if (!FPaths::FileExists(FullPath))
         {
             OutError = FString::Printf(
-                TEXT("start_python_file_task: file_not_found: file does not exist: %s"), *FullPath);
+                TEXT("start_python_file_task: file_not_found: file does not exist: '%s'"), *FullPath);
             return nullptr;
         }
 

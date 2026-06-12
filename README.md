@@ -320,7 +320,7 @@ The wire format is `stdio MCP` between client and bridge, then a tight `length-p
 
 | Tool | Purpose |
 |---|---|
-| `get_viewport_screenshot` | Active viewport as a base64 PNG, returned inline. |
+| `get_viewport_screenshot` | Active viewport as a PNG written to a project-confined disk path (throttle-proof fresh frame; optional small inline thumbnail). |
 | `take_high_res_screenshot` | Trigger UE's `HighResShot` console command. |
 | `render_camera_to_png` | Force a synchronous render of the level-editor viewport (or an off-screen SceneCapture2D at arbitrary resolution) and write a PNG — works headless where deferred screenshots fail. |
 

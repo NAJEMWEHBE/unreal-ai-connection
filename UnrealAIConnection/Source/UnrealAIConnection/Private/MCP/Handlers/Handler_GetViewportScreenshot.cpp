@@ -165,7 +165,7 @@ public:
 
         if (!FFileHelper::SaveArrayToFile(PngBytes, *FullPath))
         {
-            OutError = FString::Printf(TEXT("get_viewport_screenshot: write_failed: could not write PNG to %s"), *FullPath);
+            OutError = FString::Printf(TEXT("get_viewport_screenshot: write_failed: could not write PNG to '%s'"), *FullPath);
             return nullptr;
         }
 

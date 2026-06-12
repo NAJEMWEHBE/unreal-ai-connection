@@ -107,7 +107,9 @@ public:
         {
             TArray<FString> Files;
             IFileManager::Get().FindFiles(Files, *OutputDir, TEXT(".png"));
-            FDateTime NewestTime = StartTime;
+            // 2s margin: FAT/exFAT round mtimes to 2s, which could place a
+            // file written right after dispatch BEFORE StartTime and hide it.
+            FDateTime NewestTime = StartTime - FTimespan::FromSeconds(2);
             for (const FString& File : Files)
             {
                 const FString Candidate = FPaths::Combine(OutputDir, File);

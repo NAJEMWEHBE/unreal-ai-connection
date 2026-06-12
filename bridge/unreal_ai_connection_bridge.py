@@ -1604,7 +1604,7 @@ TOOLS = [
     },
     {
         "name": "cancel_task",
-        "description": "Request COOPERATIVE cancellation of a running task. Sets the task's atomic flag; the worker observes it on its next polling iteration (~50ms) and exits cleanly to status='cancelled'. UE has no safe forced-thread-termination, so workers that don't poll the flag run to completion regardless. Idempotent: returns ok=true with accepted=false for unknown ids and already-terminal tasks.",
+        "description": "Request COOPERATIVE cancellation of a running task. Sets the task's atomic flag; how fast it takes effect depends on the task type: sleep tasks poll every ~50ms; python tasks (start_python_task / start_python_file_task) check ONLY before execution starts - a python script already running cannot be interrupted; MRQ renders don't observe the flag at all (v1). UE has no safe forced-thread-termination, so workers that don't poll the flag run to completion regardless. Idempotent: returns ok=true with accepted=false for unknown ids and already-terminal tasks.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -1835,7 +1835,7 @@ TOOLS = [
     },
     {
         "name": "screenshot_actor",
-        "description": "Frame the editor viewport on an actor (by label or unique name) and capture a focused PNG screenshot. SYNTHETIC bridge-side handler: composes focus_actor + get_viewport_screenshot. Returns base64 PNG plus the focused actor's identity and world location.",
+        "description": "Frame the editor viewport on an actor (by label or unique name) and capture a focused PNG screenshot. SYNTHETIC bridge-side handler: composes focus_actor + get_viewport_screenshot. Returns the written PNG's disk path + size plus the focused actor's identity and world location.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -3041,7 +3041,7 @@ def synthetic_screenshot_actor(req_id, args: dict) -> dict:
     Composition:
       1. focus_actor {name} -- selects + frames the viewport on the actor
       2. get_viewport_screenshot {} -- captures the (now-framed) viewport
-         as base64 PNG
+         to a project-confined PNG on disk
 
     Synthetic rather than C++ because both UE handlers already exist; a
     C++ handler would just duplicate their logic. Per the

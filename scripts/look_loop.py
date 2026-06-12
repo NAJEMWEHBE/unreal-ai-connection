@@ -47,20 +47,20 @@ def _recv_exact(s: socket.socket, n: int) -> bytes:
 
 
 def call_ue(method: str, params: dict | None = None, timeout: float = 30.0) -> dict:
-    s = socket.socket()
-    s.settimeout(timeout)
-    s.connect((HOST, PORT))
-    msg: dict = {"jsonrpc": "2.0", "id": 1, "method": method}
-    if params:
-        msg["params"] = params
-    body = json.dumps(msg).encode("utf-8")
-    s.sendall(struct.pack(">Q", len(body)) + body)
-    (length,) = struct.unpack(">Q", _recv_exact(s, 8))
-    raw = _recv_exact(s, length).decode("utf-8", errors="replace")
-    s.close()
+    with socket.socket() as s:
+        s.settimeout(timeout)
+        s.connect((HOST, PORT))
+        msg: dict = {"jsonrpc": "2.0", "id": 1, "method": method}
+        if params:
+            msg["params"] = params
+        body = json.dumps(msg).encode("utf-8")
+        s.sendall(struct.pack(">Q", len(body)) + body)
+        (length,) = struct.unpack(">Q", _recv_exact(s, 8))
+        raw = _recv_exact(s, length).decode("utf-8", errors="replace")
     resp = json.loads(raw)
     if "error" in resp:
-        raise RuntimeError(f"{method}: {resp['error'].get('message')}")
+        err = resp["error"]
+        raise RuntimeError(f"{method}: [{err.get('code')}] {err.get('message')}")
     return resp.get("result", {}) or {}
 
 
@@ -80,8 +80,10 @@ def set_camera(cam: str) -> None:
     if len(parts) != 6:
         raise SystemExit("--cam wants 6 comma-separated numbers: x,y,z,pitch,yaw,roll")
     x, y, z, pitch, yaw, roll = parts
-    call_ue("execute_unreal_python", {
+    res = call_ue("execute_unreal_python", {
         "code": SET_CAMERA_PY.format(x=x, y=y, z=z, pitch=pitch, yaw=yaw, roll=roll)})
+    if res.get("ok") is False:
+        raise SystemExit(f"--cam: camera python failed: {res.get('output', '')}")
 
 
 # --- comparison ---------------------------------------------------------------
@@ -168,6 +170,8 @@ def main() -> int:
 
     shot = call_ue("take_screenshot", params)
     capture_path = shot.get("path", "")
+    if not capture_path or not os.path.isfile(capture_path):
+        raise SystemExit(f"take_screenshot returned no usable path: {json.dumps(shot)[:300]}")
     print(f"capture: {capture_path} ({shot.get('width')}x{shot.get('height')}, "
           f"{shot.get('bytes', 0):,} bytes)")
 

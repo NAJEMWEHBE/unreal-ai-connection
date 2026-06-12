@@ -4661,7 +4661,7 @@ Frame the viewport on each actor in a sequence, optionally capturing a screensho
 
 Frame and screenshot each actor in a sequence. Composes [`screenshot_actor`](#screenshot_actor) (itself a synthetic over `focus_actor` + `get_viewport_screenshot`) per name. Same shape as [`bulk_focus_actors`](#bulk_focus_actors) but every entry always yields a PNG — convenient for thumbnail-pipeline runs.
 
-**Bridge-side synthetic tool.** Pure Python. Caps at 50 entries (tighter than `bulk_focus_actors`' 100) because each entry yields a base64 PNG payload — at full cap the response body is non-trivial.
+**Bridge-side synthetic tool.** Pure Python. Caps at 50 entries (tighter than `bulk_focus_actors`' 100) — a historical bound from when each entry carried a base64 PNG payload; entries now carry disk paths, and the cap stays as a sane batch limit.
 
 **Params**
 - `names` (array of string, required) — actor labels or unique names, each non-empty, max 50 entries
