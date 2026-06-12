@@ -1858,7 +1858,7 @@
    "params": {
     "path_under": "string (optional, default /Game) - folder to scan recursively",
     "class_filter": "string (optional) - UE class path filter, e.g. /Script/Engine.Texture2D, narrows scan to one asset type",
-    "limit": "int (optional, default 100, max 10000) - max unused assets to return; scan stops once this many are found"
+    "limit": "int (optional, default 100, max 500 - underlying find_assets scan is capped at 500 candidates engine-side) - max unused assets to return; scan stops once this many are found"
    },
    "returns": {
     "ok": "bool",
