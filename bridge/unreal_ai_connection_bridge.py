@@ -3439,6 +3439,51 @@ def synthetic_compile_mod_pak_direct(req_id, args: dict) -> dict:
     })
 
 
+def _run_bulk_dispatch(entries, continue_on_error, dispatch, base_record):
+    """The partial-success dispatch loop shared by the bulk_*_assets family
+    (bulk_delete / bulk_move / bulk_rename / bulk_duplicate).
+
+    For each entry: call `dispatch(entry)` (returns the raw call_ue(...) response),
+    build a per-entry result record from `base_record(entry)` (the identifying fields,
+    e.g. {"path": ...} or {"path": ..., "new_name": ...}) plus the standard
+    ok / error_code / error_message fields, and honor `continue_on_error` (stop on the
+    first failure when False). An upstream error with a null code normalizes to -32603.
+
+    Returns (results, succeeded, failed). Callers keep their own argument validation and
+    response envelope (the count key and any extra fields vary per tool); only this
+    homogeneous dispatch + record + count loop is shared, so it lives in one place.
+    """
+    results = []
+    for entry in entries:
+        resp = dispatch(entry)
+        record = dict(base_record(entry))
+        if "error" in resp:
+            upstream_err = resp.get("error", {}) or {}
+            error_code = upstream_err.get("code", -32603)
+            if error_code is None:
+                error_code = -32603
+            record.update({
+                "ok": False,
+                "error_code": error_code,
+                "error_message": upstream_err.get("message") or "",
+            })
+            results.append(record)
+            if not continue_on_error:
+                break
+            continue
+
+        record.update({
+            "ok": True,
+            "error_code": None,
+            "error_message": None,
+        })
+        results.append(record)
+
+    succeeded = sum(1 for result in results if result["ok"])
+    failed = sum(1 for result in results if not result["ok"])
+    return results, succeeded, failed
+
+
 def synthetic_bulk_delete_assets(req_id, args: dict) -> dict:
     """Bridge-side composition: delete multiple assets via the `delete_asset`
     C++ handler, returning a per-path partial-success structure.
@@ -3518,33 +3563,11 @@ def synthetic_bulk_delete_assets(req_id, args: dict) -> dict:
             "message": "bulk_delete_assets: invalid_field: 'continue_on_error' must be a boolean",
         })
 
-    results = []
-    for path in paths:
-        delete_resp = call_ue("delete_asset", {"path": path})
-        if "error" in delete_resp:
-            upstream_err = delete_resp.get("error", {}) or {}
-            error_code = upstream_err.get("code", -32603)
-            if error_code is None:
-                error_code = -32603
-            results.append({
-                "path": path,
-                "ok": False,
-                "error_code": error_code,
-                "error_message": upstream_err.get("message") or "",
-            })
-            if not continue_on_error:
-                break
-            continue
-
-        results.append({
-            "path": path,
-            "ok": True,
-            "error_code": None,
-            "error_message": None,
-        })
-
-    deleted = sum(1 for result in results if result["ok"])
-    failed = sum(1 for result in results if not result["ok"])
+    results, deleted, failed = _run_bulk_dispatch(
+        paths, continue_on_error,
+        lambda path: call_ue("delete_asset", {"path": path}),
+        lambda path: {"path": path},
+    )
 
     return _wrap_tool_result(req_id, {
         "ok": failed == 0,
@@ -3643,33 +3666,11 @@ def synthetic_bulk_move_assets(req_id, args: dict) -> dict:
             "message": "bulk_move_assets: invalid_field: 'continue_on_error' must be a boolean",
         })
 
-    results = []
-    for path in paths:
-        move_resp = call_ue("move_asset", {"path": path, "dest_folder": dest_folder})
-        if "error" in move_resp:
-            upstream_err = move_resp.get("error", {}) or {}
-            error_code = upstream_err.get("code", -32603)
-            if error_code is None:
-                error_code = -32603
-            results.append({
-                "path": path,
-                "ok": False,
-                "error_code": error_code,
-                "error_message": upstream_err.get("message") or "",
-            })
-            if not continue_on_error:
-                break
-            continue
-
-        results.append({
-            "path": path,
-            "ok": True,
-            "error_code": None,
-            "error_message": None,
-        })
-
-    moved = sum(1 for result in results if result["ok"])
-    failed = sum(1 for result in results if not result["ok"])
+    results, moved, failed = _run_bulk_dispatch(
+        paths, continue_on_error,
+        lambda path: call_ue("move_asset", {"path": path, "dest_folder": dest_folder}),
+        lambda path: {"path": path},
+    )
 
     return _wrap_tool_result(req_id, {
         "ok": failed == 0,
@@ -3775,37 +3776,11 @@ def synthetic_bulk_rename_assets(req_id, args: dict) -> dict:
             "message": "bulk_rename_assets: invalid_field: 'continue_on_error' must be a boolean",
         })
 
-    results = []
-    for entry in renames:
-        path = entry["path"]
-        new_name = entry["new_name"]
-        rename_resp = call_ue("rename_asset", {"path": path, "new_name": new_name})
-        if "error" in rename_resp:
-            upstream_err = rename_resp.get("error", {}) or {}
-            error_code = upstream_err.get("code", -32603)
-            if error_code is None:
-                error_code = -32603
-            results.append({
-                "path": path,
-                "new_name": new_name,
-                "ok": False,
-                "error_code": error_code,
-                "error_message": upstream_err.get("message") or "",
-            })
-            if not continue_on_error:
-                break
-            continue
-
-        results.append({
-            "path": path,
-            "new_name": new_name,
-            "ok": True,
-            "error_code": None,
-            "error_message": None,
-        })
-
-    renamed = sum(1 for result in results if result["ok"])
-    failed = sum(1 for result in results if not result["ok"])
+    results, renamed, failed = _run_bulk_dispatch(
+        renames, continue_on_error,
+        lambda entry: call_ue("rename_asset", {"path": entry["path"], "new_name": entry["new_name"]}),
+        lambda entry: {"path": entry["path"], "new_name": entry["new_name"]},
+    )
 
     return _wrap_tool_result(req_id, {
         "ok": failed == 0,
@@ -3903,37 +3878,11 @@ def synthetic_bulk_duplicate_assets(req_id, args: dict) -> dict:
             "message": "bulk_duplicate_assets: invalid_field: 'continue_on_error' must be a boolean",
         })
 
-    results = []
-    for entry in duplicates:
-        path = entry["path"]
-        dest_path = entry["dest_path"]
-        dup_resp = call_ue("duplicate_asset", {"path": path, "dest_path": dest_path})
-        if "error" in dup_resp:
-            upstream_err = dup_resp.get("error", {}) or {}
-            error_code = upstream_err.get("code", -32603)
-            if error_code is None:
-                error_code = -32603
-            results.append({
-                "path": path,
-                "dest_path": dest_path,
-                "ok": False,
-                "error_code": error_code,
-                "error_message": upstream_err.get("message") or "",
-            })
-            if not continue_on_error:
-                break
-            continue
-
-        results.append({
-            "path": path,
-            "dest_path": dest_path,
-            "ok": True,
-            "error_code": None,
-            "error_message": None,
-        })
-
-    duplicated = sum(1 for result in results if result["ok"])
-    failed = sum(1 for result in results if not result["ok"])
+    results, duplicated, failed = _run_bulk_dispatch(
+        duplicates, continue_on_error,
+        lambda entry: call_ue("duplicate_asset", {"path": entry["path"], "dest_path": entry["dest_path"]}),
+        lambda entry: {"path": entry["path"], "dest_path": entry["dest_path"]},
+    )
 
     return _wrap_tool_result(req_id, {
         "ok": failed == 0,
