@@ -94,3 +94,26 @@ needs a real wav.
 Read raw PCM via `USoundWave::GetImportedSoundWaveData(...)` and run a simple energy/spectral-flux
 onset detector in C++ on the game thread — synchronous, no plugin, no helper UObject, ~150 LOC.
 Lower quality than the CQT-based UOnsetNRT. Documented as an option, not preferred.
+
+## Review feedback folded in (PR #287, closed — corrected to real API)
+External review (#287, now closed) raised three points worth keeping. Its code samples used
+fabricated signatures — `FUCMCPTaskRegistry::MarkCompleted(FGuid,bool)` / `(FGuid,bool,TArray<float>)`,
+`CreateTask(FGuid,FGraphEventRef)`, `USoundWave::GetNumChannels()`, single-arg
+`GetImportedSoundWaveData(TArrayView)` — none of which exist (verified against UE 5.8 source +
+`TaskRegistry.h/.cpp`); do not copy them. Corrected takeaways:
+
+1. **Listener lifetime — `UEditorSubsystem` is an alternative to the `AddToRoot`/`RemoveFromRoot` in
+   steps 3–6.** Instead of root-setting each listener, an editor subsystem can hold them in a
+   `UPROPERTY() TMap<FString, TObjectPtr<UAudioAnalyzeTaskListener>>` — GC tracks them, no leak if a
+   task never fires. Key on the registry's `FString` task id (not `FGuid`). The current AddToRoot path
+   is fine for one-shot tasks; the subsystem is cleaner if several analyses run concurrently. Decide at
+   implementation.
+2. **Validate the `channel` param (real gap).** Step 1 rejects >2-channel sounds, but nothing bounds
+   the `channel` param (0..N-1) before `GetChannelOnsetsBetweenTimes(..., Channel, ...)` in step 6.
+   `USoundWave` has no `GetNumChannels()` — use the `NumChannels` property:
+   `if (Channel < 0 || Channel >= Sound->NumChannels)` → `invalid_arguments` with a bounds message.
+3. **Optional async fallback.** The Fallback section above is synchronous on the game thread. If it
+   proves heavy, move the detector off-thread with `FFunctionGraphTask::CreateAndDispatchWhenReady(fn,
+   TStatId(), nullptr, ENamedThreads::AnyNormalThreadNormalTask)`, then hop back via
+   `ENamedThreads::GameThread` to call `FUCMCPTaskRegistry::Get().MarkCompleted(TaskId, Result)`
+   (`MarkFailed(TaskId, Error)` on failure). Sync stays acceptable as the documented not-preferred path.
