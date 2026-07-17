@@ -1,3 +1,12 @@
+> [!WARNING]
+> **DEPRECATED — this project is no longer maintained** (deprecated 2026-07-17; active development stopped 2026-07-03, when the maintainer moved to Epic's native plugin for this workflow). No further features, fixes, releases, or PR/issue responses are promised.
+>
+> **Last-known-good state:** UE **5.7** officially supported & tested (source build); UE **5.6** via the prebuilt [`v0.9.1-ue5.6`](https://github.com/NAJEMWEHBE/unreal-ai-connection/releases/tag/v0.9.1-ue5.6) release. Other UE versions remain best-effort via the kept compat scaffold (ADR-0001), untested.
+>
+> **Toolchain note:** the maintainer's `BuildConfiguration.xml` `<CompilerVersion>` pin stays **cleared** (see the 36th closing note in [`docs/HANDOFF.md`](docs/HANDOFF.md)) — UE **≤5.3** source builds require re-pinning an engine-appropriate MSVC toolchain yourself. No new build promises on any version.
+>
+> The code stays up under the MIT license — forks welcome. Full deprecation record: the [37th closing note](docs/HANDOFF.md).
+
 <div align="center">
 
 # Unreal AI Connection
