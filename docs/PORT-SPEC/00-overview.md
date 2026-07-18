@@ -35,7 +35,8 @@ Verified against Epic's 5.8 docs + Epic's own [`create-toolset` skill](https://g
 
 ## Plugin conventions for this port
 
-- One plugin, working name `CrownJewelToolsets`; one module; one toolset class per family file, named `U<Family>Toolset` (e.g. `UK2GraphToolset`).
+- One plugin, working name `CrownJewelToolsets`; one module; one toolset class per family file, named `U<Family>Toolset` (e.g. `UK2GraphToolset`). Decided exception: pro-viz ships three classes (`UDmxToolset`/`UNDisplayToolset`/`UOcioToolset`) in its one file — unrelated domains self-describe separately (see pro-viz.md).
+- Engine-plugin dependencies are **hard** `Plugins` entries in the .uplugin (DMX, nDisplay, OpenColorIO — locked at [#305](https://github.com/NAJEMWEHBE/unreal-ai-connection/issues/305)); the sole soft dependency is MRQ's ProRes runtime class lookup.
 - Tool naming: `snake_case` verbs, workflow-shaped (`build_material_graph`, not `create_node` × 40).
 - Doc comments AI-facing only. Acceptance criteria live in the family file's `Smoke:` blocks, never in code comments.
 - Object parameters use typed references (accept the `{"refPath": ...}` converter form); transforms via the transform converter.
