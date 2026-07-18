@@ -12,8 +12,8 @@ Spec for the successor effort: porting this repo's crown-jewel tool families ont
 | Engine | **UE 5.8 exact pin.** No compat scaffold, no multi-version support |
 | Transport | Clients connect **directly** to Epic's embedded server (`127.0.0.1:8000/mcp`, Streamable HTTP). No stdio bridge, no client-side codebase |
 | Tool surface | **Redesigned per family from workflows** — fewer, fatter, workflow-shaped tools. The old 151-tool surface is donor C++ only, not a template |
-| Scope | 7 families: Niagara, Level Sequence, MRQ, Blueprint K2 graph, material graphs, data tables/assets, DMX/nDisplay/OCIO. Families with shipped Epic coverage open with a port-vs-extend re-grill (Niagara, Level Sequence, material graphs — see tickets) |
-| Out of scope | Building = separate effort. stdio bridge. Multi-version compat. Re-porting families Epic covers (actors/scene/material instances/objects) |
+| Scope | 6 families: Niagara, MRQ, Blueprint K2 graph, material graphs, data tables/assets, DMX/nDisplay/OCIO. Families with shipped Epic coverage open with a port-vs-extend re-grill (Niagara, material graphs — see tickets) |
+| Out of scope | Building = separate effort. stdio bridge. Multi-version compat. Re-porting families Epic covers (actors/scene/material instances/objects, and Level Sequence — ruled out at [#300](https://github.com/NAJEMWEHBE/unreal-ai-connection/issues/300): Epic's 8 sequencer toolsets ≈230 tools cover it; donor's MRQ render + sequence_snapshot migrated to the MRQ family) |
 
 ## Toolset authoring primer (UE 5.8, distilled)
 
@@ -55,4 +55,4 @@ Decided in [#295](https://github.com/NAJEMWEHBE/unreal-ai-connection/issues/295)
 
 ## Family files
 
-Build order (moat order, decided on the map): `blueprint-k2.md` → `pro-viz.md` (DMX/nDisplay/OCIO) → `level-sequence.md` → `mrq.md` → `material-graphs.md` → `data-tables.md` → `niagara.md`. Each is authored by its own design session (map tickets #298–#304); files land here as those tickets resolve.
+Build order (moat order, decided on the map): `blueprint-k2.md` → `pro-viz.md` (DMX/nDisplay/OCIO) → `mrq.md` (includes `sequence_snapshot`, inherited from the descoped Level Sequence family) → `material-graphs.md` → `data-tables.md` → `niagara.md`. Each is authored by its own design session (map tickets #298–#304; #300 Level Sequence closed out-of-scope); files land here as those tickets resolve.
