@@ -25,7 +25,7 @@ Verified against Epic's 5.8 docs + Epic's own [`create-toolset` skill](https://g
 
 **Registration.** Editor auto-discovers `UToolsetDefinition` subclasses via reflection at startup; `ModelContextProtocol.RefreshTools` re-polls. Explicit dynamic path (skill-only): `UToolsetRegistry::RegisterToolsetClass()` / `UnregisterToolsetClass()` from module startup/shutdown. Live Coding handles body edits; **new `UFUNCTION`s need an editor restart**. Cooked builds: no auto-discovery, editor-only adapter — this plugin is editor-only by design.
 
-**Errors.** Raise, never return: `UKismetSystemLibrary::RaiseScriptError(EScriptExceptionType::Error, TEXT("..."))` then return default. No bool/error-string/result-wrapper returns.
+**Errors.** Raise, never return: `UKismetSystemLibrary::RaiseScriptError(TEXT("..."))` then return default — signature takes a single `FString` only (verified against 5.8 source, `KismetSystemLibrary.h:124`; the `EScriptExceptionType` variant floating in secondary sources does not exist). No bool/error-string/result-wrapper returns.
 
 **Async / long-running** (skill-only, high confidence): return a `UToolCallAsyncResult` subclass; call `SetValue()` / `SetError()` on completion. Progress notification interval: `ModelContextProtocol.ProgressIntervalSeconds` (default 1.0). MRQ family leans on this hardest.
 
