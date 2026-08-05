@@ -1,3 +1,5 @@
+[![MCP Toplist](https://mcptoplist.com/badge/pulsemcp%2Fnajemwehbe-unreal-engine.svg)](https://mcptoplist.com/server/pulsemcp%2Fnajemwehbe-unreal-engine)
+
 > [!WARNING]
 > **DEPRECATED — this project is no longer maintained** (deprecated 2026-07-17; active development stopped 2026-07-03, when the maintainer moved to Epic's native plugin for this workflow). No further features, fixes, releases, or PR/issue responses are promised.
 >
