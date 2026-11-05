@@ -1,3 +1,4 @@
+<!-- mcp-name: io.github.najemwehbe/unreal-ai-connection -->
 <div align="center">
 
 # Unreal AI Connection
