@@ -1,0 +1,5 @@
+# git blame skips these whole-repo formatting commits (GitHub reads this file too).
+# Locally: git config blame.ignoreRevsFile .git-blame-ignore-revs
+
+# ruff format, whole repo
+ba9dbce05ed79c1f53b767d338f2408a52f22906
