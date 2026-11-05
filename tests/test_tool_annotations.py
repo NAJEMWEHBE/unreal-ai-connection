@@ -20,6 +20,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 # hand. A new tool with a read-style name must land here or in
 # bridge.READ_ONLY_TOOLS.
 _READ_STYLE_BUT_NOT_READ_ONLY = {
+    "find_actors_by_class",  # its optional `level` loads that map (switches the editor level)
     "get_viewport_screenshot",  # writes a PNG under the project
     "poll_events",  # consumes the caller's event cursor
     "poll_subscription",  # consumes the subscription's events
@@ -127,3 +128,11 @@ def test_initialize_echoes_a_supported_client_version(version):
 @pytest.mark.parametrize("version", ["1999-01-01", "garbage", None])
 def test_initialize_offers_the_latest_version_otherwise(version):
     assert _initialize(version) == bridge.PROTOCOL_VERSION == "2025-06-18"
+
+
+def test_level_switching_actor_search_is_not_read_only():
+    # find_actors_by_class with `level` calls load_level_by_path first, which
+    # switches the open map: a client must not auto-approve it.
+    assert "find_actors_by_class" not in bridge.READ_ONLY_TOOLS
+    tool = _advertised()["find_actors_by_class"]
+    assert tool["annotations"]["readOnlyHint"] is False
