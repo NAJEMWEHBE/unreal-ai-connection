@@ -76,3 +76,6 @@ HDMediaCamPlugin/
 *.blend1
 /blender-exports/
 /asset-src/
+
+# Per-machine agent notes: engine and project paths, standing permissions
+CLAUDE.local.md
