@@ -5509,15 +5509,16 @@ def test_handle_internal_exception_is_caught_in_main(monkeypatch, capsys):
     assert "boom" in resp["error"]["message"]
 
 
-def test_main_skips_blank_and_malformed_lines(monkeypatch, capsys):
+def test_main_skips_blank_lines_and_answers_malformed_ones(monkeypatch, capsys):
     monkeypatch.setattr(
         "sys.stdin",
         iter(["\n", "not-json\n", '{"jsonrpc":"2.0","id":1,"method":"initialize"}\n']),
     )
     bridge.main()
-    lines = [ln for ln in capsys.readouterr().out.splitlines() if ln.strip()]
-    assert len(lines) == 1
-    assert json.loads(lines[0])["id"] == 1
+    lines = [json.loads(ln) for ln in capsys.readouterr().out.splitlines() if ln.strip()]
+    assert len(lines) == 2
+    assert lines[0]["id"] is None and lines[0]["error"]["code"] == -32700
+    assert lines[1]["id"] == 1
 
 
 def test_synthetic_inspect_asset_not_found_messages_use_canonical_prefix() -> None:

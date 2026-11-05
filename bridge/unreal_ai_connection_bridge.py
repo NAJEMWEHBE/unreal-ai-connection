@@ -11235,6 +11235,10 @@ def handle(req: dict) -> dict | None:
             },
         )
 
+    if method == "ping":
+        # MCP basic/utilities/ping: the receiver MUST answer with an empty result.
+        return make_response(req_id, {})
+
     if method == "tools/list":
         # Honour progressive disclosure when UCMCP_TOOL_MODE=progressive;
         # defaults to the full catalog for backward compatibility.
@@ -11246,6 +11250,16 @@ def handle(req: dict) -> dict | None:
         if not tool_name:
             return make_response(
                 req_id, error={"code": -32602, "message": "tools/call missing 'name'"}
+            )
+        if not isinstance(tool_args, dict):
+            return make_response(
+                req_id,
+                error={
+                    "code": -32602,
+                    "message": (
+                        f"tools/call 'arguments' must be an object, got {type(tool_args).__name__}"
+                    ),
+                },
             )
 
         # Bridge-only progressive-disclosure discovery tool. Served entirely
@@ -11286,7 +11300,18 @@ def main() -> None:
             continue
         try:
             req = json.loads(line)
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as e:
+            # JSON-RPC 2.0: a request that isn't valid JSON gets -32700, id null.
+            write_msg(make_response(None, error={"code": -32700, "message": f"Parse error: {e}"}))
+            continue
+        if not isinstance(req, dict):
+            # Valid JSON but not a request object (batches aren't used by MCP).
+            write_msg(
+                make_response(
+                    None,
+                    error={"code": -32600, "message": "Invalid Request: expected a JSON object"},
+                )
+            )
             continue
         try:
             resp = handle(req)
