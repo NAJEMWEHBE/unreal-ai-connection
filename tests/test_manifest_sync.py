@@ -16,9 +16,7 @@ from conftest import EXPECTED_TOOL_COUNT
 import unreal_ai_connection_bridge as bridge
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-MANIFEST_PATH = os.path.join(
-    REPO_ROOT, "UnrealAIConnection", "Resources", "mcp_manifest.json"
-)
+MANIFEST_PATH = os.path.join(REPO_ROOT, "UnrealAIConnection", "Resources", "mcp_manifest.json")
 
 
 def _load_manifest():
@@ -78,8 +76,7 @@ def test_manifest_required_params_match_bridge_required():
             continue  # tools that document free-form `returns: "see ..."`
 
         manifest_required = {
-            k for k, v in params.items()
-            if isinstance(v, str) and "required" in v.lower()
+            k for k, v in params.items() if isinstance(v, str) and "required" in v.lower()
         }
 
         bridge_tool = bridge_by_name[name]

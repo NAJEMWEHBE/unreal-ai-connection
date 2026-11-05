@@ -151,7 +151,7 @@ For each capture, store via `unreal.AutomationLibrary.take_high_res_screenshot()
 # In each capture step:
 LES = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
 LES.editor_invalidate_viewports()
-unreal.SystemLibrary.execute_console_command(None, f'HighResShot 1920x1080')
+unreal.SystemLibrary.execute_console_command(None, f"HighResShot 1920x1080")
 # then poll filesystem
 ```
 

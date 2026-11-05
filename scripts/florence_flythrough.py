@@ -66,6 +66,7 @@ def _look_at_yaw(cam_x: float, cam_y: float) -> float:
     target on the XY plane is atan2(dy, dx).
     """
     import math
+
     dx = DAIS_CENTER[0] - cam_x
     dy = DAIS_CENTER[1] - cam_y
     return math.degrees(math.atan2(dy, dx))
@@ -73,12 +74,12 @@ def _look_at_yaw(cam_x: float, cam_y: float) -> float:
 
 # t,  pos,                                pitch
 _KEYS_RAW = [
-    (0.0,  (1500.0,  -866.0, 280.0), -8.0),
-    (2.0,  ( 866.0, -1500.0, 285.0), -8.0),
-    (4.0,  (   0.0, -1730.0, 290.0), -8.0),
-    (6.0,  (-866.0, -1500.0, 295.0), -8.0),
-    (8.0,  (-1500.0, -866.0, 300.0), -8.0),
-    (10.0, (-1730.0,    0.0, 320.0), -8.0),
+    (0.0, (1500.0, -866.0, 280.0), -8.0),
+    (2.0, (866.0, -1500.0, 285.0), -8.0),
+    (4.0, (0.0, -1730.0, 290.0), -8.0),
+    (6.0, (-866.0, -1500.0, 295.0), -8.0),
+    (8.0, (-1500.0, -866.0, 300.0), -8.0),
+    (10.0, (-1730.0, 0.0, 320.0), -8.0),
 ]
 
 
@@ -95,6 +96,7 @@ def keyframes():
 # MCP stdio client
 # ---------------------------------------------------------------------------
 
+
 class BridgeClient:
     """Spawns the bridge subprocess and speaks MCP JSON-RPC over stdin/stdout.
 
@@ -108,12 +110,14 @@ class BridgeClient:
     # — get bumped to 120s; everything else uses 60s.
     DEFAULT_READ_TIMEOUT = 60.0
     SLOW_TOOL_TIMEOUT = 120.0
-    SLOW_TOOLS = frozenset({
-        "create_sequence",
-        "get_viewport_screenshot",
-        "sequencer_add_transform_keyframe",
-        "load_level_by_path",
-    })
+    SLOW_TOOLS = frozenset(
+        {
+            "create_sequence",
+            "get_viewport_screenshot",
+            "sequencer_add_transform_keyframe",
+            "load_level_by_path",
+        }
+    )
 
     def __init__(self, bridge_path: Path):
         self.bridge_path = bridge_path
@@ -148,14 +152,18 @@ class BridgeClient:
         self._reader_thread = threading.Thread(target=self._stdout_pump, daemon=True)
         self._reader_thread.start()
         # MCP handshake.
-        self._send({
-            "jsonrpc": "2.0", "id": self._take_id(), "method": "initialize",
-            "params": {
-                "protocolVersion": "2024-11-05",
-                "capabilities": {"tools": {}},
-                "clientInfo": {"name": "florence-flythrough-driver", "version": "0.1.0"},
-            },
-        })
+        self._send(
+            {
+                "jsonrpc": "2.0",
+                "id": self._take_id(),
+                "method": "initialize",
+                "params": {
+                    "protocolVersion": "2024-11-05",
+                    "capabilities": {"tools": {}},
+                    "clientInfo": {"name": "florence-flythrough-driver", "version": "0.1.0"},
+                },
+            }
+        )
         self._read(context="initialize")  # discard handshake response
         self._send({"jsonrpc": "2.0", "method": "notifications/initialized"})
         return self
@@ -206,8 +214,7 @@ class BridgeClient:
             # snapshot whatever's already accumulated by the thread pump.
             ctx = context or "<unknown>"
             raise RuntimeError(
-                f"bridge_read_timeout: no response within {eff_timeout:.1f}s "
-                f"(context={ctx})"
+                f"bridge_read_timeout: no response within {eff_timeout:.1f}s (context={ctx})"
             ) from None
         if not line:
             err = ""
@@ -217,27 +224,29 @@ class BridgeClient:
                 except Exception:
                     pass
             ctx = context or "<unknown>"
-            raise RuntimeError(
-                f"bridge closed stdout unexpectedly (context={ctx}). stderr={err!r}"
-            )
+            raise RuntimeError(f"bridge closed stdout unexpectedly (context={ctx}). stderr={err!r}")
         return json.loads(line)
 
-    def call_tool(self, name: str, arguments: dict | None = None,
-                  timeout: float | None = None) -> dict:
+    def call_tool(
+        self, name: str, arguments: dict | None = None, timeout: float | None = None
+    ) -> dict:
         """Send tools/call and return the raw JSON-RPC response.
 
         `timeout` overrides the per-tool default if provided.
         """
         req_id = self._take_id()
         if timeout is None:
-            timeout = (self.SLOW_TOOL_TIMEOUT if name in self.SLOW_TOOLS
-                       else self.DEFAULT_READ_TIMEOUT)
-        self._send({
-            "jsonrpc": "2.0",
-            "id": req_id,
-            "method": "tools/call",
-            "params": {"name": name, "arguments": arguments or {}},
-        })
+            timeout = (
+                self.SLOW_TOOL_TIMEOUT if name in self.SLOW_TOOLS else self.DEFAULT_READ_TIMEOUT
+            )
+        self._send(
+            {
+                "jsonrpc": "2.0",
+                "id": req_id,
+                "method": "tools/call",
+                "params": {"name": name, "arguments": arguments or {}},
+            }
+        )
         resp = self._read(timeout=timeout, context=f"tools/call name={name} id={req_id}")
         # The bridge can emit a response with a different id if it spoke
         # multiple round-trips internally; just trust the next line and
@@ -253,6 +262,7 @@ class BridgeClient:
 # Result unpacking helpers — MCP wraps every tools/call result inside a
 # `content: [{type:"text", text: <json string>}]` envelope.
 # ---------------------------------------------------------------------------
+
 
 def unpack_tool_result(resp: dict) -> dict:
     """Return the inner payload dict for a successful tools/call response.
@@ -281,6 +291,7 @@ def unpack_tool_result(resp: dict) -> dict:
 # Step helpers — each one prints a single structured progress line.
 # ---------------------------------------------------------------------------
 
+
 def log_step(n: int, tool: str, ok: bool, **extra) -> None:
     extras = " ".join(f"{k}={v}" for k, v in extra.items())
     print(f"[FLYTHROUGH] step={n} tool={tool} ok={ok} {extras}".rstrip())
@@ -290,20 +301,22 @@ def step_load_level(client: BridgeClient) -> None:
     resp = client.call_tool("load_level_by_path", {"path": LEVEL_PATH})
     payload = unpack_tool_result(resp)
     # load_level_by_path returns {"path": ..., "loaded": true}; surface both.
-    log_step(1, "load_level_by_path", bool(payload.get("loaded")),
-             path=payload.get("path"))
+    log_step(1, "load_level_by_path", bool(payload.get("loaded")), path=payload.get("path"))
     if not payload.get("loaded"):
         raise RuntimeError(f"load_level_by_path failed: {payload}")
 
 
 def step_create_or_reuse_sequence(client: BridgeClient) -> str:
     """Returns the asset path of the sequence (no .ext suffix)."""
-    resp = client.call_tool("create_sequence", {
-        "path": SEQ_FOLDER,
-        "name": SEQ_NAME,
-        "display_rate_fps": 30.0,
-        "playback_end_frames": 30 * 11,  # one frame of slack past t=10s
-    })
+    resp = client.call_tool(
+        "create_sequence",
+        {
+            "path": SEQ_FOLDER,
+            "name": SEQ_NAME,
+            "display_rate_fps": 30.0,
+            "playback_end_frames": 30 * 11,  # one frame of slack past t=10s
+        },
+    )
     if "error" in resp:
         msg = resp["error"].get("message", "")
         if "dest_exists" in msg:
@@ -311,8 +324,13 @@ def step_create_or_reuse_sequence(client: BridgeClient) -> str:
             return SEQ_PATH
         raise RuntimeError(f"create_sequence failed: {resp['error']}")
     payload = unpack_tool_result(resp)
-    log_step(2, "create_sequence", bool(payload.get("ok")),
-             reused=False, path=payload.get("package_path"))
+    log_step(
+        2,
+        "create_sequence",
+        bool(payload.get("ok")),
+        reused=False,
+        path=payload.get("package_path"),
+    )
     return payload.get("package_path", SEQ_PATH)
 
 
@@ -361,8 +379,9 @@ unreal.log("FLYTHROUGH_CAMERA_OK::" + token + "::" + json.dumps({{
 """
 
 
-def _scrape_marker(client: BridgeClient, prefix: str, captured_output: str = "",
-                   token: str | None = None) -> dict | None:
+def _scrape_marker(
+    client: BridgeClient, prefix: str, captured_output: str = "", token: str | None = None
+) -> dict | None:
     """Scrape a "<prefix>::<token>::<json>::__END__" line.
 
     If `token` is provided, only matches lines that carry that token —
@@ -387,7 +406,7 @@ def _scrape_marker(client: BridgeClient, prefix: str, captured_output: str = "",
             idx = line.find(eff_prefix)
             end = line.find("::__END__", idx) if idx >= 0 else -1
             if idx >= 0 and end > idx:
-                blob = line[idx + len(eff_prefix):end]
+                blob = line[idx + len(eff_prefix) : end]
                 try:
                     return json.loads(blob)
                 except json.JSONDecodeError:
@@ -398,11 +417,14 @@ def _scrape_marker(client: BridgeClient, prefix: str, captured_output: str = "",
     if hit is not None:
         return hit
 
-    log_resp = client.call_tool("get_log_lines", {
-        "count": 256,
-        "category_filter": "LogPython",
-        "min_verbosity": "Log",
-    })
+    log_resp = client.call_tool(
+        "get_log_lines",
+        {
+            "count": 256,
+            "category_filter": "LogPython",
+            "min_verbosity": "Log",
+        },
+    )
     log_payload = unpack_tool_result(log_resp)
     lines = log_payload.get("lines") or []
     for entry in reversed(lines):
@@ -410,7 +432,7 @@ def _scrape_marker(client: BridgeClient, prefix: str, captured_output: str = "",
         idx = msg.find(eff_prefix)
         end = msg.find("::__END__", idx) if idx >= 0 else -1
         if idx >= 0 and end > idx:
-            blob = msg[idx + len(eff_prefix):end]
+            blob = msg[idx + len(eff_prefix) : end]
             try:
                 return json.loads(blob)
             except json.JSONDecodeError:
@@ -420,22 +442,31 @@ def _scrape_marker(client: BridgeClient, prefix: str, captured_output: str = "",
 
 def step_spawn_camera(client: BridgeClient, run_token: str) -> dict:
     code = _SPAWN_CAMERA_PY.format(label=CAMERA_LABEL, token=run_token)
-    resp = client.call_tool("execute_unreal_python", {
-        "code": code,
-        "capture_output": True,
-    })
+    resp = client.call_tool(
+        "execute_unreal_python",
+        {
+            "code": code,
+            "capture_output": True,
+        },
+    )
     payload = unpack_tool_result(resp)
     if not payload.get("ok"):
         raise RuntimeError(f"spawn camera failed: {payload}")
-    info = _scrape_marker(client, "FLYTHROUGH_CAMERA_OK::",
-                          payload.get("output", ""), token=run_token) or {}
+    info = (
+        _scrape_marker(client, "FLYTHROUGH_CAMERA_OK::", payload.get("output", ""), token=run_token)
+        or {}
+    )
     if not info:
         raise RuntimeError(
-            "spawn camera produced no FLYTHROUGH_CAMERA_OK marker carrying "
-            f"token {run_token!r}"
+            f"spawn camera produced no FLYTHROUGH_CAMERA_OK marker carrying token {run_token!r}"
         )
-    log_step(3, "execute_unreal_python:spawn_camera", True,
-             reused=info.get("reused"), label=info.get("label"))
+    log_step(
+        3,
+        "execute_unreal_python:spawn_camera",
+        True,
+        reused=info.get("reused"),
+        label=info.get("label"),
+    )
     return info
 
 
@@ -465,44 +496,52 @@ unreal.log("FLYTHROUGH_WIPE_OK::" + token + "::" + json.dumps({{
 """
 
 
-def step_wipe_sequence_bindings(client: BridgeClient, sequence_path: str,
-                                run_token: str) -> None:
+def step_wipe_sequence_bindings(client: BridgeClient, sequence_path: str, run_token: str) -> None:
     """Idempotency helper: drop any bindings left over from prior runs.
 
     The sequence asset persists across runs (saved to disk), but every
     run spawns a fresh camera actor in the freshly loaded level, so old
     bindings would accumulate. Wipe before re-binding.
     """
-    resp = client.call_tool("execute_unreal_python", {
-        "code": _WIPE_BINDINGS_PY.format(seq=sequence_path, token=run_token),
-        "capture_output": True,
-    })
+    resp = client.call_tool(
+        "execute_unreal_python",
+        {
+            "code": _WIPE_BINDINGS_PY.format(seq=sequence_path, token=run_token),
+            "capture_output": True,
+        },
+    )
     payload = unpack_tool_result(resp)
     if not payload.get("ok"):
         raise RuntimeError(f"wipe sequence bindings failed: {payload}")
-    info = _scrape_marker(client, "FLYTHROUGH_WIPE_OK::",
-                          payload.get("output", ""), token=run_token) or {}
+    info = (
+        _scrape_marker(client, "FLYTHROUGH_WIPE_OK::", payload.get("output", ""), token=run_token)
+        or {}
+    )
     if not info:
         raise RuntimeError(
             "wipe sequence bindings produced no FLYTHROUGH_WIPE_OK marker "
             f"carrying token {run_token!r}"
         )
     removed_count = info.get("removed")
-    print(f"[FLYTHROUGH] step=3.5 tool=execute_unreal_python:wipe_bindings ok=True "
-          f"removed={removed_count}")
+    print(
+        f"[FLYTHROUGH] step=3.5 tool=execute_unreal_python:wipe_bindings ok=True "
+        f"removed={removed_count}"
+    )
 
 
 def step_bind_camera(client: BridgeClient, sequence_path: str) -> str:
-    resp = client.call_tool("bind_actor_to_sequence", {
-        "sequence_path": sequence_path,
-        "actor_name": CAMERA_LABEL,
-    })
+    resp = client.call_tool(
+        "bind_actor_to_sequence",
+        {
+            "sequence_path": sequence_path,
+            "actor_name": CAMERA_LABEL,
+        },
+    )
     if "error" in resp:
         raise RuntimeError(f"bind_actor_to_sequence failed: {resp['error']}")
     payload = unpack_tool_result(resp)
     guid = payload.get("binding_guid")
-    log_step(4, "bind_actor_to_sequence", bool(payload.get("ok")),
-             binding_guid=guid)
+    log_step(4, "bind_actor_to_sequence", bool(payload.get("ok")), binding_guid=guid)
     if not guid:
         raise RuntimeError(f"bind_actor_to_sequence returned no GUID: {payload}")
     return guid
@@ -512,32 +551,39 @@ def step_add_keyframes(client: BridgeClient, sequence_path: str, binding_guid: s
     """Add the 6 keyframes; returns total keys reported across all calls."""
     total_keys = 0
     for t, loc, rot in keyframes():
-        resp = client.call_tool("sequencer_add_transform_keyframe", {
-            "sequence_path": sequence_path,
-            "binding_id": binding_guid,
-            "time_seconds": t,
-            "location": loc,
-            "rotation": rot,
-            "interpolation": "smart_auto",
-            "auto_extend_section": True,
-        })
+        resp = client.call_tool(
+            "sequencer_add_transform_keyframe",
+            {
+                "sequence_path": sequence_path,
+                "binding_id": binding_guid,
+                "time_seconds": t,
+                "location": loc,
+                "rotation": rot,
+                "interpolation": "smart_auto",
+                "auto_extend_section": True,
+            },
+        )
         if "error" in resp:
             raise RuntimeError(f"keyframe @ t={t} failed: {resp['error']}")
         payload = unpack_tool_result(resp)
         ok = bool(payload.get("ok"))
         added = int(payload.get("keys_added", 0))
         total_keys += added
-        log_step(5, "sequencer_add_transform_keyframe", ok,
-                 t=t, loc=f"({loc[0]:.0f},{loc[1]:.0f},{loc[2]:.0f})",
-                 yaw=f"{rot[1]:.1f}",
-                 keys_added=added)
+        log_step(
+            5,
+            "sequencer_add_transform_keyframe",
+            ok,
+            t=t,
+            loc=f"({loc[0]:.0f},{loc[1]:.0f},{loc[2]:.0f})",
+            yaw=f"{rot[1]:.1f}",
+            keys_added=added,
+        )
         if not ok:
             raise RuntimeError(f"keyframe @ t={t} returned not-ok: {payload}")
     return total_keys
 
 
-def step_inspect_sequence(client: BridgeClient, sequence_path: str,
-                          run_token: str) -> dict:
+def step_inspect_sequence(client: BridgeClient, sequence_path: str, run_token: str) -> dict:
     """Call inspect_sequence + a follow-up unreal.* probe to count keys."""
     resp = client.call_tool("inspect_sequence", {"path": sequence_path})
     if "error" in resp:
@@ -547,10 +593,13 @@ def step_inspect_sequence(client: BridgeClient, sequence_path: str,
     # inspect_sequence reports bindings + tracks (with section_count) but
     # not per-channel key counts. Probe the transform track directly so
     # we have a definitive number to report as the live verification.
-    probe = client.call_tool("execute_unreal_python", {
-        "code": _KEY_COUNT_PROBE_PY.format(seq=sequence_path, token=run_token),
-        "capture_output": True,
-    })
+    probe = client.call_tool(
+        "execute_unreal_python",
+        {
+            "code": _KEY_COUNT_PROBE_PY.format(seq=sequence_path, token=run_token),
+            "capture_output": True,
+        },
+    )
     probe_payload = unpack_tool_result(probe)
     if not probe_payload.get("ok"):
         raise RuntimeError(f"key-count probe failed: {probe_payload}")
@@ -558,16 +607,19 @@ def step_inspect_sequence(client: BridgeClient, sequence_path: str,
     info = _scrape_marker(client, "KEY_COUNT_OK::", probe_out, token=run_token)
     if not info:
         raise RuntimeError(
-            "key-count probe produced no KEY_COUNT_OK marker carrying "
-            f"token {run_token!r}"
+            f"key-count probe produced no KEY_COUNT_OK marker carrying token {run_token!r}"
         )
     total_keys = info.get("total_keys")
     per_channel = info.get("per_channel", {})
 
-    log_step(6, "inspect_sequence", bool(payload),
-             bindings=len(payload.get("bindings", []) or []),
-             tracks=len(payload.get("tracks", []) or []),
-             transform_keys_total=total_keys)
+    log_step(
+        6,
+        "inspect_sequence",
+        bool(payload),
+        bindings=len(payload.get("bindings", []) or []),
+        tracks=len(payload.get("tracks", []) or []),
+        transform_keys_total=total_keys,
+    )
     payload["_probe_total_keys"] = total_keys
     payload["_probe_per_channel"] = per_channel
     return payload
@@ -609,36 +661,44 @@ def step_hero_screenshot(client: BridgeClient, out_path: Path) -> int:
     loc, rot = keys[hero_t]
 
     # Enable game-view to suppress editor gizmos in the captured frame.
-    game_view_resp = client.call_tool("execute_unreal_python", {
-        "code": (
-            "import unreal\n"
-            "le = unreal.LevelEditorSubsystem()\n"
-            "le.editor_set_game_view(True)\n"
-            "le.editor_invalidate_viewports()\n"
-        ),
-        "capture_output": True,
-    })
+    game_view_resp = client.call_tool(
+        "execute_unreal_python",
+        {
+            "code": (
+                "import unreal\n"
+                "le = unreal.LevelEditorSubsystem()\n"
+                "le.editor_set_game_view(True)\n"
+                "le.editor_invalidate_viewports()\n"
+            ),
+            "capture_output": True,
+        },
+    )
     game_view_payload = unpack_tool_result(game_view_resp)
     if not game_view_payload.get("ok"):
         raise RuntimeError(f"enable game view failed: {game_view_payload}")
 
     # Move the editor viewport camera to the hero pose.
-    set_resp = client.call_tool("set_camera_transform", {
-        "location": {"x": loc[0], "y": loc[1], "z": loc[2]},
-        "rotation": {"pitch": rot[0], "yaw": rot[1], "roll": rot[2]},
-    })
+    set_resp = client.call_tool(
+        "set_camera_transform",
+        {
+            "location": {"x": loc[0], "y": loc[1], "z": loc[2]},
+            "rotation": {"pitch": rot[0], "yaw": rot[1], "roll": rot[2]},
+        },
+    )
     if "error" in set_resp:
         raise RuntimeError(f"set_camera_transform failed: {set_resp['error']}")
     unpack_tool_result(set_resp)
 
     # Invalidate again post-move so the freshly-positioned frame is rendered.
-    invalidate_resp = client.call_tool("execute_unreal_python", {
-        "code": (
-            "import unreal\n"
-            "unreal.LevelEditorSubsystem().editor_invalidate_viewports()\n"
-        ),
-        "capture_output": True,
-    })
+    invalidate_resp = client.call_tool(
+        "execute_unreal_python",
+        {
+            "code": (
+                "import unreal\nunreal.LevelEditorSubsystem().editor_invalidate_viewports()\n"
+            ),
+            "capture_output": True,
+        },
+    )
     invalidate_payload = unpack_tool_result(invalidate_resp)
     if not invalidate_payload.get("ok"):
         raise RuntimeError(f"viewport invalidate failed: {invalidate_payload}")
@@ -656,16 +716,23 @@ def step_hero_screenshot(client: BridgeClient, out_path: Path) -> int:
     raw = base64.b64decode(b64)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_bytes(raw)
-    log_step(7, "get_viewport_screenshot", True,
-             width=shot.get("width"), height=shot.get("height"),
-             bytes=len(raw), path=str(out_path))
+    log_step(
+        7,
+        "get_viewport_screenshot",
+        True,
+        width=shot.get("width"),
+        height=shot.get("height"),
+        bytes=len(raw),
+        path=str(out_path),
+    )
     return len(raw)
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--bridge", default=str(DEFAULT_BRIDGE),
-                    help="Path to unreal_ai_connection_bridge.py")
+    ap.add_argument(
+        "--bridge", default=str(DEFAULT_BRIDGE), help="Path to unreal_ai_connection_bridge.py"
+    )
     args = ap.parse_args()
     bridge_path = Path(args.bridge).resolve()
     if not bridge_path.exists():
@@ -693,8 +760,10 @@ def main() -> int:
             inspect = step_inspect_sequence(client, seq_path, run_token)
             probe_total = inspect.get("_probe_total_keys")
             per_channel = inspect.get("_probe_per_channel") or {}
-            print(f"[FLYTHROUGH] live_verification transform_keys_total={probe_total} "
-                  f"per_channel={json.dumps(per_channel, sort_keys=True)}")
+            print(
+                f"[FLYTHROUGH] live_verification transform_keys_total={probe_total} "
+                f"per_channel={json.dumps(per_channel, sort_keys=True)}"
+            )
             png_bytes = step_hero_screenshot(client, hero_path)
             print(f"[FLYTHROUGH] hero_png path={hero_path} bytes={png_bytes}")
     except Exception as e:

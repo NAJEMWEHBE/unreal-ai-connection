@@ -16,6 +16,7 @@ import unreal_ai_connection_bridge as bridge
 
 # -------- Parameterised round-trip across all 19 tools -----------------------
 
+
 @pytest.mark.parametrize(
     "tool",
     [t["name"] for t in bridge.TOOLS if t["name"] not in bridge.SYNTHETIC_TOOLS],
@@ -30,23 +31,32 @@ def test_every_tool_routes_through_tools_call(tool):
     test_bridge.py (test_wait_for_events_*)."""
     args = {"sentinel": tool}  # unique per tool
     with patch.object(bridge, "call_ue", return_value={"result": {}}) as m:
-        resp = bridge.handle({
-            "jsonrpc": "2.0", "id": 1, "method": "tools/call",
-            "params": {"name": tool, "arguments": args},
-        })
+        resp = bridge.handle(
+            {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "tools/call",
+                "params": {"name": tool, "arguments": args},
+            }
+        )
     m.assert_called_once_with(tool, args)
     assert resp["result"]["isError"] is False
 
 
 # -------- handle() request shape edge cases ----------------------------------
 
+
 def test_handle_request_with_params_explicitly_null():
     """Some clients send `"params": null`. The bridge should treat it as {}."""
     with patch.object(bridge, "call_ue", return_value={"result": {}}) as m:
-        bridge.handle({
-            "jsonrpc": "2.0", "id": 1, "method": "tools/call",
-            "params": None,
-        })
+        bridge.handle(
+            {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "tools/call",
+                "params": None,
+            }
+        )
     # params is None -> handle() treats as {} -> tools/call missing 'name' branch
     # so call_ue should NOT have been called
     m.assert_not_called()
@@ -55,10 +65,14 @@ def test_handle_request_with_params_explicitly_null():
 def test_handle_tools_call_with_arguments_explicitly_null():
     """`arguments`: null should coerce to {}, not crash."""
     with patch.object(bridge, "call_ue", return_value={"result": {}}) as m:
-        resp = bridge.handle({
-            "jsonrpc": "2.0", "id": 1, "method": "tools/call",
-            "params": {"name": "list_tools", "arguments": None},
-        })
+        resp = bridge.handle(
+            {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "tools/call",
+                "params": {"name": "list_tools", "arguments": None},
+            }
+        )
     m.assert_called_once_with("list_tools", {})
     assert "result" in resp
 
@@ -83,6 +97,7 @@ def test_handle_missing_method_field_with_id_returns_method_not_found():
 
 # -------- Multiple sequential calls share no leaked state --------------------
 
+
 def test_handle_consecutive_calls_use_supplied_request_ids():
     """Each handle() call returns the request's own id, not a cached one."""
     resp1 = bridge.handle({"jsonrpc": "2.0", "id": 100, "method": "initialize"})
@@ -94,6 +109,7 @@ def test_handle_consecutive_calls_use_supplied_request_ids():
 
 
 # -------- call_ue: more transport scenarios ----------------------------------
+
 
 def _make_fake_socket(recv_chunks):
     sock = MagicMock()

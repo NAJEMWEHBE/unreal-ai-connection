@@ -41,28 +41,41 @@ Run from a bridge MCP subprocess like:
         "path":"F:/UnrealAIConnection/scripts/florence_scene.py",
         "capture_output":true}}
 """
+
 import unreal
 
 PKG = "/Game/Validation/Florence"
 LEVEL = f"{PKG}/L_Florence_Plaza"
 
 ASSETS = {
-    "Marble_012":     {"has_ao": False, "tiling": 4.0},
-    "Travertine_009": {"has_ao": True,  "tiling": 2.0},
-    "WoodFloor_051":  {"has_ao": True,  "tiling": 3.0},
-    "Granite_Tile":   {"has_ao": True,  "tiling": 6.0},
+    "Marble_012": {"has_ao": False, "tiling": 4.0},
+    "Travertine_009": {"has_ao": True, "tiling": 2.0},
+    "WoodFloor_051": {"has_ao": True, "tiling": 3.0},
+    "Granite_Tile": {"has_ao": True, "tiling": 6.0},
 }
 
 # Actors we own; everything else in the level is left alone.
 KILL_LABELS = {
-    "Plaza_Floor", "Marble_Dais", "Wall_West", "Wall_East", "Wall_North",
-    "Bench_West", "Bench_East", "Sun_Golden_Hour", "SkyAtmosphere",
-    "SkyLight_Atmosphere", "Fog_Soft", "PP_Cinematic",
+    "Plaza_Floor",
+    "Marble_Dais",
+    "Wall_West",
+    "Wall_East",
+    "Wall_North",
+    "Bench_West",
+    "Bench_East",
+    "Sun_Golden_Hour",
+    "SkyAtmosphere",
+    "SkyLight_Atmosphere",
+    "Fog_Soft",
+    "PP_Cinematic",
 }
 KILL_LABEL_PREFIXES = ("Column_",)
 KILL_DUPLICATE_CLASSES = (
-    unreal.SkyLight, unreal.ExponentialHeightFog, unreal.SkyAtmosphere,
-    unreal.PostProcessVolume, unreal.DirectionalLight,
+    unreal.SkyLight,
+    unreal.ExponentialHeightFog,
+    unreal.SkyAtmosphere,
+    unreal.PostProcessVolume,
+    unreal.DirectionalLight,
 )
 
 el = unreal.EditorAssetLibrary
@@ -91,8 +104,8 @@ def make_material(slug, spec):
     # otherwise the material wiring crashes later with a non-obvious
     # NoneType error. Required: color + normal + roughness. AO optional.
     required = {
-        "color":     f"{PKG}/T_{slug}",
-        "normal":    f"{PKG}/T_{slug}_normal",
+        "color": f"{PKG}/T_{slug}",
+        "normal": f"{PKG}/T_{slug}_normal",
         "roughness": f"{PKG}/T_{slug}_roughness",
     }
     loaded = {}
@@ -114,22 +127,30 @@ def make_material(slug, spec):
     ao_tex = el.load_asset(f"{PKG}/T_{slug}_ao") if spec["has_ao"] else None
 
     # Tile via TexCoord scale; cheaper + simpler than a Multiply node.
-    texcoord = mel.create_material_expression(mat, unreal.MaterialExpressionTextureCoordinate, -1100, 0)
+    texcoord = mel.create_material_expression(
+        mat, unreal.MaterialExpressionTextureCoordinate, -1100, 0
+    )
     texcoord.set_editor_property("u_tiling", spec["tiling"])
     texcoord.set_editor_property("v_tiling", spec["tiling"])
 
-    color_node = mel.create_material_expression(mat, unreal.MaterialExpressionTextureSample, -600, -400)
+    color_node = mel.create_material_expression(
+        mat, unreal.MaterialExpressionTextureSample, -600, -400
+    )
     color_node.texture = color_tex
     mel.connect_material_expressions(texcoord, "", color_node, "UVs")
 
-    normal_node = mel.create_material_expression(mat, unreal.MaterialExpressionTextureSample, -600, -100)
+    normal_node = mel.create_material_expression(
+        mat, unreal.MaterialExpressionTextureSample, -600, -100
+    )
     normal_node.texture = normal_tex
     normal_node.sampler_type = unreal.MaterialSamplerType.SAMPLERTYPE_NORMAL
     mel.connect_material_expressions(texcoord, "", normal_node, "UVs")
 
     # AmbientCG + Polyhaven roughness/AO maps ship as full-color JPGs.
     # SAMPLERTYPE_COLOR avoids the "should be Color" compile error.
-    rough_node = mel.create_material_expression(mat, unreal.MaterialExpressionTextureSample, -600, 200)
+    rough_node = mel.create_material_expression(
+        mat, unreal.MaterialExpressionTextureSample, -600, 200
+    )
     rough_node.texture = rough_tex
     rough_node.sampler_type = unreal.MaterialSamplerType.SAMPLERTYPE_COLOR
     mel.connect_material_expressions(texcoord, "", rough_node, "UVs")
@@ -139,7 +160,9 @@ def make_material(slug, spec):
     mel.connect_material_property(rough_node, "R", unreal.MaterialProperty.MP_ROUGHNESS)
 
     if ao_tex is not None:
-        ao_node = mel.create_material_expression(mat, unreal.MaterialExpressionTextureSample, -600, 500)
+        ao_node = mel.create_material_expression(
+            mat, unreal.MaterialExpressionTextureSample, -600, 500
+        )
         ao_node.texture = ao_tex
         ao_node.sampler_type = unreal.MaterialSamplerType.SAMPLERTYPE_COLOR
         mel.connect_material_expressions(texcoord, "", ao_node, "UVs")
@@ -173,7 +196,9 @@ def wipe_owned_actors():
 def spawn_plane(mat, loc, scale, rot=(0, 0, 0), label=""):
     p = ll.spawn_actor_from_object(
         el.load_asset("/Engine/BasicShapes/Plane"),
-        unreal.Vector(*loc), unreal.Rotator(roll=rot[0], pitch=rot[1], yaw=rot[2]))
+        unreal.Vector(*loc),
+        unreal.Rotator(roll=rot[0], pitch=rot[1], yaw=rot[2]),
+    )
     p.set_actor_scale3d(unreal.Vector(*scale))
     p.static_mesh_component.set_material(0, mat)
     if label:
@@ -184,7 +209,9 @@ def spawn_plane(mat, loc, scale, rot=(0, 0, 0), label=""):
 def spawn_cube(mat, loc, scale, rot=(0, 0, 0), label=""):
     c = ll.spawn_actor_from_object(
         el.load_asset("/Engine/BasicShapes/Cube"),
-        unreal.Vector(*loc), unreal.Rotator(roll=rot[0], pitch=rot[1], yaw=rot[2]))
+        unreal.Vector(*loc),
+        unreal.Rotator(roll=rot[0], pitch=rot[1], yaw=rot[2]),
+    )
     c.set_actor_scale3d(unreal.Vector(*scale))
     c.static_mesh_component.set_material(0, mat)
     if label:
@@ -222,15 +249,19 @@ spawn_cube(mats["WoodFloor_051"], (700, -850, 35), (1.2, 5, 0.5), label="Bench_E
 # SkyAtmosphere first so the directional sun has something to scatter
 # against — without it the scene renders pitch black under the sun's
 # back-side.
-sa = ll.spawn_actor_from_class(unreal.SkyAtmosphere, unreal.Vector(0, 0, 0), unreal.Rotator(0, 0, 0))
+sa = ll.spawn_actor_from_class(
+    unreal.SkyAtmosphere, unreal.Vector(0, 0, 0), unreal.Rotator(0, 0, 0)
+)
 sa.set_actor_label("SkyAtmosphere")
 
 # Sun — atmospheric-sun-light + warm tint + golden-hour elevation.
 # unreal.Rotator constructor positional order is (roll, pitch, yaw); use
 # keywords so a future read can't get the angles wrong by accident.
 sun = ll.spawn_actor_from_class(
-    unreal.DirectionalLight, unreal.Vector(0, 0, 800),
-    unreal.Rotator(roll=0.0, pitch=-22.0, yaw=135.0))
+    unreal.DirectionalLight,
+    unreal.Vector(0, 0, 800),
+    unreal.Rotator(roll=0.0, pitch=-22.0, yaw=135.0),
+)
 sun.set_actor_label("Sun_Golden_Hour")
 dl = sun.light_component
 dl.set_intensity(8.0)
@@ -249,7 +280,9 @@ sl.set_intensity(2.0)
 sl.recapture_sky()
 
 # Exponential height fog tinted to the golden palette.
-fog = ll.spawn_actor_from_class(unreal.ExponentialHeightFog, unreal.Vector(0, 0, 0), unreal.Rotator(0, 0, 0))
+fog = ll.spawn_actor_from_class(
+    unreal.ExponentialHeightFog, unreal.Vector(0, 0, 0), unreal.Rotator(0, 0, 0)
+)
 fog.set_actor_label("Fog_Soft")
 fc = fog.component
 try_set(fc, "fog_density", 0.008)
@@ -259,7 +292,9 @@ try_set(fc, "start_distance", 300.0)
 try_set(fc, "fog_inscattering_luminance", unreal.LinearColor(0.85, 0.65, 0.45, 1.0))
 
 # Post-process — histogram auto-exposure (NOT manual), filmic look.
-ppv = ll.spawn_actor_from_class(unreal.PostProcessVolume, unreal.Vector(0, 0, 300), unreal.Rotator(0, 0, 0))
+ppv = ll.spawn_actor_from_class(
+    unreal.PostProcessVolume, unreal.Vector(0, 0, 300), unreal.Rotator(0, 0, 0)
+)
 ppv.set_actor_label("PP_Cinematic")
 try_set(ppv, "unbound", True)
 s = ppv.settings
@@ -283,8 +318,8 @@ ppv.settings = s
 # --- 6. hero-shot framing --------------------------------------------------
 viewport = unreal.UnrealEditorSubsystem()
 viewport.set_level_viewport_camera_info(
-    unreal.Vector(900.0, -1100.0, 260.0),
-    unreal.Rotator(roll=0.0, pitch=-10.0, yaw=135.0))
+    unreal.Vector(900.0, -1100.0, 260.0), unreal.Rotator(roll=0.0, pitch=-10.0, yaw=135.0)
+)
 
 # Game view hides the editor gizmos so a `get_viewport_screenshot` call
 # captures the scene cleanly.

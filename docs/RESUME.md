@@ -70,17 +70,22 @@ all up. Affected:
 ## Canonical post-restart live-verification panel
 
 ```python
-mcp__unreal-ai-connection__list_tools          # expect count=80
-mcp__unreal-ai-connection__set_camera_transform(
-    {location: {x: 1, y: 2, z: 3},
-     rotation: {pitch: -20, yaw: 45, roll: 7}}
+mcp__unreal - ai - connection__list_tools  # expect count=80
+(
+    mcp__unreal
+    - ai
+    - connection__set_camera_transform(
+        {location: {x: 1, y: 2, z: 3}, rotation: {pitch: -20, yaw: 45, roll: 7}}
+    )
 )
-mcp__unreal-ai-connection__get_camera_transform   # expect lossless round-trip
-mcp__unreal-ai-connection__inspect_data_asset({path: "/Game/NoSuch"})
+mcp__unreal - ai - connection__get_camera_transform  # expect lossless round-trip
+mcp__unreal - ai - connection__inspect_data_asset({path: "/Game/NoSuch"})
 # expect: error_message starts with "inspect_data_asset: asset_not_found:"
-mcp__unreal-ai-connection__bulk_move_assets(
-    {paths: ["/Game/NoSuch"], dest_folder: "/Game/Archive"}
-)   # expect: ok: false with per-path error_code
+(
+    mcp__unreal
+    - ai
+    - connection__bulk_move_assets({paths: ["/Game/NoSuch"], dest_folder: "/Game/Archive"})
+)  # expect: ok: false with per-path error_code
 ```
 
 ## What's settled

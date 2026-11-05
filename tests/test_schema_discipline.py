@@ -61,17 +61,15 @@ def _declared_types(pschema):
 # Layer 1: catalog-wide invariants
 # ---------------------------------------------------------------------------
 
+
 def test_every_property_declares_a_type():
-    missing = [
-        f"{tool}.{p}" for tool, p, s in _iter_props() if not s.get("type")
-    ]
+    missing = [f"{tool}.{p}" for tool, p, s in _iter_props() if not s.get("type")]
     assert not missing, f"properties missing a 'type': {missing}"
 
 
 def test_every_property_has_a_description():
     missing = [
-        f"{tool}.{p}" for tool, p, s in _iter_props()
-        if not (s.get("description") or "").strip()
+        f"{tool}.{p}" for tool, p, s in _iter_props() if not (s.get("description") or "").strip()
     ]
     assert not missing, f"properties missing a description: {missing}"
 
@@ -159,10 +157,14 @@ LOCKED = {
     ("marketplace_search", "limit"): {"minimum": 1, "maximum": 50, "default": 10},
     ("convert_hdri_to_cubemap", "cube_size"): {"minimum": 16, "maximum": 8192, "default": 1024},
     ("convert_hdri_to_cubemap", "compression"): {
-        "enum": ["TC_HDR", "TC_HDR_COMPRESSED", "TC_HDR_F32", "TC_DEFAULT"], "default": "TC_HDR"},
+        "enum": ["TC_HDR", "TC_HDR_COMPRESSED", "TC_HDR_F32", "TC_DEFAULT"],
+        "default": "TC_HDR",
+    },
     ("sequencer_add_transform_keyframe", "time_seconds"): {"minimum": 0},
     ("sequencer_add_transform_keyframe", "interpolation"): {
-        "enum": ["linear", "constant", "auto", "smart_auto", "cubic"], "default": "linear"},
+        "enum": ["linear", "constant", "auto", "smart_auto", "cubic"],
+        "default": "linear",
+    },
     ("material_auto_remap", "tiling"): {"exclusiveMinimum": 0, "default": 1.0},
     ("pie_control", "action"): {"enum": ["start", "stop", "query"]},
     ("pie_control", "mode"): {"enum": ["play", "simulate"], "default": "play"},
@@ -205,6 +207,4 @@ def test_clamped_upper_bounds_not_asserted_as_maximum():
         s = _BY_NAME[tool]["inputSchema"]["properties"][param]
         if "maximum" in s or "exclusiveMaximum" in s:
             offenders.append(f"{tool}.{param}")
-    assert not offenders, (
-        f"these clamp-upper-bound params must not declare a maximum: {offenders}"
-    )
+    assert not offenders, f"these clamp-upper-bound params must not declare a maximum: {offenders}"

@@ -1,5 +1,6 @@
 """Live POC: create a Level Sequence, bind a cube, add transform
 keyframes via the Python scripting API, verify with get_num_keys."""
+
 import time as _time
 
 import unreal
@@ -28,8 +29,8 @@ if existing:
     cube = existing[0]
 else:
     cube = ll.spawn_actor_from_object(
-        el.load_asset("/Engine/BasicShapes/Cube"),
-        unreal.Vector(0, 0, 0), unreal.Rotator(0, 0, 0))
+        el.load_asset("/Engine/BasicShapes/Cube"), unreal.Vector(0, 0, 0), unreal.Rotator(0, 0, 0)
+    )
     cube.set_actor_label(CUBE_LABEL)
 print(f"cube actor: {cube.get_actor_label()}")
 
@@ -65,6 +66,7 @@ print(f"channel count: {len(all_channels)}")
 for ch in all_channels:
     print(f"  {ch.channel_name} :: {type(ch).__name__}")
 
+
 # 7. Add a couple of keys: t=0 (origin), t=1 (X=500, Z=100).
 # Channel names follow the Location.X / Rotation.X / Scale.X pattern.
 def find_channel(name):
@@ -73,14 +75,18 @@ def find_channel(name):
             return ch
     return None
 
+
 # Tick resolution lives on the MovieScene, but in 5.7 the Python getter
 # is `get_tick_resolution()` only when accessed via the sequence's
 # extension methods, not on MovieScene directly. The robust path: use
 # `unreal.MovieSceneSequenceExtensions.get_tick_resolution(seq)`.
 tick_rate = unreal.MovieSceneSequenceExtensions.get_tick_resolution(seq)
 print(f"tick rate: {tick_rate.numerator}/{tick_rate.denominator}")
+
+
 def seconds_to_frame(t):
     return unreal.FrameNumber(int(round(t * tick_rate.numerator / tick_rate.denominator)))
+
 
 interp_linear = unreal.MovieSceneKeyInterpolation.LINEAR
 
@@ -93,8 +99,12 @@ for ch_name, v0, v1 in [
     if ch is None:
         print(f"!! missing channel {ch_name}")
         continue
-    ch.add_key(seconds_to_frame(0.0), v0, 0.0, unreal.MovieSceneTimeUnit.TICK_RESOLUTION, interp_linear)
-    ch.add_key(seconds_to_frame(1.0), v1, 0.0, unreal.MovieSceneTimeUnit.TICK_RESOLUTION, interp_linear)
+    ch.add_key(
+        seconds_to_frame(0.0), v0, 0.0, unreal.MovieSceneTimeUnit.TICK_RESOLUTION, interp_linear
+    )
+    ch.add_key(
+        seconds_to_frame(1.0), v1, 0.0, unreal.MovieSceneTimeUnit.TICK_RESOLUTION, interp_linear
+    )
     print(f"  {ch_name}: keys now {ch.get_num_keys()}")
 
 # 8. Save + report.

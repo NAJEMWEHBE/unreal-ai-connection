@@ -277,19 +277,27 @@ v1 only surfaces `asset_type=texture` / `asset_type=hdri` for Sketchfab — and 
 Both handlers live in `bridge/unreal_ai_connection_bridge.py` immediately above the `SYNTHETIC_TOOLS = { ... }` dict (where the existing Polyhaven/AmbientCG code already sits). Pseudocode:
 
 ```python
-_MARKETPLACE_USER_AGENT = "UnrealClaudeMCP/0.9 (+https://github.com/NAJEMWEHBE/unreal-ai-connection)"
+_MARKETPLACE_USER_AGENT = (
+    "UnrealClaudeMCP/0.9 (+https://github.com/NAJEMWEHBE/unreal-ai-connection)"
+)
 _MARKETPLACE_TIMEOUT = 30
+
 
 def _http_get_json(url: str, headers: dict | None = None) -> tuple[dict | list | None, dict | None]:
     import urllib.request, urllib.error
+
     hdrs = {"User-Agent": _MARKETPLACE_USER_AGENT, "Accept": "application/json"}
-    if headers: hdrs.update(headers)
+    if headers:
+        hdrs.update(headers)
     req = urllib.request.Request(url, headers=hdrs)
     try:
         with urllib.request.urlopen(req, timeout=_MARKETPLACE_TIMEOUT) as resp:
             return json.loads(resp.read().decode("utf-8", "replace")), None
     except urllib.error.HTTPError as e:
-        return None, {"code": -32603, "message": f"http_error: status={e.code} url={url}: {e.reason}"}
+        return None, {
+            "code": -32603,
+            "message": f"http_error: status={e.code} url={url}: {e.reason}",
+        }
     except urllib.error.URLError as e:
         return None, {"code": -32603, "message": f"network_error: url={url}: {e.reason}"}
     except Exception as e:
@@ -298,7 +306,8 @@ def _http_get_json(url: str, headers: dict | None = None) -> tuple[dict | list |
 
 def _sketchfab_token() -> str | None:
     tok = os.environ.get("SKETCHFAB_API_TOKEN")
-    if tok: return tok.strip()
+    if tok:
+        return tok.strip()
     p = os.path.expanduser("~/.unreal-ai-connection/sketchfab_token")
     if os.path.isfile(p):
         with open(p, "r", encoding="utf-8") as f:
@@ -308,6 +317,7 @@ def _sketchfab_token() -> str | None:
 
 def _search_polyhaven(query, asset_type, limit):
     import urllib.parse
+
     t_map = {"texture": "textures", "hdri": "hdris", "model": "models"}
     parts = []
     if asset_type != "all":
@@ -316,40 +326,48 @@ def _search_polyhaven(query, asset_type, limit):
         parts.append(f"search={urllib.parse.quote(query)}")
     url = "https://api.polyhaven.com/assets" + ("?" + "&".join(parts) if parts else "")
     data, err = _http_get_json(url)
-    if err: return None, err
+    if err:
+        return None, err
     inv = {0: "hdri", 1: "texture", 2: "model"}
     out = []
     for slug, meta in (data or {}).items():
-        out.append({
-            "backend": "polyhaven",
-            "slug": slug,
-            "name": meta.get("name") or slug,
-            "asset_type": inv.get(meta.get("type"), "unknown"),
-            "license": "CC0",
-            "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
-            "thumbnail_url": meta.get("thumbnail_url") or "",
-            "preview_url": meta.get("thumbnail_url") or "",
-            "tags": meta.get("tags") or [],
-            "categories": meta.get("categories") or [],
-            "description": "",
-            "available_resolutions": _resolution_strings(meta.get("max_resolution")),
-            "author": ", ".join((meta.get("authors") or {}).keys()),
-            "download_count": meta.get("download_count") or 0,
-        })
-        if len(out) >= limit: break
+        out.append(
+            {
+                "backend": "polyhaven",
+                "slug": slug,
+                "name": meta.get("name") or slug,
+                "asset_type": inv.get(meta.get("type"), "unknown"),
+                "license": "CC0",
+                "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+                "thumbnail_url": meta.get("thumbnail_url") or "",
+                "preview_url": meta.get("thumbnail_url") or "",
+                "tags": meta.get("tags") or [],
+                "categories": meta.get("categories") or [],
+                "description": "",
+                "available_resolutions": _resolution_strings(meta.get("max_resolution")),
+                "author": ", ".join((meta.get("authors") or {}).keys()),
+                "download_count": meta.get("download_count") or 0,
+            }
+        )
+        if len(out) >= limit:
+            break
     return out, None
 
 
 def _search_sketchfab(query, asset_type, license_filter, limit):
     import urllib.parse
+
     license_map = {"cc0": "cc0", "cc-by": "cc0,cc-by", "any": ""}
     parts = ["type=models", "downloadable=true", f"count={min(24, max(1, limit))}"]
-    if query: parts.append(f"q={urllib.parse.quote(query)}")
+    if query:
+        parts.append(f"q={urllib.parse.quote(query)}")
     lf = license_map.get(license_filter, "cc0")
-    if lf: parts.append(f"license_user={lf}")
+    if lf:
+        parts.append(f"license_user={lf}")
     url = "https://api.sketchfab.com/v3/search?" + "&".join(parts)
     data, err = _http_get_json(url)
-    if err: return None, err
+    if err:
+        return None, err
     out = []
     for r in (data or {}).get("results", []):
         thumbs = (r.get("thumbnails") or {}).get("images") or []
@@ -357,23 +375,26 @@ def _search_sketchfab(query, asset_type, license_filter, limit):
         thumb = thumbs[0]["url"] if thumbs else ""
         preview = thumbs[-1]["url"] if thumbs else thumb
         lic = r.get("license") or {}
-        out.append({
-            "backend": "sketchfab",
-            "slug": r.get("uid") or "",
-            "name": r.get("name") or "",
-            "asset_type": "model",  # Sketchfab is model-only
-            "license": (lic.get("slug") or "").upper() or "CC0",
-            "license_url": lic.get("url") or "",
-            "thumbnail_url": thumb,
-            "preview_url": preview,
-            "tags": [t.get("name") for t in (r.get("tags") or []) if t.get("name")],
-            "categories": [],
-            "description": r.get("description") or "",
-            "available_resolutions": [],
-            "author": (r.get("user") or {}).get("username") or "",
-            "download_count": r.get("downloadCount") or 0,
-        })
-        if len(out) >= limit: break
+        out.append(
+            {
+                "backend": "sketchfab",
+                "slug": r.get("uid") or "",
+                "name": r.get("name") or "",
+                "asset_type": "model",  # Sketchfab is model-only
+                "license": (lic.get("slug") or "").upper() or "CC0",
+                "license_url": lic.get("url") or "",
+                "thumbnail_url": thumb,
+                "preview_url": preview,
+                "tags": [t.get("name") for t in (r.get("tags") or []) if t.get("name")],
+                "categories": [],
+                "description": r.get("description") or "",
+                "available_resolutions": [],
+                "author": (r.get("user") or {}).get("username") or "",
+                "download_count": r.get("downloadCount") or 0,
+            }
+        )
+        if len(out) >= limit:
+            break
     return out, None
 
 

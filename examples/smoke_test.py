@@ -48,6 +48,7 @@ PORT = int(os.environ.get("UCMCP_PORT", "18888"))
 #   <8-byte big-endian uint64 body length> <N bytes of UTF-8 JSON body>
 # ---------------------------------------------------------------------------
 
+
 def _send_framed(sock: socket.socket, body_bytes: bytes) -> None:
     """Prepend the 8-byte big-endian length prefix and send the whole frame."""
     length_prefix = len(body_bytes).to_bytes(8, byteorder="big", signed=False)
@@ -87,7 +88,9 @@ def call(method: str, params: dict | None = None, request_id: int = 1) -> dict:
     try:
         s.connect((HOST, PORT))
     except (ConnectionRefusedError, OSError) as e:
-        return {"_error": f"Cannot reach UE at {HOST}:{PORT}: {e}. Is the editor open with UnrealAIConnection enabled?"}
+        return {
+            "_error": f"Cannot reach UE at {HOST}:{PORT}: {e}. Is the editor open with UnrealAIConnection enabled?"
+        }
 
     try:
         _send_framed(s, raw)
@@ -127,6 +130,7 @@ def show(resp: dict, *, max_chars: int = 600):
 # / the caller.
 # ---------------------------------------------------------------------------
 
+
 class SmokeFailure(AssertionError):
     pass
 
@@ -163,37 +167,51 @@ def _validate_inspect_material_shape(inspect_res: dict) -> None:
     Used both by the find_assets-fallback path and the --material-instance
     opt-in path (which re-inspects the parent of the user-provided MI).
     """
-    for required_key in ("name", "package_path", "class",
-                         "scalar_parameters", "vector_parameters",
-                         "texture_parameters", "static_switch_parameters"):
+    for required_key in (
+        "name",
+        "package_path",
+        "class",
+        "scalar_parameters",
+        "vector_parameters",
+        "texture_parameters",
+        "static_switch_parameters",
+    ):
         if required_key not in inspect_res:
             raise SmokeFailure(
                 f"[inspect_material] missing key '{required_key}' in result: {inspect_res}"
             )
-    for arr_key in ("scalar_parameters", "vector_parameters",
-                    "texture_parameters", "static_switch_parameters"):
+    for arr_key in (
+        "scalar_parameters",
+        "vector_parameters",
+        "texture_parameters",
+        "static_switch_parameters",
+    ):
         if not isinstance(inspect_res[arr_key], list):
-            raise SmokeFailure(
-                f"[inspect_material] {arr_key} not a list: {inspect_res[arr_key]}"
-            )
+            raise SmokeFailure(f"[inspect_material] {arr_key} not a list: {inspect_res[arr_key]}")
 
 
 def main():
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     ap.add_argument("--widget", help="Widget BP asset path to mutate (creates RootVB+Title)")
     ap.add_argument("--level", help="Level package path to load")
     ap.add_argument("--bp", help="Blueprint asset path to inspect")
     ap.add_argument(
         "--material-instance",
         dest="material_instance",
-        help=("UMaterialInstanceConstant path to exercise inspect_material, "
-              "inspect_material_instance, and set_mi_parameter end-to-end. "
-              "Run scripts/seed_test_project.py to create /Game/SmokeTest_MI."),
+        help=(
+            "UMaterialInstanceConstant path to exercise inspect_material, "
+            "inspect_material_instance, and set_mi_parameter end-to-end. "
+            "Run scripts/seed_test_project.py to create /Game/SmokeTest_MI."
+        ),
     )
     ap.add_argument(
         "--sequence",
-        help=("ULevelSequence path to exercise inspect_sequence end-to-end. "
-              "Run scripts/seed_test_project.py to create /Game/SmokeTest_LS."),
+        help=(
+            "ULevelSequence path to exercise inspect_sequence end-to-end. "
+            "Run scripts/seed_test_project.py to create /Game/SmokeTest_LS."
+        ),
     )
     args = ap.parse_args()
 
@@ -219,13 +237,16 @@ def main():
             print(f"\n!! UNEXPECTED FAIL: {msg}")
 
     header("0. unknown method (should return error -32601)")
+
     def t0():
         resp = call("does_not_exist")
         show(resp)
         assert_error_code(resp, -32601, "unknown_method")
+
     step("unknown_method", t0)
 
     header("1. list_tools (non-empty + self-consistent count)")
+
     def t1():
         # Don't assert a specific tool count here -- handlers get added
         # often and a hard-coded number drifts immediately (this assertion
@@ -243,10 +264,14 @@ def main():
         if not tools:
             raise SmokeFailure(f"[list_tools] empty tool list -- registry not populated: {result}")
         if result.get("count") != len(tools):
-            raise SmokeFailure(f"[list_tools] 'count' ({result.get('count')}) != len(tools) ({len(tools)})")
+            raise SmokeFailure(
+                f"[list_tools] 'count' ({result.get('count')}) != len(tools) ({len(tools)})"
+            )
+
     step("list_tools", t1)
 
     header("2. execute_unreal_python")
+
     def t2():
         resp = call(
             "execute_unreal_python",
@@ -254,9 +279,11 @@ def main():
         )
         show(resp)
         assert_ok(resp, "execute_unreal_python")
+
     step("execute_unreal_python", t2)
 
     header("3. get_project_summary")
+
     def t3():
         resp = call("get_project_summary")
         show(resp)
@@ -267,10 +294,14 @@ def main():
         if not isinstance(result["plugins"], list):
             raise SmokeFailure("[get_project_summary] 'plugins' not a list")
         if not isinstance(result["asset_count"], int):
-            raise SmokeFailure(f"[get_project_summary] 'asset_count' not int: {result['asset_count']}")
+            raise SmokeFailure(
+                f"[get_project_summary] 'asset_count' not int: {result['asset_count']}"
+            )
+
     step("get_project_summary", t3)
 
     header("4. get_actors_in_level (no filter)")
+
     def t4():
         resp = call("get_actors_in_level")
         show(resp)
@@ -284,31 +315,40 @@ def main():
             raise SmokeFailure("[get_actors_in_level] missing/invalid total_actors/returned")
         if returned > total:
             raise SmokeFailure(f"[get_actors_in_level] returned ({returned}) > total ({total})")
+
     step("get_actors_in_level", t4)
 
     header("5. take_high_res_screenshot (multiplier=1)")
+
     def t5():
         resp = call("take_high_res_screenshot", {"multiplier": 1})
         show(resp)
         assert_ok(resp, "take_high_res_screenshot")
+
     step("take_high_res_screenshot", t5)
 
     header("6. get_viewport_screenshot (response truncated for readability)")
+
     def t6():
         resp = call("get_viewport_screenshot")
         if "result" in resp:
             r = resp["result"]
-            print(json.dumps({
-                "jsonrpc": resp.get("jsonrpc"),
-                "id": resp.get("id"),
-                "result": {
-                    "width": r.get("width"),
-                    "height": r.get("height"),
-                    "png_bytes": r.get("png_bytes"),
-                    "png_base64_len": len(r.get("png_base64", "")),
-                    "png_base64_first_64": (r.get("png_base64", "")[:64] + "..."),
-                },
-            }, indent=2))
+            print(
+                json.dumps(
+                    {
+                        "jsonrpc": resp.get("jsonrpc"),
+                        "id": resp.get("id"),
+                        "result": {
+                            "width": r.get("width"),
+                            "height": r.get("height"),
+                            "png_bytes": r.get("png_bytes"),
+                            "png_base64_len": len(r.get("png_base64", "")),
+                            "png_base64_first_64": (r.get("png_base64", "")[:64] + "..."),
+                        },
+                    },
+                    indent=2,
+                )
+            )
         else:
             show(resp)
         result = assert_ok(resp, "get_viewport_screenshot")
@@ -317,16 +357,20 @@ def main():
         if not isinstance(result.get("height"), int) or result["height"] <= 0:
             raise SmokeFailure(f"[get_viewport_screenshot] bad height: {result.get('height')}")
         if not isinstance(result.get("png_bytes"), int) or result["png_bytes"] <= 0:
-            raise SmokeFailure(f"[get_viewport_screenshot] bad png_bytes: {result.get('png_bytes')}")
+            raise SmokeFailure(
+                f"[get_viewport_screenshot] bad png_bytes: {result.get('png_bytes')}"
+            )
         if not result.get("png_base64"):
             raise SmokeFailure("[get_viewport_screenshot] empty png_base64")
+
     step("get_viewport_screenshot", t6)
 
     header("7. texture pipeline round-trip (import + configure + cleanup)")
+
     def t_texture():
         fixture = os.path.abspath(
-            os.path.join(os.path.dirname(__file__), "..",
-                         "tests", "fixtures", "test_texture.png"))
+            os.path.join(os.path.dirname(__file__), "..", "tests", "fixtures", "test_texture.png")
+        )
         if not os.path.exists(fixture):
             raise SmokeFailure(f"[texture] fixture missing: {fixture}")
 
@@ -335,23 +379,29 @@ def main():
         asset_path = f"{smoke_dest}/{asset_name}.{asset_name}"
 
         # Import
-        imp = call("import_texture", {
-            "source_path": fixture,
-            "dest_path": smoke_dest,
-            "dest_name": asset_name,
-            "replace_existing": True,
-        })
+        imp = call(
+            "import_texture",
+            {
+                "source_path": fixture,
+                "dest_path": smoke_dest,
+                "dest_name": asset_name,
+                "replace_existing": True,
+            },
+        )
         result = assert_ok(imp, "import_texture")
         if not (result.get("width") == 256 and result.get("height") == 256):
             raise SmokeFailure(f"[import_texture] unexpected dims: {result}")
 
         # Configure
-        cfg = call("configure_texture", {
-            "path": asset_path,
-            "srgb": False,
-            "compression": "Normalmap",
-            "lod_group": "WorldNormalMap",
-        })
+        cfg = call(
+            "configure_texture",
+            {
+                "path": asset_path,
+                "srgb": False,
+                "compression": "Normalmap",
+                "lod_group": "WorldNormalMap",
+            },
+        )
         cfg_res = assert_ok(cfg, "configure_texture")
         applied = cfg_res.get("applied") or {}
         if applied.get("srgb") is not False:
@@ -360,66 +410,90 @@ def main():
             raise SmokeFailure(f"[configure_texture] compression not applied: {cfg_res}")
 
         # Clean up via execute_unreal_python so we don't leave smoke assets behind
-        cleanup = call("execute_unreal_python", {
-            "code": (
-                "import unreal\n"
-                f"unreal.EditorAssetLibrary.delete_directory('{smoke_dest}')\n"
-            )
-        })
+        cleanup = call(
+            "execute_unreal_python",
+            {
+                "code": (
+                    f"import unreal\nunreal.EditorAssetLibrary.delete_directory('{smoke_dest}')\n"
+                )
+            },
+        )
         assert_ok(cleanup, "texture_pipeline.cleanup")
+
     step("texture_pipeline", t_texture)
 
-    header("8. build-a-level round-trip (find_assets + spawn + transform + property + component + delete)")
+    header(
+        "8. build-a-level round-trip (find_assets + spawn + transform + property + component + delete)"
+    )
+
     def t_buildalevel():
         # 1. Discover what's available to spawn (basic shapes from /Engine/)
-        find = call("find_assets", {
-            "class_path": "/Script/Engine.StaticMesh",
-            "path_under": "/Engine/BasicShapes/",
-            "limit": 10,
-        })
+        find = call(
+            "find_assets",
+            {
+                "class_path": "/Script/Engine.StaticMesh",
+                "path_under": "/Engine/BasicShapes/",
+                "limit": 10,
+            },
+        )
         find_res = assert_ok(find, "find_assets")
         if find_res.get("returned", 0) == 0:
             raise SmokeFailure(f"[find_assets] no basic shapes found: {find_res}")
 
         # 2. Spawn two StaticMeshActors with distinct labels
-        s1 = call("spawn_actor", {
-            "class_path": "/Script/Engine.StaticMeshActor",
-            "location": {"x": 0, "y": 0, "z": 0},
-            "label": "SmokeBuildCube1",
-        })
+        s1 = call(
+            "spawn_actor",
+            {
+                "class_path": "/Script/Engine.StaticMeshActor",
+                "location": {"x": 0, "y": 0, "z": 0},
+                "label": "SmokeBuildCube1",
+            },
+        )
         s1_res = assert_ok(s1, "spawn_actor.cube1")
         assert "name" in s1_res, "spawn_actor.cube1 returned no name"
 
-        s2 = call("spawn_actor", {
-            "class_path": "/Script/Engine.StaticMeshActor",
-            "location": {"x": 200, "y": 0, "z": 0},
-            "label": "SmokeBuildCube2",
-        })
+        s2 = call(
+            "spawn_actor",
+            {
+                "class_path": "/Script/Engine.StaticMeshActor",
+                "location": {"x": 200, "y": 0, "z": 0},
+                "label": "SmokeBuildCube2",
+            },
+        )
         assert_ok(s2, "spawn_actor.cube2")
 
         # 3. Move + rotate cube2
-        t = call("set_actor_transform", {
-            "name": "SmokeBuildCube2",
-            "location": {"x": 200, "y": 200, "z": 50},
-            "rotation": {"pitch": 0, "yaw": 45, "roll": 0},
-        })
+        t = call(
+            "set_actor_transform",
+            {
+                "name": "SmokeBuildCube2",
+                "location": {"x": 200, "y": 200, "z": 50},
+                "rotation": {"pitch": 0, "yaw": 45, "roll": 0},
+            },
+        )
         t_res = assert_ok(t, "set_actor_transform")
         if "location" not in (t_res.get("applied") or {}):
             raise SmokeFailure(f"[set_actor_transform] location not in applied: {t_res}")
 
         # 4. Set a UPROPERTY on cube1 (bHidden)
-        p = call("set_actor_property", {
-            "name": "SmokeBuildCube1",
-            "property": "bHidden",
-            "value": False,
-        })
+        p = call(
+            "set_actor_property",
+            {
+                "name": "SmokeBuildCube1",
+                "property": "bHidden",
+                "value": False,
+            },
+        )
         assert_ok(p, "set_actor_property")
 
         # 5. Add a PointLightComponent to cube1
-        c = call("add_component", {
-            "actor_name": "SmokeBuildCube1",
-            "class_path": "/Script/Engine.PointLightComponent",
-        })
+        c = call(
+            "add_component",
+            {
+                "actor_name": "SmokeBuildCube1",
+                "class_path": "/Script/Engine.PointLightComponent",
+            },
+        )
         c_res = assert_ok(c, "add_component")
         if c_res.get("class") != "PointLightComponent":
             raise SmokeFailure(f"[add_component] unexpected class: {c_res}")
@@ -435,36 +509,51 @@ def main():
         a_res = assert_ok(actors, "get_actors_in_level.cleanup_check")
         if a_res.get("returned", 0) != 0:
             raise SmokeFailure(f"[cleanup] residual actors found: {a_res}")
+
     step("buildalevel", t_buildalevel)
 
     header("9. advanced property types round-trip (USTRUCT + TArray + path traversal)")
+
     def t_advanced_props():
         # 1. Spawn a test actor
-        spawn_resp = call("spawn_actor", {
-            "class_path": "/Script/Engine.StaticMeshActor",
-            "location": {"x": 0, "y": 0, "z": 0},
-            "label": "AdvSmoke",
-        })
+        spawn_resp = call(
+            "spawn_actor",
+            {
+                "class_path": "/Script/Engine.StaticMeshActor",
+                "location": {"x": 0, "y": 0, "z": 0},
+                "label": "AdvSmoke",
+            },
+        )
         spawn_res = assert_ok(spawn_resp, "spawn_actor.adv")
         actor_name = spawn_res["name"]
 
         # 2. Set nested USTRUCT via path traversal: RootComponent.RelativeLocation
-        set_loc = call("set_actor_property", {
-            "name": actor_name,
-            "property": "RootComponent.RelativeLocation",
-            "value": {"x": 100.0, "y": 200.0, "z": 50.0},
-        })
+        set_loc = call(
+            "set_actor_property",
+            {
+                "name": actor_name,
+                "property": "RootComponent.RelativeLocation",
+                "value": {"x": 100.0, "y": 200.0, "z": 50.0},
+            },
+        )
         set_loc_res = assert_ok(set_loc, "set_actor_property.struct_path")
         applied_loc = set_loc_res.get("new_value") or {}
-        if not (applied_loc.get("x") == 100.0 and applied_loc.get("y") == 200.0 and applied_loc.get("z") == 50.0):
+        if not (
+            applied_loc.get("x") == 100.0
+            and applied_loc.get("y") == 200.0
+            and applied_loc.get("z") == 50.0
+        ):
             raise SmokeFailure(f"USTRUCT round-trip failed: {set_loc_res}")
 
         # 3. Set TArray<FName> on the actor itself: Tags
-        set_tags = call("set_actor_property", {
-            "name": actor_name,
-            "property": "Tags",
-            "value": ["foo", "bar", "baz"],
-        })
+        set_tags = call(
+            "set_actor_property",
+            {
+                "name": actor_name,
+                "property": "Tags",
+                "value": ["foo", "bar", "baz"],
+            },
+        )
         set_tags_res = assert_ok(set_tags, "set_actor_property.tarray")
         new_tags = set_tags_res.get("new_value") or []
         # FName encoding round-trip: list of strings
@@ -474,15 +563,20 @@ def main():
         # 4. Cleanup
         delete = call("delete_actor", {"name": actor_name, "force": True})
         assert_ok(delete, "delete_actor.adv")
+
     step("advanced_property_types", t_advanced_props)
 
     header("10. observability round-trip (execute_console_command + get_log_lines)")
+
     def t_observability():
         # 1. Execute a benign console command and capture its output.
-        cmd_resp = call("execute_console_command", {
-            "command": "stat fps",
-            "capture_output": True,
-        })
+        cmd_resp = call(
+            "execute_console_command",
+            {
+                "command": "stat fps",
+                "capture_output": True,
+            },
+        )
         cmd_res = assert_ok(cmd_resp, "execute_console_command.stat_fps")
         if cmd_res.get("command") != "stat fps":
             raise SmokeFailure(f"[execute_console_command] command echo mismatch: {cmd_res}")
@@ -492,10 +586,13 @@ def main():
             raise SmokeFailure(f"[execute_console_command] ok is not true: {cmd_res}")
 
         # 2. Read log lines — the module startup message should be in the buffer.
-        log_resp = call("get_log_lines", {
-            "count": 200,
-            "min_verbosity": "Log",
-        })
+        log_resp = call(
+            "get_log_lines",
+            {
+                "count": 200,
+                "min_verbosity": "Log",
+            },
+        )
         log_res = assert_ok(log_resp, "get_log_lines.basic")
         if not isinstance(log_res.get("lines"), list):
             raise SmokeFailure(f"[get_log_lines] 'lines' not a list: {log_res}")
@@ -510,11 +607,14 @@ def main():
 
         # 3. Test category filter: ask only for LogTemp lines (the module might
         #    not have emitted any but the call must succeed without error).
-        filtered_resp = call("get_log_lines", {
-            "count": 50,
-            "category_filter": "LogUCMCP",
-            "min_verbosity": "Log",
-        })
+        filtered_resp = call(
+            "get_log_lines",
+            {
+                "count": 50,
+                "category_filter": "LogUCMCP",
+                "min_verbosity": "Log",
+            },
+        )
         filtered_res = assert_ok(filtered_resp, "get_log_lines.filtered")
         # All returned lines must match the filter.
         for line in filtered_res.get("lines", []):
@@ -537,6 +637,7 @@ def main():
             raise SmokeFailure(
                 f"[execute_console_command] missing 'command' should return an error: {missing_resp}"
             )
+
     step("observability", t_observability)
 
     # -------- v0.7.0: asset registry deep dive ------------------------------
@@ -551,12 +652,15 @@ def main():
     def t_asset_registry():
         # 1. find_assets — query for any built-in StaticMesh in /Engine/BasicShapes/
         #    (always present in any UE project; safe to assume non-empty).
-        find_resp = call("find_assets", {
-            "class_path": "/Script/Engine.StaticMesh",
-            "path_under": "/Engine/BasicShapes/",
-            "include_tags": True,
-            "limit": 5,
-        })
+        find_resp = call(
+            "find_assets",
+            {
+                "class_path": "/Script/Engine.StaticMesh",
+                "path_under": "/Engine/BasicShapes/",
+                "include_tags": True,
+                "limit": 5,
+            },
+        )
         find_res = assert_ok(find_resp, "find_assets.tagged_query")
         if not isinstance(find_res.get("assets"), list):
             raise SmokeFailure(f"[find_assets] 'assets' not a list: {find_res}")
@@ -576,27 +680,42 @@ def main():
         # 2. inspect_asset — full registry record on the first asset above.
         inspect_resp = call("inspect_asset", {"path": first_asset["package_path"]})
         inspect_res = assert_ok(inspect_resp, "inspect_asset.basic_shape")
-        for required_key in ("name", "package_path", "asset_path", "class",
-                             "class_path", "tags", "dependencies",
-                             "referencers", "package_size_bytes"):
+        for required_key in (
+            "name",
+            "package_path",
+            "asset_path",
+            "class",
+            "class_path",
+            "tags",
+            "dependencies",
+            "referencers",
+            "package_size_bytes",
+        ):
             if required_key not in inspect_res:
                 raise SmokeFailure(
                     f"[inspect_asset] missing key '{required_key}' in result: {inspect_res}"
                 )
         if not isinstance(inspect_res["dependencies"], list):
-            raise SmokeFailure(f"[inspect_asset] dependencies not a list: {inspect_res['dependencies']}")
+            raise SmokeFailure(
+                f"[inspect_asset] dependencies not a list: {inspect_res['dependencies']}"
+            )
         if not isinstance(inspect_res["referencers"], list):
-            raise SmokeFailure(f"[inspect_asset] referencers not a list: {inspect_res['referencers']}")
+            raise SmokeFailure(
+                f"[inspect_asset] referencers not a list: {inspect_res['referencers']}"
+            )
 
         # 3. delete_asset safety gate — try to delete a referenced asset with
         #    force=false. /Engine/BasicShapes meshes are referenced by the
         #    EditorContent default level and engine examples, so they should
         #    have non-empty referencers. If they do, expect has_referencers.
         if len(inspect_res["referencers"]) > 0:
-            delete_resp = call("delete_asset", {
-                "path": first_asset["package_path"],
-                "force": False,
-            })
+            delete_resp = call(
+                "delete_asset",
+                {
+                    "path": first_asset["package_path"],
+                    "force": False,
+                },
+            )
             if "error" not in delete_resp:
                 raise SmokeFailure(
                     f"[delete_asset] expected has_referencers error on referenced "
@@ -615,6 +734,7 @@ def main():
                 raise SmokeFailure(
                     f"[delete_asset] expected asset_not_found error, got success: {delete_resp}"
                 )
+
     step("asset_registry", t_asset_registry)
 
     # -------- v0.8.0: sequencer scaffolding ---------------------------------
@@ -627,15 +747,20 @@ def main():
         if args.sequence:
             seq_path = args.sequence
         else:
-            find_resp = call("find_assets", {
-                "class_path": "/Script/LevelSequence.LevelSequence",
-                "path_under": "/Game/",
-                "limit": 1,
-            })
+            find_resp = call(
+                "find_assets",
+                {
+                    "class_path": "/Script/LevelSequence.LevelSequence",
+                    "path_under": "/Game/",
+                    "limit": 1,
+                },
+            )
             find_res = assert_ok(find_resp, "find_assets.level_sequences")
             if find_res.get("returned", 0) < 1:
-                print("  [t_sequencer] no Level Sequences in /Game/ — skipping inspect_sequence "
-                      "(seed with scripts/seed_test_project.py or pass --sequence)")
+                print(
+                    "  [t_sequencer] no Level Sequences in /Game/ — skipping inspect_sequence "
+                    "(seed with scripts/seed_test_project.py or pass --sequence)"
+                )
                 return
             seq_path = find_res["assets"][0]["package_path"]
 
@@ -643,9 +768,15 @@ def main():
         # Label reflects which path produced seq_path so failure messages are diagnostic.
         inspect_label = "inspect_sequence.opt_in" if args.sequence else "inspect_sequence.found"
         inspect_res = assert_ok(inspect_resp, inspect_label)
-        for required_key in ("name", "package_path", "tick_resolution",
-                             "display_rate_fps", "playback_range",
-                             "bindings", "tracks"):
+        for required_key in (
+            "name",
+            "package_path",
+            "tick_resolution",
+            "display_rate_fps",
+            "playback_range",
+            "bindings",
+            "tracks",
+        ):
             if required_key not in inspect_res:
                 raise SmokeFailure(
                     f"[inspect_sequence] missing key '{required_key}' in result: {inspect_res}"
@@ -654,6 +785,7 @@ def main():
             raise SmokeFailure(f"[inspect_sequence] bindings not a list: {inspect_res['bindings']}")
         if not isinstance(inspect_res["tracks"], list):
             raise SmokeFailure(f"[inspect_sequence] tracks not a list: {inspect_res['tracks']}")
+
     step("sequencer", t_sequencer)
 
     # -------- v0.9.0: materials authoring -----------------------------------
@@ -669,40 +801,59 @@ def main():
         # on a user's project).
         mic_path = args.material_instance
         if mic_path is None:
-            find_resp = call("find_assets", {
-                "class_path": "/Script/Engine.Material",
-                "path_under": "/Game/",
-                "limit": 1,
-            })
+            find_resp = call(
+                "find_assets",
+                {
+                    "class_path": "/Script/Engine.Material",
+                    "path_under": "/Game/",
+                    "limit": 1,
+                },
+            )
             find_res = assert_ok(find_resp, "find_assets.materials")
             if find_res.get("returned", 0) < 1:
-                print("  [t_materials] no Materials in /Game/ — skipping inspect_material "
-                      "(seed with scripts/seed_test_project.py or pass --material-instance)")
+                print(
+                    "  [t_materials] no Materials in /Game/ — skipping inspect_material "
+                    "(seed with scripts/seed_test_project.py or pass --material-instance)"
+                )
                 return
             first_mat = find_res["assets"][0]
             inspect_resp = call("inspect_material", {"path": first_mat["package_path"]})
             inspect_res = assert_ok(inspect_resp, "inspect_material.first_found")
             _validate_inspect_material_shape(inspect_res)
 
-            mic_resp = call("find_assets", {
-                "class_path": "/Script/Engine.MaterialInstanceConstant",
-                "path_under": "/Game/",
-                "limit": 1,
-            })
+            mic_resp = call(
+                "find_assets",
+                {
+                    "class_path": "/Script/Engine.MaterialInstanceConstant",
+                    "path_under": "/Game/",
+                    "limit": 1,
+                },
+            )
             mic_res = assert_ok(mic_resp, "find_assets.material_instances")
             if mic_res.get("returned", 0) < 1:
-                print("  [t_materials] no MaterialInstanceConstants in /Game/ — skipping inspect_material_instance")
+                print(
+                    "  [t_materials] no MaterialInstanceConstants in /Game/ — skipping inspect_material_instance"
+                )
                 return
             mic_path = mic_res["assets"][0]["package_path"]
 
         # 1. inspect_material_instance on the target.
         # Label reflects which path produced mic_path so failure messages are diagnostic.
-        mic_label = "inspect_material_instance.opt_in" if args.material_instance else "inspect_material_instance.found"
+        mic_label = (
+            "inspect_material_instance.opt_in"
+            if args.material_instance
+            else "inspect_material_instance.found"
+        )
         inspect_mic = call("inspect_material_instance", {"path": mic_path})
         inspect_mic_res = assert_ok(inspect_mic, mic_label)
-        for required_key in ("name", "package_path", "parent_path",
-                             "scalar_overrides", "vector_overrides",
-                             "texture_overrides"):
+        for required_key in (
+            "name",
+            "package_path",
+            "parent_path",
+            "scalar_overrides",
+            "vector_overrides",
+            "texture_overrides",
+        ):
             if required_key not in inspect_mic_res:
                 raise SmokeFailure(
                     f"[inspect_material_instance] missing key '{required_key}' in result: {inspect_mic_res}"
@@ -726,17 +877,22 @@ def main():
         if args.material_instance:
             scalar_params = parent_res.get("scalar_parameters", [])
             if not scalar_params:
-                print("  [t_materials] parent material has no scalar parameters -- "
-                      "skipping set_mi_parameter round-trip")
+                print(
+                    "  [t_materials] parent material has no scalar parameters -- "
+                    "skipping set_mi_parameter round-trip"
+                )
                 return
             param_name = scalar_params[0]
             test_value = 0.7
-            set_resp = call("set_mi_parameter", {
-                "path": mic_path,
-                "parameter": param_name,
-                "type": "scalar",
-                "value": test_value,
-            })
+            set_resp = call(
+                "set_mi_parameter",
+                {
+                    "path": mic_path,
+                    "parameter": param_name,
+                    "type": "scalar",
+                    "value": test_value,
+                },
+            )
             set_res = assert_ok(set_resp, "set_mi_parameter.scalar")
             if set_res.get("ok") is not True:
                 raise SmokeFailure(f"[set_mi_parameter] returned ok != true: {set_res}")
@@ -756,6 +912,7 @@ def main():
                     f"[set_mi_parameter] override value mismatch: "
                     f"got {actual}, expected {test_value}"
                 )
+
     step("materials", t_materials)
 
     # -------- v0.9.1: large-response wire-framing regression guard ---------
@@ -780,57 +937,87 @@ def main():
                 f"[get_viewport_screenshot] image_base64 suspiciously small "
                 f"({len(png_base64)} chars); large-frame round-trip may have failed"
             )
+
     step("large_response", t_large_response)
 
     if args.bp:
         header(f"10. inspect_blueprint  ({args.bp})")
+
         def t7():
             resp = call("inspect_blueprint", {"path": args.bp})
             show(resp)
             assert_ok(resp, "inspect_blueprint")
+
         step("inspect_blueprint", t7)
 
     if args.widget:
         wbp = args.widget
 
         header(f"11a. inspect_widget_tree (BEFORE)  ({wbp})")
+
         def t8a():
             resp = call("inspect_widget_tree", {"path": wbp})
             show(resp)
             assert_ok(resp, "inspect_widget_tree.before")
+
         step("inspect_widget_tree.before", t8a)
 
         header("11b. edit_widget_tree -- set_root VerticalBox")
+
         def t8b():
-            resp = call("edit_widget_tree", {
-                "path": wbp, "op": "set_root", "class": "VerticalBox", "name": "RootVB",
-            })
+            resp = call(
+                "edit_widget_tree",
+                {
+                    "path": wbp,
+                    "op": "set_root",
+                    "class": "VerticalBox",
+                    "name": "RootVB",
+                },
+            )
             show(resp)
             assert_ok(resp, "edit_widget_tree.set_root")
+
         step("edit_widget_tree.set_root", t8b)
 
         header("11c. edit_widget_tree -- add_child TextBlock 'Title'")
+
         def t8c():
-            resp = call("edit_widget_tree", {
-                "path": wbp, "op": "add_child", "parent": "RootVB",
-                "class": "TextBlock", "name": "Title",
-            })
+            resp = call(
+                "edit_widget_tree",
+                {
+                    "path": wbp,
+                    "op": "add_child",
+                    "parent": "RootVB",
+                    "class": "TextBlock",
+                    "name": "Title",
+                },
+            )
             show(resp)
             assert_ok(resp, "edit_widget_tree.add_child")
+
         step("edit_widget_tree.add_child", t8c)
 
         header("11d. edit_widget_tree -- set_property Title.text (with compile)")
+
         def t8d():
-            resp = call("edit_widget_tree", {
-                "path": wbp, "op": "set_property", "widget": "Title",
-                "property": "text", "value": "Hello from UnrealAIConnection",
-                "compile": True,
-            })
+            resp = call(
+                "edit_widget_tree",
+                {
+                    "path": wbp,
+                    "op": "set_property",
+                    "widget": "Title",
+                    "property": "text",
+                    "value": "Hello from UnrealAIConnection",
+                    "compile": True,
+                },
+            )
             show(resp)
             assert_ok(resp, "edit_widget_tree.set_property")
+
         step("edit_widget_tree.set_property", t8d)
 
         header("11e. inspect_widget_tree (AFTER; should show RootVB + Title)")
+
         def t8e():
             resp = call("inspect_widget_tree", {"path": wbp})
             show(resp)
@@ -840,14 +1027,17 @@ def main():
                 raise SmokeFailure(
                     f"[inspect_widget_tree.after] expected RootVB+Title in tree: {tree_text[:300]}"
                 )
+
         step("inspect_widget_tree.after", t8e)
 
     if args.level:
         header(f"12. load_level_by_path  ({args.level})")
+
         def t9():
             resp = call("load_level_by_path", {"path": args.level})
             show(resp)
             assert_ok(resp, "load_level_by_path")
+
         step("load_level_by_path", t9)
 
     print()

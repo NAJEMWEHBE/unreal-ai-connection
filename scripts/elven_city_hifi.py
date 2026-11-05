@@ -24,6 +24,7 @@ ok/err into a marker line read back via get_log_lines.
 Idempotent: wipes HFX_*/ELV_* actors and rebuilds. Re-running reflects
 edits. Prefix HFX_.
 """
+
 import json
 import math
 import random
@@ -63,8 +64,7 @@ SHAPES = {
 MESH = {k: unreal.load_object(None, v) for k, v in SHAPES.items()}
 _missing = [SHAPES[k] for k, m in MESH.items() if m is None]
 if _missing:
-    raise RuntimeError(
-        "missing engine BasicShapes (cannot build scene): %s" % _missing)
+    raise RuntimeError("missing engine BasicShapes (cannot build scene): %s" % _missing)
 
 
 def _rot(pitch=0.0, yaw=0.0, roll=0.0):
@@ -91,7 +91,10 @@ def step_cvars():
         for c in cmds:
             unreal.SystemLibrary.execute_console_command(
                 unreal.EditorLevelLibrary.get_editor_world()
-                if hasattr(unreal, "EditorLevelLibrary") else None, c)
+                if hasattr(unreal, "EditorLevelLibrary")
+                else None,
+                c,
+            )
     except Exception as e:
         # World arg flaky across builds — fall back to no-world exec.
         try:
@@ -114,12 +117,12 @@ def build_pbr_master():
     mpath = MATDIR + "/M_HiPBR"
     if EAL.does_asset_exist(mpath):
         EAL.delete_asset(mpath)
-    m = AT.create_asset("M_HiPBR", MATDIR, unreal.Material,
-                         unreal.MaterialFactoryNew())
+    m = AT.create_asset("M_HiPBR", MATDIR, unreal.Material, unreal.MaterialFactoryNew())
 
     def tparam(name, y, sampler):
         n = MEL.create_material_expression(
-            m, unreal.MaterialExpressionTextureSampleParameter2D, -900, y)
+            m, unreal.MaterialExpressionTextureSampleParameter2D, -900, y
+        )
         n.set_editor_property("parameter_name", name)
         try:
             n.set_editor_property("sampler_type", sampler)
@@ -128,14 +131,11 @@ def build_pbr_master():
         return n
 
     # UV tiling scalar so large surfaces don't smear.
-    uv = MEL.create_material_expression(
-        m, unreal.MaterialExpressionTextureCoordinate, -1200, -300)
-    tile = MEL.create_material_expression(
-        m, unreal.MaterialExpressionScalarParameter, -1200, -120)
+    uv = MEL.create_material_expression(m, unreal.MaterialExpressionTextureCoordinate, -1200, -300)
+    tile = MEL.create_material_expression(m, unreal.MaterialExpressionScalarParameter, -1200, -120)
     tile.set_editor_property("parameter_name", "Tiling")
     tile.set_editor_property("default_value", 1.0)
-    uvmul = MEL.create_material_expression(
-        m, unreal.MaterialExpressionMultiply, -1050, -250)
+    uvmul = MEL.create_material_expression(m, unreal.MaterialExpressionMultiply, -1050, -250)
     try:
         MEL.connect_material_expressions(uv, "", uvmul, "A")
         MEL.connect_material_expressions(tile, "", uvmul, "B")
@@ -173,9 +173,12 @@ def make_inst(master, name, base, tiling):
     ipath = MATDIR + "/MI_" + name
     if EAL.does_asset_exist(ipath):
         EAL.delete_asset(ipath)
-    mi = AT.create_asset("MI_" + name, MATDIR,
-                          unreal.MaterialInstanceConstant,
-                          unreal.MaterialInstanceConstantFactoryNew())
+    mi = AT.create_asset(
+        "MI_" + name,
+        MATDIR,
+        unreal.MaterialInstanceConstant,
+        unreal.MaterialInstanceConstantFactoryNew(),
+    )
     MEL.set_material_instance_parent(mi, master)
     pairs = {
         "Albedo": tex(base),
@@ -201,22 +204,18 @@ def build_water_master():
     wpath = MATDIR + "/M_HiWater"
     if EAL.does_asset_exist(wpath):
         EAL.delete_asset(wpath)
-    w = AT.create_asset("M_HiWater", MATDIR, unreal.Material,
-                         unreal.MaterialFactoryNew())
+    w = AT.create_asset("M_HiWater", MATDIR, unreal.Material, unreal.MaterialFactoryNew())
     try:
         w.set_editor_property("blend_mode", unreal.BlendMode.BLEND_TRANSLUCENT)
     except Exception:
         pass
     MP = unreal.MaterialProperty
     # Deep teal base.
-    col = MEL.create_material_expression(
-        w, unreal.MaterialExpressionConstant3Vector, -500, -300)
-    col.set_editor_property("constant",
-                            unreal.LinearColor(0.012, 0.05, 0.06, 1.0))
+    col = MEL.create_material_expression(w, unreal.MaterialExpressionConstant3Vector, -500, -300)
+    col.set_editor_property("constant", unreal.LinearColor(0.012, 0.05, 0.06, 1.0))
     MEL.connect_material_property(col, "", MP.MP_BASE_COLOR)
     # Panning normal for ripples.
-    pan = MEL.create_material_expression(
-        w, unreal.MaterialExpressionPanner, -750, 0)
+    pan = MEL.create_material_expression(w, unreal.MaterialExpressionPanner, -750, 0)
     try:
         pan.set_editor_property("speed_x", 0.018)
         pan.set_editor_property("speed_y", 0.011)
@@ -224,26 +223,21 @@ def build_water_master():
         pass
     wn = tex(TEX + "/GrassRock_normal")  # reuse a normal as ripple proxy
     if wn:
-        ns = MEL.create_material_expression(
-            w, unreal.MaterialExpressionTextureSample, -550, 0)
+        ns = MEL.create_material_expression(w, unreal.MaterialExpressionTextureSample, -550, 0)
         ns.set_editor_property("texture", wn)
         try:
-            ns.set_editor_property(
-                "sampler_type", unreal.MaterialSamplerType.SAMPLERTYPE_NORMAL)
+            ns.set_editor_property("sampler_type", unreal.MaterialSamplerType.SAMPLERTYPE_NORMAL)
             MEL.connect_material_expressions(pan, "", ns, "UVs")
         except Exception:
             pass
         MEL.connect_material_property(ns, "RGB", MP.MP_NORMAL)
-    rgh = MEL.create_material_expression(
-        w, unreal.MaterialExpressionConstant, -500, 250)
+    rgh = MEL.create_material_expression(w, unreal.MaterialExpressionConstant, -500, 250)
     rgh.set_editor_property("r", 0.025)
     MEL.connect_material_property(rgh, "", MP.MP_ROUGHNESS)
-    spec = MEL.create_material_expression(
-        w, unreal.MaterialExpressionConstant, -500, 400)
+    spec = MEL.create_material_expression(w, unreal.MaterialExpressionConstant, -500, 400)
     spec.set_editor_property("r", 1.0)
     MEL.connect_material_property(spec, "", MP.MP_SPECULAR)
-    opac = MEL.create_material_expression(
-        w, unreal.MaterialExpressionConstant, -500, 550)
+    opac = MEL.create_material_expression(w, unreal.MaterialExpressionConstant, -500, 550)
     opac.set_editor_property("r", 0.78)
     try:
         MEL.connect_material_property(opac, "", MP.MP_OPACITY)
@@ -280,8 +274,7 @@ def wipe():
 
 def spawn(shape, label, loc, scale, mat=None, rot=(0, 0, 0)):
     eas = get_eas()
-    a = eas.spawn_actor_from_object(
-        MESH[shape], unreal.Vector(*loc), _rot(*rot))
+    a = eas.spawn_actor_from_object(MESH[shape], unreal.Vector(*loc), _rot(*rot))
     a.set_actor_label(PREFIX + label)
     a.set_actor_scale3d(unreal.Vector(*scale))
     if mat:
@@ -289,8 +282,7 @@ def spawn(shape, label, loc, scale, mat=None, rot=(0, 0, 0)):
             a.static_mesh_component.set_material(0, mat)
         except Exception:
             try:
-                a.get_component_by_class(
-                    unreal.StaticMeshComponent).set_material(0, mat)
+                a.get_component_by_class(unreal.StaticMeshComponent).set_material(0, mat)
             except Exception:
                 pass
     return a
@@ -318,9 +310,13 @@ def build_geometry(mats):
     ]
     for nm, loc, sc in halls:
         spawn("cube", nm, loc, sc, marble)
-        spawn("cone", nm + "_Roof",
-               (loc[0], loc[1], loc[2] + sc[2] * 50 + 210),
-               (sc[0] * 1.15, sc[1] * 1.15, 2.4), marble)
+        spawn(
+            "cone",
+            nm + "_Roof",
+            (loc[0], loc[1], loc[2] + sc[2] * 50 + 210),
+            (sc[0] * 1.15, sc[1] * 1.15, 2.4),
+            marble,
+        )
     # Central cathedral spire (focal point).
     spawn("cyl", "Spire", (4150, -2100, 4050), (4.4, 4.4, 13), marble)
     spawn("cone", "SpireTip", (4150, -2100, 4850), (5.4, 5.4, 9), marble)
@@ -329,28 +325,28 @@ def build_geometry(mats):
     spawn("cube", "ViaductDeck", (1500, 150, DZ), (7, 70, 0.6), marble)
     for i in range(7):
         y = -2400 + i * 760
-        spawn("cube", "Pier%d" % i, (1500, y, DZ / 2),
-               (5, 4, DZ / 100), marble)
-        spawn("cyl", "Arch%d" % i, (1500, y + 380, DZ * 0.8),
-               (3.4, 3.4, 3.4), marble, rot=(90, 0, 0))
+        spawn("cube", "Pier%d" % i, (1500, y, DZ / 2), (5, 4, DZ / 100), marble)
+        spawn(
+            "cyl", "Arch%d" % i, (1500, y + 380, DZ * 0.8), (3.4, 3.4, 3.4), marble, rot=(90, 0, 0)
+        )
     # Pavilion + beacon near camera (foreground silhouette layer).
     for k in range(8):
         ang = k / 8.0 * math.tau
-        spawn("cyl", "Pav_Col%d" % k,
-               (1500 + 380 * math.cos(ang), 150 + 380 * math.sin(ang),
-                DZ + 360),
-               (1.0, 1.0, 7.2), marble)
+        spawn(
+            "cyl",
+            "Pav_Col%d" % k,
+            (1500 + 380 * math.cos(ang), 150 + 380 * math.sin(ang), DZ + 360),
+            (1.0, 1.0, 7.2),
+            marble,
+        )
     spawn("sphere", "Pav_Dome", (1500, 150, DZ + 880), (9, 9, 5.2), marble)
-    spawn("sphere", "Beacon", (1500, 150, DZ + 1180), (1.7, 1.7, 1.7),
-          marble)
+    spawn("sphere", "Beacon", (1500, 150, DZ + 1180), (1.7, 1.7, 1.7), marble)
     # Side stairs.
     for i in range(14):
-        spawn("cube", "Stair%d" % i,
-               (700 - i * 70, -1700, 40 + i * 90), (3.5, 9, 0.6), marble)
+        spawn("cube", "Stair%d" % i, (700 - i * 70, -1700, 40 + i * 90), (3.5, 9, 0.6), marble)
     # Waterfalls off the cliff (thin water planes).
     for i, y in enumerate((-2600, -400, 1800)):
-        spawn("plane", "Fall%d" % i, (4150, y, 1500),
-               (2.4, 0.4, 30), water, rot=(0, 90, 0))
+        spawn("plane", "Fall%d" % i, (4150, y, 1500), (2.4, 0.4, 30), water, rot=(0, 90, 0))
 
 
 def scatter_foliage(grass):
@@ -365,9 +361,7 @@ def scatter_foliage(grass):
             continue
         s = random.uniform(0.7, 1.5)
         yaw = random.uniform(0, 360)
-        a = eas.spawn_actor_from_object(
-            MESH["cone"], unreal.Vector(x, y, 120 * s),
-            _rot(yaw=yaw))
+        a = eas.spawn_actor_from_object(MESH["cone"], unreal.Vector(x, y, 120 * s), _rot(yaw=yaw))
         a.set_actor_label(PREFIX + "Pine%d" % n)
         a.set_actor_scale3d(unreal.Vector(1.5 * s, 1.5 * s, 5.5 * s))
         try:
@@ -380,10 +374,14 @@ def scatter_foliage(grass):
         y = random.uniform(-3500, 3400)
         s = random.uniform(0.6, 1.8)
         a = eas.spawn_actor_from_object(
-            MESH["sphere"], unreal.Vector(x, y, 30 * s),
-            _rot(pitch=random.uniform(-20, 20),
-                 yaw=random.uniform(0, 360),
-                 roll=random.uniform(-20, 20)))
+            MESH["sphere"],
+            unreal.Vector(x, y, 30 * s),
+            _rot(
+                pitch=random.uniform(-20, 20),
+                yaw=random.uniform(0, 360),
+                roll=random.uniform(-20, 20),
+            ),
+        )
         a.set_actor_label(PREFIX + "Rock%d" % n)
         a.set_actor_scale3d(unreal.Vector(2.4 * s, 1.9 * s, 1.5 * s))
         try:
@@ -401,17 +399,19 @@ def build_atmosphere():
     eas = get_eas()
 
     def sp(cls, loc=(0, 0, 0), rot=(0, 0, 0), tag=""):
-        a = eas.spawn_actor_from_class(
-            cls, unreal.Vector(*loc), _rot(*rot))
+        a = eas.spawn_actor_from_class(cls, unreal.Vector(*loc), _rot(*rot))
         a.set_actor_label(PREFIX + (tag or cls.get_name()))
         return a
 
     try:
-        sun = sp(unreal.DirectionalLight, rot=(-11.0, -42.0, 0.0),
-                 tag="Sun")
+        sun = sp(unreal.DirectionalLight, rot=(-11.0, -42.0, 0.0), tag="Sun")
         dlc = sun.get_component_by_class(unreal.DirectionalLightComponent)
-        for k, v in (("intensity", 10.0), ("light_source_angle", 0.35),
-                     ("use_temperature", True), ("temperature", 5400.0)):
+        for k, v in (
+            ("intensity", 10.0),
+            ("light_source_angle", 0.35),
+            ("use_temperature", True),
+            ("temperature", 5400.0),
+        ):
             try:
                 dlc.set_editor_property(k, v)
             except Exception:
@@ -429,8 +429,7 @@ def build_atmosphere():
     except Exception as e:
         mark("sun", False, e)
 
-    for cls, tag in ((unreal.SkyAtmosphere, "SkyAtmo"),
-                     (unreal.VolumetricCloud, "Clouds")):
+    for cls, tag in ((unreal.SkyAtmosphere, "SkyAtmo"), (unreal.VolumetricCloud, "Clouds")):
         try:
             sp(cls, tag=tag)
             mark(tag, True)
@@ -455,18 +454,20 @@ def build_atmosphere():
 
     try:
         fog = sp(unreal.ExponentialHeightFog, tag="Fog")
-        ehc = fog.get_component_by_class(
-            unreal.ExponentialHeightFogComponent)
-        for k, v in (("fog_density", 0.02),
-                     ("fog_height_falloff", 0.2),
-                     ("enable_volumetric_fog", True)):
+        ehc = fog.get_component_by_class(unreal.ExponentialHeightFogComponent)
+        for k, v in (
+            ("fog_density", 0.02),
+            ("fog_height_falloff", 0.2),
+            ("enable_volumetric_fog", True),
+        ):
             try:
                 ehc.set_editor_property(k, v)
             except Exception as e:
                 RESULT["errs"].append("fog:%s:%s" % (k, e))
-        for meth, arg in (("set_volumetric_fog_scattering_distribution",
-                           0.7),
-                          ("set_volumetric_fog_extinction_scale", 1.2)):
+        for meth, arg in (
+            ("set_volumetric_fog_scattering_distribution", 0.7),
+            ("set_volumetric_fog_extinction_scale", 1.2),
+        ):
             try:
                 getattr(ehc, meth)(arg)
             except Exception as e:
@@ -482,8 +483,7 @@ def build_atmosphere():
 def build_postprocess():
     eas = get_eas()
     try:
-        ppv = eas.spawn_actor_from_class(
-            unreal.PostProcessVolume, unreal.Vector(0, 0, 0))
+        ppv = eas.spawn_actor_from_class(unreal.PostProcessVolume, unreal.Vector(0, 0, 0))
         ppv.set_actor_label(PREFIX + "PPV")
         ppv.set_editor_property("unbound", True)
         s = ppv.get_editor_property("settings")
@@ -491,8 +491,7 @@ def build_postprocess():
         def setp(vk, val, ok_list):
             try:
                 s.set_editor_property(vk, val)
-                for ok in ([ok_list] if isinstance(ok_list, str)
-                           else ok_list):
+                for ok in [ok_list] if isinstance(ok_list, str) else ok_list:
                     try:
                         s.set_editor_property(ok, True)
                     except Exception:
@@ -502,51 +501,39 @@ def build_postprocess():
 
         # Manual exposure (non-negotiable for deterministic captures).
         try:
-            s.set_editor_property(
-                "auto_exposure_method",
-                unreal.AutoExposureMethod.AEM_MANUAL)
+            s.set_editor_property("auto_exposure_method", unreal.AutoExposureMethod.AEM_MANUAL)
             s.set_editor_property("override_auto_exposure_method", True)
         except Exception:
             pass
-        setp("auto_exposure_min_brightness", 1.0,
-             "override_auto_exposure_min_brightness")
-        setp("auto_exposure_max_brightness", 1.0,
-             "override_auto_exposure_max_brightness")
+        setp("auto_exposure_min_brightness", 1.0, "override_auto_exposure_min_brightness")
+        setp("auto_exposure_max_brightness", 1.0, "override_auto_exposure_max_brightness")
         # +1 stop only. Manual EV compensation: high values blow out.
         setp("auto_exposure_bias", 1.0, "override_auto_exposure_bias")
-        setp("auto_exposure_apply_physical_camera_exposure", False,
-             "override_auto_exposure_apply_physical_camera_exposure")
+        setp(
+            "auto_exposure_apply_physical_camera_exposure",
+            False,
+            "override_auto_exposure_apply_physical_camera_exposure",
+        )
         # Bloom.
         setp("bloom_intensity", 0.55, "override_bloom_intensity")
         setp("bloom_threshold", -1.0, "override_bloom_threshold")
         # Subtle lens.
-        setp("lens_flare_intensity", 0.25,
-             "override_lens_flare_intensity")
-        setp("scene_fringe_intensity", 1.2,
-             "override_scene_fringe_intensity")
-        setp("film_grain_intensity", 0.18,
-             "override_film_grain_intensity")
+        setp("lens_flare_intensity", 0.25, "override_lens_flare_intensity")
+        setp("scene_fringe_intensity", 1.2, "override_scene_fringe_intensity")
+        setp("film_grain_intensity", 0.18, "override_film_grain_intensity")
         setp("vignette_intensity", 0.42, "override_vignette_intensity")
         # Filmic color grade (teal shadows / warm highlights).
         V = unreal.Vector4
-        setp("color_saturation", V(1.06, 1.06, 1.06, 1.0),
-             "override_color_saturation")
-        setp("color_contrast", V(1.09, 1.09, 1.09, 1.0),
-             "override_color_contrast")
-        setp("color_gain_highlights", V(1.04, 1.0, 0.95, 1.0),
-             "override_color_gain_highlights")
-        setp("color_offset_shadows", V(-0.008, -0.004, 0.012, 0.0),
-             "override_color_offset_shadows")
+        setp("color_saturation", V(1.06, 1.06, 1.06, 1.0), "override_color_saturation")
+        setp("color_contrast", V(1.09, 1.09, 1.09, 1.0), "override_color_contrast")
+        setp("color_gain_highlights", V(1.04, 1.0, 0.95, 1.0), "override_color_gain_highlights")
+        setp("color_offset_shadows", V(-0.008, -0.004, 0.012, 0.0), "override_color_offset_shadows")
         setp("white_temp", 6200.0, "override_white_temp")
         # Reflections / AO / DoF.
-        setp("screen_space_reflection_quality", 100.0,
-             "override_screen_space_reflection_quality")
-        setp("ambient_occlusion_intensity", 0.5,
-             "override_ambient_occlusion_intensity")
-        setp("ambient_occlusion_radius", 90.0,
-             "override_ambient_occlusion_radius")
-        setp("depth_of_field_fstop", 2.8,
-             "override_depth_of_field_fstop")
+        setp("screen_space_reflection_quality", 100.0, "override_screen_space_reflection_quality")
+        setp("ambient_occlusion_intensity", 0.5, "override_ambient_occlusion_intensity")
+        setp("ambient_occlusion_radius", 90.0, "override_ambient_occlusion_radius")
+        setp("depth_of_field_fstop", 2.8, "override_depth_of_field_fstop")
         setp("motion_blur_amount", 0.0, "override_motion_blur_amount")
         mark("postprocess", True)
     except Exception as e:
@@ -560,8 +547,8 @@ def build_cinematic():
     eas = get_eas()
     try:
         cam = eas.spawn_actor_from_class(
-            unreal.CineCameraActor, unreal.Vector(-2600, 250, 1700),
-            _rot(-3, 0, 0))
+            unreal.CineCameraActor, unreal.Vector(-2600, 250, 1700), _rot(-3, 0, 0)
+        )
         cam.set_actor_label(PREFIX + "CineCam")
         try:
             ccc = cam.get_cine_camera_component()
@@ -584,9 +571,9 @@ def build_cinematic():
         spath = CINEDIR + "/SEQ_Flythrough"
         if EAL.does_asset_exist(spath):
             EAL.delete_asset(spath)
-        seq = AT.create_asset("SEQ_Flythrough", CINEDIR,
-                              unreal.LevelSequence,
-                              unreal.LevelSequenceFactoryNew())
+        seq = AT.create_asset(
+            "SEQ_Flythrough", CINEDIR, unreal.LevelSequence, unreal.LevelSequenceFactoryNew()
+        )
         try:
             seq.set_editor_property("display_rate", unreal.FrameRate(24, 1))
         except Exception:
@@ -620,25 +607,24 @@ def build_cinematic():
             chans = tsec.get_all_channels()
             # channels order: loc x,y,z  rot x,y,z  scale x,y,z
             keys = {
-                0: (-2600, 1800), 1: (250, 150), 2: (1700, 1500),
-                3: (0, 0), 4: (0, 0), 5: (-3, 2),
+                0: (-2600, 1800),
+                1: (250, 150),
+                2: (1700, 1500),
+                3: (0, 0),
+                4: (0, 0),
+                5: (-3, 2),
             }
             for ci, (v0, v1) in keys.items():
                 if ci < len(chans):
-                    chans[ci].add_key(
-                        unreal.FrameNumber(0), float(v0))
-                    chans[ci].add_key(
-                        unreal.FrameNumber(288), float(v1))
+                    chans[ci].add_key(unreal.FrameNumber(0), float(v0))
+                    chans[ci].add_key(unreal.FrameNumber(288), float(v1))
             mark("seq_keys", True)
         except Exception as e:
             mark("seq_keys", False, e)
-        lsa = eas.spawn_actor_from_class(
-            unreal.LevelSequenceActor, unreal.Vector(0, 0, 0))
+        lsa = eas.spawn_actor_from_class(unreal.LevelSequenceActor, unreal.Vector(0, 0, 0))
         lsa.set_actor_label(PREFIX + "SeqActor")
         try:
-            lsa.set_editor_property(
-                "level_sequence",
-                unreal.SoftObjectPath(seq.get_path_name()))
+            lsa.set_editor_property("level_sequence", unreal.SoftObjectPath(seq.get_path_name()))
         except Exception:
             try:
                 lsa.set_sequence(seq)
@@ -679,8 +665,7 @@ def main():
     # Camera framing for the still hero shot.
     try:
         ues = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem)
-        ues.set_level_viewport_camera_info(
-            unreal.Vector(-2600, 250, 1700), _rot(-3, 0, 0))
+        ues.set_level_viewport_camera_info(unreal.Vector(-2600, 250, 1700), _rot(-3, 0, 0))
         mark("viewcam", True)
     except Exception as e:
         mark("viewcam", False, e)
@@ -697,8 +682,9 @@ def main():
         except Exception as e2:
             mark("save", False, "%s / %s" % (e, e2))
 
-    cnt = len([a for a in get_eas().get_all_level_actors()
-               if a.get_actor_label().startswith(PREFIX)])
+    cnt = len(
+        [a for a in get_eas().get_all_level_actors() if a.get_actor_label().startswith(PREFIX)]
+    )
     RESULT["actors"] = cnt
     unreal.log("HIFI_RESULT " + json.dumps(RESULT))
 

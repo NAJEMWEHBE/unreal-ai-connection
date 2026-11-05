@@ -4,6 +4,7 @@ Also publishes the canonical tool-count constants used by drift tests. Bumping
 the catalog in one place (here) avoids the recurring "two count assertions in
 test_bridge.py + one in test_manifest_sync.py" miss documented in HANDOFF.md.
 """
+
 import os
 import sys
 
