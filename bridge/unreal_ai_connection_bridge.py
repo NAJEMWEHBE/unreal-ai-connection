@@ -1001,7 +1001,7 @@ TOOLS = [
     },
     {
         "name": "list_tools",
-        "description": "Return the names of every registered MCP method on the UE server.",
+        "description": "Live inventory of every callable tool: the editor's registered methods (asked live, so tools from companion plugins such as DMX show up when loaded) merged with the bridge-side tools. Returns tools (sorted names), source (name -> 'native' or 'bridge'), count, native_count, bridge_count.",
         "inputSchema": {"type": "object", "properties": {}},
     },
     {
@@ -11312,6 +11312,35 @@ def _as_tool_result(req_id, resp: dict) -> dict:
     )
 
 
+def _list_tools_merged(req_id, tool_args: dict) -> dict:
+    """tools/call list_tools: the editor's live registry plus the bridge tools.
+
+    The C++ list_tools handler only sees the editor's registry, so on its own
+    it hides every synthetic tool. Merge them here, tagging each name with
+    where it runs. An editor failure is passed through unchanged.
+    """
+    ue_resp = call_ue("list_tools", tool_args)
+    if "error" in ue_resp:
+        return make_response(req_id, error=ue_resp["error"])
+    result = ue_resp.get("result")
+    native = result.get("tools") if isinstance(result, dict) else None
+    native = [n for n in native if isinstance(n, str)] if isinstance(native, list) else []
+    source = {name: "native" for name in native}
+    bridge_side = [*SYNTHETIC_TOOLS, SEARCH_TOOLS_DESCRIPTOR["name"]]
+    for name in bridge_side:
+        source.setdefault(name, "bridge")
+    return _wrap_tool_result(
+        req_id,
+        {
+            "tools": sorted(source),
+            "source": dict(sorted(source.items())),
+            "count": len(source),
+            "native_count": len(native),
+            "bridge_count": len(bridge_side),
+        },
+    )
+
+
 def _dispatch_tool_call(req_id, tool_name: str, tool_args: dict) -> dict:
     """Route one tools/call to search_tools, a synthetic, or the editor."""
     # Bridge-only progressive-disclosure discovery tool. Served entirely
@@ -11327,6 +11356,9 @@ def _dispatch_tool_call(req_id, tool_name: str, tool_args: dict) -> dict:
     # composed into one logical operation).
     if tool_name in SYNTHETIC_TOOLS:
         return _as_tool_result(req_id, SYNTHETIC_TOOLS[tool_name](req_id, tool_args))
+
+    if tool_name == "list_tools":
+        return _as_tool_result(req_id, _list_tools_merged(req_id, tool_args))
 
     if tool_name in _STDOUT_CAPTURE_TOOLS:
         ue_resp = _call_ue_capturing_stdout(tool_name, tool_args)

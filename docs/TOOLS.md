@@ -270,13 +270,16 @@ Aim the active level-editor viewport, either by **framing a named actor** or by 
 
 ## list_tools
 
-Return the names of every registered MCP method.
+Live inventory of every callable tool. The editor reports its registered methods (asked live, so companion-plugin tools such as the DMX ones appear when that plugin is loaded) and the MCP bridge adds its bridge-side tools.
 
 **Params** — none
 
-**Result**
-- `tools` (array of strings, sorted)
-- `count` (int)
+**Result** (through the MCP bridge)
+- `tools` (array of strings, sorted): editor methods and bridge-side tools together
+- `source` (object): tool name → `"native"` (runs in the editor) or `"bridge"` (runs in the bridge)
+- `count`, `native_count`, `bridge_count` (int)
+
+A raw TCP client talking to the plugin directly gets only the editor half: `tools` and `count`.
 
 ---
 

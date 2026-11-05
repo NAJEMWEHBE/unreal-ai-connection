@@ -5235,10 +5235,10 @@ def test_handle_tools_call_forwards_to_ue_and_wraps_result():
                 "jsonrpc": "2.0",
                 "id": 4,
                 "method": "tools/call",
-                "params": {"name": "list_tools", "arguments": {}},
+                "params": {"name": "get_project_summary", "arguments": {}},
             }
         )
-    m.assert_called_once_with("list_tools", {})
+    m.assert_called_once_with("get_project_summary", {})
     assert resp["id"] == 4
     assert resp["result"]["isError"] is False
     assert resp["result"]["content"][0]["type"] == "text"
