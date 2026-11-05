@@ -139,3 +139,9 @@ def test_results_without_a_thumbnail_stay_a_single_text_block():
     with patch.object(bridge, "call_ue", return_value={"result": {"path": "x.png"}}):
         resp = _call("get_viewport_screenshot", {})
     assert [c["type"] for c in resp["result"]["content"]] == ["text"]
+
+
+@pytest.mark.parametrize("bad_params", [[1, 2], "text"])
+def test_non_object_params_get_invalid_params(bad_params):
+    resp = bridge.handle({"jsonrpc": "2.0", "id": 9, "method": "tools/call", "params": bad_params})
+    assert resp["error"]["code"] == -32602

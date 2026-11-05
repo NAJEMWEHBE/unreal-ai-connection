@@ -11208,8 +11208,16 @@ def handle(req: dict) -> dict | None:
     if req_id is None and method.startswith("notifications/"):
         return None
 
+    if not isinstance(params, dict):
+        if req_id is None:
+            return None
+        return make_response(
+            req_id,
+            error={"code": -32602, "message": "Invalid params: 'params' must be an object"},
+        )
+
     if method == "initialize":
-        requested = params.get("protocolVersion") if isinstance(params, dict) else None
+        requested = params.get("protocolVersion")
         version = requested if requested in SUPPORTED_PROTOCOL_VERSIONS else PROTOCOL_VERSION
         return make_response(
             req_id,
