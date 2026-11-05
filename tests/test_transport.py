@@ -83,10 +83,16 @@ def test_busy_editor_is_not_reported_as_not_running(fake_ue):
     assert "may still" in err["message"]
 
 
-def test_refused_connection_is_still_not_reachable(fake_ue, monkeypatch):
-    srv = fake_ue(lambda conn, release: None)
-    port = srv.port
-    srv.close()  # nothing listens on the port any more
+def test_refused_connection_is_still_not_reachable(monkeypatch):
+    # Reserve a free port and release it without ever listening, so the
+    # connect is refused. (Closing a listener whose accept() is still blocked
+    # in another thread doesn't free the port on Linux: the connect would
+    # succeed and then reset.)
+    probe = socket.socket()
+    probe.bind(("127.0.0.1", 0))
+    port = probe.getsockname()[1]
+    probe.close()
+    monkeypatch.setattr(bridge, "UE_HOST", "127.0.0.1")
     monkeypatch.setattr(bridge, "UE_PORT", port)
 
     resp = bridge.call_ue("list_tools", {})
