@@ -3503,7 +3503,6 @@ READ_ONLY_TOOLS = frozenset(
         "audit_blueprint_compile_status",
         "bulk_inspect_assets",
         "compare_assets",
-        "find_actors_by_class",
         "find_assets",
         "find_console_variables",
         "find_unused_assets",
