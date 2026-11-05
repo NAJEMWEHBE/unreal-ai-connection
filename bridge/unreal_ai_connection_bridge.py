@@ -13,9 +13,9 @@ plugin speaks raw JSON-RPC over a local TCP socket (default
 Behaviour:
   - "initialize"             returned synthetically (does NOT hit the UE server)
   - "notifications/*"        consumed silently
-  - "tools/list"             returns a static list of all 151 tools (112
-                             dispatched to the UE plugin's C++ handlers
-                             plus 37 bridge-side synthetic tools served by
+  - "tools/list"             returns a static list of every tool (native
+                             handlers dispatched to the UE plugin plus the
+                             bridge-side synthetic tools served by
                              SYNTHETIC_TOOLS without crossing the wire as
                              a single UE round-trip). With
                              UCMCP_TOOL_MODE=progressive it instead returns a
@@ -89,27 +89,14 @@ SUPPORTED_PROTOCOL_VERSIONS = ("2025-06-18", "2025-03-26", "2024-11-05")
 SERVER_NAME = "unreal-ai-connection"
 SERVER_VERSION = "0.9.1"
 
-# Mirror of UnrealAIConnection/Resources/mcp_manifest.json - kept in sync manually.
-# 96 tool entries total. 71 are dispatched straight to UE C++ handlers
-# (see UnrealAIConnectionModule.cpp's Reg.Register(...) block). The remaining
-# 25 -- wait_for_events, get_camera_transform, set_camera_transform,
-# screenshot_actor, compile_mod_pak, compile_mod_pak_direct,
-# bulk_delete_assets, bulk_move_assets, bulk_rename_assets,
-# bulk_duplicate_assets, bulk_inspect_assets, inspect_data_asset,
-# inspect_sound_class, inspect_sound_submix, inspect_audio_bus,
-# inspect_material_function, inspect_metasound, find_unused_assets,
-# get_reference_chain, bulk_compile_blueprints,
-# audit_blueprint_compile_status, find_actors_by_class,
-# bulk_focus_actors, bulk_screenshot_actors, bulk_set_actor_property
-# -- are bridge-side synthetic tools served by SYNTHETIC_TOOLS (see
-# below) without a dedicated UE handler: they either compose existing
-# handlers (focus + screenshot, repeated poll, loop over delete_asset /
-# move_asset / rename_asset / duplicate_asset / inspect_asset /
-# inspect_blueprint / compile_blueprint / find_assets / focus_actor /
-# set_actor_property), run the matching unreal.* Python via
-# execute_unreal_python with the marker pattern (most inspect_*
-# shims), or (compile_mod_pak / compile_mod_pak_direct) shell out to
-# RunUAT.bat entirely outside the UE process.
+# Mirror of UnrealAIConnection/Resources/mcp_manifest.json. Every entry whose
+# name is not in SYNTHETIC_TOOLS is dispatched straight to a UE C++ handler
+# (one GetMethodName() per Handler_*.cpp); SYNTHETIC_TOOLS entries are served
+# bridge-side: they compose existing handlers, run unreal.* Python through
+# execute_unreal_python with the marker pattern, or (compile_mod_pak /
+# compile_mod_pak_direct) shell out to RunUAT/UnrealPak outside the UE process.
+# tests/test_catalog_sync.py keeps this list, the C++ handlers, the manifest
+# and docs/TOOLS.md in step; the exact counts are EXPECTED_* in tests/conftest.py.
 TOOLS = [
     {
         "name": "execute_unreal_python",
@@ -3159,6 +3146,79 @@ TOOLS = [
         },
     },
     {
+        "name": "create_dmx_patch",
+        "description": "Create a DMX fixture patch in a DMXLibrary asset and bind it to an existing fixture type by display name, at a universe + starting address + mode. Does the fixture-type bind in C++ because UE's Python bindings can't (the entity Id is protected). Saves the library by default. Needs the optional UnrealAIConnectionDMX companion plugin enabled in the project (it pulls in DMXEngine + DMXProtocol); without it the editor answers 'Method not found'.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "library_path": {
+                    "type": "string",
+                    "description": "DMXLibrary asset path, e.g. '/Game/DMX/DMXL_Stage'.",
+                },
+                "fixture_type": {
+                    "type": "string",
+                    "description": "Display name of a fixture type already defined in that library.",
+                },
+                "patch_name": {"type": "string", "description": "Display name for the new patch."},
+                "universe": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "Local universe id (default 1).",
+                },
+                "starting_address": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 512,
+                    "description": "Starting channel within the universe (default 1).",
+                },
+                "active_mode": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Fixture-type mode index (default 0).",
+                },
+                "save": {
+                    "type": "boolean",
+                    "description": "Save the library asset after creating the patch (default true).",
+                },
+            },
+            "required": ["library_path", "fixture_type", "patch_name"],
+        },
+    },
+    {
+        "name": "dmx_stream_set",
+        "description": "Set DMX channel values and keep sending them: a game-thread ticker re-sends the held buffer to every DMX output port each editor frame, so Art-Net/sACN keeps carrying the latest values. Channels outside 1..512 are ignored; values are clamped to 0..255. Output flows while the editor ticks (realtime viewport, PIE or an external engine link); an idle editor holds the last frame. Needs the optional UnrealAIConnectionDMX companion plugin enabled in the project (it pulls in DMXEngine + DMXProtocol); without it the editor answers 'Method not found'.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "channels": {
+                    "type": "object",
+                    "description": 'Map of 1-based channel number (as a string key) to value 0..255, e.g. {"1": 255, "2": 128}.',
+                    "additionalProperties": {"type": "integer"},
+                },
+                "universe": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "Local universe id (default 1).",
+                },
+                "merge": {
+                    "type": "boolean",
+                    "description": "Merge into the universe's held buffer (default true); false replaces it.",
+                },
+            },
+            "required": ["channels"],
+        },
+    },
+    {
+        "name": "dmx_stream_stop",
+        "description": "Stop continuous DMX output started by dmx_stream_set and clear every held buffer. Needs the optional UnrealAIConnectionDMX companion plugin enabled in the project (it pulls in DMXEngine + DMXProtocol); without it the editor answers 'Method not found'.",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "dmx_stream_status",
+        "description": "Report continuous DMX output: running flag, frames sent, number of output ports, and per-universe held channel counts. Needs the optional UnrealAIConnectionDMX companion plugin enabled in the project (it pulls in DMXEngine + DMXProtocol); without it the editor answers 'Method not found'.",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
         "name": "mesh_bake_ao_to_vertex_color",
         "description": "Bake self-occlusion ambient occlusion into a Static Mesh asset's vertex colors, in place. Native C++ handler (optional UnrealAIConnectionGeometry companion; needs the GeometryScripting engine plugin enabled). Copies the mesh out via Geometry Scripting, bakes AO to the RGBA vertex-color channel (self-occlusion), optionally blurs, writes back into the chosen SourceModel LOD and saves. Look/optimization use: cheap baked occlusion in vertex colors for real-time shading. Edits + saves the asset.",
         "inputSchema": {
@@ -3316,7 +3376,7 @@ TOOLS = [
 # model's context up front. Past ~30-50 tools, tool-selection accuracy and
 # token cost both blow up (Anthropic "Tool Search Tool", arXiv 2603.20313
 # semantic discovery, modelcontextprotocol discussion #532). We advertise
-# ~147 tools; that is 3-5x over the documented safe ceiling.
+# 150+ tools; that is 3-5x over the documented safe ceiling.
 #
 # This block adds an OPT-IN progressive mode. When enabled, `tools/list`
 # returns only a small always-on CORE set plus one bridge-side `search_tools`
@@ -3454,7 +3514,7 @@ _SEARCH_RESULT_DEFAULT_LIMIT = 8
 SEARCH_TOOLS_DESCRIPTOR = {
     "name": "search_tools",
     "description": (
-        "Progressive tool discovery. This server exposes ~147 tools but only a "
+        f"Progressive tool discovery. This server exposes {len(TOOLS) + 1} tools but only a "
         "small core set is advertised up front to keep context lean. Call this "
         "to find the full input schemas of the tools you need on demand. Pass a "
         "free-text `query` (e.g. 'add a camera keyframe', 'import a PBR texture') "
@@ -3826,7 +3886,7 @@ def search_tools_impl(args: dict) -> dict:
         "tools": results,
         "hint": (
             "Call any returned tool directly via tools/call using its 'name'. "
-            "All ~147 tools remain callable even though only a core set is "
+            f"All {len(TOOLS) + 1} tools remain callable even though only a core set is "
             "advertised in progressive mode."
         ),
     }

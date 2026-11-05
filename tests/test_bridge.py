@@ -229,6 +229,10 @@ def test_tool_names_are_unique_and_match_handlers():
         "decal_scatter",
         "inspect_ocio_config",
         "inspect_ndisplay_config",
+        "create_dmx_patch",
+        "dmx_stream_set",
+        "dmx_stream_stop",
+        "dmx_stream_status",
         "mesh_bake_ao_to_vertex_color",
     }
     assert set(names) == expected

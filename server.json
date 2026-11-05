@@ -2,7 +2,7 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.najemwehbe/unreal-ai-connection",
   "title": "Unreal AI Connection",
-  "description": "PREREQUISITE: install the Unreal AI Connection UE 5.7 plugin into your UE project and launch the editor (it binds 127.0.0.1:18888) before connecting — no registry can do this for you. This stdio bridge then exposes 105 Unreal Engine editor-automation tools (actors, levels, materials, Blueprints, sequencer, rendering, asset import, editor Python) to any MCP client.",
+  "description": "Drive the Unreal Engine 5.7 editor from MCP clients. Needs the Unreal AI Connection UE plugin.",
   "version": "0.9.1",
   "repository": {
     "url": "https://github.com/NAJEMWEHBE/unreal-ai-connection",

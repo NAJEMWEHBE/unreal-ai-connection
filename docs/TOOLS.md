@@ -1,6 +1,6 @@
 # MCP Tools Reference
 
-**151 tools total.** 114 are JSON-RPC 2.0 methods served on `127.0.0.1:18888` directly by the plugin's C++ handlers. The remaining 37 — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`, `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap`, `sequencer_add_transform_keyframe`, `import_mesh`, `material_auto_remap`, `batch_capture_cameras`, `batch_spawn_from_csv` — are bridge-side **synthetic tools** that are intercepted by `bridge/unreal_ai_connection_bridge.py` and served by composing existing handlers (or running Python via `execute_unreal_python`, or — for `compile_mod_pak` — shelling out to `RunUAT.bat` entirely outside the UE process). They are visible to MCP clients exactly like the C++ tools but cannot be reached by sending raw JSON-RPC to the TCP socket — only via the MCP bridge or by replicating their composition manually. The "Implementation" header on each entry below indicates whether a tool is C++ or bridge-side.
+**155 tools total.** 118 are JSON-RPC 2.0 methods served on `127.0.0.1:18888` directly by the plugin's C++ handlers. The remaining 37 — `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`, `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap`, `sequencer_add_transform_keyframe`, `import_mesh`, `material_auto_remap`, `batch_capture_cameras`, `batch_spawn_from_csv` — are bridge-side **synthetic tools** that are intercepted by `bridge/unreal_ai_connection_bridge.py` and served by composing existing handlers (or running Python via `execute_unreal_python`, or — for `compile_mod_pak` — shelling out to `RunUAT.bat` entirely outside the UE process). They are visible to MCP clients exactly like the C++ tools but cannot be reached by sending raw JSON-RPC to the TCP socket — only via the MCP bridge or by replicating their composition manually. The "Implementation" header on each entry below indicates whether a tool is C++ or bridge-side.
 
 Each tool's params and result are documented with a working example.
 
@@ -55,6 +55,78 @@ Top-level snapshot of the open project.
 
 **Result** (`verbose=true`) — all of the above, plus:
 - `plugins` (array) — `{name, version, category, enabled_by_default}`. `enabled_by_default` is a string: `"enabled"` / `"disabled"` / `"unspecified"`.
+
+---
+
+## get_engine_version
+
+**Implementation:** native C++ handler. **Mutating:** no (read-only).
+
+Structured engine-version snapshot. Returns the major / minor / patch components as separate numbers, so callers can branch on the engine version without parsing the single `engine_version` string from `get_project_summary`.
+
+**Params:** none.
+
+**Result**
+- `major`, `minor`, `patch`, `changelist` (numbers)
+- `full` (string) — the whole version string, for display and log correlation
+- `branch` (string) — branch name such as `++UE5+Release-5.7`; empty when unavailable
+- `minor_dotted` (string) — `"<major>.<minor>"`, e.g. `"5.7"`
+- `is_licensee_version` (bool) — true for a licensee changelist
+
+**Errors:** none; the handler always succeeds.
+
+```json
+{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"get_engine_version","arguments":{}}}
+```
+
+---
+
+## inspect_project_setting
+
+**Implementation:** native C++ handler. **Mutating:** no (read-only).
+
+Reflect a `UDeveloperSettings` subclass (RendererSettings, PhysicsSettings, GameMapsSettings and so on) and dump its editor-editable properties from the class default object. Bulk mode (omit `property`) returns every editable property, sorted by name; single mode (`property` given) returns just that one. Visible-only properties are excluded in both modes. Values are shallow strings: containers appear as `<container:...>`, object and soft-object references as asset paths (nothing is loaded), and unrecognised types as `<unsupported>`.
+
+**Params**
+- `settings_class` (string, required) — full class path, e.g. `/Script/Engine.RendererSettings`
+- `property` (string, optional) — one property name; omit for the bulk dump
+
+**Result** (bulk)
+- `ok` (bool), `settings_class` (string), `property_count` (int)
+- `properties` (array) — `{name, type, value}`, all strings
+
+**Result** (single)
+- `ok` (bool), `settings_class`, `property`, `type`, `value` (strings)
+
+**Errors:** `inspect_project_setting: <code>: ...` where code is one of `missing_required_field` (no `settings_class`), `settings_class_not_found` (class path does not resolve, or the class has no default object), `not_a_developer_settings` (class is not a `UDeveloperSettings` subclass), `property_not_found`, `property_not_editable` (single mode only: property is visible-only or const).
+
+```json
+{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"inspect_project_setting","arguments":{"settings_class":"/Script/Engine.RendererSettings","property":"bEnableRayTracing"}}}
+```
+
+---
+
+## inspect_input_mappings
+
+**Implementation:** native C++ handler. **Mutating:** no (read-only).
+
+Dump the project's legacy input mappings (`UInputSettings`) and report whether the project uses Enhanced Input. Enhanced Input assets (`UInputAction`, `UInputMappingContext`) are not listed; use `find_assets` for those.
+
+**Params:** none.
+
+**Result**
+- `ok` (bool)
+- `action_mapping_count` (int), `action_mappings` (array) — `{action, key, shift, ctrl, alt, cmd}`
+- `axis_mapping_count` (int), `axis_mappings` (array) — `{axis, key, scale}`
+- `default_player_input_class` (string) — class path, empty if unset
+- `uses_enhanced_input` (bool) — true when the default player input class derives from `EnhancedPlayerInput`
+- `note` (string) — present when Enhanced Input is in use (legacy mappings may be empty or stale), or when the `UInputSettings` default object is unavailable (in which case only the counts and empty arrays are returned)
+
+**Errors:** none; the handler always succeeds. Empty mapping sets return count 0 with empty arrays.
+
+```json
+{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"inspect_input_mappings","arguments":{}}}
+```
 
 ---
 
@@ -298,6 +370,27 @@ Return name / class / transform of every actor in the active editor world.
 
 ---
 
+## get_selected_actors
+
+**Implementation:** native C++ handler. **Mutating:** no (read-only).
+
+Return name, label, class and transform of every actor currently selected in the editor (World Outliner or viewport), in selection order. Companion to `apply_python_to_selection`: it shows what is selected before code runs against it. An empty selection is not an error.
+
+**Params:** none.
+
+**Result**
+- `ok` (bool)
+- `count` (int) — number of selected actors
+- `actors` (array) — `{name, label, class, class_path, loc_x, loc_y, loc_z, pitch, yaw, roll, scale_x, scale_y, scale_z}`. `class` is the short class name; `class_path` is the full path, e.g. `/Script/Engine.StaticMeshActor`.
+
+**Errors:** `get_selected_actors: editor_unavailable: ...` (no editor, `GEditor` is null).
+
+```json
+{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"get_selected_actors","arguments":{}}}
+```
+
+---
+
 ## focus_actor
 
 Select an actor by label or unique name and frame the editor viewport on it.
@@ -324,6 +417,30 @@ Load a UE level by package path.
 
 ---
 
+## list_levels
+
+**Implementation:** native C++ handler. **Mutating:** no (read-only asset-registry query).
+
+List the level (`UWorld`) assets under a package path, so a caller can find a path to pass to `load_level_by_path`. No match returns `count: 0` and an empty list, not an error.
+
+**Params**
+- `path_under` (string, optional, default `/Game/`) — recursive package-path filter; must start with `/Game/` or `/Engine/`
+- `name_contains` (string, optional) — case-insensitive substring filter on the level asset name
+
+**Result**
+- `ok` (bool)
+- `count` (int)
+- `levels` (array) — `{name, package_path, object_path}`
+- `path_under` (string) — the filter that was applied
+
+**Errors:** `list_levels: invalid_path_filter: ...` (`path_under` does not start with `/Game/` or `/Engine/`).
+
+```json
+{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"list_levels","arguments":{"path_under":"/Game/Maps/","name_contains":"lobby"}}}
+```
+
+---
+
 ## take_high_res_screenshot
 
 Trigger UE's `HighResShot` console command. Output goes to `<Project>/Saved/Screenshots/<Platform>Editor/` — `WindowsEditor` on Windows, `MacEditor` on Mac, `LinuxEditor` on Linux. The exact path is returned in `output_dir_hint` of the response.
@@ -336,6 +453,30 @@ Trigger UE's `HighResShot` console command. Output goes to `<Project>/Saved/Scre
 - `multiplier` (number)
 - `dispatched` (bool)
 - `output_dir_hint` (string)
+
+---
+
+## pie_control
+
+**Implementation:** native C++ handler. **Mutating:** no (the handler does not use an undo transaction; it does start and stop the editor's Play-In-Editor session).
+
+Start, stop or query a Play-In-Editor session, so a caller can run a change and watch the result. `start` and `stop` are asynchronous: the request is handled on the next editor tick, so call `query` afterwards to confirm. `start` is refused while a session is running or already queued. `stop` on a queued but not yet started request cancels that request.
+
+**Params**
+- `action` (string, required) — `start`, `stop` or `query`
+- `mode` (string, optional, default `play`) — `play` or `simulate`; used only with `action=start`. `play` runs a normal session in the active viewport; `simulate` ticks the world without a player controller.
+
+**Result**
+- `ok` (bool), `action` (string)
+- `start`: `mode` (string), `note` (string)
+- `stop`: `note` (string)
+- `query`: `is_playing` (bool, a session is running), `is_play_queued` (bool, a start request is waiting), `is_simulating` (bool)
+
+**Errors:** `pie_control: <code>: ...` where code is one of `editor_unavailable`, `missing_required_field` (no `action`), `invalid_action`, `invalid_mode`, `pie_already_active` (`start` while a session is running or queued), `pie_not_active` (`stop` with nothing running or queued).
+
+```json
+{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"pie_control","arguments":{"action":"start","mode":"simulate"}}}
+```
 
 ---
 
@@ -579,6 +720,29 @@ Tag values are stringified via UE's `FAssetTagValueRef::AsString()`, so numeric 
   "can_redo": false
 }}
 ```
+
+## save_dirty_assets
+
+**Implementation:** native C++ handler. **Mutating:** no (the handler does not use an undo transaction; it writes modified packages to disk, like the editor's Save All, without a prompt).
+
+Save every modified level and content package to disk. Edit tools such as `set_actor_property` and `set_mi_parameter` leave their changes dirty in memory; this persists them in one call. With nothing dirty it does nothing. It does not report per-asset results: check the Output Log for individual save failures such as read-only files or source-control checkouts.
+
+**Params**
+- `include_levels` (bool, optional, default true) — save dirty level (`.umap`) packages
+- `include_content` (bool, optional, default true) — save dirty content (`.uasset`) packages
+
+**Result**
+- `ok` (bool) — whether the save was attempted and completed
+- `include_levels`, `include_content` (bool) — the flags that were applied
+- `note` (string) — reminder that results are coarse-grained
+
+**Errors:** none; the handler has no error paths.
+
+```json
+{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"save_dirty_assets","arguments":{"include_levels":true,"include_content":true}}}
+```
+
+---
 
 ## spawn_actor
 
@@ -4389,6 +4553,66 @@ Inspect an nDisplay (DisplayCluster) configuration asset: cluster nodes (host, w
 ```
 
 Pairs with `inspect_asset` (generic metadata) and `batch_capture_cameras` (audit the stage's coverage cameras).
+
+---
+
+## create_dmx_patch
+
+**Implementation:** native C++ handler (companion `UnrealAIConnectionDMX` plugin, disabled by default; enabling it pulls in the engine's `DMXEngine` + `DMXProtocol` plugins). Without the companion the editor answers `Method not found`. **Mutating:** yes (adds a patch to the library and saves it by default).
+
+Create a `UDMXEntityFixturePatch` in a `UDMXLibrary` and bind it to an existing `UDMXEntityFixtureType` by display name. The bind happens in C++ because UE's Python bindings can't read the protected entity `Id` the fixture-type reference needs.
+
+**Params**
+- `library_path` (string, **required**) — DMXLibrary asset path
+- `fixture_type` (string, **required**) — fixture type display name in that library
+- `patch_name` (string, **required**) — display name for the new patch
+- `universe` (int, optional, default 1), `starting_address` (int, optional, default 1), `active_mode` (int, optional, default 0)
+- `save` (bool, optional, default true) — save the library after creating the patch
+
+**Result:** `ok`, `library`, `fixture_type` `{name, uobject}`, `patch` `{name, uobject, universe, starting_address, active_mode}`.
+
+**Errors:** `missing_required_field`, `library_not_found`, `fixture_type_not_found`, `create_failed`.
+
+```json
+{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"create_dmx_patch","arguments":{"library_path":"/Game/DMX/DMXL_Stage","fixture_type":"Generic Dimmer","patch_name":"Dimmer_01","universe":1,"starting_address":1}}}
+```
+
+---
+
+## dmx_stream_set
+
+**Implementation:** native C++ handler (companion `UnrealAIConnectionDMX` plugin, disabled by default; enabling it pulls in the engine's `DMXEngine` + `DMXProtocol` plugins). Without the companion the editor answers `Method not found`. **Mutating:** no (live output only; nothing is saved).
+
+Set channel values and keep sending them. A game-thread ticker re-sends the held buffer to every DMX output port each editor frame, so the wire keeps carrying the latest values without a blocking Python loop. Output flows while the editor ticks (realtime viewport, PIE, or an external engine pulling frames); an idle, backgrounded editor holds the last frame.
+
+**Params**
+- `channels` (object, **required**) — `{"<1-based channel>": value}`; channels outside 1..512 are ignored, values clamped to 0..255
+- `universe` (int, optional, default 1)
+- `merge` (bool, optional, default true) — false replaces the universe's held buffer
+
+**Result:** `ok`, `running`, `frames`, `output_ports`, `universe`, `channels_set`.
+
+**Errors:** `missing_required_field`, `no_output_ports` (no DMX output port configured in Project Settings).
+
+```json
+{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"dmx_stream_set","arguments":{"universe":1,"channels":{"1":255,"2":128}}}}
+```
+
+---
+
+## dmx_stream_stop
+
+**Implementation:** native C++ handler (companion `UnrealAIConnectionDMX` plugin, disabled by default; enabling it pulls in the engine's `DMXEngine` + `DMXProtocol` plugins). Without the companion the editor answers `Method not found`. **Mutating:** no.
+
+Stop continuous output and clear every held buffer. **Params:** none. **Result:** `ok`, `running: false`.
+
+---
+
+## dmx_stream_status
+
+**Implementation:** native C++ handler (companion `UnrealAIConnectionDMX` plugin, disabled by default; enabling it pulls in the engine's `DMXEngine` + `DMXProtocol` plugins). Without the companion the editor answers `Method not found`. **Mutating:** no (read-only).
+
+**Params:** none. **Result:** `ok`, `running`, `frames`, `output_ports`, `universes` (array of `{universe, channels}`).
 
 ---
 

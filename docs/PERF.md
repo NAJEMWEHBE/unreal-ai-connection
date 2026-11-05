@@ -61,7 +61,7 @@ summaries are the difference between a ~352-byte reply and a ~32 KB one for a si
 
 ## Why it stays fast as the catalog grows
 
-The catalog is now 143 tools (106 native C++ handlers + 37 bridge-side synthetic
+The catalog is now 150+ tools (native C++ handlers plus bridge-side synthetic
 tools). Adding tools does **not** add per-call latency: dispatch is an O(1) hash lookup
 to the registered handler, and each MCP `tools/call` is one independent round-trip.
 Token weight is governed per-tool by the `verbose` default above, not by catalog size.

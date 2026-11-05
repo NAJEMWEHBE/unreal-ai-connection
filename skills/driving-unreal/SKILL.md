@@ -1,34 +1,31 @@
 ---
 name: driving-unreal
 description: >
-  Use when driving an Unreal Engine 5.x editor through the unreal-ai-connection MCP tools — building
-  or populating a level, spawning/transforming actors, authoring materials and material instances,
-  setting up lighting and atmosphere, reconstructing a scene from a reference photo, setting up a
-  sequencer/cinematic shot, taking viewport or off-screen renders, auditing or compiling blueprints,
-  or doing asset hygiene (find/move/rename/delete/fix-up redirectors). Teaches which tools to chain,
-  in what order, the verification checkpoints, and the UE 5.x traps that silently no-op or corrupt
-  state. Routes through the MCP server named "unreal-ai-connection" (tools are exposed as
-  mcp__unreal-ai-connection__<tool>; confirm with list_tools).
-  Trigger phrases: "Unreal", "Unreal Engine", "UE5", "UE 5.7", "build a level", "populate the level",
-  "spawn an actor", "place actors", "apply a material", "material instance", "set up a sequencer
-  shot", "cinematic", "screenshot the viewport", "render the scene", "photo to Unreal", "compile the
-  blueprints", "audit blueprint status", "clean up assets", "fix up redirectors", "in the editor".
+  Use when driving an Unreal Engine editor through the unreal-ai-connection MCP tools: building a
+  level or placing actors, authoring materials, lighting, rebuilding a scene from a reference photo,
+  sequencer shots, viewport or off-screen renders, compiling or auditing Blueprints, or asset hygiene
+  (move, rename, delete, fix up redirectors). Covers which tools to chain, the verification
+  checkpoints and the UE traps that silently no-op or corrupt state.
 ---
 
 # Driving Unreal Engine via the unreal-ai-connection MCP tools
 
-This skill is the know-how layer for the `unreal-ai-connection` plugin. The plugin exposes ~105 UE
+This skill is the know-how layer for the `unreal-ai-connection` plugin. The plugin exposes 150+ UE
 editor-automation tools; this file tells you **how to operate them** — the chaining order, the
 verification checkpoints, and the failure modes. Deep step-by-step recipes and the full UE-quirk
 table live in [`reference.md`](reference.md); read it when executing a specific workflow.
 
-Tools are called as `mcp__unreal-ai-connection__<name>`. Below, names are written bare for brevity.
+Your client shows the tools under a server prefix (for example `mcp__unreal-ai-connection__<name>`;
+a plugin install can add its own prefix). Below, names are written bare.
 
 ## Before you touch any tool
 
 1. **Confirm the bridge is live.** The UE plugin binds `127.0.0.1:18888`. A cold editor launch takes
-   ~2 minutes to bind; warm is seconds. Call `list_tools` first — if it returns the catalog, you are
-   connected. Do not assume a tool exists; the live `list_tools` output is the source of truth.
+   ~2 minutes to bind; warm is seconds. Call `list_tools` first: it returns every callable tool
+   (its `source` map tags each `native`, live from the editor, or `bridge`), so an answer means you
+   are connected. A tool missing from that list doesn't exist; trust it over any doc.
+   An error with `error_code: ue_busy_timeout` means the editor is running but still working:
+   wait and check the result instead of re-sending a mutating call.
 2. **Establish a clean baseline.** For anything that places actors, plan an idempotent re-run: prefix
    your actor labels (e.g. `Test_*`) and start the workflow by deleting that prefix via
    `find_actors_by_class` + `delete_actor`, so repeated attempts don't pile up duplicates.
@@ -58,10 +55,17 @@ These rules matter more than any single recipe. Internalize them.
   If a response has `dropped: true`, the buffer overflowed — `unsubscribe` and re-`register`.
   (There is no `start_event_subscription` tool; the real entry point is `register_subscription`.)
 
-- **Bulk ops share one envelope.** `bulk_*` tools take a `paths` list plus `continue_on_error`
-  (default true) and return a per-path result `{path, ok, error?}`. Path validation rejects `..`
-  segments and NUL bytes. Inspect the per-path `ok` flags — a top-level success does not mean every
-  path succeeded.
+- **Bulk ops: the input differs by family; check every entry's result.**
+  - Asset lists take `paths`: `bulk_delete_assets`, `bulk_inspect_assets`, `bulk_compile_blueprints`,
+    `bulk_move_assets` (plus `dest_folder`). `bulk_fix_redirectors` takes `folders`.
+  - Per-entry instructions: `bulk_rename_assets` takes `renames` (`{path, new_name}`),
+    `bulk_duplicate_assets` takes `duplicates`, `bulk_set_actor_property` takes `assignments`.
+  - All of the above take `continue_on_error` (default true; false stops at the first failure).
+  - `bulk_set_console_variables` takes `assignments` with `rollback_on_error` (default true: the
+    first failure stops the run and restores every value already set).
+  - Actor batches (`bulk_focus_actors`, `bulk_screenshot_actors`) take `names`.
+  Each returns per-entry results with their own `ok`: a top-level answer doesn't mean every entry
+  succeeded. Asset paths with a `..` segment or a NUL byte are rejected before anything runs.
 
 - **Read back and verify after mutating assets.** After create/duplicate/move/rename, call
   `inspect_asset` / `inspect_material_instance`, and use `compare_assets` after batch renames, to
