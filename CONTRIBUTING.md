@@ -40,7 +40,7 @@ If you're only touching the bridge / tests / docs: no UE needed. The bridge test
 
 ## What kind of contribution fits where
 
-**Adding a new tool?** Read [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) first, then follow the 10-step playbook in [`docs/RESUME.md`](docs/RESUME.md):
+**Adding a new tool?** Read [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) first, then follow the 10-step playbook in [`docs/internal/RESUME.md`](docs/internal/RESUME.md):
 
 1. Decide: C++ handler or bridge-side synthetic? Use a synthetic when the new tool *composes* existing handlers or runs `unreal.*` Python via the marker pattern. Use C++ when the tool needs UE native API access that the existing handlers don't expose.
 2. C++ track: add `Source/.../Handlers/Handler_<NewTool>.cpp`, add the `extern` + `Reg.Register` line in `UnrealAIConnectionModule.cpp`.

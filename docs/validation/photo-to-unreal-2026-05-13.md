@@ -1,6 +1,6 @@
 # Photo→Unreal validation run — 2026-05-13/14
 
-Scorecard for the 100-tool exercise planned in [docs/SESSION-CONTINUITY.md](../SESSION-CONTINUITY.md) Part 8. Scope chosen at run time:
+Scorecard for the 100-tool exercise planned in [docs/internal/SESSION-CONTINUITY.md](../internal/SESSION-CONTINUITY.md) Part 8. Scope chosen at run time:
 
 - Photo path: `F:\UnrealClaudeMCP\hf_20260513_203743_dd1ad601-8a9d-4daf-85fc-e3018546b33d.png` (user-supplied; .gitignored)
 - Stage 6 mesh: `/Engine/BasicShapes/Cube` substitute (no external photo-derived mesh)
