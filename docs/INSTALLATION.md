@@ -97,7 +97,8 @@ Claude calls the tool natively — no GUI driving, no screenshot-based clicking.
 
 **The MCP server didn't start (no "Listening on 127.0.0.1:18888" line)**
 - Check Output Log for `LogPluginManager: Mounting Project plugin UnrealAIConnection` — if missing, the plugin isn't being loaded. Verify it's enabled in Edit → Plugins.
-- Check if another process is using port 18888 (`netstat -an | findstr 18888`). To change the port, edit `kMCPDefaultPort` in `UnrealAIConnectionModule.cpp` and rebuild.
+- Look for a `LogUCMCP: Error: NOT listening ...` line. `port 18888 is already in use` means another editor with this plugin (or another program) holds the port: check with `netstat -ano | findstr 18888`.
+- To use another port, start the editor with `-UCMCPPort=<n>` on its command line, or set the `UCMCP_PORT` environment variable before launching it (the command line wins). Give the bridge the same `UCMCP_PORT` so it connects to the right editor. Invalid values (not 1..65535) log a warning and fall back to 18888.
 
 **TCP client times out**
 - The dispatcher runs on the game thread (FTSTicker callback). If UE is showing a modal dialog (e.g. "Project file out of date") or in the middle of a long compile, the ticker is blocked.

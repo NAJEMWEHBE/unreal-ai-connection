@@ -160,8 +160,6 @@ extern TSharedRef<IUCMCPHandler> Make_Handler_SequenceSnapshot();
 extern TSharedRef<IUCMCPHandler> Make_Handler_MaterialBlendOverride();
 extern TSharedRef<IUCMCPHandler> Make_Handler_ExportActorAsGltf();
 
-static constexpr int32 kMCPDefaultPort = 18888;
-
 void FUnrealAIConnectionModule::StartupModule()
 {
     UE_LOG(LogUnrealAIConnection, Log, TEXT("[UnrealAIConnection] Module started"));
@@ -503,7 +501,8 @@ void FUnrealAIConnectionModule::StartupModule()
             });
     }
 
-    FUCMCPServer::Get().Start(kMCPDefaultPort);
+    // -UCMCPPort=<n>, then env UCMCP_PORT, then 18888 (see MCPServer.h).
+    FUCMCPServer::Get().Start(FUCMCPServer::ResolveConfiguredPort());
 
     // Keep the editor responsive to MCP commands while it is unfocused.
     // MCP requests are drained on the game-thread ticker (every ~50 ms), but UE

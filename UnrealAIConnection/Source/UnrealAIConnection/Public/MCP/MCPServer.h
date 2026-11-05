@@ -77,8 +77,33 @@ class UNREALAICONNECTION_API FUCMCPServer
 public:
     static FUCMCPServer& Get();
 
-    /** Open the loopback listener. Idempotent: no-op if already running. */
-    void Start(int32 InPort = 18888);
+    /** Port used when neither -UCMCPPort= nor UCMCP_PORT names a valid one. */
+    static constexpr int32 kDefaultPort = 18888;
+
+    /**
+     * Parse a decimal TCP port. Returns 1..65535, or 0 when Text is empty,
+     * has anything but ASCII digits (surrounding whitespace is ignored), or
+     * is out of range. Pure; covered by the UCMCP.Server automation tests.
+     */
+    static int32 ParsePortString(const FString& Text);
+
+    /**
+     * Port to listen on, in order of precedence:
+     *   1. -UCMCPPort=<n> on the editor command line
+     *   2. the UCMCP_PORT environment variable (the Python bridge reads the
+     *      same variable, so one setting drives both sides)
+     *   3. kDefaultPort
+     * An invalid value logs a warning and falls through to the next source.
+     */
+    static int32 ResolveConfiguredPort();
+
+    /**
+     * Open the loopback listener. Idempotent: no-op if already running.
+     * The listen socket is bound synchronously, so a failed bind (port taken
+     * by another editor, for example) is logged as an error here and the
+     * server stays stopped (IsRunning() == false).
+     */
+    void Start(int32 InPort = kDefaultPort);
 
     /** Close the listener and any open client sockets. Idempotent. */
     void Stop();
@@ -100,6 +125,13 @@ private:
     bool TickClients(float DeltaTime);
 
     TUniquePtr<FTcpListener> Listener;
+
+    // The bound + listening socket handed to FTcpListener's FSocket& ctor.
+    // That ctor does not take ownership (bDeleteSocket = false in
+    // TcpListener.h), so Stop() destroys it AFTER Listener.Reset() has joined
+    // the accept thread.
+    FSocket* ListenSocket = nullptr;
+
     TArray<FSocket*> ConnectedClients;
 
     // D2 (PR #226 hardening layered on #225): FTcpListener runs its accept

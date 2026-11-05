@@ -4,7 +4,10 @@
 #include "MCP/MCPDispatcher.h"
 
 #include "Common/TcpListener.h"
+#include "HAL/PlatformMisc.h"
 #include "IPAddress.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
 #include "Sockets.h"
 #include "SocketSubsystem.h"
 #include "SocketTypes.h"
@@ -189,6 +192,60 @@ FUCMCPServer::~FUCMCPServer()
     Stop();
 }
 
+int32 FUCMCPServer::ParsePortString(const FString& Text)
+{
+    const FString Trimmed = Text.TrimStartAndEnd();
+    // 1..5 ASCII digits only: rejects "", "-1", "+5", "1.5", "0x50", "18888abc".
+    if (Trimmed.IsEmpty() || Trimmed.Len() > 5)
+    {
+        return 0;
+    }
+    for (int32 Index = 0; Index < Trimmed.Len(); ++Index)
+    {
+        const TCHAR Ch = Trimmed[Index];
+        if (Ch < TEXT('0') || Ch > TEXT('9'))
+        {
+            return 0;
+        }
+    }
+    const int32 Value = FCString::Atoi(*Trimmed);   // <= 99999, no overflow
+    return (Value >= 1 && Value <= 65535) ? Value : 0;
+}
+
+int32 FUCMCPServer::ResolveConfiguredPort()
+{
+    // 1. -UCMCPPort=<n> on the command line.
+    FString CmdLineValue;
+    if (FParse::Value(FCommandLine::Get(), TEXT("UCMCPPort="), CmdLineValue))
+    {
+        const int32 Parsed = ParsePortString(CmdLineValue);
+        if (Parsed != 0)
+        {
+            UE_LOG(LogUCMCP, Log, TEXT("Port %d from -UCMCPPort on the command line"), Parsed);
+            return Parsed;
+        }
+        UE_LOG(LogUCMCP, Warning,
+            TEXT("Ignoring -UCMCPPort=%s: not a port number in 1..65535"), *CmdLineValue);
+    }
+
+    // 2. UCMCP_PORT environment variable (shared with the Python bridge).
+    const FString EnvValue = FPlatformMisc::GetEnvironmentVariable(TEXT("UCMCP_PORT"));
+    if (!EnvValue.IsEmpty())
+    {
+        const int32 Parsed = ParsePortString(EnvValue);
+        if (Parsed != 0)
+        {
+            UE_LOG(LogUCMCP, Log, TEXT("Port %d from the UCMCP_PORT environment variable"), Parsed);
+            return Parsed;
+        }
+        UE_LOG(LogUCMCP, Warning,
+            TEXT("Ignoring UCMCP_PORT=%s: not a port number in 1..65535"), *EnvValue);
+    }
+
+    // 3. Default.
+    return kDefaultPort;
+}
+
 void FUCMCPServer::Start(int32 InPort)
 {
     if (bRunning)
@@ -196,10 +253,99 @@ void FUCMCPServer::Start(int32 InPort)
         UE_LOG(LogUCMCP, Verbose, TEXT("Start ignored: already running on port %d"), Port);
         return;
     }
+    if (InPort < 1 || InPort > 65535)
+    {
+        UE_LOG(LogUCMCP, Warning, TEXT("Port %d is out of range; using %d"), InPort, kDefaultPort);
+        InPort = kDefaultPort;
+    }
     Port = InPort;
 
+    ISocketSubsystem* Subsystem = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM);
+    if (!Subsystem)
+    {
+        UE_LOG(LogUCMCP, Error, TEXT("NOT listening: no socket subsystem; the MCP server is off"));
+        return;
+    }
+
+    // Build the listen socket here instead of letting FTcpListener do it.
+    // FTcpListener(const FIPv4Endpoint&) creates and binds its socket inside
+    // FRunnable::Init() on its own thread, so a failed bind is invisible to
+    // this function, and the old code logged "Listening" either way. The
+    // FTcpListener(FSocket&) ctor takes an already-listening socket, so we
+    // know the bind result before claiming success.
+    //
+    // SO_REUSEADDR is deliberately OFF. FTcpListener's own default is
+    // reusable = true, and on Windows SO_REUSEADDR lets a second socket bind
+    // a port that is already listening: a second editor would "succeed" and
+    // the two would split connections at random. UE's SetReuseAddr also sets
+    // SO_REUSEPORT on Linux/macOS (SocketsBSD.cpp, SocketSubsystemMac.h),
+    // which has the same effect there. Without it the second editor gets
+    // SE_EADDRINUSE and says so below.
     const FIPv4Endpoint Endpoint(FIPv4Address::InternalLoopback, static_cast<uint16>(Port));
-    Listener = MakeUnique<FTcpListener>(Endpoint);
+    const TSharedRef<FInternetAddr> BindAddr = Endpoint.ToInternetAddr();
+    FSocket* NewSocket = Subsystem->CreateSocket(NAME_Stream, TEXT("UCMCP listener"), BindAddr->GetProtocolType());
+    if (!NewSocket)
+    {
+        UE_LOG(LogUCMCP, Error, TEXT("NOT listening on 127.0.0.1:%d: could not create a socket (%s)"),
+            Port, Subsystem->GetSocketError(Subsystem->GetLastErrorCode()));
+        return;
+    }
+
+    const TCHAR* FailedStep = nullptr;
+    if (!NewSocket->SetReuseAddr(false))
+    {
+        FailedStep = TEXT("SetReuseAddr");
+    }
+    else if (!NewSocket->Bind(*BindAddr))
+    {
+        FailedStep = TEXT("bind");
+    }
+    else if (!NewSocket->Listen(8))
+    {
+        FailedStep = TEXT("listen");
+    }
+    else if (!NewSocket->SetNonBlocking(true))
+    {
+        FailedStep = TEXT("SetNonBlocking");
+    }
+
+    if (FailedStep)
+    {
+        // Read the error before DestroySocket can overwrite it.
+        const ESocketErrors Err = Subsystem->GetLastErrorCode();
+        NewSocket->Close();
+        Subsystem->DestroySocket(NewSocket);
+
+        if (Err == ESocketErrors::SE_EADDRINUSE)
+        {
+            UE_LOG(LogUCMCP, Error,
+                TEXT("NOT listening: port %d is already in use (another Unreal Editor with this plugin, ")
+                TEXT("or another program, holds it). MCP clients pointed at %d are talking to that ")
+                TEXT("process, not this editor. To run several editors, start each one with its own ")
+                TEXT("port, e.g. -UCMCPPort=18889 on the editor command line (or set UCMCP_PORT), and ")
+                TEXT("give the bridge the same UCMCP_PORT."),
+                Port, Port);
+        }
+        else
+        {
+            UE_LOG(LogUCMCP, Error,
+                TEXT("NOT listening on 127.0.0.1:%d: %s failed (%s). Pick another port with ")
+                TEXT("-UCMCPPort=<n> or UCMCP_PORT."),
+                Port, FailedStep, Subsystem->GetSocketError(Err));
+        }
+        return;
+    }
+
+    // Matches what FTcpListener::Init() sets on its own socket; accepted
+    // sockets inherit it on the platforms we ship. Best effort.
+    int32 ActualSendBufferSize = 0;
+    NewSocket->SetSendBufferSize(2 * 1024 * 1024, ActualSendBufferSize);
+
+    ListenSocket = NewSocket;
+    // Default args only: the ctor's bInReusable flag is read solely when
+    // FTcpListener builds its own socket (Init() skips that when given one),
+    // and older engines' FSocket& ctor doesn't have the parameter at all.
+    Listener = MakeUnique<FTcpListener>(*ListenSocket);
     Listener->OnConnectionAccepted().BindRaw(this, &FUCMCPServer::OnConnectionAccepted);
 
     // UNVERIFIED-COMPILE: FUCMCPTicker resolves to FTSTicker (>=5.0) or
@@ -233,6 +379,18 @@ void FUCMCPServer::Stop()
     Listener.Reset();
 
     ISocketSubsystem* Subsystem = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM);
+
+    // The FSocket& ctor left ownership with us; the accept thread is joined,
+    // so nothing else can touch the listen socket now.
+    if (ListenSocket)
+    {
+        ListenSocket->Close();
+        if (Subsystem)
+        {
+            Subsystem->DestroySocket(ListenSocket);
+        }
+        ListenSocket = nullptr;
+    }
 
     // D2: destroy sockets accepted on the listener thread but never adopted.
     {

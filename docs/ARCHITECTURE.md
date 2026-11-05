@@ -115,6 +115,12 @@ The socket drain runs on the core ticker at a 50 ms cadence (`AddTicker(..., 0.0
 
 Handlers that mutate level/actor state are made undoable at the dispatcher. `IUCMCPHandler::IsMutating()` (default `false`) marks such handlers; when true, `FUCMCPDispatcher::HandleMessage` wraps the `Handle()` call in an `FScopedTransaction`, so the whole operation collapses to a single editor undo step (Ctrl+Z). For the transaction to record a change, the handler must call `UObject::Modify()` on each object it edits **before** mutating it (and use editor-undo-aware paths — e.g. `UWorld::EditorDestroyActor` rather than the runtime `DestroyActor`). An empty transaction (handler bailed during validation before any `Modify()`) is discarded automatically, so marking a handler mutating is safe even on its error paths. The first wave covers the level/actor mutators (`spawn_actor`, `delete_actor`, `set_actor_transform`, `set_actor_property`, `add_component`); asset-content authoring (material instances, textures, widget blueprints) uses the package/save model rather than the level undo stack and is intentionally left un-transacted for now.
 
+## Port and bind
+
+The listener binds `127.0.0.1` only. The port comes from `-UCMCPPort=<n>` on the editor command line, else the `UCMCP_PORT` environment variable (the bridge reads the same variable), else `18888`. A value outside 1..65535 logs a warning and falls through to the next source (`FUCMCPServer::ResolveConfiguredPort`).
+
+`FUCMCPServer::Start` creates, binds and listens on the socket itself, then hands it to `FTcpListener`'s `FSocket&` constructor. `FTcpListener`'s endpoint constructor would bind inside `FRunnable::Init()` on its own thread, where a failure can't be seen by the caller. So `Listening on 127.0.0.1:<port>` is only logged after a real bind; a failed bind logs `NOT listening ...` at Error and the server stays off. The socket is **not** reusable (no `SO_REUSEADDR`): on Windows that flag lets a second editor bind a port that is already listening, and UE's `SetReuseAddr` also sets `SO_REUSEPORT` on Linux/macOS. With it off, a second editor on the same port gets `SE_EADDRINUSE` and says so. To run several editors, give each its own `-UCMCPPort=`.
+
 ## JSON-RPC framing (v0.5.0+)
 
 Every TCP message uses explicit length-prefixed framing. Each frame on the wire is:
