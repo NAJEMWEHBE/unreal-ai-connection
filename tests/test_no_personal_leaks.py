@@ -16,7 +16,6 @@ separately to remove the pattern from old commits.
 import subprocess
 from pathlib import Path
 
-
 # Patterns that must NOT appear in any tracked file. Case-sensitive.
 # When adding here, also consider whether existing matches need cleanup.
 #

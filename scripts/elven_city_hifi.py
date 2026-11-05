@@ -86,6 +86,7 @@ def step_cvars():
         "r.ScreenPercentage 100",
     ]
     ok = True
+    err = ""
     try:
         for c in cmds:
             unreal.SystemLibrary.execute_console_command(
@@ -98,8 +99,8 @@ def step_cvars():
                 unreal.SystemLibrary.execute_console_command(None, c)
         except Exception as e2:
             ok = False
-            e = "%s / %s" % (e, e2)
-    mark("cvars", ok, "" if ok else e)
+            err = f"{e} / {e2}"
+    mark("cvars", ok, err)
 
 
 # ----------------------------------------------------------------------

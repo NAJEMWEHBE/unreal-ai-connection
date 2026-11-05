@@ -29,14 +29,13 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import Union
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 # Canonical values can be int (counts) or str (version strings). The scan
 # loop branches on isinstance(int) to know whether to coerce match.group(1)
 # before comparing.
-CanonicalValue = Union[int, str]
+CanonicalValue = int | str
 
 # Files that are expected to reflect the current canonical numbers.
 # Anything not in this list (HANDOFF, superpowers plans, archived session

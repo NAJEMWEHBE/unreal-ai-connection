@@ -116,7 +116,7 @@ def call(host: str, port: int, method: str,
         try:
             _send_framed(s, raw)
             payload_bytes = _recv_framed(s)
-        except (ConnectionError, ValueError, socket.timeout) as e:
+        except (TimeoutError, ConnectionError, ValueError) as e:
             return {"_error": f"framing error: {e}"}
     finally:
         s.close()

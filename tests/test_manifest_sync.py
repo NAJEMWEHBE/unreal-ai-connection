@@ -11,9 +11,9 @@ a running editor (`examples/smoke_test.py` covers that).
 import json
 import os
 
-import unreal_ai_connection_bridge as bridge
 from conftest import EXPECTED_TOOL_COUNT
 
+import unreal_ai_connection_bridge as bridge
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MANIFEST_PATH = os.path.join(
@@ -22,7 +22,7 @@ MANIFEST_PATH = os.path.join(
 
 
 def _load_manifest():
-    with open(MANIFEST_PATH, "r", encoding="utf-8") as f:
+    with open(MANIFEST_PATH, encoding="utf-8") as f:
         return json.load(f)
 
 

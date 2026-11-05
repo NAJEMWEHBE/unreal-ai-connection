@@ -17,10 +17,8 @@ These tests pin:
 """
 
 import json
-import os
 
 import unreal_ai_connection_bridge as bridge
-
 
 # --------------------------------------------------------------------------
 # Helpers

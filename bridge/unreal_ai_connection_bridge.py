@@ -2568,7 +2568,7 @@ def call_ue(method: str, params: dict | None) -> dict:
         raw = recv_framed(s).decode("utf-8", errors="replace")
         s.close()
         return json.loads(raw)
-    except (ConnectionRefusedError, socket.timeout, OSError) as e:
+    except (TimeoutError, ConnectionRefusedError, OSError) as e:
         return {
             "jsonrpc": "2.0",
             "id": 1,
@@ -2979,14 +2979,22 @@ def synthetic_set_camera_transform(req_id, args: dict) -> dict:
 
     try:
         if location is not None:
-            lx = _num(location, "x"); ly = _num(location, "y"); lz = _num(location, "z")
+            lx = _num(location, "x")
+            ly = _num(location, "y")
+            lz = _num(location, "z")
         else:
-            lx = float(current_loc.get("x", 0)); ly = float(current_loc.get("y", 0)); lz = float(current_loc.get("z", 0))
+            lx = float(current_loc.get("x", 0))
+            ly = float(current_loc.get("y", 0))
+            lz = float(current_loc.get("z", 0))
 
         if rotation is not None:
-            rp = _num(rotation, "pitch"); ry = _num(rotation, "yaw"); rr = _num(rotation, "roll")
+            rp = _num(rotation, "pitch")
+            ry = _num(rotation, "yaw")
+            rr = _num(rotation, "roll")
         else:
-            rp = float(current_rot.get("pitch", 0)); ry = float(current_rot.get("yaw", 0)); rr = float(current_rot.get("roll", 0))
+            rp = float(current_rot.get("pitch", 0))
+            ry = float(current_rot.get("yaw", 0))
+            rr = float(current_rot.get("roll", 0))
     except ValueError as e:
         return make_response(req_id, error={
             "code": -32602,
@@ -6192,8 +6200,8 @@ def _marketplace_http_get_json(url: str) -> tuple[dict | list | None, dict | Non
     On success: (data, None). On any failure: (None, error_dict) shaped for
     `make_response`. urllib is used because the bridge has no `requests` dep.
     """
-    import urllib.request
     import urllib.error
+    import urllib.request
     req = urllib.request.Request(url, headers={"User-Agent": _MARKETPLACE_USER_AGENT, "Accept": "application/json"})
     try:
         with urllib.request.urlopen(req, timeout=_MARKETPLACE_TIMEOUT_SECS) as resp:
@@ -6215,10 +6223,10 @@ def _marketplace_http_download(url: str, dest_path: str) -> dict | None:
     error dict suitable for `make_response`. Atomic-ish: writes to
     dest_path + ".part" then renames. On any failure mid-download the
     .part file is removed so it does not orphan in the temp dir."""
-    import urllib.request
-    import urllib.error
     import os
+    import urllib.error
     import urllib.parse
+    import urllib.request
     parsed = urllib.parse.urlparse(url)
     if parsed.scheme != "https" or not parsed.netloc:
         return {"code": -32603, "message": f"invalid_download_url: scheme must be https, got '{parsed.scheme or ''}': {url}"}
@@ -6422,8 +6430,8 @@ def _ambientcg_extract_primary_map(zip_path: str, asset_type: str, dest_dir: str
     Returns (extracted_file_path, error). The caller is responsible for
     cleanup of `dest_dir` after the downstream `import_texture` call.
     """
-    import zipfile
     import os
+    import zipfile
     try:
         with zipfile.ZipFile(zip_path, "r") as zf:
             names = zf.namelist()
@@ -6500,8 +6508,8 @@ def _ambientcg_extract_pbr_maps(zip_path: str, dest_dir: str) -> tuple[dict[str,
     Path-traversal safety: every extracted name is flattened via
     `os.path.basename`, mirroring `_ambientcg_extract_primary_map`.
     """
-    import zipfile
     import os
+    import zipfile
     try:
         with zipfile.ZipFile(zip_path, "r") as zf:
             names = zf.namelist()
@@ -6968,8 +6976,8 @@ def synthetic_marketplace_import(req_id, args: dict) -> dict:
             "message": f"marketplace_import: invalid_field: 'replace_existing' must be a boolean, got {type(replace_existing).__name__}",
         })
 
-    import tempfile
     import os
+    import tempfile
     def _safe_path_token(s: str, default: str) -> str:
         cleaned = "".join(c for c in (s or "") if c.isalnum() or c in "._-")
         return cleaned or default
@@ -8528,7 +8536,7 @@ def synthetic_batch_spawn_from_csv(req_id, args: dict) -> dict:
                 "message": "batch_spawn_from_csv: invalid_field: 'csv_path' must be a non-empty string",
             })
         try:
-            with open(csv_path, "r", encoding="utf-8-sig", newline="") as f:
+            with open(csv_path, encoding="utf-8-sig", newline="") as f:
                 csv_text = f.read()
         except OSError as e:
             return make_response(req_id, error={
@@ -8796,7 +8804,7 @@ def _call_ue_capturing_stdout(tool_name: str, tool_args: dict) -> dict:
 
         captured = ""
         try:
-            with open(capture_path, "r", encoding="utf-8") as f:
+            with open(capture_path, encoding="utf-8") as f:
                 captured = f.read()
         except OSError:
             captured = ""

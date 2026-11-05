@@ -14,7 +14,6 @@ import pytest
 
 import unreal_ai_connection_bridge as bridge
 
-
 # -------- Parameterised round-trip across all 19 tools -----------------------
 
 @pytest.mark.parametrize(

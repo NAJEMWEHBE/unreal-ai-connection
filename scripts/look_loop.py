@@ -92,7 +92,7 @@ def _rgb_pixels(img):
     """Pixel tuples of an RGB image without Image.getdata() (deprecated in
     Pillow 12, removed in 14): per-band tobytes() zipped back together."""
     r, g, b = (band.tobytes() for band in img.split())
-    return list(zip(r, g, b))
+    return list(zip(r, g, b, strict=True))
 
 
 def _luma_sat(img):
@@ -124,7 +124,7 @@ def compare(capture_path: str, ref_path: str, composite_path: str) -> dict:
     cap_px, ref_px = _rgb_pixels(small_cap), _rgb_pixels(small_ref)
     mean_rgb_delta = sum(
         (abs(c[0] - r[0]) + abs(c[1] - r[1]) + abs(c[2] - r[2])) / 3.0
-        for c, r in zip(cap_px, ref_px)) / len(cap_px)
+        for c, r in zip(cap_px, ref_px, strict=False)) / len(cap_px)
 
     metrics = {"mean_rgb_delta": round(mean_rgb_delta, 2), "thirds": {}}
     h = small_cap.height

@@ -165,7 +165,7 @@ def call(host: str, port: int, method: str,
         try:
             _send_framed(s, raw)
             payload_bytes = _recv_framed(s)
-        except (ConnectionError, ValueError, socket.timeout) as e:
+        except (TimeoutError, ConnectionError, ValueError) as e:
             return {"_error": f"framing error: {e}"}
     finally:
         s.close()
@@ -554,7 +554,7 @@ def _env_port_default() -> int:
         raise SystemExit(
             f"!! FAIL: $UCMCP_PORT is not a valid integer: {raw!r}. "
             f"Unset it or pass a numeric --port."
-        )
+        ) from None
 
 
 def main() -> None:

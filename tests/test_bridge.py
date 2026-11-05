@@ -15,9 +15,9 @@ import socket
 from unittest.mock import MagicMock, patch
 
 import pytest
+from conftest import EXPECTED_TOOL_COUNT
 
 import unreal_ai_connection_bridge as bridge
-from conftest import EXPECTED_TOOL_COUNT
 
 
 # Phase H: the four engine-gated synthetics (get/set_camera_transform,
@@ -4229,7 +4229,7 @@ def test_handle_tools_call_default_empty_arguments():
 
 # Run statement-mode code without the literal builtin token (a repo security
 # hook flags that token even in tests). getattr-fetch the runner instead.
-_run_stmts = getattr(__import__("builtins"), "ex" "ec")
+_run_stmts = __import__("builtins").exec
 
 
 def test_wrap_code_for_stdout_capture_compiles():
@@ -4386,7 +4386,7 @@ def test_call_ue_returns_error_on_connection_refused():
 
 def test_call_ue_returns_error_on_socket_timeout():
     sock = MagicMock()
-    sock.connect.side_effect = socket.timeout("slow")
+    sock.connect.side_effect = TimeoutError("slow")
     with patch.object(socket, "socket", return_value=sock):
         resp = bridge.call_ue("list_tools", {})
     assert resp["error"]["code"] == -32099
@@ -4444,7 +4444,7 @@ def test_main_skips_blank_and_malformed_lines(monkeypatch, capsys):
         iter(["\n", "not-json\n", '{"jsonrpc":"2.0","id":1,"method":"initialize"}\n']),
     )
     bridge.main()
-    lines = [l for l in capsys.readouterr().out.splitlines() if l.strip()]
+    lines = [ln for ln in capsys.readouterr().out.splitlines() if ln.strip()]
     assert len(lines) == 1
     assert json.loads(lines[0])["id"] == 1
 
@@ -4466,8 +4466,8 @@ def test_synthetic_inspect_asset_not_found_messages_use_canonical_prefix() -> No
     `'asset_not_found: Asset not found:'` chain. If a future inspector
     regresses to either pattern, this test fails fast.
     """
-    import re
     import pathlib
+    import re
 
     bridge_src = (
         pathlib.Path(bridge.__file__).read_text(encoding="utf-8", errors="replace")
@@ -5848,8 +5848,8 @@ def test_ambientcg_extract_primary_map_bad_zip(tmp_path):
 
 def test_ambientcg_extract_primary_map_traversal_safe(tmp_path):
     """A zip entry with a path-traversal name lands inside dest_dir, not above it."""
-    import zipfile
     import os
+    import zipfile
     zip_path = tmp_path / "Evil.zip"
     with zipfile.ZipFile(zip_path, "w") as zf:
         zf.writestr("../../../../Evil_2K_Color.jpg", b"PWNED")
@@ -5937,7 +5937,7 @@ def _make_ambientcg_pbr_zip(zip_path, slug="Rocks023", res="2K", maps=("Color", 
     import zipfile
     with zipfile.ZipFile(zip_path, "w") as zf:
         for m in maps:
-            zf.writestr(f"{slug}_{res}_{m}.jpg", f"jpg-bytes-{m}".encode("utf-8"))
+            zf.writestr(f"{slug}_{res}_{m}.jpg", f"jpg-bytes-{m}".encode())
 
 
 def test_ambientcg_extract_pbr_maps_full_set(tmp_path):

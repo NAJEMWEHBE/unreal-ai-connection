@@ -1,8 +1,9 @@
 """Live POC: create a Level Sequence, bind a cube, add transform
 keyframes via the Python scripting API, verify with get_num_keys."""
+import time as _time
+
 import unreal
 
-import time as _time
 DEST_PKG = "/Game/Validation/Sequencer"
 # time_ns() gives nanosecond resolution so rapid reruns within the same
 # wall-clock second can't collide on asset name (int(time.time()) would).
