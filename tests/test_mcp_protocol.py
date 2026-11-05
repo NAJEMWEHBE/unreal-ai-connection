@@ -104,3 +104,38 @@ def test_unknown_tool_stays_a_protocol_error():
 def test_missing_tool_name_stays_a_protocol_error():
     resp = bridge.handle({"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {}})
     assert resp["error"]["code"] == -32602
+
+
+# -------- screenshots reach the model as image content ---------------------------
+
+_PNG_B64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGD4DwABBAEAwS2OUAAAAABJRU5ErkJggg=="
+
+
+def test_viewport_thumbnail_is_returned_as_mcp_image_content():
+    ue_result = {
+        "path": "C:/Proj/Saved/AIConnection/Screenshots/viewport.png",
+        "width": 1920,
+        "height": 1080,
+        "thumb_base64": _PNG_B64,
+        "thumb_width": 1,
+        "thumb_height": 1,
+    }
+    with patch.object(bridge, "call_ue", return_value={"result": ue_result}):
+        resp = _call("get_viewport_screenshot", {"include_thumb": True})
+
+    result = resp["result"]
+    assert result["isError"] is False
+    text_blocks = [c for c in result["content"] if c["type"] == "text"]
+    image_blocks = [c for c in result["content"] if c["type"] == "image"]
+    assert image_blocks == [{"type": "image", "mimeType": "image/png", "data": _PNG_B64}]
+    # The JSON text keeps every other field but no longer repeats the base64.
+    text = json.loads(text_blocks[0]["text"])
+    assert text["path"] == ue_result["path"]
+    assert text["thumb_width"] == 1
+    assert _PNG_B64 not in text_blocks[0]["text"]
+
+
+def test_results_without_a_thumbnail_stay_a_single_text_block():
+    with patch.object(bridge, "call_ue", return_value={"result": {"path": "x.png"}}):
+        resp = _call("get_viewport_screenshot", {})
+    assert [c["type"] for c in resp["result"]["content"]] == ["text"]

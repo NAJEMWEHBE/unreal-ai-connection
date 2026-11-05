@@ -130,6 +130,8 @@ Capture the active editor viewport as a PNG written to **disk** (project-confine
 - `width`, `height`, `bytes` (numbers)
 - `thumb_base64`, `thumb_width`, `thumb_height` — only when `include_thumb=true`
 
+  Through the MCP bridge the thumbnail arrives as an MCP `image` content block (`image/png`) next to the JSON text, so the model sees the picture; in the JSON, `thumb_base64` holds the placeholder `<sent as MCP image content>`. Raw TCP clients still get the base64 string.
+
 **Errors:** `no_editor`, `no_viewport`, `zero_size`, `read_failed`, `encode_failed`, `write_failed`, `dir_create_failed`, `path_escapes_project`.
 
 ---

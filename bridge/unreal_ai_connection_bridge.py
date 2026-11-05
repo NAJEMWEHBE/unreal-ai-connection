@@ -611,7 +611,7 @@ TOOLS = [
     },
     {
         "name": "get_viewport_screenshot",
-        "description": "Capture the active editor viewport as a PNG written to DISK (project-confined), returning the file path + dimensions. Forces a fresh frame first, so the capture is correct even when the editor is backgrounded/Slate-throttled. Optionally returns a small base64 thumbnail for quick inline look checks. (v0.10: no longer returns the full image base64-inline -- that produced multi-MB tool results.)",
+        "description": "Capture the active editor viewport as a PNG written to DISK (project-confined), returning the file path + dimensions. Forces a fresh frame first, so the capture is correct even when the editor is backgrounded/Slate-throttled. Optionally returns a small thumbnail as MCP image content for quick inline look checks. (v0.10: no longer returns the full image base64-inline -- that produced multi-MB tool results.)",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -621,7 +621,7 @@ TOOLS = [
                 },
                 "include_thumb": {
                     "type": "boolean",
-                    "description": "When true, also return thumb_base64 -- a small PNG thumbnail (default false).",
+                    "description": "When true, also return a small PNG thumbnail as image content (default false).",
                 },
                 "thumb_max_dim": {
                     "type": "integer",
@@ -3839,15 +3839,30 @@ def call_ue(method: str, params: dict | None) -> dict:
         return _ue_error(-32700, f"UE server returned non-JSON: {e}")
 
 
+# Result fields that hold a base64 PNG the model should *see*. They go out as
+# MCP image content instead of base64 tokens inside the JSON text.
+_IMAGE_RESULT_FIELDS = ("thumb_base64",)
+_IMAGE_PLACEHOLDER = "<sent as MCP image content>"
+
+
 def _wrap_tool_result(req_id, result_obj: dict | list | str | int | float | bool | None) -> dict:
-    """Wrap a result object as an MCP tools/call response (JSON-stringified into a text block)."""
-    return make_response(
-        req_id,
-        {
-            "content": [{"type": "text", "text": json.dumps(result_obj, indent=2)}],
-            "isError": False,
-        },
-    )
+    """Wrap a result object as an MCP tools/call response.
+
+    The result is JSON-stringified into a text block. A screenshot thumbnail
+    (`thumb_base64`, e.g. get_viewport_screenshot include_thumb=true) is
+    moved into an `image` content block, so the model receives an image
+    rather than kilobytes of base64 text; the JSON keeps a short placeholder
+    in its place and every other field.
+    """
+    images = []
+    if isinstance(result_obj, dict):
+        for field in _IMAGE_RESULT_FIELDS:
+            data = result_obj.get(field)
+            if isinstance(data, str) and data:
+                images.append({"type": "image", "mimeType": "image/png", "data": data})
+                result_obj = {**result_obj, field: _IMAGE_PLACEHOLDER}
+    content = [{"type": "text", "text": json.dumps(result_obj, indent=2)}, *images]
+    return make_response(req_id, {"content": content, "isError": False})
 
 
 def _validate_asset_path(tool_name: str, path, label: str) -> str | None:
