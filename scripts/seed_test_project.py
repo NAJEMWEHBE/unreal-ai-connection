@@ -44,6 +44,7 @@ LEVEL_SEQUENCE_PATH = "/Game/SmokeTest_LS"
 # Wire-framing helpers (same shape as examples/smoke_test.py).
 # ---------------------------------------------------------------------------
 
+
 def _send_framed(sock: socket.socket, body_bytes: bytes) -> None:
     length_prefix = len(body_bytes).to_bytes(8, byteorder="big", signed=False)
     sock.sendall(length_prefix + body_bytes)
@@ -84,8 +85,10 @@ def call(method: str, params: dict | None = None, request_id: int = 1) -> dict:
         s.connect((HOST, PORT))
     except (ConnectionRefusedError, OSError) as e:
         s.close()
-        return {"_error": f"Cannot reach UE at {HOST}:{PORT}: {e}. "
-                          f"Is the editor open with UnrealAIConnection enabled?"}
+        return {
+            "_error": f"Cannot reach UE at {HOST}:{PORT}: {e}. "
+            f"Is the editor open with UnrealAIConnection enabled?"
+        }
 
     try:
         _send_framed(s, raw)
@@ -196,6 +199,7 @@ def main() -> int:
     # Per-run token disambiguates this run's marker from any leftover
     # markers in the log ring buffer from prior seed attempts.
     import uuid
+
     token = uuid.uuid4().hex[:8]
     code = SEED_PYTHON.replace("{token}", token)
 
@@ -238,7 +242,7 @@ def main() -> int:
         s = msg.find(start_marker)
         e = msg.find(end_marker)
         if s >= 0 and e >= 0 and e > s:
-            seed_json = msg[s + len(start_marker):e]
+            seed_json = msg[s + len(start_marker) : e]
             break
 
     if seed_json is None:

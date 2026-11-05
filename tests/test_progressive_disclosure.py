@@ -24,6 +24,7 @@ import unreal_ai_connection_bridge as bridge
 # Helpers
 # --------------------------------------------------------------------------
 
+
 def _set_mode(monkeypatch, value):
     if value is None:
         monkeypatch.delenv("UCMCP_TOOL_MODE", raising=False)
@@ -36,10 +37,14 @@ def _tools_list(req_id=1):
 
 
 def _call_search(args, req_id=2):
-    return bridge.handle({
-        "jsonrpc": "2.0", "id": req_id, "method": "tools/call",
-        "params": {"name": "search_tools", "arguments": args},
-    })
+    return bridge.handle(
+        {
+            "jsonrpc": "2.0",
+            "id": req_id,
+            "method": "tools/call",
+            "params": {"name": "search_tools", "arguments": args},
+        }
+    )
 
 
 def _decode_search(resp):
@@ -52,6 +57,7 @@ def _decode_search(resp):
 # --------------------------------------------------------------------------
 # 1. Backward compatibility — default mode is unchanged
 # --------------------------------------------------------------------------
+
 
 def test_default_mode_advertises_full_catalog(monkeypatch):
     _set_mode(monkeypatch, None)
@@ -90,6 +96,7 @@ def test_tool_mode_reader(monkeypatch):
 # 2. Progressive mode — small core + discovery tool
 # --------------------------------------------------------------------------
 
+
 def test_progressive_mode_advertises_core_plus_search(monkeypatch):
     _set_mode(monkeypatch, "progressive")
     resp = _tools_list()
@@ -103,8 +110,7 @@ def test_progressive_mode_advertises_core_plus_search(monkeypatch):
         if core in {t["name"] for t in bridge.TOOLS}:
             assert core in names
     # Count = resolvable core tools + 1 (search_tools).
-    resolvable_core = [n for n in bridge.CORE_TOOL_NAMES
-                       if n in {t["name"] for t in bridge.TOOLS}]
+    resolvable_core = [n for n in bridge.CORE_TOOL_NAMES if n in {t["name"] for t in bridge.TOOLS}]
     assert len(names) == len(resolvable_core) + 1
 
 
@@ -129,6 +135,7 @@ def test_core_tools_resolve_against_live_catalog():
 # 3. search_tools is callable in BOTH modes, bridge-side only
 # --------------------------------------------------------------------------
 
+
 def test_search_tools_callable_in_default_mode(monkeypatch, mock_socket_unused=None):
     _set_mode(monkeypatch, None)
     # Must NOT touch the UE socket — if it did, call_ue would blow up here.
@@ -149,6 +156,7 @@ def test_search_tools_does_not_call_ue(monkeypatch):
     # Replace call_ue with a tripwire — search must never invoke it.
     def _tripwire(*a, **k):
         raise AssertionError("search_tools must not cross the wire to UE")
+
     monkeypatch.setattr(bridge, "call_ue", _tripwire)
     resp = _call_search({"query": "material"})
     assert _decode_search(resp)["ok"] is True
@@ -160,7 +168,7 @@ def test_search_returns_callable_real_tools(monkeypatch):
     catalog = {t["name"] for t in bridge.TOOLS}
     assert payload["tools"], "expected at least one keyframe-related tool"
     for entry in payload["tools"]:
-        assert entry["name"] in catalog          # only real tools
+        assert entry["name"] in catalog  # only real tools
         assert entry["inputSchema"]["type"] == "object"
 
 
@@ -172,8 +180,7 @@ def test_category_filter(monkeypatch):
     for entry in payload["tools"]:
         hay = (entry["name"] + " " + (entry["description"] or "")).lower()
         # Some sequencer keyword is present.
-        assert any(k in hay for k in
-                   ("sequence", "keyframe", "camera", "mrq", "playback", "cine"))
+        assert any(k in hay for k in ("sequence", "keyframe", "camera", "mrq", "playback", "cine"))
 
 
 def test_query_and_category_combined(monkeypatch):
@@ -185,6 +192,7 @@ def test_query_and_category_combined(monkeypatch):
 # --------------------------------------------------------------------------
 # 4. Validation / fail-closed — never raises, always structured
 # --------------------------------------------------------------------------
+
 
 def test_empty_search_is_rejected():
     payload = _decode_search(_call_search({}))
@@ -234,6 +242,7 @@ def test_non_object_args_fail_closed():
 # --------------------------------------------------------------------------
 # 5. Security — inputs are inert, bounded, no leakage
 # --------------------------------------------------------------------------
+
 
 def test_path_traversal_query_is_inert():
     # A traversal-looking query is treated as plain text — it matches nothing

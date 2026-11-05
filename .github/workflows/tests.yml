@@ -52,7 +52,7 @@ jobs:
           fi
 
   ruff:
-    name: ruff check
+    name: ruff check + format
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -62,6 +62,7 @@ jobs:
       # Same pin as the dev extra in pyproject.toml: ruff changes its default rules between minor versions.
       - run: pip install "ruff>=0.17,<0.18"
       - run: ruff check --output-format=github .
+      - run: ruff format --check .
 
   pytest:
     name: pytest (Python ${{ matrix.python-version }})

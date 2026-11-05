@@ -115,6 +115,7 @@ for _stream in (sys.stdout, sys.stderr):
 #   <8-byte big-endian uint64 body length> <N bytes of UTF-8 JSON body>
 # ---------------------------------------------------------------------------
 
+
 def _send_framed(sock: socket.socket, body_bytes: bytes) -> None:
     """Prepend the 8-byte big-endian length prefix and send the whole frame."""
     length_prefix = len(body_bytes).to_bytes(8, byteorder="big", signed=False)
@@ -143,9 +144,14 @@ def _recv_framed(sock: socket.socket) -> bytes:
     return _recv_exact(sock, length)
 
 
-def call(host: str, port: int, method: str,
-         params: dict | None = None, request_id: int = 1,
-         timeout: float = 120.0) -> dict:
+def call(
+    host: str,
+    port: int,
+    method: str,
+    params: dict | None = None,
+    request_id: int = 1,
+    timeout: float = 120.0,
+) -> dict:
     """One framed JSON-RPC round-trip. Mirrors verify_wave_a.call() but takes
     host/port explicitly and a per-call timeout (a full scene build inside the
     editor can take well over the 30 s verify_wave_a uses). Transport errors
@@ -161,9 +167,11 @@ def call(host: str, port: int, method: str,
         try:
             s.connect((host, port))
         except (ConnectionRefusedError, OSError) as e:
-            return {"_error": f"Cannot reach UE at {host}:{port}: {e}. "
-                              f"Is the editor open with the rebuilt "
-                              f"UnrealAIConnection plugin?"}
+            return {
+                "_error": f"Cannot reach UE at {host}:{port}: {e}. "
+                f"Is the editor open with the rebuilt "
+                f"UnrealAIConnection plugin?"
+            }
         try:
             _send_framed(s, raw)
             payload_bytes = _recv_framed(s)
@@ -189,6 +197,7 @@ def call(host: str, port: int, method: str,
 # the single most common reason this pipeline fails, so it gets a dedicated,
 # unmistakable message and a non-zero exit (handled by die()).
 # ---------------------------------------------------------------------------
+
 
 class CaptureError(RuntimeError):
     """Any unrecoverable failure in the pipeline."""
@@ -226,8 +235,7 @@ def unwrap(resp: dict, label: str) -> dict:
     result = resp["result"]
     if not isinstance(result, dict):
         raise CaptureError(
-            f"[{label}] expected an object 'result', got "
-            f"{type(result).__name__}: {result}"
+            f"[{label}] expected an object 'result', got {type(result).__name__}: {result}"
         )
     return result
 
@@ -302,9 +310,7 @@ def get_actor_labels(host: str, port: int, request_id: int) -> list[str]:
     result = unwrap(resp, "get_actors_in_level")
     actors = result.get("actors")
     if not isinstance(actors, list):
-        raise CaptureError(
-            f"[get_actors_in_level] 'actors' not a list: {result}"
-        )
+        raise CaptureError(f"[get_actors_in_level] 'actors' not a list: {result}")
     labels: list[str] = []
     for a in actors:
         if isinstance(a, str):
@@ -334,8 +340,8 @@ def get_actor_labels(host: str, port: int, request_id: int) -> list[str]:
 # file is authored, so treat them as proof-pending until that run.
 # ---------------------------------------------------------------------------
 
-def _ensure_scratch_level(host: str, port: int, scratch_level: str,
-                          request_id: int) -> None:
+
+def _ensure_scratch_level(host: str, port: int, scratch_level: str, request_id: int) -> None:
     """Create (or load) the dedicated scratch level so the build never
     dirties the user's open map. Best-effort: a brand-new empty level is
     preferred; loading an existing one is the fallback. Raises CaptureError
@@ -383,8 +389,9 @@ if not _ok:
             _ok = False
 unreal.log("{SCRATCH_LEVEL_OK} " + ("1" if _ok else "0") + " " + _path)
 '''
-    resp = call(host, port, "execute_unreal_python",
-                {"code": snippet}, request_id=request_id, timeout=120.0)
+    resp = call(
+        host, port, "execute_unreal_python", {"code": snippet}, request_id=request_id, timeout=120.0
+    )
     result = unwrap(resp, "execute_unreal_python[scratch-level]")
     if result.get("ok") is False:
         raise CaptureError(
@@ -407,9 +414,11 @@ unreal.log("{SCRATCH_LEVEL_OK} " + ("1" if _ok else "0") + " " + _path)
         # Sentinel not echoed back (handler output shape varies across
         # builds). Don't hard-fail on output-shape alone; warn and proceed —
         # the post-build actor-count sanity still guards a real failure.
-        print(f"  (note: '{SCRATCH_LEVEL_OK}' sentinel not echoed; relying "
-              f"on the post-build actor-count check. raw keys: "
-              f"{sorted(result.keys())})")
+        print(
+            f"  (note: '{SCRATCH_LEVEL_OK}' sentinel not echoed; relying "
+            f"on the post-build actor-count check. raw keys: "
+            f"{sorted(result.keys())})"
+        )
 
 
 def _attempt_clean_exit(host: str, port: int, request_id: int) -> None:
@@ -464,30 +473,40 @@ except Exception:
     # A graceful quit may tear the socket down mid-reply; a transport error
     # here is EXPECTED and benign (the editor is exiting, which is the goal).
     try:
-        resp = call(host, port, "execute_unreal_python",
-                    {"code": snippet}, request_id=request_id, timeout=30.0)
+        resp = call(
+            host,
+            port,
+            "execute_unreal_python",
+            {"code": snippet},
+            request_id=request_id,
+            timeout=30.0,
+        )
     except Exception as e:  # pragma: no cover - defensive belt
-        print(f"  clean-exit: request raised {e!r} (editor likely already "
-              f"quitting — benign).")
+        print(f"  clean-exit: request raised {e!r} (editor likely already quitting — benign).")
         return
     if "_error" in resp:
-        print(f"  clean-exit: transport closed during graceful quit "
-              f"({resp['_error']}) — expected if the editor is exiting.")
+        print(
+            f"  clean-exit: transport closed during graceful quit "
+            f"({resp['_error']}) — expected if the editor is exiting."
+        )
         return
     try:
         result = unwrap(resp, "execute_unreal_python[clean-exit]")
         blob = json.dumps(result, default=str)
         if CLEAN_EXIT_READY in blob:
-            print("  clean-exit: empty level loaded + graceful quit "
-                  "requested.")
+            print("  clean-exit: empty level loaded + graceful quit requested.")
         else:
-            print(f"  clean-exit: quit requested (readiness sentinel not "
-                  f"echoed; raw keys: {sorted(result.keys())}).")
+            print(
+                f"  clean-exit: quit requested (readiness sentinel not "
+                f"echoed; raw keys: {sorted(result.keys())})."
+            )
     except CaptureError as e:
         # Even an unparseable reply here is non-fatal: the run already
         # succeeded and the quit was requested on a best-effort basis.
-        print(f"  clean-exit: graceful-quit reply not parseable "
-              f"({e}) — non-fatal, capture already succeeded.")
+        print(
+            f"  clean-exit: graceful-quit reply not parseable "
+            f"({e}) — non-fatal, capture already succeeded."
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -506,9 +525,15 @@ except Exception:
 import math  # noqa: E402 -- grouped with the geometry section it serves
 
 
-def orbit_pose(angle_deg: float, radius: float, height_z: float,
-                cx: float, cy: float, cz: float,
-                pitch_deg: float) -> tuple[dict, dict]:
+def orbit_pose(
+    angle_deg: float,
+    radius: float,
+    height_z: float,
+    cx: float,
+    cy: float,
+    cz: float,
+    pitch_deg: float,
+) -> tuple[dict, dict]:
     """Camera location on a circle of `radius` around (cx,cy) at `height_z`,
     plus a rotation whose yaw faces the centre (cx,cy,cz) and whose pitch is
     a gentle downward tilt. Returns (location, rotation) dicts in the
@@ -528,6 +553,7 @@ def orbit_pose(angle_deg: float, radius: float, height_z: float,
 # ffmpeg assembly.
 # ---------------------------------------------------------------------------
 
+
 def ffmpeg_version_line() -> str:
     """First line of `ffmpeg -version`, or raise CaptureError if missing."""
     if shutil.which("ffmpeg") is None:
@@ -536,16 +562,14 @@ def ffmpeg_version_line() -> str:
             "ffmpeg's palettegen (no Pillow/imageio fallback). Install ffmpeg."
         )
     try:
-        out = subprocess.run(["ffmpeg", "-version"], capture_output=True,
-                             text=True, timeout=30)
+        out = subprocess.run(["ffmpeg", "-version"], capture_output=True, text=True, timeout=30)
     except (OSError, subprocess.SubprocessError) as e:
         raise CaptureError(f"could not run `ffmpeg -version`: {e}") from e
     first = (out.stdout or out.stderr or "").splitlines()
     return first[0].strip() if first else "ffmpeg (version line unavailable)"
 
 
-def build_ffmpeg_cmd(frames_dir: str, out_gif: str, fps: int,
-                      scale_w: int) -> list[str]:
+def build_ffmpeg_cmd(frames_dir: str, out_gif: str, fps: int, scale_w: int) -> list[str]:
     """Two-pass palettegen GIF command. Single -i over the PNG sequence; the
     palette is generated and applied in one filtergraph (split → palettegen →
     paletteuse) so quality stays high at a small file size."""
@@ -555,11 +579,16 @@ def build_ffmpeg_cmd(frames_dir: str, out_gif: str, fps: int,
         f"[b][p]paletteuse=dither=bayer:bayer_scale=5"
     )
     return [
-        "ffmpeg", "-y",
-        "-framerate", str(fps),
-        "-i", os.path.join(frames_dir, "frame_%04d.png"),
-        "-vf", vf,
-        "-loop", "0",
+        "ffmpeg",
+        "-y",
+        "-framerate",
+        str(fps),
+        "-i",
+        os.path.join(frames_dir, "frame_%04d.png"),
+        "-vf",
+        vf,
+        "-loop",
+        "0",
         out_gif,
     ]
 
@@ -568,88 +597,141 @@ def run_ffmpeg(cmd: list[str]) -> None:
     """Run ffmpeg; raise CaptureError with captured stderr on any failure."""
     print("  ffmpeg: " + " ".join(cmd))
     try:
-        proc = subprocess.run(cmd, capture_output=True, text=True,
-                              timeout=600)
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
     except (OSError, subprocess.SubprocessError) as e:
         raise CaptureError(f"ffmpeg invocation failed: {e}") from e
     if proc.returncode != 0:
         tail = (proc.stderr or "").strip()
         if len(tail) > 1500:
             tail = "..." + tail[-1500:]
-        raise CaptureError(
-            f"ffmpeg exited {proc.returncode}. stderr:\n{tail}"
-        )
+        raise CaptureError(f"ffmpeg exited {proc.returncode}. stderr:\n{tail}")
 
 
 # ---------------------------------------------------------------------------
 # Pipeline.
 # ---------------------------------------------------------------------------
 
+
 def main() -> None:
     default_out_gif = os.path.join(repo_root(), "docs", "images", "demo.gif")
-    default_frames_dir = os.path.join(tempfile.gettempdir(),
-                                      "ucmcp_demo_frames")
+    default_frames_dir = os.path.join(tempfile.gettempdir(), "ucmcp_demo_frames")
 
     ap = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    ap.add_argument("--host", default="127.0.0.1",
-                    help="UE MCP host (default 127.0.0.1)")
-    ap.add_argument("--port", type=int, default=18888,
-                    help="UE MCP port (default 18888)")
-    ap.add_argument("--frames", type=int, default=48,
-                    help="number of orbit frames (default 48)")
-    ap.add_argument("--width", type=int, default=1280,
-                    help="render width in px (default 1280)")
-    ap.add_argument("--height", type=int, default=720,
-                    help="render height in px (default 720)")
-    ap.add_argument("--fov", type=float, default=70.0,
-                    help="camera horizontal FOV in degrees (default 70.0)")
-    ap.add_argument("--radius", type=float, default=9000.0,
-                    help=("orbit radius in cm around the scene centre. "
-                          "Default 9000 frames the elven-city extents "
-                          "(structures span ~6500 cm from centre)."))
-    ap.add_argument("--height-z", dest="height_z", type=float, default=5000.0,
-                    help=("camera Z in cm (default 5000 — above the city; "
-                          "spire tops are ~Z6000 so a downward pitch keeps "
-                          "them in frame)."))
-    ap.add_argument("--center-x", dest="center_x", type=float, default=2000.0,
-                    help="orbit centre X in cm (default 2000 — city mass)")
-    ap.add_argument("--center-y", dest="center_y", type=float, default=0.0,
-                    help="orbit centre Y in cm (default 0)")
-    ap.add_argument("--center-z", dest="center_z", type=float, default=1500.0,
-                    help="orbit centre Z in cm — yaw look-at height (default 1500)")
-    ap.add_argument("--pitch", type=float, default=-15.0,
-                    help="camera downward pitch in degrees (default -15.0)")
-    ap.add_argument("--out-gif", dest="out_gif", default=default_out_gif,
-                    help=f"output GIF path (default {default_out_gif})")
-    ap.add_argument("--frames-dir", dest="frames_dir",
-                    default=default_frames_dir,
-                    help=f"PNG frame scratch dir (default {default_frames_dir})")
-    ap.add_argument("--fps", type=int, default=20,
-                    help="GIF frame rate (default 20)")
-    ap.add_argument("--scale-w", dest="scale_w", type=int, default=960,
-                    help="GIF output width in px, aspect-preserved (default 960)")
-    ap.add_argument("--keep-frames", dest="keep_frames", action="store_true",
-                    help="keep the PNG frame dir instead of deleting it")
-    ap.add_argument("--skip-build", dest="skip_build", action="store_true",
-                    help=("skip the procedural scene build and capture the "
-                          "current level as-is"))
-    ap.add_argument("--scratch-level", dest="scratch_level",
-                    default=DEFAULT_SCRATCH_LEVEL,
-                    help=(f"dedicated throwaway level the build is targeted "
-                          f"into so the user's open map is never dirtied "
-                          f"(default {DEFAULT_SCRATCH_LEVEL}). Skipped when "
-                          f"--skip-build is set (then the current level is "
-                          f"captured as-is)."))
-    ap.add_argument("--no-clean-exit", dest="no_clean_exit",
-                    action="store_true",
-                    help=("do NOT attempt the graceful editor quit after a "
-                          "successful capture (leave the editor running). "
-                          "By default the editor is asked to drop dirty "
-                          "state and quit so no dirty Untitled autosave is "
-                          "left behind."))
+    ap.add_argument("--host", default="127.0.0.1", help="UE MCP host (default 127.0.0.1)")
+    ap.add_argument("--port", type=int, default=18888, help="UE MCP port (default 18888)")
+    ap.add_argument("--frames", type=int, default=48, help="number of orbit frames (default 48)")
+    ap.add_argument("--width", type=int, default=1280, help="render width in px (default 1280)")
+    ap.add_argument("--height", type=int, default=720, help="render height in px (default 720)")
+    ap.add_argument(
+        "--fov", type=float, default=70.0, help="camera horizontal FOV in degrees (default 70.0)"
+    )
+    ap.add_argument(
+        "--radius",
+        type=float,
+        default=9000.0,
+        help=(
+            "orbit radius in cm around the scene centre. "
+            "Default 9000 frames the elven-city extents "
+            "(structures span ~6500 cm from centre)."
+        ),
+    )
+    ap.add_argument(
+        "--height-z",
+        dest="height_z",
+        type=float,
+        default=5000.0,
+        help=(
+            "camera Z in cm (default 5000 — above the city; "
+            "spire tops are ~Z6000 so a downward pitch keeps "
+            "them in frame)."
+        ),
+    )
+    ap.add_argument(
+        "--center-x",
+        dest="center_x",
+        type=float,
+        default=2000.0,
+        help="orbit centre X in cm (default 2000 — city mass)",
+    )
+    ap.add_argument(
+        "--center-y",
+        dest="center_y",
+        type=float,
+        default=0.0,
+        help="orbit centre Y in cm (default 0)",
+    )
+    ap.add_argument(
+        "--center-z",
+        dest="center_z",
+        type=float,
+        default=1500.0,
+        help="orbit centre Z in cm — yaw look-at height (default 1500)",
+    )
+    ap.add_argument(
+        "--pitch",
+        type=float,
+        default=-15.0,
+        help="camera downward pitch in degrees (default -15.0)",
+    )
+    ap.add_argument(
+        "--out-gif",
+        dest="out_gif",
+        default=default_out_gif,
+        help=f"output GIF path (default {default_out_gif})",
+    )
+    ap.add_argument(
+        "--frames-dir",
+        dest="frames_dir",
+        default=default_frames_dir,
+        help=f"PNG frame scratch dir (default {default_frames_dir})",
+    )
+    ap.add_argument("--fps", type=int, default=20, help="GIF frame rate (default 20)")
+    ap.add_argument(
+        "--scale-w",
+        dest="scale_w",
+        type=int,
+        default=960,
+        help="GIF output width in px, aspect-preserved (default 960)",
+    )
+    ap.add_argument(
+        "--keep-frames",
+        dest="keep_frames",
+        action="store_true",
+        help="keep the PNG frame dir instead of deleting it",
+    )
+    ap.add_argument(
+        "--skip-build",
+        dest="skip_build",
+        action="store_true",
+        help=("skip the procedural scene build and capture the current level as-is"),
+    )
+    ap.add_argument(
+        "--scratch-level",
+        dest="scratch_level",
+        default=DEFAULT_SCRATCH_LEVEL,
+        help=(
+            f"dedicated throwaway level the build is targeted "
+            f"into so the user's open map is never dirtied "
+            f"(default {DEFAULT_SCRATCH_LEVEL}). Skipped when "
+            f"--skip-build is set (then the current level is "
+            f"captured as-is)."
+        ),
+    )
+    ap.add_argument(
+        "--no-clean-exit",
+        dest="no_clean_exit",
+        action="store_true",
+        help=(
+            "do NOT attempt the graceful editor quit after a "
+            "successful capture (leave the editor running). "
+            "By default the editor is asked to drop dirty "
+            "state and quit so no dirty Untitled autosave is "
+            "left behind."
+        ),
+    )
     args = ap.parse_args()
 
     if args.frames < 2:
@@ -660,19 +742,20 @@ def main() -> None:
     host, port = args.host, args.port
     print("Demo-GIF capture pipeline")
     print(f"  target     : {host}:{port}")
-    print(f"  frames     : {args.frames} @ {args.width}x{args.height} "
-          f"fov={args.fov}")
-    print(f"  orbit      : radius={args.radius} z={args.height_z} "
-          f"centre=({args.center_x},{args.center_y},{args.center_z}) "
-          f"pitch={args.pitch}")
+    print(f"  frames     : {args.frames} @ {args.width}x{args.height} fov={args.fov}")
+    print(
+        f"  orbit      : radius={args.radius} z={args.height_z} "
+        f"centre=({args.center_x},{args.center_y},{args.center_z}) "
+        f"pitch={args.pitch}"
+    )
     print(f"  out gif    : {args.out_gif}")
     print(f"  frames dir : {args.frames_dir}")
     print(f"  ffmpeg     : {args.fps} fps, scale-w {args.scale_w}")
     print(f"  build scene: {'NO (--skip-build)' if args.skip_build else 'yes'}")
-    print(f"  scratch lvl: "
-          f"{'(skipped — --skip-build)' if args.skip_build else args.scratch_level}")
-    print(f"  clean exit : "
-          f"{'NO (--no-clean-exit)' if args.no_clean_exit else 'yes (graceful quit)'}")
+    print(f"  scratch lvl: {'(skipped — --skip-build)' if args.skip_build else args.scratch_level}")
+    print(
+        f"  clean exit : {'NO (--no-clean-exit)' if args.no_clean_exit else 'yes (graceful quit)'}"
+    )
 
     scene_built = False
     try:
@@ -684,13 +767,9 @@ def main() -> None:
 
         # --- (a) connectivity probe ------------------------------------
         print("\n[1/5] connectivity probe (get_actors_in_level) ...")
-        probe = call(host, port, "get_actors_in_level", {}, request_id=1,
-                     timeout=30.0)
+        probe = call(host, port, "get_actors_in_level", {}, request_id=1, timeout=30.0)
         if "_error" in probe:
-            raise CaptureError(
-                f"cannot reach a live editor at {host}:{port}: "
-                f"{probe['_error']}"
-            )
+            raise CaptureError(f"cannot reach a live editor at {host}:{port}: {probe['_error']}")
         unwrap(probe, "get_actors_in_level")
         print("  editor reachable; handler catalog live.")
 
@@ -702,38 +781,42 @@ def main() -> None:
         # exit pops a Restore-Packages dialog. Skipped under --skip-build
         # (the operator explicitly asked to capture the current level).
         if not args.skip_build:
-            print(f"\n[1.5/5] retargeting to scratch level "
-                  f"{args.scratch_level} (so the build never dirties the "
-                  f"open map) ...")
-            _ensure_scratch_level(host, port, args.scratch_level,
-                                  request_id=2)
+            print(
+                f"\n[1.5/5] retargeting to scratch level "
+                f"{args.scratch_level} (so the build never dirties the "
+                f"open map) ..."
+            )
+            _ensure_scratch_level(host, port, args.scratch_level, request_id=2)
 
         # --- (b) build the scene ---------------------------------------
         if not args.skip_build:
-            print("\n[2/5] building procedural city blockout "
-                  "(execute_unreal_python ← elven_city_scene.py) ...")
+            print(
+                "\n[2/5] building procedural city blockout "
+                "(execute_unreal_python ← elven_city_scene.py) ..."
+            )
             code = read_scene_code()
-            resp = call(host, port, "execute_unreal_python",
-                        {"code": code}, request_id=20, timeout=300.0)
+            resp = call(
+                host, port, "execute_unreal_python", {"code": code}, request_id=20, timeout=300.0
+            )
             result = unwrap(resp, "execute_unreal_python")
             # The handler's own ok/output shape varies; treat an explicit
             # ok=false as fatal, otherwise look for the scene sentinel in any
             # textual output field so a silent failure cannot pass as success.
             if result.get("ok") is False:
                 raise CaptureError(
-                    f"[execute_unreal_python] scene build reported "
-                    f"ok=false: {result}"
+                    f"[execute_unreal_python] scene build reported ok=false: {result}"
                 )
             blob = json.dumps(result, default=str)
             if SCENE_OK_SENTINEL not in blob:
-                print(f"  (note: '{SCENE_OK_SENTINEL}' sentinel not echoed in "
-                      f"handler output; relying on actor-count sanity below. "
-                      f"raw keys: {sorted(result.keys())})")
+                print(
+                    f"  (note: '{SCENE_OK_SENTINEL}' sentinel not echoed in "
+                    f"handler output; relying on actor-count sanity below. "
+                    f"raw keys: {sorted(result.keys())})"
+                )
             scene_built = True
             labels = get_actor_labels(host, port, request_id=3)
             elv = [lbl for lbl in labels if lbl.startswith("ELV_")]
-            print(f"  scene built: {len(labels)} actors in level, "
-                  f"{len(elv)} ELV_* (expect ~100+).")
+            print(f"  scene built: {len(labels)} actors in level, {len(elv)} ELV_* (expect ~100+).")
             if len(elv) < 50:
                 raise CaptureError(
                     f"scene build produced only {len(elv)} ELV_* actors "
@@ -759,17 +842,23 @@ def main() -> None:
             ]
             fx_ok = 0
             for _sys, _fx, _fy, _fz, _fs, _lbl in fx_plan:
-                _r = call(host, port, "spawn_niagara_at_location", {
-                    "system": _sys,
-                    "location": {"x": _fx, "y": _fy, "z": _fz},
-                    "scale": {"x": _fs, "y": _fs, "z": _fs},
-                    "label": _lbl,
-                }, request_id=25, timeout=30.0)
+                _r = call(
+                    host,
+                    port,
+                    "spawn_niagara_at_location",
+                    {
+                        "system": _sys,
+                        "location": {"x": _fx, "y": _fy, "z": _fz},
+                        "scale": {"x": _fs, "y": _fs, "z": _fs},
+                        "label": _lbl,
+                    },
+                    request_id=25,
+                    timeout=30.0,
+                )
                 if "error" not in _r and "_error" not in _r:
                     fx_ok += 1
                 else:
-                    print(f"  FX spawn failed for {_lbl}: "
-                          f"{_r.get('error') or _r.get('_error')}")
+                    print(f"  FX spawn failed for {_lbl}: {_r.get('error') or _r.get('_error')}")
             print(f"  Niagara FX placed: {fx_ok}/{len(fx_plan)}.")
         else:
             print("\n[2/5] --skip-build: capturing the current level as-is.")
@@ -778,15 +867,21 @@ def main() -> None:
         print(f"\n[3/5] orbit camera '{ORBIT_CAM_LABEL}' ...")
         labels = get_actor_labels(host, port, request_id=4)
         if ORBIT_CAM_LABEL in labels:
-            print(f"  '{ORBIT_CAM_LABEL}' already present — reusing it "
-                  f"(idempotent re-run).")
+            print(f"  '{ORBIT_CAM_LABEL}' already present — reusing it (idempotent re-run).")
         else:
-            spawn_resp = call(host, port, "spawn_actor", {
-                "class_path": CAMERA_CLASS_PATH,
-                "label": ORBIT_CAM_LABEL,
-                "location": {"x": 0.0, "y": 0.0, "z": 0.0},
-                "rotation": {"roll": 0.0, "pitch": 0.0, "yaw": 0.0},
-            }, request_id=5, timeout=60.0)
+            spawn_resp = call(
+                host,
+                port,
+                "spawn_actor",
+                {
+                    "class_path": CAMERA_CLASS_PATH,
+                    "label": ORBIT_CAM_LABEL,
+                    "location": {"x": 0.0, "y": 0.0, "z": 0.0},
+                    "rotation": {"roll": 0.0, "pitch": 0.0, "yaw": 0.0},
+                },
+                request_id=5,
+                timeout=60.0,
+            )
             unwrap(spawn_resp, "spawn_actor")
             post = get_actor_labels(host, port, request_id=6)
             if ORBIT_CAM_LABEL not in post:
@@ -807,14 +902,18 @@ def main() -> None:
                 except OSError:
                     pass
 
-        print(f"\n[4/5] orbit-rendering {args.frames} frames into "
-              f"{frames_dir} ...")
+        print(f"\n[4/5] orbit-rendering {args.frames} frames into {frames_dir} ...")
         failures: list[str] = []
         for i in range(args.frames):
             angle = 360.0 * i / args.frames
             location, rotation = orbit_pose(
-                angle, args.radius, args.height_z,
-                args.center_x, args.center_y, args.center_z, args.pitch,
+                angle,
+                args.radius,
+                args.height_z,
+                args.center_x,
+                args.center_y,
+                args.center_z,
+                args.pitch,
             )
             frame_path = os.path.join(frames_dir, f"frame_{i:04d}.png")
             try:
@@ -823,24 +922,38 @@ def main() -> None:
             except OSError:
                 pass
 
-            mv = call(host, port, "set_actor_transform", {
-                "name": ORBIT_CAM_LABEL,
-                "location": location,
-                "rotation": rotation,
-            }, request_id=1000 + i, timeout=60.0)
+            mv = call(
+                host,
+                port,
+                "set_actor_transform",
+                {
+                    "name": ORBIT_CAM_LABEL,
+                    "location": location,
+                    "rotation": rotation,
+                },
+                request_id=1000 + i,
+                timeout=60.0,
+            )
             try:
                 unwrap(mv, f"set_actor_transform[frame {i}]")
             except CaptureError as e:
                 failures.append(str(e))
                 continue
 
-            rr = call(host, port, "render_camera_to_png", {
-                "out_path": frame_path,
-                "camera_label": ORBIT_CAM_LABEL,
-                "width": args.width,
-                "height": args.height,
-                "fov": args.fov,
-            }, request_id=2000 + i, timeout=120.0)
+            rr = call(
+                host,
+                port,
+                "render_camera_to_png",
+                {
+                    "out_path": frame_path,
+                    "camera_label": ORBIT_CAM_LABEL,
+                    "width": args.width,
+                    "height": args.height,
+                    "fov": args.fov,
+                },
+                request_id=2000 + i,
+                timeout=120.0,
+            )
             try:
                 unwrap(rr, f"render_camera_to_png[frame {i}]")
             except CaptureError as e:
@@ -848,32 +961,28 @@ def main() -> None:
                 continue
 
             if not os.path.exists(frame_path):
-                failures.append(
-                    f"[frame {i}] handler ok but no file at {frame_path}"
-                )
+                failures.append(f"[frame {i}] handler ok but no file at {frame_path}")
                 continue
             size = os.path.getsize(frame_path)
             if size <= 10240:
                 failures.append(
-                    f"[frame {i}] {frame_path} is {size} bytes (<=10240) — "
-                    f"blank/empty capture"
+                    f"[frame {i}] {frame_path} is {size} bytes (<=10240) — blank/empty capture"
                 )
                 continue
             if (i + 1) % 8 == 0 or i == args.frames - 1:
-                print(f"  frame {i + 1}/{args.frames} ok "
-                      f"(angle={angle:.1f}deg, {size} bytes)")
+                print(f"  frame {i + 1}/{args.frames} ok (angle={angle:.1f}deg, {size} bytes)")
 
         if failures:
             shown = failures[:8]
-            more = (f"\n  ... and {len(failures) - 8} more"
-                    if len(failures) > 8 else "")
+            more = f"\n  ... and {len(failures) - 8} more" if len(failures) > 8 else ""
             die(
                 f"{len(failures)}/{args.frames} frame(s) failed; aborting "
                 f"before GIF assembly:\n  " + "\n  ".join(shown) + more
             )
 
-        good = sorted(f for f in os.listdir(frames_dir)
-                      if f.startswith("frame_") and f.endswith(".png"))
+        good = sorted(
+            f for f in os.listdir(frames_dir) if f.startswith("frame_") and f.endswith(".png")
+        )
         if len(good) != args.frames:
             die(
                 f"expected {args.frames} frame PNGs in {frames_dir}, found "
@@ -885,31 +994,27 @@ def main() -> None:
         print("\n[5/5] assembling GIF with ffmpeg (two-pass palettegen) ...")
         out_gif = os.path.abspath(args.out_gif)
         os.makedirs(os.path.dirname(out_gif), exist_ok=True)
-        run_ffmpeg(build_ffmpeg_cmd(frames_dir, out_gif, args.fps,
-                                    args.scale_w))
+        run_ffmpeg(build_ffmpeg_cmd(frames_dir, out_gif, args.fps, args.scale_w))
         if not os.path.exists(out_gif):
             die(f"ffmpeg reported success but {out_gif} does not exist.")
         gif_bytes = os.path.getsize(out_gif)
         if gif_bytes <= 50 * 1024:
-            die(
-                f"{out_gif} is {gif_bytes} bytes (<= 50 KiB) — assembly "
-                f"produced a degenerate GIF."
-            )
+            die(f"{out_gif} is {gif_bytes} bytes (<= 50 KiB) — assembly produced a degenerate GIF.")
         gif_mb = gif_bytes / (1024 * 1024)
         print(f"  GIF written: {out_gif} ({gif_bytes} bytes, {gif_mb:.2f} MB)")
 
         # Keep the repo light (no LFS): if the first pass is > 20 MB, re-encode
         # once at a smaller width / fps and report the smaller artifact.
         if gif_bytes > 20 * 1024 * 1024:
-            print("  GIF > 20 MB — re-encoding once at scale-w=800 fps=15 "
-                  "to keep the repo light ...")
+            print(
+                "  GIF > 20 MB — re-encoding once at scale-w=800 fps=15 to keep the repo light ..."
+            )
             run_ffmpeg(build_ffmpeg_cmd(frames_dir, out_gif, 15, 800))
             if not os.path.exists(out_gif):
                 die(f"re-encode reported success but {out_gif} is gone.")
             gif_bytes = os.path.getsize(out_gif)
             gif_mb = gif_bytes / (1024 * 1024)
-            print(f"  re-encoded GIF: {out_gif} ({gif_bytes} bytes, "
-                  f"{gif_mb:.2f} MB)")
+            print(f"  re-encoded GIF: {out_gif} ({gif_bytes} bytes, {gif_mb:.2f} MB)")
 
         # --- frame cleanup ---------------------------------------------
         if args.keep_frames:
@@ -931,11 +1036,14 @@ def main() -> None:
     # editor (applied only if this graceful path did not terminate it
     # within that caller's timeout) — see the module docstring.
     if args.no_clean_exit:
-        print("\n  --no-clean-exit: leaving the editor running "
-              "(scratch level may remain dirty until closed manually).")
+        print(
+            "\n  --no-clean-exit: leaving the editor running "
+            "(scratch level may remain dirty until closed manually)."
+        )
     else:
-        print("\n  clean exit: dropping dirty scratch state + requesting "
-              "a graceful editor quit ...")
+        print(
+            "\n  clean exit: dropping dirty scratch state + requesting a graceful editor quit ..."
+        )
         _attempt_clean_exit(host, port, request_id=9000)
 
     # --- final summary -------------------------------------------------
@@ -943,8 +1051,7 @@ def main() -> None:
     print("=" * 62)
     print("  Demo-GIF capture summary")
     print("=" * 62)
-    print(f"  scene built     : "
-          f"{'yes' if scene_built else 'no (--skip-build)'}")
+    print(f"  scene built     : {'yes' if scene_built else 'no (--skip-build)'}")
     print(f"  frames captured : {args.frames} @ {args.width}x{args.height}")
     print(f"  gif             : {out_gif}")
     print(f"  gif size        : {gif_bytes} bytes ({gif_mb:.2f} MB)")

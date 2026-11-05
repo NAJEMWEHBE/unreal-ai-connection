@@ -81,7 +81,12 @@ PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"\((\d+)\s+native\s+C\+\+\s+handlers?", re.IGNORECASE), "cpp_handlers"),
     (re.compile(r"\((\d+)\s+UE\s+C\+\+\s+handlers?", re.IGNORECASE), "cpp_handlers"),
     (re.compile(r"\((\d+)\s+C\+\+\s+handlers?\s+\+", re.IGNORECASE), "cpp_handlers"),
-    (re.compile(r"\b(\d+)\s+are\s+(?:native\s+)?C\+\+\s+(?:handlers?|methods?)\b", re.IGNORECASE), "cpp_handlers"),
+    (
+        re.compile(
+            r"\b(\d+)\s+are\s+(?:native\s+)?C\+\+\s+(?:handlers?|methods?)\b", re.IGNORECASE
+        ),
+        "cpp_handlers",
+    ),
     (re.compile(r"\b(\d+)\s+are\s+JSON-RPC\b", re.IGNORECASE), "cpp_handlers"),
     # "N handlers register" (README build-status) / "N dispatched [directly] to UE"
     # (INSTALLATION) — both name the native C++ handler count.
@@ -165,8 +170,7 @@ def _read_live_pytest_count() -> int:
             return int(match.group(1))
     raise RuntimeError(
         "Could not parse pytest --collect-only output "
-        f"(pytest exit={result.returncode}). Last lines:\n"
-        + "\n".join(combined.splitlines()[-10:])
+        f"(pytest exit={result.returncode}). Last lines:\n" + "\n".join(combined.splitlines()[-10:])
     )
 
 
@@ -196,9 +200,7 @@ def _read_uplugin_versions() -> tuple[str, str]:
     try:
         data = json.loads(_read_text_lenient(uplugin_path))
     except json.JSONDecodeError as e:
-        raise RuntimeError(
-            f"UnrealAIConnection.uplugin is not valid JSON: {e}"
-        ) from e
+        raise RuntimeError(f"UnrealAIConnection.uplugin is not valid JSON: {e}") from e
     version_name = data.get("VersionName")
     engine_version = data.get("EngineVersion")
     if not isinstance(version_name, str) or not isinstance(engine_version, str):
@@ -263,9 +265,7 @@ def scan(canonical: dict[str, CanonicalValue]) -> list[str]:
                 for match in pattern.finditer(line):
                     expected = canonical[key]
                     raw = match.group(1)
-                    found: CanonicalValue = (
-                        int(raw) if isinstance(expected, int) else raw
-                    )
+                    found: CanonicalValue = int(raw) if isinstance(expected, int) else raw
                     if found != expected:
                         findings.append(
                             f"{relpath}:{lineno}: '{match.group(0).strip()}' "

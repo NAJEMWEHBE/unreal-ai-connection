@@ -38,9 +38,7 @@ EXPECTED_BUCKETS = {
 
 
 def _load_generator():
-    spec = importlib.util.spec_from_file_location(
-        "gen_uplugin_variants", GEN_SCRIPT
-    )
+    spec = importlib.util.spec_from_file_location("gen_uplugin_variants", GEN_SCRIPT)
     assert spec and spec.loader, "gen_uplugin_variants.py must be importable"
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -89,24 +87,19 @@ def test_each_variant_has_correct_engine_version(tmp_path, monkeypatch) -> None:
         data = json.loads(path.read_text(encoding="utf-8"))
         expected_ev = EXPECTED_BUCKETS[path.name]
         assert data["EngineVersion"] == expected_ev, (
-            f"{path.name} EngineVersion {data['EngineVersion']!r} != "
-            f"expected {expected_ev!r}"
+            f"{path.name} EngineVersion {data['EngineVersion']!r} != expected {expected_ev!r}"
         )
 
 
 def test_variant_differs_only_in_engine_version(tmp_path, monkeypatch) -> None:
     gen = _load_generator()
     monkeypatch.setattr(gen, "OUTPUT_DIR", tmp_path / "uplugin-variants")
-    canonical = json.loads(
-        CANONICAL_UPLUGIN.read_text(encoding="utf-8")
-    )
+    canonical = json.loads(CANONICAL_UPLUGIN.read_text(encoding="utf-8"))
     written = gen.generate()
     for path in written:
         variant = json.loads(path.read_text(encoding="utf-8"))
         # Same set of keys, in any representation.
-        assert variant.keys() == canonical.keys(), (
-            f"{path.name} changed the .uplugin key set"
-        )
+        assert variant.keys() == canonical.keys(), f"{path.name} changed the .uplugin key set"
         for key in canonical:
             if key == "EngineVersion":
                 continue
@@ -133,9 +126,7 @@ def test_check_mode_writes_nothing(tmp_path, monkeypatch) -> None:
     out_dir = tmp_path / "uplugin-variants"
     monkeypatch.setattr(gen, "OUTPUT_DIR", out_dir)
     gen.generate(check_only=True)
-    assert not out_dir.exists(), (
-        "--check / check_only must not create the output dir or any file"
-    )
+    assert not out_dir.exists(), "--check / check_only must not create the output dir or any file"
 
 
 def test_canonical_uplugin_is_valid_json_with_engine_version() -> None:

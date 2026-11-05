@@ -93,8 +93,14 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "path_under": {"type": "string", "description": "Recursive package-path filter; defaults to /Game/. Must start with /Game/ or /Engine/."},
-                "name_contains": {"type": "string", "description": "Case-insensitive substring filter on the level asset name."},
+                "path_under": {
+                    "type": "string",
+                    "description": "Recursive package-path filter; defaults to /Game/. Must start with /Game/ or /Engine/.",
+                },
+                "name_contains": {
+                    "type": "string",
+                    "description": "Case-insensitive substring filter on the level asset name.",
+                },
             },
         },
     },
@@ -104,8 +110,14 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "include_levels": {"type": "boolean", "description": "Save dirty .umap level packages (default true)."},
-                "include_content": {"type": "boolean", "description": "Save dirty .uasset content packages (default true)."},
+                "include_levels": {
+                    "type": "boolean",
+                    "description": "Save dirty .umap level packages (default true).",
+                },
+                "include_content": {
+                    "type": "boolean",
+                    "description": "Save dirty .uasset content packages (default true).",
+                },
             },
         },
     },
@@ -115,7 +127,12 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "count": {"type": "integer", "description": "Number of undo steps to apply (default 1, max 50). Stops early if the stack is exhausted.", "minimum": 1, "maximum": 50},
+                "count": {
+                    "type": "integer",
+                    "description": "Number of undo steps to apply (default 1, max 50). Stops early if the stack is exhausted.",
+                    "minimum": 1,
+                    "maximum": 50,
+                },
             },
         },
     },
@@ -125,7 +142,12 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "count": {"type": "integer", "description": "Number of redo steps to apply (default 1, max 50). Stops early when nothing remains to redo.", "minimum": 1, "maximum": 50},
+                "count": {
+                    "type": "integer",
+                    "description": "Number of redo steps to apply (default 1, max 50). Stops early when nothing remains to redo.",
+                    "minimum": 1,
+                    "maximum": 50,
+                },
             },
         },
     },
@@ -145,8 +167,17 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "action": {"type": "string", "enum": ["start", "stop", "query"], "description": "One of: start, stop, query."},
-                "mode": {"type": "string", "enum": ["play", "simulate"], "default": "play", "description": "Only used when action=start. 'play' (default) launches a full PIE session in the active viewport; 'simulate' ticks the world without spawning a Player Controller."},
+                "action": {
+                    "type": "string",
+                    "enum": ["start", "stop", "query"],
+                    "description": "One of: start, stop, query.",
+                },
+                "mode": {
+                    "type": "string",
+                    "enum": ["play", "simulate"],
+                    "default": "play",
+                    "description": "Only used when action=start. 'play' (default) launches a full PIE session in the active viewport; 'simulate' ticks the world without spawning a Player Controller.",
+                },
             },
             "required": ["action"],
         },
@@ -157,8 +188,14 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "settings_class": {"type": "string", "description": "Full class path of a UDeveloperSettings subclass (e.g. '/Script/Engine.RendererSettings')."},
-                "property": {"type": "string", "description": "Optional. When supplied, return just this property's name/type/value instead of the full bulk dump."},
+                "settings_class": {
+                    "type": "string",
+                    "description": "Full class path of a UDeveloperSettings subclass (e.g. '/Script/Engine.RendererSettings').",
+                },
+                "property": {
+                    "type": "string",
+                    "description": "Optional. When supplied, return just this property's name/type/value instead of the full bulk dump.",
+                },
             },
             "required": ["settings_class"],
         },
@@ -172,15 +209,15 @@ TOOLS = [
                 "paths": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "Asset object paths to inspect (each non-empty, NUL + '..' segments rejected)."
+                    "description": "Asset object paths to inspect (each non-empty, NUL + '..' segments rejected).",
                 },
                 "continue_on_error": {
                     "type": "boolean",
-                    "description": "Default true. When false, stop at first per-path failure and return the partial results."
+                    "description": "Default true. When false, stop at first per-path failure and return the partial results.",
                 },
                 "verbose": {
                     "type": "boolean",
-                    "description": "Default false. When false, each successful result is a trimmed summary (path, class, dependency_count, referencer_count). When true, each result carries the full inspect_asset blob under `data` (backward-compatible)."
+                    "description": "Default false. When false, each successful result is a trimmed summary (path, class, dependency_count, referencer_count). When true, each result carries the full inspect_asset blob under `data` (backward-compatible).",
                 },
             },
             "required": ["paths"],
@@ -194,15 +231,18 @@ TOOLS = [
             "properties": {
                 "path_under": {
                     "type": "string",
-                    "description": "Folder to scan. Default /Game. Recursive."
+                    "description": "Folder to scan. Default /Game. Recursive.",
                 },
                 "class_filter": {
                     "type": "string",
-                    "description": "Optional UE class path filter (e.g. /Script/Engine.Texture2D) to scan only assets of one type."
+                    "description": "Optional UE class path filter (e.g. /Script/Engine.Texture2D) to scan only assets of one type.",
                 },
                 "limit": {
-                    "type": "integer", "minimum": 1, "maximum": 500, "default": 100,
-                    "description": "Max unused assets to return (default 100, max 500 — the underlying find_assets scan is capped at 500 candidates engine-side). Scan halts once this many unused are found OR the scan exhausts."
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 500,
+                    "default": 100,
+                    "description": "Max unused assets to return (default 100, max 500 — the underlying find_assets scan is capped at 500 candidates engine-side). Scan halts once this many unused are found OR the scan exhausts.",
                 },
             },
         },
@@ -215,16 +255,19 @@ TOOLS = [
             "properties": {
                 "path": {
                     "type": "string",
-                    "description": "Root asset path to walk from. Required."
+                    "description": "Root asset path to walk from. Required.",
                 },
                 "depth": {
-                    "type": "integer", "minimum": 1, "maximum": 8, "default": 3,
-                    "description": "BFS depth bound. Default 3, max 8 (8 hops is already a vast subgraph in any non-trivial project)."
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 8,
+                    "default": 3,
+                    "description": "BFS depth bound. Default 3, max 8 (8 hops is already a vast subgraph in any non-trivial project).",
                 },
                 "direction": {
                     "type": "string",
                     "enum": ["up", "down"],
-                    "description": "Default 'up'. 'up' follows referencers; 'down' follows dependencies."
+                    "description": "Default 'up'. 'up' follows referencers; 'down' follows dependencies.",
                 },
             },
             "required": ["path"],
@@ -239,11 +282,11 @@ TOOLS = [
                 "paths": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "Blueprint asset paths to compile (each non-empty, NUL + '..' segments rejected, max 1000 entries)."
+                    "description": "Blueprint asset paths to compile (each non-empty, NUL + '..' segments rejected, max 1000 entries).",
                 },
                 "continue_on_error": {
                     "type": "boolean",
-                    "description": "Default true. When false, stop at first per-path compile failure and return the partial results."
+                    "description": "Default true. When false, stop at first per-path compile failure and return the partial results.",
                 },
             },
             "required": ["paths"],
@@ -257,11 +300,11 @@ TOOLS = [
             "properties": {
                 "path_under": {
                     "type": "string",
-                    "description": "Content path to scan. Default /Game. Recursive."
+                    "description": "Content path to scan. Default /Game. Recursive.",
                 },
                 "compile_failures_only": {
                     "type": "boolean",
-                    "description": "Default true. When true, problem_assets only lists Blueprints whose status is Error or Unknown. When false, problem_assets lists every scanned Blueprint."
+                    "description": "Default true. When true, problem_assets only lists Blueprints whose status is Error or Unknown. When false, problem_assets lists every scanned Blueprint.",
                 },
             },
         },
@@ -274,11 +317,11 @@ TOOLS = [
             "properties": {
                 "class_name": {
                     "type": "string",
-                    "description": "Short class name (e.g. 'StaticMeshActor') or full class path (e.g. '/Script/Engine.StaticMeshActor'). Match is case-insensitive against the actor's short class name; class-path inputs have everything up to and including the final '.' stripped before comparison."
+                    "description": "Short class name (e.g. 'StaticMeshActor') or full class path (e.g. '/Script/Engine.StaticMeshActor'). Match is case-insensitive against the actor's short class name; class-path inputs have everything up to and including the final '.' stripped before comparison.",
                 },
                 "level": {
                     "type": "string",
-                    "description": "Optional UWorld package path to load before enumerating (e.g. '/Game/Maps/MyMap'). When omitted, the active editor level is scanned in place."
+                    "description": "Optional UWorld package path to load before enumerating (e.g. '/Game/Maps/MyMap'). When omitted, the active editor level is scanned in place.",
                 },
             },
             "required": ["class_name"],
@@ -293,15 +336,18 @@ TOOLS = [
                 "names": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "Actor labels or unique names; each non-empty, max 100 entries."
+                    "description": "Actor labels or unique names; each non-empty, max 100 entries.",
                 },
                 "delay_ms": {
-                    "type": "integer", "minimum": 0, "maximum": 10000, "default": 500,
-                    "description": "Settle delay between focus calls in milliseconds (default 500, max 10000). Sleeps BETWEEN calls, not after the last."
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 10000,
+                    "default": 500,
+                    "description": "Settle delay between focus calls in milliseconds (default 500, max 10000). Sleeps BETWEEN calls, not after the last.",
                 },
                 "screenshot_each": {
                     "type": "boolean",
-                    "description": "Default false. When true, capture a viewport PNG after each focus settles and emit a parallel 'screenshots' array."
+                    "description": "Default false. When true, capture a viewport PNG after each focus settles and emit a parallel 'screenshots' array.",
                 },
             },
             "required": ["names"],
@@ -316,11 +362,14 @@ TOOLS = [
                 "names": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "Actor labels or unique names; each non-empty, max 50 entries (smaller cap than bulk_focus_actors because each entry yields a PNG)."
+                    "description": "Actor labels or unique names; each non-empty, max 50 entries (smaller cap than bulk_focus_actors because each entry yields a PNG).",
                 },
                 "delay_ms": {
-                    "type": "integer", "minimum": 0, "maximum": 10000, "default": 500,
-                    "description": "Settle delay between actors in milliseconds (default 500, max 10000). Sleeps BETWEEN actors, not after the last."
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 10000,
+                    "default": 500,
+                    "description": "Settle delay between actors in milliseconds (default 500, max 10000). Sleeps BETWEEN actors, not after the last.",
                 },
             },
             "required": ["names"],
@@ -338,15 +387,20 @@ TOOLS = [
                         "type": "object",
                         "properties": {
                             "actor": {"type": "string", "description": "Actor label or FName."},
-                            "property": {"type": "string", "description": "UPROPERTY name (case-sensitive)."},
-                            "value": {"description": "JSON value coerced based on the FProperty type."},
+                            "property": {
+                                "type": "string",
+                                "description": "UPROPERTY name (case-sensitive).",
+                            },
+                            "value": {
+                                "description": "JSON value coerced based on the FProperty type."
+                            },
                         },
                     },
-                    "description": "List of {actor, property, value} triples; each actor and property non-empty, max 200 entries."
+                    "description": "List of {actor, property, value} triples; each actor and property non-empty, max 200 entries.",
                 },
                 "continue_on_error": {
                     "type": "boolean",
-                    "description": "Default true. When false, stop at the first per-assignment failure and return the partial results plus halted_at_index."
+                    "description": "Default true. When false, stop at the first per-assignment failure and return the partial results plus halted_at_index.",
                 },
             },
             "required": ["assignments"],
@@ -360,16 +414,16 @@ TOOLS = [
             "properties": {
                 "path_a": {
                     "type": "string",
-                    "description": "First asset path (e.g. /Game/Blueprints/BP_A.BP_A)."
+                    "description": "First asset path (e.g. /Game/Blueprints/BP_A.BP_A).",
                 },
                 "path_b": {
                     "type": "string",
-                    "description": "Second asset path; same shape as path_a."
+                    "description": "Second asset path; same shape as path_a.",
                 },
                 "fields": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "Optional whitelist of inspect_asset field names to compare. When omitted, the synthetic diffs the union of both responses' keys (minus 'path'). Use this to scope the diff to a known-volatile subset (e.g. ['dependencies', 'referencers'])."
+                    "description": "Optional whitelist of inspect_asset field names to compare. When omitted, the synthetic diffs the union of both responses' keys (minus 'path'). Use this to scope the diff to a known-volatile subset (e.g. ['dependencies', 'referencers']).",
                 },
             },
             "required": ["path_a", "path_b"],
@@ -383,11 +437,11 @@ TOOLS = [
             "properties": {
                 "assignments": {
                     "type": "object",
-                    "description": "Mapping of {cvar_name: new_value}. Each name must be a non-empty string; each value must be string, number, or boolean (matching set_console_variable's polymorphic value). Max 50 entries per call."
+                    "description": "Mapping of {cvar_name: new_value}. Each name must be a non-empty string; each value must be string, number, or boolean (matching set_console_variable's polymorphic value). Max 50 entries per call.",
                 },
                 "rollback_on_error": {
                     "type": "boolean",
-                    "description": "Default true. When true, any failure halts the loop, then every already-applied change is restored to its captured pre-value. When false, failures are recorded but applied changes are NOT restored."
+                    "description": "Default true. When true, any failure halts the loop, then every already-applied change is restored to its captured pre-value. When false, failures are recorded but applied changes are NOT restored.",
                 },
             },
             "required": ["assignments"],
@@ -399,21 +453,24 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "path": {
-                    "type": "string",
-                    "description": "Root asset path to walk from."
-                },
+                "path": {"type": "string", "description": "Root asset path to walk from."},
                 "depth": {
-                    "type": "integer", "minimum": 1, "maximum": 8, "default": 2,
-                    "description": "BFS depth bound. Default 2, range 1..8 (the bidirectional sweep can produce a vast subgraph past depth 4 in any non-trivial project)."
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 8,
+                    "default": 2,
+                    "description": "BFS depth bound. Default 2, range 1..8 (the bidirectional sweep can produce a vast subgraph past depth 4 in any non-trivial project).",
                 },
                 "include_referencers": {
                     "type": "boolean",
-                    "description": "Default false. When true, also follow referencers upward in the same BFS; edges record direction ('up' for referencer edges, 'down' for dependency edges)."
+                    "description": "Default false. When true, also follow referencers upward in the same BFS; edges record direction ('up' for referencer edges, 'down' for dependency edges).",
                 },
                 "max_nodes": {
-                    "type": "integer", "minimum": 1, "maximum": 100000, "default": 100,
-                    "description": "Cap on distinct nodes visited. Default 100, range 1..100000. Once hit, frontier expansion halts and `truncated`=true. The root counts as node 1. Raise for an exhaustive sweep."
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100000,
+                    "default": 100,
+                    "description": "Cap on distinct nodes visited. Default 100, range 1..100000. Once hit, frontier expansion halts and `truncated`=true. The root counts as node 1. Raise for an exhaustive sweep.",
                 },
             },
             "required": ["path"],
@@ -428,15 +485,15 @@ TOOLS = [
                 "folders": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "Content folder paths under which to fix up redirectors (e.g. ['/Game/Materials', '/Game/Textures']). Each non-empty, NUL + '..' segments rejected, max 100 entries."
+                    "description": "Content folder paths under which to fix up redirectors (e.g. ['/Game/Materials', '/Game/Textures']). Each non-empty, NUL + '..' segments rejected, max 100 entries.",
                 },
                 "recursive": {
                     "type": "boolean",
-                    "description": "Default true. Echoed back in the response for clarity; fix_up_redirectors itself always operates recursively under the supplied path -- this field exists so callers can capture intent without having to track it separately."
+                    "description": "Default true. Echoed back in the response for clarity; fix_up_redirectors itself always operates recursively under the supplied path -- this field exists so callers can capture intent without having to track it separately.",
                 },
                 "continue_on_error": {
                     "type": "boolean",
-                    "description": "Default true. When false, stop at the first per-folder fix-up failure and emit halted_at_index."
+                    "description": "Default true. When false, stop at the first per-folder fix-up failure and emit halted_at_index.",
                 },
             },
             "required": ["folders"],
@@ -450,7 +507,7 @@ TOOLS = [
             "properties": {
                 "verbose": {
                     "type": "boolean",
-                    "description": "Default false. When true, include the full per-plugin plugins[] array; when false, return plugin counts only."
+                    "description": "Default false. When true, include the full per-plugin plugins[] array; when false, return plugin counts only.",
                 },
             },
         },
@@ -460,7 +517,12 @@ TOOLS = [
         "description": "Read parent class, declared variables, function/event graph names, and compile status (UpToDate/Dirty/Error/Unknown/BeingCreated) of a Blueprint asset.",
         "inputSchema": {
             "type": "object",
-            "properties": {"path": {"type": "string", "description": "e.g. /Game/Blueprints/BP_MyActor.BP_MyActor"}},
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "description": "e.g. /Game/Blueprints/BP_MyActor.BP_MyActor",
+                }
+            },
             "required": ["path"],
         },
     },
@@ -469,7 +531,12 @@ TOOLS = [
         "description": "Read the widget hierarchy of a UWidgetBlueprint or UEditorUtilityWidgetBlueprint.",
         "inputSchema": {
             "type": "object",
-            "properties": {"path": {"type": "string", "description": "Widget Blueprint asset path (UWidgetBlueprint or UEditorUtilityWidgetBlueprint)."}},
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "description": "Widget Blueprint asset path (UWidgetBlueprint or UEditorUtilityWidgetBlueprint).",
+                }
+            },
             "required": ["path"],
         },
     },
@@ -480,14 +547,30 @@ TOOLS = [
             "type": "object",
             "properties": {
                 "path": {"type": "string", "description": "Widget BP asset path"},
-                "op": {"type": "string", "enum": ["set_root", "add_child", "set_property"], "description": "Mutation to perform: 'set_root' sets the tree root, 'add_child' nests a widget under a parent panel, 'set_property' assigns a UProperty on an existing widget."},
-                "class": {"type": "string", "description": "VerticalBox|HorizontalBox|CanvasPanel|TextBlock|Button|Border|Image|Spacer|EditableTextBox or fully-qualified class path"},
+                "op": {
+                    "type": "string",
+                    "enum": ["set_root", "add_child", "set_property"],
+                    "description": "Mutation to perform: 'set_root' sets the tree root, 'add_child' nests a widget under a parent panel, 'set_property' assigns a UProperty on an existing widget.",
+                },
+                "class": {
+                    "type": "string",
+                    "description": "VerticalBox|HorizontalBox|CanvasPanel|TextBlock|Button|Border|Image|Spacer|EditableTextBox or fully-qualified class path",
+                },
                 "name": {"type": "string", "description": "widget name to assign"},
-                "parent": {"type": "string", "description": "for add_child: the parent panel widget name"},
+                "parent": {
+                    "type": "string",
+                    "description": "for add_child: the parent panel widget name",
+                },
                 "widget": {"type": "string", "description": "for set_property: target widget name"},
                 "property": {"type": "string", "description": "for set_property: UProperty name"},
-                "value": {"type": "string", "description": "for set_property: string value (coerced to type)"},
-                "compile": {"type": "boolean", "description": "compile the BP after the edit (default false; recommend true only on the LAST op of a batch)"},
+                "value": {
+                    "type": "string",
+                    "description": "for set_property: string value (coerced to type)",
+                },
+                "compile": {
+                    "type": "boolean",
+                    "description": "compile the BP after the edit (default false; recommend true only on the LAST op of a batch)",
+                },
             },
             "required": ["path", "op"],
         },
@@ -498,9 +581,20 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "out_path": {"type": "string", "description": "Optional output .png path; relative paths resolve against the project dir and the result MUST stay under the project dir. Default: Saved/AIConnection/Screenshots/viewport_<utc>.png."},
-                "include_thumb": {"type": "boolean", "description": "When true, also return thumb_base64 -- a small PNG thumbnail (default false)."},
-                "thumb_max_dim": {"type": "integer", "minimum": 64, "maximum": 1024, "description": "Max thumbnail dimension in pixels (64..1024, default 320). Only used with include_thumb."},
+                "out_path": {
+                    "type": "string",
+                    "description": "Optional output .png path; relative paths resolve against the project dir and the result MUST stay under the project dir. Default: Saved/AIConnection/Screenshots/viewport_<utc>.png.",
+                },
+                "include_thumb": {
+                    "type": "boolean",
+                    "description": "When true, also return thumb_base64 -- a small PNG thumbnail (default false).",
+                },
+                "thumb_max_dim": {
+                    "type": "integer",
+                    "minimum": 64,
+                    "maximum": 1024,
+                    "description": "Max thumbnail dimension in pixels (64..1024, default 320). Only used with include_thumb.",
+                },
             },
         },
     },
@@ -510,11 +604,26 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "out_path": {"type": "string", "description": "Absolute filesystem path for the .png to write."},
-                "width": {"type": "integer", "description": "Optional output width in pixels. When width and height are both > 0 (or camera_label is set), an off-screen SceneCapture2D is used instead of the live viewport."},
-                "height": {"type": "integer", "description": "Optional output height in pixels (see width)."},
-                "camera_label": {"type": "string", "description": "Optional level-actor label; render from that actor's world transform instead of the current viewport camera."},
-                "fov": {"type": "number", "description": "Optional horizontal field of view in degrees; overrides the viewport / capture FOV for this render only."},
+                "out_path": {
+                    "type": "string",
+                    "description": "Absolute filesystem path for the .png to write.",
+                },
+                "width": {
+                    "type": "integer",
+                    "description": "Optional output width in pixels. When width and height are both > 0 (or camera_label is set), an off-screen SceneCapture2D is used instead of the live viewport.",
+                },
+                "height": {
+                    "type": "integer",
+                    "description": "Optional output height in pixels (see width).",
+                },
+                "camera_label": {
+                    "type": "string",
+                    "description": "Optional level-actor label; render from that actor's world transform instead of the current viewport camera.",
+                },
+                "fov": {
+                    "type": "number",
+                    "description": "Optional horizontal field of view in degrees; overrides the viewport / capture FOV for this render only.",
+                },
             },
             "required": ["out_path"],
         },
@@ -525,10 +634,25 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "out_path": {"type": "string", "description": "Destination .png path. Relative paths resolve against the project dir; absolute paths must already be under it. A '.png' extension is appended if missing. Parent dirs are created as needed."},
-                "width": {"type": "integer", "minimum": 1, "description": "Optional output width in pixels (capped at 7680; clamped, not rejected). Triggers an off-screen capture only when BOTH width and height are > 0; otherwise ignored and the live viewport size is used."},
-                "height": {"type": "integer", "minimum": 1, "description": "Optional output height in pixels (capped at 7680; clamped, not rejected). See width."},
-                "fov": {"type": "number", "exclusiveMinimum": 0, "description": "Optional horizontal field of view in degrees; overrides the viewport / capture FOV for this capture only."},
+                "out_path": {
+                    "type": "string",
+                    "description": "Destination .png path. Relative paths resolve against the project dir; absolute paths must already be under it. A '.png' extension is appended if missing. Parent dirs are created as needed.",
+                },
+                "width": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "Optional output width in pixels (capped at 7680; clamped, not rejected). Triggers an off-screen capture only when BOTH width and height are > 0; otherwise ignored and the live viewport size is used.",
+                },
+                "height": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "Optional output height in pixels (capped at 7680; clamped, not rejected). See width.",
+                },
+                "fov": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "description": "Optional horizontal field of view in degrees; overrides the viewport / capture FOV for this capture only.",
+                },
             },
             "required": ["out_path"],
         },
@@ -539,10 +663,33 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "actor": {"type": "string", "description": "Actor label or unique object name to select and frame. Mutually exclusive with 'location'."},
-                "location": {"type": "object", "description": "World-space camera location {x, y, z}. Mutually exclusive with 'actor'.", "properties": {"x": {"type": "number"}, "y": {"type": "number"}, "z": {"type": "number"}}},
-                "rotation": {"type": "object", "description": "Optional camera orientation {pitch, yaw, roll} in degrees, used only with 'location' (defaults to identity-forward when omitted).", "properties": {"pitch": {"type": "number"}, "yaw": {"type": "number"}, "roll": {"type": "number"}}},
-                "fov": {"type": "number", "exclusiveMinimum": 0, "description": "Optional horizontal field of view in degrees, used only with 'location'; overrides the viewport FOV."},
+                "actor": {
+                    "type": "string",
+                    "description": "Actor label or unique object name to select and frame. Mutually exclusive with 'location'.",
+                },
+                "location": {
+                    "type": "object",
+                    "description": "World-space camera location {x, y, z}. Mutually exclusive with 'actor'.",
+                    "properties": {
+                        "x": {"type": "number"},
+                        "y": {"type": "number"},
+                        "z": {"type": "number"},
+                    },
+                },
+                "rotation": {
+                    "type": "object",
+                    "description": "Optional camera orientation {pitch, yaw, roll} in degrees, used only with 'location' (defaults to identity-forward when omitted).",
+                    "properties": {
+                        "pitch": {"type": "number"},
+                        "yaw": {"type": "number"},
+                        "roll": {"type": "number"},
+                    },
+                },
+                "fov": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "description": "Optional horizontal field of view in degrees, used only with 'location'; overrides the viewport FOV.",
+                },
             },
         },
     },
@@ -552,14 +699,42 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "project_path": {"type": "string", "description": "Absolute path to .uproject (e.g. C:/.../ConanSandbox.uproject)"},
-                "mod_name": {"type": "string", "description": "Mod name; required for BuildMod (matches Content/Mods/<mod_name>/ folder); also used to disambiguate which .pak in output_dir is the intended artefact when multiple are present"},
-                "plugin_path": {"type": "string", "description": "Absolute path to .uplugin; required for BuildPlugin"},
-                "output_dir": {"type": "string", "description": "Directory for output .pak / package (created if missing; required so success can be verified)"},
-                "uat_command": {"type": "string", "enum": ["BuildMod", "BuildPlugin"], "default": "BuildMod", "description": "UAT command (BuildMod for game Dev Kits, BuildPlugin for vanilla UE5)"},
-                "run_uat_path": {"type": "string", "description": "Override path to RunUAT.bat; auto-discovered if not set"},
-                "extra_args": {"type": "array", "items": {"type": "string"}, "description": "Additional CLI args appended to RunUAT"},
-                "timeout_sec": {"type": "integer", "default": 1800, "description": "Max wait time (default 30 min)"},
+                "project_path": {
+                    "type": "string",
+                    "description": "Absolute path to .uproject (e.g. C:/.../ConanSandbox.uproject)",
+                },
+                "mod_name": {
+                    "type": "string",
+                    "description": "Mod name; required for BuildMod (matches Content/Mods/<mod_name>/ folder); also used to disambiguate which .pak in output_dir is the intended artefact when multiple are present",
+                },
+                "plugin_path": {
+                    "type": "string",
+                    "description": "Absolute path to .uplugin; required for BuildPlugin",
+                },
+                "output_dir": {
+                    "type": "string",
+                    "description": "Directory for output .pak / package (created if missing; required so success can be verified)",
+                },
+                "uat_command": {
+                    "type": "string",
+                    "enum": ["BuildMod", "BuildPlugin"],
+                    "default": "BuildMod",
+                    "description": "UAT command (BuildMod for game Dev Kits, BuildPlugin for vanilla UE5)",
+                },
+                "run_uat_path": {
+                    "type": "string",
+                    "description": "Override path to RunUAT.bat; auto-discovered if not set",
+                },
+                "extra_args": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Additional CLI args appended to RunUAT",
+                },
+                "timeout_sec": {
+                    "type": "integer",
+                    "default": 1800,
+                    "description": "Max wait time (default 30 min)",
+                },
             },
             "required": ["project_path", "output_dir"],
         },
@@ -570,12 +745,34 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "unreal_pak_path": {"type": "string", "description": "Absolute path to UnrealPak.exe (e.g. <DevKit>/Engine/Binaries/Win64/UnrealPak.exe)"},
-                "response_file": {"type": "string", "description": "Absolute path to UnrealPak response file (.txt). Each line maps an absolute source path to a mount point inside the .pak, in the standard UnrealPak format: \"<absolute_source>\" \"<mount_in_pak>\""},
-                "output_pak": {"type": "string", "description": "Absolute path where the .pak should be written (created if parent dir missing; required so success can be verified)"},
-                "compression": {"type": "string", "enum": ["Zlib", "Gzip", "Oodle", "None"], "default": "Zlib", "description": "Compression algorithm (passed as -compress<Algo> flag); 'None' omits the flag entirely (uncompressed pak)"},
-                "extra_args": {"type": "array", "items": {"type": "string"}, "description": "Additional CLI args appended to UnrealPak.exe (e.g. -encryptionkey)"},
-                "timeout_sec": {"type": "integer", "default": 600, "description": "Max wait time in seconds; default 600 (10 min) — UnrealPak is typically much faster than RunUAT"},
+                "unreal_pak_path": {
+                    "type": "string",
+                    "description": "Absolute path to UnrealPak.exe (e.g. <DevKit>/Engine/Binaries/Win64/UnrealPak.exe)",
+                },
+                "response_file": {
+                    "type": "string",
+                    "description": 'Absolute path to UnrealPak response file (.txt). Each line maps an absolute source path to a mount point inside the .pak, in the standard UnrealPak format: "<absolute_source>" "<mount_in_pak>"',
+                },
+                "output_pak": {
+                    "type": "string",
+                    "description": "Absolute path where the .pak should be written (created if parent dir missing; required so success can be verified)",
+                },
+                "compression": {
+                    "type": "string",
+                    "enum": ["Zlib", "Gzip", "Oodle", "None"],
+                    "default": "Zlib",
+                    "description": "Compression algorithm (passed as -compress<Algo> flag); 'None' omits the flag entirely (uncompressed pak)",
+                },
+                "extra_args": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Additional CLI args appended to UnrealPak.exe (e.g. -encryptionkey)",
+                },
+                "timeout_sec": {
+                    "type": "integer",
+                    "default": 600,
+                    "description": "Max wait time in seconds; default 600 (10 min) — UnrealPak is typically much faster than RunUAT",
+                },
             },
             "required": ["unreal_pak_path", "response_file", "output_pak"],
         },
@@ -612,7 +809,10 @@ TOOLS = [
                         "type": "object",
                         "properties": {
                             "path": {"type": "string", "description": "Source asset package path."},
-                            "dest_path": {"type": "string", "description": "Destination asset package path (must not exist)."},
+                            "dest_path": {
+                                "type": "string",
+                                "description": "Destination asset package path (must not exist).",
+                            },
                         },
                         "required": ["path", "dest_path"],
                     },
@@ -639,7 +839,10 @@ TOOLS = [
                         "type": "object",
                         "properties": {
                             "path": {"type": "string", "description": "Source asset package path."},
-                            "new_name": {"type": "string", "description": "New leaf name (no '/' or '.')."},
+                            "new_name": {
+                                "type": "string",
+                                "description": "New leaf name (no '/' or '.').",
+                            },
                         },
                         "required": ["path", "new_name"],
                     },
@@ -772,7 +975,12 @@ TOOLS = [
         "description": "Return name/class/transform of every actor in the active editor world. Optional name_contains filter.",
         "inputSchema": {
             "type": "object",
-            "properties": {"name_contains": {"type": "string", "description": "Substring filter on actor label"}},
+            "properties": {
+                "name_contains": {
+                    "type": "string",
+                    "description": "Substring filter on actor label",
+                }
+            },
         },
     },
     {
@@ -780,7 +988,12 @@ TOOLS = [
         "description": "Select an actor by label or unique name and frame the editor viewport on it.",
         "inputSchema": {
             "type": "object",
-            "properties": {"name": {"type": "string", "description": "Actor label or unique object name to select and frame in the viewport."}},
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "Actor label or unique object name to select and frame in the viewport.",
+                }
+            },
             "required": ["name"],
         },
     },
@@ -789,7 +1002,12 @@ TOOLS = [
         "description": "Load a UE level by package path, e.g. /Game/Maps/MyMap.",
         "inputSchema": {
             "type": "object",
-            "properties": {"path": {"type": "string", "description": "Level package path to load, e.g. /Game/Maps/MyMap."}},
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "description": "Level package path to load, e.g. /Game/Maps/MyMap.",
+                }
+            },
             "required": ["path"],
         },
     },
@@ -798,7 +1016,13 @@ TOOLS = [
         "description": "Trigger UE's HighResShot. Output -> Saved/Screenshots/<Platform>Editor/ (Windows/Mac/Linux). Optional multiplier (1..8). v0.10: forces a viewport redraw after dispatch (throttle-proof when backgrounded) and scans once for the new file -- response includes found + path when the PNG already landed; the write can be async, so poll the dir when found=false.",
         "inputSchema": {
             "type": "object",
-            "properties": {"multiplier": {"type": "number", "default": 1, "description": "Resolution multiplier applied to the viewport size (1..8). Default 1."}},
+            "properties": {
+                "multiplier": {
+                    "type": "number",
+                    "default": 1,
+                    "description": "Resolution multiplier applied to the viewport size (1..8). Default 1.",
+                }
+            },
         },
     },
     {
@@ -807,12 +1031,30 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "source_path": {"type": "string", "description": "Absolute filesystem path to the source image file."},
-                "dest_path": {"type": "string", "description": "UE package path; must start with /Game/ (e.g. /Game/Textures/Environment)."},
-                "dest_name": {"type": "string", "description": "Optional asset-name override; defaults to filename stem."},
-                "replace_existing": {"type": "boolean", "description": "Overwrite existing asset at dest_path/dest_name (default false)."},
-                "automated": {"type": "boolean", "description": "Suppress modal dialogs (default true)."},
-                "save": {"type": "boolean", "description": "Save the .uasset to disk after import (default true)."},
+                "source_path": {
+                    "type": "string",
+                    "description": "Absolute filesystem path to the source image file.",
+                },
+                "dest_path": {
+                    "type": "string",
+                    "description": "UE package path; must start with /Game/ (e.g. /Game/Textures/Environment).",
+                },
+                "dest_name": {
+                    "type": "string",
+                    "description": "Optional asset-name override; defaults to filename stem.",
+                },
+                "replace_existing": {
+                    "type": "boolean",
+                    "description": "Overwrite existing asset at dest_path/dest_name (default false).",
+                },
+                "automated": {
+                    "type": "boolean",
+                    "description": "Suppress modal dialogs (default true).",
+                },
+                "save": {
+                    "type": "boolean",
+                    "description": "Save the .uasset to disk after import (default true).",
+                },
             },
             "required": ["source_path", "dest_path"],
         },
@@ -823,12 +1065,28 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "path": {"type": "string", "description": "UE package path of the existing texture asset, e.g. /Game/Textures/Environment/T_Stone_D."},
+                "path": {
+                    "type": "string",
+                    "description": "UE package path of the existing texture asset, e.g. /Game/Textures/Environment/T_Stone_D.",
+                },
                 "srgb": {"type": "boolean", "description": "Set UTexture::SRGB."},
-                "compression": {"type": "string", "description": "TextureCompressionSettings enum name (e.g. Default, Normalmap, Masks, BC7, HDR)."},
-                "lod_group": {"type": "string", "description": "TextureGroup enum name (e.g. World, WorldNormalMap, UI, Lightmap)."},
-                "filter": {"type": "string", "enum": ["Nearest", "Bilinear", "Trilinear", "Default"], "description": "TextureFilter enum name: Nearest | Bilinear | Trilinear | Default."},
-                "compress": {"type": "boolean", "description": "Call UpdateResource() after mutation (default true). Set false for batches."},
+                "compression": {
+                    "type": "string",
+                    "description": "TextureCompressionSettings enum name (e.g. Default, Normalmap, Masks, BC7, HDR).",
+                },
+                "lod_group": {
+                    "type": "string",
+                    "description": "TextureGroup enum name (e.g. World, WorldNormalMap, UI, Lightmap).",
+                },
+                "filter": {
+                    "type": "string",
+                    "enum": ["Nearest", "Bilinear", "Trilinear", "Default"],
+                    "description": "TextureFilter enum name: Nearest | Bilinear | Trilinear | Default.",
+                },
+                "compress": {
+                    "type": "boolean",
+                    "description": "Call UpdateResource() after mutation (default true). Set false for batches.",
+                },
             },
             "required": ["path"],
         },
@@ -839,12 +1097,31 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "class_path": {"type": "string", "description": "UE class path, e.g. /Script/Engine.StaticMesh, /Script/Engine.Blueprint, /Script/Engine.Texture2D."},
-                "path_under": {"type": "string", "description": "Recursive path filter; defaults to /Game/. Must start with /Game/ or /Engine/."},
-                "name_contains": {"type": "string", "description": "Case-insensitive substring filter on asset name."},
-                "limit": {"type": "integer", "default": 100, "description": "Cap result count. Default 100, max 500."},
-                "tags": {"type": "object", "description": "v0.7.0: map of tag-name -> required-value (string) or null (any value). AND-combined."},
-                "include_tags": {"type": "boolean", "description": "v0.7.0: when true, each result asset includes a 'tags' map of all its registry tags. Default false."},
+                "class_path": {
+                    "type": "string",
+                    "description": "UE class path, e.g. /Script/Engine.StaticMesh, /Script/Engine.Blueprint, /Script/Engine.Texture2D.",
+                },
+                "path_under": {
+                    "type": "string",
+                    "description": "Recursive path filter; defaults to /Game/. Must start with /Game/ or /Engine/.",
+                },
+                "name_contains": {
+                    "type": "string",
+                    "description": "Case-insensitive substring filter on asset name.",
+                },
+                "limit": {
+                    "type": "integer",
+                    "default": 100,
+                    "description": "Cap result count. Default 100, max 500.",
+                },
+                "tags": {
+                    "type": "object",
+                    "description": "v0.7.0: map of tag-name -> required-value (string) or null (any value). AND-combined.",
+                },
+                "include_tags": {
+                    "type": "boolean",
+                    "description": "v0.7.0: when true, each result asset includes a 'tags' map of all its registry tags. Default false.",
+                },
             },
             "required": ["class_path"],
         },
@@ -856,10 +1133,22 @@ TOOLS = [
             "type": "object",
             "properties": {
                 "class_path": {"type": "string", "description": "Actor class path."},
-                "location": {"type": "object", "description": "World-space {x, y, z}. Defaults to {0,0,0}."},
-                "rotation": {"type": "object", "description": "{pitch, yaw, roll} in degrees. Defaults to {0,0,0}."},
-                "label": {"type": "string", "description": "Visible name in World Outliner; defaults to UE auto-naming."},
-                "properties": {"type": "object", "description": "Map of {PropertyName: value} applied immediately after spawn via PropertyCoercion."},
+                "location": {
+                    "type": "object",
+                    "description": "World-space {x, y, z}. Defaults to {0,0,0}.",
+                },
+                "rotation": {
+                    "type": "object",
+                    "description": "{pitch, yaw, roll} in degrees. Defaults to {0,0,0}.",
+                },
+                "label": {
+                    "type": "string",
+                    "description": "Visible name in World Outliner; defaults to UE auto-naming.",
+                },
+                "properties": {
+                    "type": "object",
+                    "description": "Map of {PropertyName: value} applied immediately after spawn via PropertyCoercion.",
+                },
             },
             "required": ["class_path"],
         },
@@ -870,11 +1159,26 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "name": {"type": "string", "description": "Actor label OR FName. If label is ambiguous, returns ambiguous_actor error."},
-                "location": {"type": "object", "description": "{x, y, z}. Omit to leave unchanged."},
-                "rotation": {"type": "object", "description": "{pitch, yaw, roll} in degrees. Omit to leave unchanged."},
-                "scale": {"type": "object", "description": "{x, y, z} multiplier. Omit to leave unchanged."},
-                "relative": {"type": "boolean", "description": "When true, deltas are added to current values instead of replacing. Default false."},
+                "name": {
+                    "type": "string",
+                    "description": "Actor label OR FName. If label is ambiguous, returns ambiguous_actor error.",
+                },
+                "location": {
+                    "type": "object",
+                    "description": "{x, y, z}. Omit to leave unchanged.",
+                },
+                "rotation": {
+                    "type": "object",
+                    "description": "{pitch, yaw, roll} in degrees. Omit to leave unchanged.",
+                },
+                "scale": {
+                    "type": "object",
+                    "description": "{x, y, z} multiplier. Omit to leave unchanged.",
+                },
+                "relative": {
+                    "type": "boolean",
+                    "description": "When true, deltas are added to current values instead of replacing. Default false.",
+                },
             },
             "required": ["name"],
         },
@@ -886,7 +1190,10 @@ TOOLS = [
             "type": "object",
             "properties": {
                 "name": {"type": "string", "description": "Actor label OR FName."},
-                "force": {"type": "boolean", "description": "When false (default), refuses to delete if children are attached and returns has_children error. When true, deletes anyway."},
+                "force": {
+                    "type": "boolean",
+                    "description": "When false (default), refuses to delete if children are attached and returns has_children error. When true, deletes anyway.",
+                },
             },
             "required": ["name"],
         },
@@ -898,8 +1205,14 @@ TOOLS = [
             "type": "object",
             "properties": {
                 "name": {"type": "string", "description": "Source actor label OR FName."},
-                "offset": {"type": "object", "description": "Optional world-space offset {x,y,z} for the clone (default same location)."},
-                "label": {"type": "string", "description": "Optional World Outliner label for the clone (default UE auto-name)."},
+                "offset": {
+                    "type": "object",
+                    "description": "Optional world-space offset {x,y,z} for the clone (default same location).",
+                },
+                "label": {
+                    "type": "string",
+                    "description": "Optional World Outliner label for the clone (default UE auto-name).",
+                },
             },
             "required": ["name"],
         },
@@ -911,7 +1224,10 @@ TOOLS = [
             "type": "object",
             "properties": {
                 "name": {"type": "string", "description": "Actor label OR FName."},
-                "folder": {"type": "string", "description": "Slash-delimited outliner folder path (e.g. 'Lighting/Key'); \"\" = root. Required."},
+                "folder": {
+                    "type": "string",
+                    "description": "Slash-delimited outliner folder path (e.g. 'Lighting/Key'); \"\" = root. Required.",
+                },
             },
             "required": ["name", "folder"],
         },
@@ -936,7 +1252,10 @@ TOOLS = [
             "properties": {
                 "name": {"type": "string", "description": "Actor label or FName."},
                 "property": {"type": "string", "description": "UPROPERTY name (case-sensitive)."},
-                "value": {"type": ["string", "number", "boolean", "array", "object", "null"], "description": "JSON value coerced based on the FProperty type. Polymorphic: primitives for scalar UPROPERTYs, JSON arrays for TArray / TSet (e.g. OverrideMaterials), JSON objects for FVector / FRotator / FLinearColor / FInstancedStruct / TMap, and null for explicit clear on nullable properties. Declaring the typed union (instead of leaving value untyped) prevents strict MCP clients from coercing array values to JSON strings before wire transport. JSON Schema `number` validates integers; `integer` omitted to mirror set_console_variable. See docs/TOOLS.md for the full supported-types table."},
+                "value": {
+                    "type": ["string", "number", "boolean", "array", "object", "null"],
+                    "description": "JSON value coerced based on the FProperty type. Polymorphic: primitives for scalar UPROPERTYs, JSON arrays for TArray / TSet (e.g. OverrideMaterials), JSON objects for FVector / FRotator / FLinearColor / FInstancedStruct / TMap, and null for explicit clear on nullable properties. Declaring the typed union (instead of leaving value untyped) prevents strict MCP clients from coercing array values to JSON strings before wire transport. JSON Schema `number` validates integers; `integer` omitted to mirror set_console_variable. See docs/TOOLS.md for the full supported-types table.",
+                },
             },
             "required": ["name", "property", "value"],
         },
@@ -948,11 +1267,23 @@ TOOLS = [
             "type": "object",
             "properties": {
                 "actor_name": {"type": "string", "description": "Host actor label or FName."},
-                "class_path": {"type": "string", "description": "Component class path, e.g. /Script/Engine.StaticMeshComponent, /Script/Engine.PointLightComponent."},
-                "component_name": {"type": "string", "description": "FName for the new component; defaults to UE auto-naming."},
-                "attach_to": {"type": "string", "description": "Existing component name to attach as child of; defaults to root component."},
+                "class_path": {
+                    "type": "string",
+                    "description": "Component class path, e.g. /Script/Engine.StaticMeshComponent, /Script/Engine.PointLightComponent.",
+                },
+                "component_name": {
+                    "type": "string",
+                    "description": "FName for the new component; defaults to UE auto-naming.",
+                },
+                "attach_to": {
+                    "type": "string",
+                    "description": "Existing component name to attach as child of; defaults to root component.",
+                },
                 "socket": {"type": "string", "description": "Socket name on the parent component."},
-                "relative_transform": {"type": "object", "description": "{location, rotation, scale} relative to the parent component."},
+                "relative_transform": {
+                    "type": "object",
+                    "description": "{location, rotation, scale} relative to the parent component.",
+                },
             },
             "required": ["actor_name", "class_path"],
         },
@@ -963,9 +1294,28 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "count": {"type": "integer", "default": 100, "description": "Max lines to return (default 100, max 1000)."},
-                "category_filter": {"type": "string", "description": "Case-insensitive substring filter on log category (e.g. 'LogTemp')."},
-                "min_verbosity": {"type": "string", "enum": ["Fatal", "Error", "Warning", "Display", "Log", "Verbose", "VeryVerbose"], "description": "Return lines at or above this severity. Default 'Log'."},
+                "count": {
+                    "type": "integer",
+                    "default": 100,
+                    "description": "Max lines to return (default 100, max 1000).",
+                },
+                "category_filter": {
+                    "type": "string",
+                    "description": "Case-insensitive substring filter on log category (e.g. 'LogTemp').",
+                },
+                "min_verbosity": {
+                    "type": "string",
+                    "enum": [
+                        "Fatal",
+                        "Error",
+                        "Warning",
+                        "Display",
+                        "Log",
+                        "Verbose",
+                        "VeryVerbose",
+                    ],
+                    "description": "Return lines at or above this severity. Default 'Log'.",
+                },
             },
         },
     },
@@ -976,7 +1326,10 @@ TOOLS = [
             "type": "object",
             "properties": {
                 "command": {"type": "string", "description": "Console command string to execute."},
-                "capture_output": {"type": "boolean", "description": "When true (default), captures and returns the command output. When false, output flows to the normal Output Log."},
+                "capture_output": {
+                    "type": "boolean",
+                    "description": "When true (default), captures and returns the command output. When false, output flows to the normal Output Log.",
+                },
             },
             "required": ["command"],
         },
@@ -987,7 +1340,10 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "path": {"type": "string", "description": "Asset path or package path (e.g. /Game/Textures/T_Stone or /Game/Textures/T_Stone.T_Stone)."},
+                "path": {
+                    "type": "string",
+                    "description": "Asset path or package path (e.g. /Game/Textures/T_Stone or /Game/Textures/T_Stone.T_Stone).",
+                },
             },
             "required": ["path"],
         },
@@ -999,7 +1355,10 @@ TOOLS = [
             "type": "object",
             "properties": {
                 "path": {"type": "string", "description": "Source asset path."},
-                "dest_folder": {"type": "string", "description": "Destination folder under /Game/ or /Engine/."},
+                "dest_folder": {
+                    "type": "string",
+                    "description": "Destination folder under /Game/ or /Engine/.",
+                },
             },
             "required": ["path", "dest_folder"],
         },
@@ -1023,7 +1382,10 @@ TOOLS = [
             "type": "object",
             "properties": {
                 "path": {"type": "string", "description": "Source asset path."},
-                "dest_path": {"type": "string", "description": "Destination asset path (must not exist)."},
+                "dest_path": {
+                    "type": "string",
+                    "description": "Destination asset path (must not exist).",
+                },
             },
             "required": ["path", "dest_path"],
         },
@@ -1035,7 +1397,10 @@ TOOLS = [
             "type": "object",
             "properties": {
                 "path": {"type": "string", "description": "Asset path to delete."},
-                "force": {"type": "boolean", "description": "When true, delete even if referenced (default false)."},
+                "force": {
+                    "type": "boolean",
+                    "description": "When true, delete even if referenced (default false).",
+                },
             },
             "required": ["path"],
         },
@@ -1046,7 +1411,10 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "path": {"type": "string", "description": "Level Sequence asset path (object path or package path)."},
+                "path": {
+                    "type": "string",
+                    "description": "Level Sequence asset path (object path or package path).",
+                },
             },
             "required": ["path"],
         },
@@ -1059,8 +1427,14 @@ TOOLS = [
             "properties": {
                 "path": {"type": "string", "description": "Destination folder under /Game/."},
                 "name": {"type": "string", "description": "Leaf asset name (no '/' or '.')."},
-                "display_rate_fps": {"type": "number", "description": "Display frame rate (default 30.0)."},
-                "playback_end_frames": {"type": "integer", "description": "End of playback range in display frames (default 240)."},
+                "display_rate_fps": {
+                    "type": "number",
+                    "description": "Display frame rate (default 30.0).",
+                },
+                "playback_end_frames": {
+                    "type": "integer",
+                    "description": "End of playback range in display frames (default 240).",
+                },
             },
             "required": ["path", "name"],
         },
@@ -1072,7 +1446,10 @@ TOOLS = [
             "type": "object",
             "properties": {
                 "sequence_path": {"type": "string", "description": "Level Sequence asset path."},
-                "actor_name": {"type": "string", "description": "Actor label or FName in the current editor world. Hybrid identification: ambiguous labels return ambiguous_actor."},
+                "actor_name": {
+                    "type": "string",
+                    "description": "Actor label or FName in the current editor world. Hybrid identification: ambiguous labels return ambiguous_actor.",
+                },
             },
             "required": ["sequence_path", "actor_name"],
         },
@@ -1083,9 +1460,18 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "sequence_path": {"type": "string", "description": "Level Sequence asset path (object path or package path)."},
-                "start_frame": {"type": "integer", "description": "Range start in display-rate frames (default 0)."},
-                "end_frame": {"type": "integer", "description": "Range end in display-rate frames; must be greater than start_frame."},
+                "sequence_path": {
+                    "type": "string",
+                    "description": "Level Sequence asset path (object path or package path).",
+                },
+                "start_frame": {
+                    "type": "integer",
+                    "description": "Range start in display-rate frames (default 0).",
+                },
+                "end_frame": {
+                    "type": "integer",
+                    "description": "Range end in display-rate frames; must be greater than start_frame.",
+                },
             },
             "required": ["sequence_path", "end_frame"],
         },
@@ -1097,9 +1483,18 @@ TOOLS = [
             "type": "object",
             "properties": {
                 "sequence_path": {"type": "string", "description": "Level Sequence asset path."},
-                "label": {"type": "string", "description": "Actor World Outliner label + binding name (default 'CineCameraActor')."},
-                "location": {"type": "object", "description": "World location {x,y,z} (default 0,0,0)."},
-                "rotation": {"type": "object", "description": "World rotation {pitch,yaw,roll} (default 0,0,0)."},
+                "label": {
+                    "type": "string",
+                    "description": "Actor World Outliner label + binding name (default 'CineCameraActor').",
+                },
+                "location": {
+                    "type": "object",
+                    "description": "World location {x,y,z} (default 0,0,0).",
+                },
+                "rotation": {
+                    "type": "object",
+                    "description": "World rotation {pitch,yaw,roll} (default 0,0,0).",
+                },
             },
             "required": ["sequence_path"],
         },
@@ -1111,9 +1506,18 @@ TOOLS = [
             "type": "object",
             "properties": {
                 "sequence_path": {"type": "string", "description": "Level Sequence asset path."},
-                "camera_binding_guid": {"type": "string", "description": "GUID of an existing possessable/spawnable in the sequence (e.g. from add_cine_camera_to_sequence or bind_actor_to_sequence)."},
-                "start_frame": {"type": "integer", "description": "Cut start in display-rate frames (default 0)."},
-                "end_frame": {"type": "integer", "description": "Cut end in display-rate frames (default = playback range end); must be greater than start_frame."},
+                "camera_binding_guid": {
+                    "type": "string",
+                    "description": "GUID of an existing possessable/spawnable in the sequence (e.g. from add_cine_camera_to_sequence or bind_actor_to_sequence).",
+                },
+                "start_frame": {
+                    "type": "integer",
+                    "description": "Cut start in display-rate frames (default 0).",
+                },
+                "end_frame": {
+                    "type": "integer",
+                    "description": "Cut end in display-rate frames (default = playback range end); must be greater than start_frame.",
+                },
             },
             "required": ["sequence_path", "camera_binding_guid"],
         },
@@ -1125,10 +1529,22 @@ TOOLS = [
             "type": "object",
             "properties": {
                 "sequence_path": {"type": "string", "description": "Level Sequence asset path."},
-                "sound_path": {"type": "string", "description": "Path to a USoundBase asset (SoundWave / SoundCue / MetaSound source)."},
-                "start_frame": {"type": "integer", "description": "Section start in display-rate frames (default 0)."},
-                "row_index": {"type": "integer", "description": "Track row to place the section on (default -1 = next free row)."},
-                "volume": {"type": "number", "description": "Constant volume; sets the section's sound-volume channel default."},
+                "sound_path": {
+                    "type": "string",
+                    "description": "Path to a USoundBase asset (SoundWave / SoundCue / MetaSound source).",
+                },
+                "start_frame": {
+                    "type": "integer",
+                    "description": "Section start in display-rate frames (default 0).",
+                },
+                "row_index": {
+                    "type": "integer",
+                    "description": "Track row to place the section on (default -1 = next free row).",
+                },
+                "volume": {
+                    "type": "number",
+                    "description": "Constant volume; sets the section's sound-volume channel default.",
+                },
                 "looping": {"type": "boolean", "description": "Whether the sound section loops."},
             },
             "required": ["sequence_path", "sound_path"],
@@ -1141,10 +1557,23 @@ TOOLS = [
             "type": "object",
             "properties": {
                 "sequence_path": {"type": "string", "description": "Level Sequence asset path."},
-                "binding_guid": {"type": "string", "description": "GUID of an existing binding to attach the visibility track to."},
-                "keys": {"type": "array", "description": "Array of {frame: int (display-rate), visible: bool}; at least one entry.", "items": {"type": "object"}},
-                "visible_at_start": {"type": "boolean", "description": "Convenience: a single visibility key at start_frame instead of 'keys'."},
-                "start_frame": {"type": "integer", "description": "Frame for the visible_at_start convenience key (default 0)."},
+                "binding_guid": {
+                    "type": "string",
+                    "description": "GUID of an existing binding to attach the visibility track to.",
+                },
+                "keys": {
+                    "type": "array",
+                    "description": "Array of {frame: int (display-rate), visible: bool}; at least one entry.",
+                    "items": {"type": "object"},
+                },
+                "visible_at_start": {
+                    "type": "boolean",
+                    "description": "Convenience: a single visibility key at start_frame instead of 'keys'.",
+                },
+                "start_frame": {
+                    "type": "integer",
+                    "description": "Frame for the visible_at_start convenience key (default 0).",
+                },
             },
             "required": ["sequence_path", "binding_guid"],
         },
@@ -1155,18 +1584,63 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "sequence_path": {"type": "string", "description": "Level Sequence asset path (object or package path)."},
-                "output_dir": {"type": "string", "description": "Absolute filesystem directory for the output image sequence (written verbatim into the MRQ OutputDirectory)."},
-                "map_path": {"type": "string", "description": "UWorld asset path to render the sequence against. Defaults to the currently-loaded editor world."},
-                "format": {"type": "string", "enum": ["png", "jpg", "bmp", "exr"], "description": "Output image container (default 'png')."},
-                "file_name_format": {"type": "string", "description": "MRQ file-name format (default '{sequence_name}.{frame_number}')."},
-                "resolution": {"type": "object", "description": "Output resolution {width:int, height:int} (default 1920x1080)."},
-                "output_frame_rate": {"type": "number", "description": "Output frame rate; if >0 enables a custom frame rate (else uses the sequence's display rate)."},
-                "use_custom_playback_range": {"type": "object", "description": "Optional {start_frame:int, end_frame:int} (display-rate frames) to override the rendered range; supply both keys together."},
-                "overwrite_existing": {"type": "boolean", "description": "Overwrite existing output files (default true)."},
-                "render_pass": {"type": "string", "enum": ["lit", "unlit", "detail_lighting", "lighting_only", "reflections_only", "path_tracer"], "description": "Deferred render pass (default 'lit')."},
-                "use_new_process": {"type": "boolean", "description": "false (default) = in-editor PIE executor; true = out-of-process executor (no per-file enumeration)."},
-                "render_offscreen": {"type": "boolean", "description": "PIE executor only: render without a progress window (default true)."},
+                "sequence_path": {
+                    "type": "string",
+                    "description": "Level Sequence asset path (object or package path).",
+                },
+                "output_dir": {
+                    "type": "string",
+                    "description": "Absolute filesystem directory for the output image sequence (written verbatim into the MRQ OutputDirectory).",
+                },
+                "map_path": {
+                    "type": "string",
+                    "description": "UWorld asset path to render the sequence against. Defaults to the currently-loaded editor world.",
+                },
+                "format": {
+                    "type": "string",
+                    "enum": ["png", "jpg", "bmp", "exr"],
+                    "description": "Output image container (default 'png').",
+                },
+                "file_name_format": {
+                    "type": "string",
+                    "description": "MRQ file-name format (default '{sequence_name}.{frame_number}').",
+                },
+                "resolution": {
+                    "type": "object",
+                    "description": "Output resolution {width:int, height:int} (default 1920x1080).",
+                },
+                "output_frame_rate": {
+                    "type": "number",
+                    "description": "Output frame rate; if >0 enables a custom frame rate (else uses the sequence's display rate).",
+                },
+                "use_custom_playback_range": {
+                    "type": "object",
+                    "description": "Optional {start_frame:int, end_frame:int} (display-rate frames) to override the rendered range; supply both keys together.",
+                },
+                "overwrite_existing": {
+                    "type": "boolean",
+                    "description": "Overwrite existing output files (default true).",
+                },
+                "render_pass": {
+                    "type": "string",
+                    "enum": [
+                        "lit",
+                        "unlit",
+                        "detail_lighting",
+                        "lighting_only",
+                        "reflections_only",
+                        "path_tracer",
+                    ],
+                    "description": "Deferred render pass (default 'lit').",
+                },
+                "use_new_process": {
+                    "type": "boolean",
+                    "description": "false (default) = in-editor PIE executor; true = out-of-process executor (no per-file enumeration).",
+                },
+                "render_offscreen": {
+                    "type": "boolean",
+                    "description": "PIE executor only: render without a progress window (default true).",
+                },
             },
             "required": ["sequence_path", "output_dir"],
         },
@@ -1177,14 +1651,39 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "blueprint": {"type": "string", "description": "/Game path to the UBlueprint asset."},
-                "graph": {"type": "string", "description": "Target graph name; resolved across UbergraphPages then FunctionGraphs. The event graph is usually 'EventGraph'."},
-                "node_type": {"type": "string", "enum": ["call_function", "variable_get", "variable_set", "branch"], "description": "Kind of K2 node to create."},
-                "function_name": {"type": "string", "description": "UFunction name (required when node_type='call_function')."},
-                "function_class": {"type": "string", "description": "Optional /Script or /Game class path that owns the function; defaults to the Blueprint's own generated class (self-context call)."},
-                "var_name": {"type": "string", "description": "Variable name (required when node_type='variable_get' or 'variable_set'); resolved as a self-member."},
-                "node_pos_x": {"type": "number", "description": "X position of the node in the graph (default 0)."},
-                "node_pos_y": {"type": "number", "description": "Y position of the node in the graph (default 0)."},
+                "blueprint": {
+                    "type": "string",
+                    "description": "/Game path to the UBlueprint asset.",
+                },
+                "graph": {
+                    "type": "string",
+                    "description": "Target graph name; resolved across UbergraphPages then FunctionGraphs. The event graph is usually 'EventGraph'.",
+                },
+                "node_type": {
+                    "type": "string",
+                    "enum": ["call_function", "variable_get", "variable_set", "branch"],
+                    "description": "Kind of K2 node to create.",
+                },
+                "function_name": {
+                    "type": "string",
+                    "description": "UFunction name (required when node_type='call_function').",
+                },
+                "function_class": {
+                    "type": "string",
+                    "description": "Optional /Script or /Game class path that owns the function; defaults to the Blueprint's own generated class (self-context call).",
+                },
+                "var_name": {
+                    "type": "string",
+                    "description": "Variable name (required when node_type='variable_get' or 'variable_set'); resolved as a self-member.",
+                },
+                "node_pos_x": {
+                    "type": "number",
+                    "description": "X position of the node in the graph (default 0).",
+                },
+                "node_pos_y": {
+                    "type": "number",
+                    "description": "Y position of the node in the graph (default 0).",
+                },
             },
             "required": ["blueprint", "graph", "node_type"],
         },
@@ -1195,9 +1694,18 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "blueprint": {"type": "string", "description": "/Game path to the UBlueprint asset."},
-                "graph": {"type": "string", "description": "Graph name (same resolution as add_blueprint_node)."},
-                "from_node": {"type": "string", "description": "Source node GUID (as returned by add_blueprint_node)."},
+                "blueprint": {
+                    "type": "string",
+                    "description": "/Game path to the UBlueprint asset.",
+                },
+                "graph": {
+                    "type": "string",
+                    "description": "Graph name (same resolution as add_blueprint_node).",
+                },
+                "from_node": {
+                    "type": "string",
+                    "description": "Source node GUID (as returned by add_blueprint_node).",
+                },
                 "from_pin": {"type": "string", "description": "Output pin name on from_node."},
                 "to_node": {"type": "string", "description": "Target node GUID."},
                 "to_pin": {"type": "string", "description": "Input pin name on to_node."},
@@ -1211,12 +1719,24 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "blueprint": {"type": "string", "description": "/Game path to the UBlueprint asset."},
+                "blueprint": {
+                    "type": "string",
+                    "description": "/Game path to the UBlueprint asset.",
+                },
                 "graph": {"type": "string", "description": "Graph name."},
-                "node": {"type": "string", "description": "Node GUID (as returned by add_blueprint_node)."},
+                "node": {
+                    "type": "string",
+                    "description": "Node GUID (as returned by add_blueprint_node).",
+                },
                 "pin": {"type": "string", "description": "Input pin name."},
-                "value": {"type": "string", "description": "Literal default (numbers/bools passed as their string form). Use this for non-object pins."},
-                "object_value": {"type": "string", "description": "Optional /Game or /Script object path; resolved via LoadObject and applied to PC_Object reference pins instead of 'value'."},
+                "value": {
+                    "type": "string",
+                    "description": "Literal default (numbers/bools passed as their string form). Use this for non-object pins.",
+                },
+                "object_value": {
+                    "type": "string",
+                    "description": "Optional /Game or /Script object path; resolved via LoadObject and applied to PC_Object reference pins instead of 'value'.",
+                },
             },
             "required": ["blueprint", "graph", "node", "pin"],
         },
@@ -1227,7 +1747,10 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "parent_path": {"type": "string", "description": "Path of the parent UMaterial or UMaterialInstance."},
+                "parent_path": {
+                    "type": "string",
+                    "description": "Path of the parent UMaterial or UMaterialInstance.",
+                },
                 "path": {"type": "string", "description": "Destination folder under /Game/."},
                 "name": {"type": "string", "description": "Leaf asset name (no '/' or '.')."},
             },
@@ -1241,9 +1764,19 @@ TOOLS = [
             "type": "object",
             "properties": {
                 "path": {"type": "string", "description": "Material instance asset path."},
-                "parameter": {"type": "string", "description": "Parameter name as declared on the parent material."},
-                "type": {"type": "string", "enum": ["scalar", "vector", "texture"], "description": "Parameter type discriminator."},
-                "value": {"type": ["number", "object", "string"], "description": "Value shape varies by type: scalar -> number, vector -> {r,g,b,a}, texture -> string asset path."},
+                "parameter": {
+                    "type": "string",
+                    "description": "Parameter name as declared on the parent material.",
+                },
+                "type": {
+                    "type": "string",
+                    "enum": ["scalar", "vector", "texture"],
+                    "description": "Parameter type discriminator.",
+                },
+                "value": {
+                    "type": ["number", "object", "string"],
+                    "description": "Value shape varies by type: scalar -> number, vector -> {r,g,b,a}, texture -> string asset path.",
+                },
             },
             "required": ["path", "parameter", "type", "value"],
         },
@@ -1254,7 +1787,10 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "path": {"type": "string", "description": "Material asset path (UMaterial or UMaterialInstance)."},
+                "path": {
+                    "type": "string",
+                    "description": "Material asset path (UMaterial or UMaterialInstance).",
+                },
             },
             "required": ["path"],
         },
@@ -1276,7 +1812,10 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "path": {"type": "string", "description": "Destination level asset path; must start with /Game/ (no '..' or backslash)."},
+                "path": {
+                    "type": "string",
+                    "description": "Destination level asset path; must start with /Game/ (no '..' or backslash).",
+                },
             },
             "required": ["path"],
         },
@@ -1297,7 +1836,10 @@ TOOLS = [
             "properties": {
                 "path": {"type": "string", "description": "Destination folder under /Game/."},
                 "name": {"type": "string", "description": "Leaf asset name."},
-                "row_struct": {"type": "string", "description": "Full path to a UScriptStruct, e.g. /Script/Engine.Vector or a /Game user struct."},
+                "row_struct": {
+                    "type": "string",
+                    "description": "Full path to a UScriptStruct, e.g. /Script/Engine.Vector or a /Game user struct.",
+                },
             },
             "required": ["path", "name", "row_struct"],
         },
@@ -1310,7 +1852,10 @@ TOOLS = [
             "properties": {
                 "path": {"type": "string", "description": "Destination folder under /Game/."},
                 "name": {"type": "string", "description": "Leaf asset name."},
-                "class_path": {"type": "string", "description": "Full path to a UDataAsset subclass, e.g. /Script/Engine.PrimaryDataAsset or a /Game BP-based DataAsset class. Abstract classes are rejected."},
+                "class_path": {
+                    "type": "string",
+                    "description": "Full path to a UDataAsset subclass, e.g. /Script/Engine.PrimaryDataAsset or a /Game BP-based DataAsset class. Abstract classes are rejected.",
+                },
             },
             "required": ["path", "name", "class_path"],
         },
@@ -1323,7 +1868,10 @@ TOOLS = [
             "properties": {
                 "path": {"type": "string", "description": "Destination folder under /Game/."},
                 "name": {"type": "string", "description": "Leaf asset name."},
-                "parent_class": {"type": "string", "description": "Full path to the parent UClass, e.g. /Script/Engine.Pawn or a /Game BP generated class. Defaults to /Script/Engine.Actor. Abstract classes are rejected."},
+                "parent_class": {
+                    "type": "string",
+                    "description": "Full path to the parent UClass, e.g. /Script/Engine.Pawn or a /Game BP generated class. Defaults to /Script/Engine.Actor. Abstract classes are rejected.",
+                },
             },
             "required": ["path", "name"],
         },
@@ -1334,11 +1882,34 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "blueprint": {"type": "string", "description": "/Game path to the UBlueprint asset."},
+                "blueprint": {
+                    "type": "string",
+                    "description": "/Game path to the UBlueprint asset.",
+                },
                 "var_name": {"type": "string", "description": "New variable name."},
-                "type": {"type": "string", "enum": ["bool", "int", "float", "string", "name", "vector", "rotator", "transform", "object"], "description": "Variable type."},
-                "object_class": {"type": "string", "description": "Full path to a UClass. Required only when type is 'object'."},
-                "default_value": {"type": "string", "description": "Optional default value as a string."},
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "bool",
+                        "int",
+                        "float",
+                        "string",
+                        "name",
+                        "vector",
+                        "rotator",
+                        "transform",
+                        "object",
+                    ],
+                    "description": "Variable type.",
+                },
+                "object_class": {
+                    "type": "string",
+                    "description": "Full path to a UClass. Required only when type is 'object'.",
+                },
+                "default_value": {
+                    "type": "string",
+                    "description": "Optional default value as a string.",
+                },
             },
             "required": ["blueprint", "var_name", "type"],
         },
@@ -1349,8 +1920,14 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "blueprint": {"type": "string", "description": "/Game path to the UBlueprint asset."},
-                "function_name": {"type": "string", "description": "New function name. Must not collide with an existing function graph."},
+                "blueprint": {
+                    "type": "string",
+                    "description": "/Game path to the UBlueprint asset.",
+                },
+                "function_name": {
+                    "type": "string",
+                    "description": "New function name. Must not collide with an existing function graph.",
+                },
             },
             "required": ["blueprint", "function_name"],
         },
@@ -1362,9 +1939,18 @@ TOOLS = [
             "type": "object",
             "properties": {
                 "material": {"type": "string", "description": "/Game path to the UMaterial asset."},
-                "expression_class": {"type": "string", "description": "Full path to a UMaterialExpression subclass, e.g. /Script/Engine.MaterialExpressionConstant3Vector or /Script/Engine.MaterialExpressionTextureSample. Abstract classes are rejected."},
-                "node_pos_x": {"type": "integer", "description": "Optional X position of the node in the graph. Default 0."},
-                "node_pos_y": {"type": "integer", "description": "Optional Y position of the node in the graph. Default 0."},
+                "expression_class": {
+                    "type": "string",
+                    "description": "Full path to a UMaterialExpression subclass, e.g. /Script/Engine.MaterialExpressionConstant3Vector or /Script/Engine.MaterialExpressionTextureSample. Abstract classes are rejected.",
+                },
+                "node_pos_x": {
+                    "type": "integer",
+                    "description": "Optional X position of the node in the graph. Default 0.",
+                },
+                "node_pos_y": {
+                    "type": "integer",
+                    "description": "Optional Y position of the node in the graph. Default 0.",
+                },
             },
             "required": ["material", "expression_class"],
         },
@@ -1376,9 +1962,18 @@ TOOLS = [
             "type": "object",
             "properties": {
                 "material": {"type": "string", "description": "/Game path to the UMaterial asset."},
-                "from_expression": {"type": "string", "description": "Node name returned by add_material_expression (the source expression)."},
-                "from_output": {"type": "string", "description": "Optional name of the source expression's output. Empty = the expression's default/first output."},
-                "to": {"type": "string", "description": "Connection target. Either 'property:<Name>' (BaseColor, Metallic, Specular, Roughness, EmissiveColor, Opacity, OpacityMask, Normal, AmbientOcclusion, WorldPositionOffset) or 'node:<ExprName>:<InputName>' to wire into another expression's input."},
+                "from_expression": {
+                    "type": "string",
+                    "description": "Node name returned by add_material_expression (the source expression).",
+                },
+                "from_output": {
+                    "type": "string",
+                    "description": "Optional name of the source expression's output. Empty = the expression's default/first output.",
+                },
+                "to": {
+                    "type": "string",
+                    "description": "Connection target. Either 'property:<Name>' (BaseColor, Metallic, Specular, Roughness, EmissiveColor, Opacity, OpacityMask, Normal, AmbientOcclusion, WorldPositionOffset) or 'node:<ExprName>:<InputName>' to wire into another expression's input.",
+                },
             },
             "required": ["material", "from_expression", "to"],
         },
@@ -1389,12 +1984,30 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "system": {"type": "string", "description": "/Game path to the UNiagaraSystem asset, e.g. /Game/FX/NS_Fire."},
-                "location": {"type": "object", "description": "World-space {x, y, z}. Defaults to {0,0,0}."},
-                "rotation": {"type": "object", "description": "{pitch, yaw, roll} in degrees. Defaults to {0,0,0}."},
-                "scale": {"type": "object", "description": "{x, y, z} scale multiplier. Defaults to {1,1,1}."},
-                "label": {"type": "string", "description": "Visible name in World Outliner; defaults to UE auto-naming."},
-                "auto_activate": {"type": "boolean", "description": "Activate the component after spawn so the FX previews in-viewport. Default true."},
+                "system": {
+                    "type": "string",
+                    "description": "/Game path to the UNiagaraSystem asset, e.g. /Game/FX/NS_Fire.",
+                },
+                "location": {
+                    "type": "object",
+                    "description": "World-space {x, y, z}. Defaults to {0,0,0}.",
+                },
+                "rotation": {
+                    "type": "object",
+                    "description": "{pitch, yaw, roll} in degrees. Defaults to {0,0,0}.",
+                },
+                "scale": {
+                    "type": "object",
+                    "description": "{x, y, z} scale multiplier. Defaults to {1,1,1}.",
+                },
+                "label": {
+                    "type": "string",
+                    "description": "Visible name in World Outliner; defaults to UE auto-naming.",
+                },
+                "auto_activate": {
+                    "type": "boolean",
+                    "description": "Activate the component after spawn so the FX previews in-viewport. Default true.",
+                },
             },
             "required": ["system"],
         },
@@ -1406,12 +2019,27 @@ TOOLS = [
             "type": "object",
             "properties": {
                 "actor_name": {"type": "string", "description": "Host actor label or FName."},
-                "system": {"type": "string", "description": "/Game path to the UNiagaraSystem asset."},
-                "attach_to": {"type": "string", "description": "Existing component name to attach as child of; defaults to the root component."},
+                "system": {
+                    "type": "string",
+                    "description": "/Game path to the UNiagaraSystem asset.",
+                },
+                "attach_to": {
+                    "type": "string",
+                    "description": "Existing component name to attach as child of; defaults to the root component.",
+                },
                 "socket": {"type": "string", "description": "Socket name on the parent component."},
-                "component_name": {"type": "string", "description": "FName for the new UNiagaraComponent; defaults to UE auto-naming."},
-                "relative_transform": {"type": "object", "description": "{location, rotation, scale} relative to the parent component."},
-                "auto_activate": {"type": "boolean", "description": "Activate the component after attach. Default true."},
+                "component_name": {
+                    "type": "string",
+                    "description": "FName for the new UNiagaraComponent; defaults to UE auto-naming.",
+                },
+                "relative_transform": {
+                    "type": "object",
+                    "description": "{location, rotation, scale} relative to the parent component.",
+                },
+                "auto_activate": {
+                    "type": "boolean",
+                    "description": "Activate the component after attach. Default true.",
+                },
             },
             "required": ["actor_name", "system"],
         },
@@ -1422,11 +2050,27 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "actor_name": {"type": "string", "description": "Label or FName of the actor owning the Niagara component."},
-                "param_name": {"type": "string", "description": "User parameter name. The bare name (e.g. 'Color') and the 'User.'-prefixed name both resolve."},
-                "type": {"type": "string", "enum": ["float", "vec3", "linearcolor", "bool"], "description": "Value type selecting the SetVariable* overload."},
-                "value": {"type": ["number", "object", "boolean"], "description": "Shape per type: float -> number; vec3 -> {x,y,z}; linearcolor -> {r,g,b,a} (a defaults to 1.0); bool -> boolean."},
-                "component_name": {"type": "string", "description": "FName of the target UNiagaraComponent when the actor has more than one; defaults to the first/only one."},
+                "actor_name": {
+                    "type": "string",
+                    "description": "Label or FName of the actor owning the Niagara component.",
+                },
+                "param_name": {
+                    "type": "string",
+                    "description": "User parameter name. The bare name (e.g. 'Color') and the 'User.'-prefixed name both resolve.",
+                },
+                "type": {
+                    "type": "string",
+                    "enum": ["float", "vec3", "linearcolor", "bool"],
+                    "description": "Value type selecting the SetVariable* overload.",
+                },
+                "value": {
+                    "type": ["number", "object", "boolean"],
+                    "description": "Shape per type: float -> number; vec3 -> {x,y,z}; linearcolor -> {r,g,b,a} (a defaults to 1.0); bool -> boolean.",
+                },
+                "component_name": {
+                    "type": "string",
+                    "description": "FName of the target UNiagaraComponent when the actor has more than one; defaults to the first/only one.",
+                },
             },
             "required": ["actor_name", "param_name", "type", "value"],
         },
@@ -1437,7 +2081,10 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "path": {"type": "string", "description": "Filesystem path to a .py file. Absolute or relative; relative paths resolve against the editor's CWD (typically the project root)."},
+                "path": {
+                    "type": "string",
+                    "description": "Filesystem path to a .py file. Absolute or relative; relative paths resolve against the editor's CWD (typically the project root).",
+                },
             },
             "required": ["path"],
         },
@@ -1448,7 +2095,10 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "path": {"type": "string", "description": "Package path under which to recursively fix up redirectors, e.g. '/Game/' or '/Game/Materials'. Required to avoid accidentally rewriting an entire project."},
+                "path": {
+                    "type": "string",
+                    "description": "Package path under which to recursively fix up redirectors, e.g. '/Game/' or '/Game/Materials'. Required to avoid accidentally rewriting an entire project.",
+                },
             },
             "required": ["path"],
         },
@@ -1459,7 +2109,10 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "code": {"type": "string", "description": "Python source. The injected boilerplate makes `selection` (list of AActor) and `selected_assets` (list of UObject) available -- use either name directly."},
+                "code": {
+                    "type": "string",
+                    "description": "Python source. The injected boilerplate makes `selection` (list of AActor) and `selected_assets` (list of UObject) available -- use either name directly.",
+                },
             },
             "required": ["code"],
         },
@@ -1470,8 +2123,14 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "path": {"type": "string", "description": "Blueprint asset path, e.g. /Game/Blueprints/BP_MyActor"},
-                "skip_save": {"type": "boolean", "description": "Suppress the project's Save-On-Compile auto-save behavior (default false)."},
+                "path": {
+                    "type": "string",
+                    "description": "Blueprint asset path, e.g. /Game/Blueprints/BP_MyActor",
+                },
+                "skip_save": {
+                    "type": "boolean",
+                    "description": "Suppress the project's Save-On-Compile auto-save behavior (default false).",
+                },
             },
             "required": ["path"],
         },
@@ -1482,7 +2141,10 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "name": {"type": "string", "description": "Exact CVar name, case-sensitive (e.g. 'r.ScreenPercentage', 'Slate.bAllowToolTips')."},
+                "name": {
+                    "type": "string",
+                    "description": "Exact CVar name, case-sensitive (e.g. 'r.ScreenPercentage', 'Slate.bAllowToolTips').",
+                },
             },
             "required": ["name"],
         },
@@ -1494,7 +2156,10 @@ TOOLS = [
             "type": "object",
             "properties": {
                 "name": {"type": "string", "description": "Exact CVar name, case-sensitive."},
-                "value": {"type": ["string", "number", "boolean"], "description": "New value. Numbers and bools are coerced to canonical string form before being passed to IConsoleVariable::Set, which parses against the CVar's declared type."},
+                "value": {
+                    "type": ["string", "number", "boolean"],
+                    "description": "New value. Numbers and bools are coerced to canonical string form before being passed to IConsoleVariable::Set, which parses against the CVar's declared type.",
+                },
             },
             "required": ["name", "value"],
         },
@@ -1505,9 +2170,19 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "since_seq": {"type": "integer", "description": "Return events with seq >= since_seq (inclusive cursor). Default -1 (from oldest buffered)."},
-                "max_count": {"type": "integer", "description": "Cap returned events. Default 100; hard max 1000 (= ring buffer size)."},
-                "event_filter": {"type": "array", "items": {"type": "string"}, "description": "Substring-match filters on event type names (e.g. ['actor_spawned', 'asset_']). Multiple entries are OR-combined. Empty / omitted means no filter."},
+                "since_seq": {
+                    "type": "integer",
+                    "description": "Return events with seq >= since_seq (inclusive cursor). Default -1 (from oldest buffered).",
+                },
+                "max_count": {
+                    "type": "integer",
+                    "description": "Cap returned events. Default 100; hard max 1000 (= ring buffer size).",
+                },
+                "event_filter": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Substring-match filters on event type names (e.g. ['actor_spawned', 'asset_']). Multiple entries are OR-combined. Empty / omitted means no filter.",
+                },
             },
         },
     },
@@ -1517,11 +2192,27 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "timeout_ms": {"type": "integer", "description": "Maximum time to wait in milliseconds. Default 500; hard cap 30000 (over-cap requests are clamped, not rejected)."},
-                "poll_interval_ms": {"type": "integer", "description": "Bridge-side polling cadence in milliseconds. Default 100; min 25; max 1000. Lower values reduce latency at the cost of more frequent UE round-trips."},
-                "since_seq": {"type": "integer", "description": "Same as poll_events: events with seq >= since_seq are returned. Default -1 (from oldest buffered)."},
-                "max_count": {"type": "integer", "description": "Cap returned events. Default 100; hard max 1000."},
-                "event_filter": {"type": "array", "items": {"type": "string"}, "description": "Substring-match filters on event type names; OR-combined."},
+                "timeout_ms": {
+                    "type": "integer",
+                    "description": "Maximum time to wait in milliseconds. Default 500; hard cap 30000 (over-cap requests are clamped, not rejected).",
+                },
+                "poll_interval_ms": {
+                    "type": "integer",
+                    "description": "Bridge-side polling cadence in milliseconds. Default 100; min 25; max 1000. Lower values reduce latency at the cost of more frequent UE round-trips.",
+                },
+                "since_seq": {
+                    "type": "integer",
+                    "description": "Same as poll_events: events with seq >= since_seq are returned. Default -1 (from oldest buffered).",
+                },
+                "max_count": {
+                    "type": "integer",
+                    "description": "Cap returned events. Default 100; hard max 1000.",
+                },
+                "event_filter": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Substring-match filters on event type names; OR-combined.",
+                },
             },
         },
     },
@@ -1531,7 +2222,11 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "event_filter": {"type": "array", "items": {"type": "string"}, "description": "Substring-match filters on event type names; OR-combined. Empty / omitted means no filter."},
+                "event_filter": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Substring-match filters on event type names; OR-combined. Empty / omitted means no filter.",
+                },
             },
         },
     },
@@ -1541,7 +2236,10 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "subscription_id": {"type": "string", "description": "Subscription id returned by register_subscription."},
+                "subscription_id": {
+                    "type": "string",
+                    "description": "Subscription id returned by register_subscription.",
+                },
             },
             "required": ["subscription_id"],
         },
@@ -1552,8 +2250,14 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "subscription_id": {"type": "string", "description": "Subscription id returned by register_subscription."},
-                "max_count": {"type": "integer", "description": "Cap returned events. Default 100; hard max 1000."},
+                "subscription_id": {
+                    "type": "string",
+                    "description": "Subscription id returned by register_subscription.",
+                },
+                "max_count": {
+                    "type": "integer",
+                    "description": "Cap returned events. Default 100; hard max 1000.",
+                },
             },
             "required": ["subscription_id"],
         },
@@ -1564,7 +2268,11 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "duration_ms": {"type": "integer", "minimum": 1, "description": "How long the task should sleep (1 to 3600000 ms / 1 hour). Required."},
+                "duration_ms": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "How long the task should sleep (1 to 3600000 ms / 1 hour). Required.",
+                },
             },
             "required": ["duration_ms"],
         },
@@ -1586,7 +2294,10 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "path": {"type": "string", "description": "Absolute or relative path to a .py file (must exist)."},
+                "path": {
+                    "type": "string",
+                    "description": "Absolute or relative path to a .py file (must exist).",
+                },
             },
             "required": ["path"],
         },
@@ -1619,9 +2330,20 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "status_filter": {"type": "string", "enum": ["pending", "running", "completed", "cancelled", "failed"], "description": "Optional. If set, only tasks with this status are returned."},
-                "type_filter": {"type": "string", "description": "Optional. Exact-match filter on task type (e.g. 'sleep')."},
-                "limit": {"type": "integer", "default": 100, "description": "Optional. Max items to return. Default 100; clamped to [1, 500]."},
+                "status_filter": {
+                    "type": "string",
+                    "enum": ["pending", "running", "completed", "cancelled", "failed"],
+                    "description": "Optional. If set, only tasks with this status are returned.",
+                },
+                "type_filter": {
+                    "type": "string",
+                    "description": "Optional. Exact-match filter on task type (e.g. 'sleep').",
+                },
+                "limit": {
+                    "type": "integer",
+                    "default": 100,
+                    "description": "Optional. Max items to return. Default 100; clamped to [1, 500].",
+                },
             },
         },
     },
@@ -1631,7 +2353,10 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "code": {"type": "string", "description": "Python source to execute against the persistent globals dict."},
+                "code": {
+                    "type": "string",
+                    "description": "Python source to execute against the persistent globals dict.",
+                },
             },
             "required": ["code"],
         },
@@ -1650,8 +2375,14 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "prefix": {"type": "string", "description": "Optional case-sensitive prefix to filter by (e.g. 'r.Screen'). Empty / omitted = all CVars."},
-                "limit": {"type": "integer", "description": "Cap returned variables. Default 100; hard max 1000."},
+                "prefix": {
+                    "type": "string",
+                    "description": "Optional case-sensitive prefix to filter by (e.g. 'r.Screen'). Empty / omitted = all CVars.",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Cap returned variables. Default 100; hard max 1000.",
+                },
             },
         },
     },
@@ -1661,7 +2392,10 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "path": {"type": "string", "description": "UE asset path of a UStaticMesh, e.g. /Engine/BasicShapes/Cube."},
+                "path": {
+                    "type": "string",
+                    "description": "UE asset path of a UStaticMesh, e.g. /Engine/BasicShapes/Cube.",
+                },
             },
             "required": ["path"],
         },
@@ -1672,7 +2406,10 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "path": {"type": "string", "description": "UE asset path of a UNiagaraSystem, e.g. /Game/FX/NS_MyEffect."},
+                "path": {
+                    "type": "string",
+                    "description": "UE asset path of a UNiagaraSystem, e.g. /Game/FX/NS_MyEffect.",
+                },
             },
             "required": ["path"],
         },
@@ -1683,7 +2420,10 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "path": {"type": "string", "description": "UE asset path of a UAnimBlueprint, e.g. /Game/Animation/ABP_Hero."},
+                "path": {
+                    "type": "string",
+                    "description": "UE asset path of a UAnimBlueprint, e.g. /Game/Animation/ABP_Hero.",
+                },
             },
             "required": ["path"],
         },
@@ -1694,8 +2434,14 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "name": {"type": "string", "description": "Actor label of the landscape. Optional. If omitted alongside guid, returns the only landscape if exactly one exists."},
-                "guid": {"type": "string", "description": "LandscapeGuid OR OriginalLandscapeGuid string. Optional. Either matches."},
+                "name": {
+                    "type": "string",
+                    "description": "Actor label of the landscape. Optional. If omitted alongside guid, returns the only landscape if exactly one exists.",
+                },
+                "guid": {
+                    "type": "string",
+                    "description": "LandscapeGuid OR OriginalLandscapeGuid string. Optional. Either matches.",
+                },
             },
         },
     },
@@ -1705,7 +2451,10 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "path": {"type": "string", "description": "UE asset path of a USkeletalMesh, e.g. /Game/Characters/Hero/SK_Hero."},
+                "path": {
+                    "type": "string",
+                    "description": "UE asset path of a USkeletalMesh, e.g. /Game/Characters/Hero/SK_Hero.",
+                },
             },
             "required": ["path"],
         },
@@ -1716,7 +2465,10 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "path": {"type": "string", "description": "UE asset path of a UAnimMontage, e.g. /Game/Animation/AM_Attack."},
+                "path": {
+                    "type": "string",
+                    "description": "UE asset path of a UAnimMontage, e.g. /Game/Animation/AM_Attack.",
+                },
             },
             "required": ["path"],
         },
@@ -1727,7 +2479,10 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "path": {"type": "string", "description": "UE asset path of a UWidgetBlueprint, e.g. /Game/UI/WBP_HUD."},
+                "path": {
+                    "type": "string",
+                    "description": "UE asset path of a UWidgetBlueprint, e.g. /Game/UI/WBP_HUD.",
+                },
             },
             "required": ["path"],
         },
@@ -1738,8 +2493,14 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "path": {"type": "string", "description": "UE asset path of a UDataTable, e.g. /Game/Data/DT_Items."},
-                "verbose": {"type": "boolean", "description": "Default false. When true, include the full sorted rows[] array of row names; when false, return row_count only."},
+                "path": {
+                    "type": "string",
+                    "description": "UE asset path of a UDataTable, e.g. /Game/Data/DT_Items.",
+                },
+                "verbose": {
+                    "type": "boolean",
+                    "description": "Default false. When true, include the full sorted rows[] array of row names; when false, return row_count only.",
+                },
             },
             "required": ["path"],
         },
@@ -1750,7 +2511,10 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "path": {"type": "string", "description": "UE asset path of a UTexture, e.g. /Game/Textures/Environment/T_Stone_D."},
+                "path": {
+                    "type": "string",
+                    "description": "UE asset path of a UTexture, e.g. /Game/Textures/Environment/T_Stone_D.",
+                },
             },
             "required": ["path"],
         },
@@ -1761,7 +2525,10 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "path": {"type": "string", "description": "UE asset path of a UCurveBase, e.g. /Game/Curves/Curve_Falloff."},
+                "path": {
+                    "type": "string",
+                    "description": "UE asset path of a UCurveBase, e.g. /Game/Curves/Curve_Falloff.",
+                },
             },
             "required": ["path"],
         },
@@ -1772,7 +2539,10 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "path": {"type": "string", "description": "UE asset path of a UPhysicsAsset, e.g. /Game/Characters/Hero/PHYS_Hero."},
+                "path": {
+                    "type": "string",
+                    "description": "UE asset path of a UPhysicsAsset, e.g. /Game/Characters/Hero/PHYS_Hero.",
+                },
             },
             "required": ["path"],
         },
@@ -1783,7 +2553,10 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "path": {"type": "string", "description": "UE asset path of a USoundCue, e.g. /Game/Audio/SC_Footstep."},
+                "path": {
+                    "type": "string",
+                    "description": "UE asset path of a USoundCue, e.g. /Game/Audio/SC_Footstep.",
+                },
             },
             "required": ["path"],
         },
@@ -1794,18 +2567,24 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "path": {"type": "string", "description": "UE asset path of a USoundWave, e.g. /Game/Audio/SW_Footstep."},
+                "path": {
+                    "type": "string",
+                    "description": "UE asset path of a USoundWave, e.g. /Game/Audio/SW_Footstep.",
+                },
             },
             "required": ["path"],
         },
     },
     {
         "name": "inspect_sound_attenuation",
-        "description": "Read structural properties of a USoundAttenuation asset (3D playback rules): distance algorithm + shape, spatialization, air-absorption LPF/HPF, listener focus, occlusion tracing, reverb send, priority attenuation, plus a feature_flags sub-object for assorted bool toggles. Each major feature group is collapsed to {\"enabled\":false} when its master gate (bAttenuate / bSpatialize / bAttenuateWithLPF / bEnableListenerFocus / bEnableOcclusion / bEnableReverbSend / bEnablePriorityAttenuation) is off, so the JSON stays compact for default-disabled assets. Completes the audio introspection trio with inspect_sound_cue + inspect_sound_wave. C++ handler; no new Build.cs deps (Engine covers USoundAttenuation / FSoundAttenuationSettings / FBaseAttenuationSettings).",
+        "description": 'Read structural properties of a USoundAttenuation asset (3D playback rules): distance algorithm + shape, spatialization, air-absorption LPF/HPF, listener focus, occlusion tracing, reverb send, priority attenuation, plus a feature_flags sub-object for assorted bool toggles. Each major feature group is collapsed to {"enabled":false} when its master gate (bAttenuate / bSpatialize / bAttenuateWithLPF / bEnableListenerFocus / bEnableOcclusion / bEnableReverbSend / bEnablePriorityAttenuation) is off, so the JSON stays compact for default-disabled assets. Completes the audio introspection trio with inspect_sound_cue + inspect_sound_wave. C++ handler; no new Build.cs deps (Engine covers USoundAttenuation / FSoundAttenuationSettings / FBaseAttenuationSettings).',
         "inputSchema": {
             "type": "object",
             "properties": {
-                "path": {"type": "string", "description": "UE asset path of a USoundAttenuation, e.g. /Game/Audio/Atten_Default."},
+                "path": {
+                    "type": "string",
+                    "description": "UE asset path of a USoundAttenuation, e.g. /Game/Audio/Atten_Default.",
+                },
             },
             "required": ["path"],
         },
@@ -1826,8 +2605,14 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "location": {"type": "object", "description": "{x, y, z} world-space; missing fields default to 0."},
-                "rotation": {"type": "object", "description": "{pitch, yaw, roll} in degrees; missing fields default to 0."},
+                "location": {
+                    "type": "object",
+                    "description": "{x, y, z} world-space; missing fields default to 0.",
+                },
+                "rotation": {
+                    "type": "object",
+                    "description": "{pitch, yaw, roll} in degrees; missing fields default to 0.",
+                },
             },
         },
         "min_engine_version": "5.0",
@@ -1839,7 +2624,10 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "name": {"type": "string", "description": "Actor label or unique name to focus on."},
+                "name": {
+                    "type": "string",
+                    "description": "Actor label or unique name to focus on.",
+                },
             },
             "required": ["name"],
         },
@@ -1850,10 +2638,27 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "query": {"type": "string", "description": "Search keyword(s). Matched against name, tags, and categories on the source side. Empty string = list popular assets."},
-                "source": {"type": "string", "description": "Marketplace to query. 'polyhaven' (default), 'ambientcg', or 'all' to fan out across both.", "enum": ["polyhaven", "ambientcg", "all"]},
-                "asset_type": {"type": "string", "description": "Asset class filter. 'texture' (default), 'hdri', 'model', or 'all'.", "enum": ["texture", "hdri", "model", "all"]},
-                "limit": {"type": "integer", "minimum": 1, "maximum": 50, "default": 10, "description": "Max results to return (default 10, max 50)."},
+                "query": {
+                    "type": "string",
+                    "description": "Search keyword(s). Matched against name, tags, and categories on the source side. Empty string = list popular assets.",
+                },
+                "source": {
+                    "type": "string",
+                    "description": "Marketplace to query. 'polyhaven' (default), 'ambientcg', or 'all' to fan out across both.",
+                    "enum": ["polyhaven", "ambientcg", "all"],
+                },
+                "asset_type": {
+                    "type": "string",
+                    "description": "Asset class filter. 'texture' (default), 'hdri', 'model', or 'all'.",
+                    "enum": ["texture", "hdri", "model", "all"],
+                },
+                "limit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 50,
+                    "default": 10,
+                    "description": "Max results to return (default 10, max 50).",
+                },
             },
         },
     },
@@ -1863,15 +2668,44 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "source": {"type": "string", "description": "Marketplace to import from. 'polyhaven' (default) or 'ambientcg'.", "enum": ["polyhaven", "ambientcg"]},
-                "slug": {"type": "string", "description": "Source-specific asset identifier (e.g. 'aerial_beach_01'). Obtain via marketplace_search."},
-                "asset_type": {"type": "string", "description": "'texture' (diffuse map only in v1), 'hdri' (EXR/HDR sky), or 'model' (not yet implemented).", "enum": ["texture", "hdri", "model"]},
-                "resolution": {"type": "string", "description": "Asset resolution. Common values: '1k', '2k' (default), '4k', '8k'. Available set depends on the asset; the error message lists what the source actually offers when the request is invalid."},
-                "format": {"type": "string", "description": "File format. Defaults to 'png' for textures and 'exr' for HDRIs. Other accepted values fall back to the source's default if the requested format isn't published."},
-                "dest_path": {"type": "string", "description": "UE package path. Must start with /Game/. Default /Game/Marketplace."},
-                "dest_name": {"type": "string", "description": "Asset name override. Defaults to the slug."},
-                "replace_existing": {"type": "boolean", "description": "Overwrite an existing asset at dest_path/dest_name (default false)."},
-                "multi_map": {"type": "boolean", "description": "When true and asset_type='texture', pull every canonical PBR map (color, normal, roughness, ao, displacement, metalness) the source ships and import each as a separate UTexture2D. Color is required; other maps are best-effort. Naming: Color -> <dest_name>; others -> <dest_name>_<map>. Default false (diffuse only, back-compat)."},
+                "source": {
+                    "type": "string",
+                    "description": "Marketplace to import from. 'polyhaven' (default) or 'ambientcg'.",
+                    "enum": ["polyhaven", "ambientcg"],
+                },
+                "slug": {
+                    "type": "string",
+                    "description": "Source-specific asset identifier (e.g. 'aerial_beach_01'). Obtain via marketplace_search.",
+                },
+                "asset_type": {
+                    "type": "string",
+                    "description": "'texture' (diffuse map only in v1), 'hdri' (EXR/HDR sky), or 'model' (not yet implemented).",
+                    "enum": ["texture", "hdri", "model"],
+                },
+                "resolution": {
+                    "type": "string",
+                    "description": "Asset resolution. Common values: '1k', '2k' (default), '4k', '8k'. Available set depends on the asset; the error message lists what the source actually offers when the request is invalid.",
+                },
+                "format": {
+                    "type": "string",
+                    "description": "File format. Defaults to 'png' for textures and 'exr' for HDRIs. Other accepted values fall back to the source's default if the requested format isn't published.",
+                },
+                "dest_path": {
+                    "type": "string",
+                    "description": "UE package path. Must start with /Game/. Default /Game/Marketplace.",
+                },
+                "dest_name": {
+                    "type": "string",
+                    "description": "Asset name override. Defaults to the slug.",
+                },
+                "replace_existing": {
+                    "type": "boolean",
+                    "description": "Overwrite an existing asset at dest_path/dest_name (default false).",
+                },
+                "multi_map": {
+                    "type": "boolean",
+                    "description": "When true and asset_type='texture', pull every canonical PBR map (color, normal, roughness, ao, displacement, metalness) the source ships and import each as a separate UTexture2D. Color is required; other maps are best-effort. Naming: Color -> <dest_name>; others -> <dest_name>_<map>. Default false (diffuse only, back-compat).",
+                },
             },
             "required": ["slug"],
         },
@@ -1882,11 +2716,31 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "hdri_path": {"type": "string", "description": "UE asset path of the source longlat UTexture2D (must start with /Game/), e.g. /Game/Marketplace/HDRI_Venice_Sunset."},
-                "dest_path": {"type": "string", "description": "UE package path for the new cube. Defaults to the source HDRI's folder."},
-                "dest_name": {"type": "string", "description": "Asset name override for the new UTextureCube. Defaults to <source_basename>_Cube."},
-                "cube_size": {"type": "integer", "minimum": 16, "maximum": 8192, "default": 1024, "description": "Square face size in pixels for the render target. Range [16, 8192]; powers of two recommended. Default 1024."},
-                "compression": {"type": "string", "enum": ["TC_HDR", "TC_HDR_COMPRESSED", "TC_HDR_F32", "TC_DEFAULT"], "default": "TC_HDR", "description": "Texture compression preset. One of TC_HDR (default), TC_HDR_COMPRESSED, TC_HDR_F32, TC_DEFAULT."},
+                "hdri_path": {
+                    "type": "string",
+                    "description": "UE asset path of the source longlat UTexture2D (must start with /Game/), e.g. /Game/Marketplace/HDRI_Venice_Sunset.",
+                },
+                "dest_path": {
+                    "type": "string",
+                    "description": "UE package path for the new cube. Defaults to the source HDRI's folder.",
+                },
+                "dest_name": {
+                    "type": "string",
+                    "description": "Asset name override for the new UTextureCube. Defaults to <source_basename>_Cube.",
+                },
+                "cube_size": {
+                    "type": "integer",
+                    "minimum": 16,
+                    "maximum": 8192,
+                    "default": 1024,
+                    "description": "Square face size in pixels for the render target. Range [16, 8192]; powers of two recommended. Default 1024.",
+                },
+                "compression": {
+                    "type": "string",
+                    "enum": ["TC_HDR", "TC_HDR_COMPRESSED", "TC_HDR_F32", "TC_DEFAULT"],
+                    "default": "TC_HDR",
+                    "description": "Texture compression preset. One of TC_HDR (default), TC_HDR_COMPRESSED, TC_HDR_F32, TC_DEFAULT.",
+                },
             },
             "required": ["hdri_path"],
         },
@@ -1899,14 +2753,50 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "sequence_path": {"type": "string", "description": "UE asset path of the LevelSequence; must start with /Game/."},
-                "binding_id": {"type": "string", "description": "GUID string returned by bind_actor_to_sequence. Accepts the bare 32-hex form (no dashes) UE produces by default; dashed/braced forms also parse."},
-                "time_seconds": {"type": "number", "minimum": 0, "description": "Time in seconds (display rate) at which to place the keyframe. Must be >= 0; converted internally to a tick-resolution FrameNumber."},
-                "location": {"type": "array", "description": "Optional [x, y, z] translation. Omit to skip Location channels.", "items": {"type": "number"}, "minItems": 3, "maxItems": 3},
-                "rotation": {"type": "array", "description": "Optional [pitch, yaw, roll] in degrees (unreal.Rotator convention). Omit to skip Rotation channels.", "items": {"type": "number"}, "minItems": 3, "maxItems": 3},
-                "scale": {"type": "array", "description": "Optional [x, y, z] scale. Omit to skip Scale channels.", "items": {"type": "number"}, "minItems": 3, "maxItems": 3},
-                "interpolation": {"type": "string", "enum": ["linear", "constant", "auto", "smart_auto", "cubic"], "default": "linear", "description": "Key interpolation. One of 'linear' (default), 'constant', 'auto', 'smart_auto', 'cubic'. 'cubic' is an alias for SMART_AUTO."},
-                "auto_extend_section": {"type": "boolean", "description": "If true (default), extends the track section's seconds-range to cover time_seconds when needed."},
+                "sequence_path": {
+                    "type": "string",
+                    "description": "UE asset path of the LevelSequence; must start with /Game/.",
+                },
+                "binding_id": {
+                    "type": "string",
+                    "description": "GUID string returned by bind_actor_to_sequence. Accepts the bare 32-hex form (no dashes) UE produces by default; dashed/braced forms also parse.",
+                },
+                "time_seconds": {
+                    "type": "number",
+                    "minimum": 0,
+                    "description": "Time in seconds (display rate) at which to place the keyframe. Must be >= 0; converted internally to a tick-resolution FrameNumber.",
+                },
+                "location": {
+                    "type": "array",
+                    "description": "Optional [x, y, z] translation. Omit to skip Location channels.",
+                    "items": {"type": "number"},
+                    "minItems": 3,
+                    "maxItems": 3,
+                },
+                "rotation": {
+                    "type": "array",
+                    "description": "Optional [pitch, yaw, roll] in degrees (unreal.Rotator convention). Omit to skip Rotation channels.",
+                    "items": {"type": "number"},
+                    "minItems": 3,
+                    "maxItems": 3,
+                },
+                "scale": {
+                    "type": "array",
+                    "description": "Optional [x, y, z] scale. Omit to skip Scale channels.",
+                    "items": {"type": "number"},
+                    "minItems": 3,
+                    "maxItems": 3,
+                },
+                "interpolation": {
+                    "type": "string",
+                    "enum": ["linear", "constant", "auto", "smart_auto", "cubic"],
+                    "default": "linear",
+                    "description": "Key interpolation. One of 'linear' (default), 'constant', 'auto', 'smart_auto', 'cubic'. 'cubic' is an alias for SMART_AUTO.",
+                },
+                "auto_extend_section": {
+                    "type": "boolean",
+                    "description": "If true (default), extends the track section's seconds-range to cover time_seconds when needed.",
+                },
             },
             "required": ["sequence_path", "binding_id", "time_seconds"],
         },
@@ -1919,9 +2809,18 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "source_path": {"type": "string", "description": "Absolute filesystem path to the mesh file. Extension must be one of .glb, .gltf, .fbx, .obj (case-insensitive)."},
-                "dest_path": {"type": "string", "description": "UE content path to import into; must be '/Game' or start with '/Game/'. Interchange may create sub-folders under it; the returned static_meshes paths reflect the actual locations."},
-                "import_materials": {"type": "boolean", "description": "Import materials embedded in the source file. Default true."},
+                "source_path": {
+                    "type": "string",
+                    "description": "Absolute filesystem path to the mesh file. Extension must be one of .glb, .gltf, .fbx, .obj (case-insensitive).",
+                },
+                "dest_path": {
+                    "type": "string",
+                    "description": "UE content path to import into; must be '/Game' or start with '/Game/'. Interchange may create sub-folders under it; the returned static_meshes paths reflect the actual locations.",
+                },
+                "import_materials": {
+                    "type": "boolean",
+                    "description": "Import materials embedded in the source file. Default true.",
+                },
             },
             "required": ["source_path", "dest_path"],
         },
@@ -1934,10 +2833,24 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "actor_label": {"type": "string", "description": "Label of the level actor whose StaticMesh component gets the new material (assigned to all slots)."},
-                "textures": {"type": "object", "description": "Map of PBR slot -> UE texture asset path (each must start with /Game/). Recognized keys: base_color (required), normal, roughness, metallic, ambient_occlusion. Unknown keys are ignored."},
-                "dest_material": {"type": "string", "description": "UE package path for the created Material, e.g. /Game/Mats/M_MyAsset. Must start with /Game/. Defaults to /Game/AutoMaterials/M_<actor_label>."},
-                "tiling": {"type": "number", "exclusiveMinimum": 0, "default": 1.0, "description": "UV tiling applied to all maps (U=V). Default 1.0. Must be > 0."},
+                "actor_label": {
+                    "type": "string",
+                    "description": "Label of the level actor whose StaticMesh component gets the new material (assigned to all slots).",
+                },
+                "textures": {
+                    "type": "object",
+                    "description": "Map of PBR slot -> UE texture asset path (each must start with /Game/). Recognized keys: base_color (required), normal, roughness, metallic, ambient_occlusion. Unknown keys are ignored.",
+                },
+                "dest_material": {
+                    "type": "string",
+                    "description": "UE package path for the created Material, e.g. /Game/Mats/M_MyAsset. Must start with /Game/. Defaults to /Game/AutoMaterials/M_<actor_label>.",
+                },
+                "tiling": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "default": 1.0,
+                    "description": "UV tiling applied to all maps (U=V). Default 1.0. Must be > 0.",
+                },
             },
             "required": ["actor_label", "textures"],
         },
@@ -1950,13 +2863,35 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "class_path": {"type": "string", "description": "Actor class to spawn at each hit (e.g. '/Script/Engine.StaticMeshActor' or a Blueprint class path)."},
-                "points": {"type": "array", "items": {"type": "object"}, "description": "Explicit XY targets [{x, y}, ...]; each is traced from trace_start_z downward. Ignored when 'grid' is supplied."},
-                "grid": {"type": "object", "description": "Generate targets on a grid instead of 'points': {min_x, min_y, max_x, max_y, count_x, count_y}. count_x/count_y must be >= 1; samples are spread evenly across each span (midpoint when count==1)."},
-                "trace_start_z": {"type": "number", "description": "Z height the downward trace starts from (and the negative of which it ends at). Default 100000. Must be > 0."},
-                "align_to_normal": {"type": "boolean", "description": "When true, rotate each spawned actor's up-axis onto the surface normal. Default false."},
-                "z_offset": {"type": "number", "description": "Added to the hit point's Z before spawning (lift the actor off the surface). Default 0."},
-                "label_prefix": {"type": "string", "description": "When set, each spawned actor is labelled '<prefix><index>'."},
+                "class_path": {
+                    "type": "string",
+                    "description": "Actor class to spawn at each hit (e.g. '/Script/Engine.StaticMeshActor' or a Blueprint class path).",
+                },
+                "points": {
+                    "type": "array",
+                    "items": {"type": "object"},
+                    "description": "Explicit XY targets [{x, y}, ...]; each is traced from trace_start_z downward. Ignored when 'grid' is supplied.",
+                },
+                "grid": {
+                    "type": "object",
+                    "description": "Generate targets on a grid instead of 'points': {min_x, min_y, max_x, max_y, count_x, count_y}. count_x/count_y must be >= 1; samples are spread evenly across each span (midpoint when count==1).",
+                },
+                "trace_start_z": {
+                    "type": "number",
+                    "description": "Z height the downward trace starts from (and the negative of which it ends at). Default 100000. Must be > 0.",
+                },
+                "align_to_normal": {
+                    "type": "boolean",
+                    "description": "When true, rotate each spawned actor's up-axis onto the surface normal. Default false.",
+                },
+                "z_offset": {
+                    "type": "number",
+                    "description": "Added to the hit point's Z before spawning (lift the actor off the surface). Default 0.",
+                },
+                "label_prefix": {
+                    "type": "string",
+                    "description": "When set, each spawned actor is labelled '<prefix><index>'.",
+                },
             },
             "required": ["class_path"],
         },
@@ -1967,9 +2902,18 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "material": {"type": "string", "description": "Path to the UMaterial / UMaterialInstance to assign (e.g. '/Game/Mats/M_Marble')."},
-                "targets": {"type": "object", "description": "Actor selector — set exactly one of: by_label (list of actor labels), by_folder (World-Outliner folder path; matched as a prefix so '/Set/Walls' also catches '/Set/Walls/Sub'), or by_name_regex (regex matched against each actor's label and FName)."},
-                "slot": {"type": "integer", "description": "Material slot index to assign. Default -1 = assign every slot on each matched mesh component."},
+                "material": {
+                    "type": "string",
+                    "description": "Path to the UMaterial / UMaterialInstance to assign (e.g. '/Game/Mats/M_Marble').",
+                },
+                "targets": {
+                    "type": "object",
+                    "description": "Actor selector — set exactly one of: by_label (list of actor labels), by_folder (World-Outliner folder path; matched as a prefix so '/Set/Walls' also catches '/Set/Walls/Sub'), or by_name_regex (regex matched against each actor's label and FName).",
+                },
+                "slot": {
+                    "type": "integer",
+                    "description": "Material slot index to assign. Default -1 = assign every slot on each matched mesh component.",
+                },
             },
             "required": ["material", "targets"],
         },
@@ -1980,14 +2924,40 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "light_type": {"type": "string", "enum": ["point", "rect", "spot"], "description": "Which light actor to spawn: 'point' (APointLight), 'rect' (ARectLight), or 'spot' (ASpotLight)."},
-                "sweep": {"type": "object", "description": "Sample line: {start{x,y,z}, end{x,y,z}, count}. count points are spaced evenly from start to end (inclusive); count must be >= 1. Each sample is traced straight down onto geometry."},
-                "points": {"type": "array", "items": {"type": "object"}, "description": "Explicit sample points [{x,y,z}, ...] instead of a sweep; each is traced straight down onto geometry."},
-                "surface_offset": {"type": "number", "description": "Distance the light is pushed out from the hit surface along its normal. Default 50."},
-                "intensity": {"type": "number", "description": "Light intensity. When omitted, the light's class default is left untouched."},
-                "light_color": {"type": "object", "description": "Linear RGB color {r, g, b} (0..1). When omitted, the light's default color is left untouched."},
-                "attenuation_radius": {"type": "number", "description": "Attenuation radius (applies to point/spot/rect — all are local lights). When omitted, the class default is left untouched."},
-                "label_prefix": {"type": "string", "description": "When set, each spawned light is labelled '<prefix><index>'."},
+                "light_type": {
+                    "type": "string",
+                    "enum": ["point", "rect", "spot"],
+                    "description": "Which light actor to spawn: 'point' (APointLight), 'rect' (ARectLight), or 'spot' (ASpotLight).",
+                },
+                "sweep": {
+                    "type": "object",
+                    "description": "Sample line: {start{x,y,z}, end{x,y,z}, count}. count points are spaced evenly from start to end (inclusive); count must be >= 1. Each sample is traced straight down onto geometry.",
+                },
+                "points": {
+                    "type": "array",
+                    "items": {"type": "object"},
+                    "description": "Explicit sample points [{x,y,z}, ...] instead of a sweep; each is traced straight down onto geometry.",
+                },
+                "surface_offset": {
+                    "type": "number",
+                    "description": "Distance the light is pushed out from the hit surface along its normal. Default 50.",
+                },
+                "intensity": {
+                    "type": "number",
+                    "description": "Light intensity. When omitted, the light's class default is left untouched.",
+                },
+                "light_color": {
+                    "type": "object",
+                    "description": "Linear RGB color {r, g, b} (0..1). When omitted, the light's default color is left untouched.",
+                },
+                "attenuation_radius": {
+                    "type": "number",
+                    "description": "Attenuation radius (applies to point/spot/rect — all are local lights). When omitted, the class default is left untouched.",
+                },
+                "label_prefix": {
+                    "type": "string",
+                    "description": "When set, each spawned light is labelled '<prefix><index>'.",
+                },
             },
             "required": ["light_type"],
         },
@@ -1998,10 +2968,23 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "output_dir": {"type": "string", "description": "Directory the .png files are written to (one per camera)."},
-                "camera_names": {"type": "array", "items": {"type": "string"}, "description": "Optional list of camera labels (or names) to restrict the render to. Default = every ACineCameraActor in the level."},
-                "resolution": {"type": "object", "description": "Optional per-render pixel size {width, height} (both positive integers). When omitted, the live viewport resolution is used."},
-                "file_name_format": {"type": "string", "description": "Output file-name template; '{camera}' is replaced with the sanitized camera label. Default '{camera}.png'."},
+                "output_dir": {
+                    "type": "string",
+                    "description": "Directory the .png files are written to (one per camera).",
+                },
+                "camera_names": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Optional list of camera labels (or names) to restrict the render to. Default = every ACineCameraActor in the level.",
+                },
+                "resolution": {
+                    "type": "object",
+                    "description": "Optional per-render pixel size {width, height} (both positive integers). When omitted, the live viewport resolution is used.",
+                },
+                "file_name_format": {
+                    "type": "string",
+                    "description": "Output file-name template; '{camera}' is replaced with the sanitized camera label. Default '{camera}.png'.",
+                },
             },
             "required": ["output_dir"],
         },
@@ -2012,9 +2995,19 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "csv_path": {"type": "string", "description": "Filesystem path to a .csv with a header row. Supply this OR 'rows' (exactly one)."},
-                "rows": {"type": "array", "items": {"type": "object"}, "description": "Inline list of row objects [{class, x, y, z, pitch, yaw, roll, label, properties}, ...]. Supply this OR 'csv_path' (exactly one)."},
-                "default_class": {"type": "string", "description": "Actor class used for any row that omits 'class' (e.g. '/Script/Engine.StaticMeshActor')."},
+                "csv_path": {
+                    "type": "string",
+                    "description": "Filesystem path to a .csv with a header row. Supply this OR 'rows' (exactly one).",
+                },
+                "rows": {
+                    "type": "array",
+                    "items": {"type": "object"},
+                    "description": "Inline list of row objects [{class, x, y, z, pitch, yaw, roll, label, properties}, ...]. Supply this OR 'csv_path' (exactly one).",
+                },
+                "default_class": {
+                    "type": "string",
+                    "description": "Actor class used for any row that omits 'class' (e.g. '/Script/Engine.StaticMeshActor').",
+                },
             },
         },
     },
@@ -2024,9 +3017,18 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "asset_path": {"type": "string", "description": "A /Game StaticMesh path to toggle directly. Supply this OR 'actor'."},
-                "actor": {"type": "string", "description": "An actor label/FName whose StaticMeshComponent's mesh is toggled. Supply this OR 'asset_path'."},
-                "enabled": {"type": "boolean", "description": "Target Nanite-enabled state: true to enable Nanite, false to disable (so raycasts hit real geometry)."},
+                "asset_path": {
+                    "type": "string",
+                    "description": "A /Game StaticMesh path to toggle directly. Supply this OR 'actor'.",
+                },
+                "actor": {
+                    "type": "string",
+                    "description": "An actor label/FName whose StaticMeshComponent's mesh is toggled. Supply this OR 'asset_path'.",
+                },
+                "enabled": {
+                    "type": "boolean",
+                    "description": "Target Nanite-enabled state: true to enable Nanite, false to disable (so raycasts hit real geometry).",
+                },
             },
             "required": ["enabled"],
         },
@@ -2037,18 +3039,55 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "decal_material": {"type": "string", "description": "Path to the decal UMaterialInterface to project (e.g. '/Game/Decals/M_Grime')."},
-                "points": {"type": "array", "items": {"type": "object"}, "description": "Explicit XY targets [{x, y}, ...]. Use this OR 'grid' OR 'bounds'."},
-                "grid": {"type": "object", "description": "Generate targets on a grid: {min_x, min_y, max_x, max_y, count_x, count_y} (count_x/count_y >= 1, spread evenly). Preferred over 'points'/'bounds' when present."},
-                "bounds": {"type": "object", "description": "Random scatter: {min_x, min_y, max_x, max_y, count} — 'count' XY points drawn uniformly inside the box via the seeded stream."},
-                "trace_start_z": {"type": "number", "description": "Z height the downward trace starts from. Default 100000. Must be > 0."},
-                "decal_size": {"type": "object", "description": "Base decal half-extents {x, y, z}: x = projection depth, y/z = surface footprint. Default {16, 64, 64}."},
-                "scale_min": {"type": "number", "description": "Min uniform scale applied to decal_size per decal. Default 1.0; require 0 < scale_min <= scale_max."},
-                "scale_max": {"type": "number", "description": "Max uniform scale applied to decal_size per decal. Default 1.0."},
-                "rotation_jitter_deg": {"type": "number", "description": "Max random spin (degrees) about each decal's projection axis (roll). Default 0."},
-                "sort_order": {"type": "integer", "description": "Decal SortOrder (higher draws on top). Default 0."},
-                "seed": {"type": "integer", "description": "Seed for the deterministic scale/rotation/bounds RNG. Default 0."},
-                "label_prefix": {"type": "string", "description": "When set, each spawned decal is labelled '<prefix><index>'."},
+                "decal_material": {
+                    "type": "string",
+                    "description": "Path to the decal UMaterialInterface to project (e.g. '/Game/Decals/M_Grime').",
+                },
+                "points": {
+                    "type": "array",
+                    "items": {"type": "object"},
+                    "description": "Explicit XY targets [{x, y}, ...]. Use this OR 'grid' OR 'bounds'.",
+                },
+                "grid": {
+                    "type": "object",
+                    "description": "Generate targets on a grid: {min_x, min_y, max_x, max_y, count_x, count_y} (count_x/count_y >= 1, spread evenly). Preferred over 'points'/'bounds' when present.",
+                },
+                "bounds": {
+                    "type": "object",
+                    "description": "Random scatter: {min_x, min_y, max_x, max_y, count} — 'count' XY points drawn uniformly inside the box via the seeded stream.",
+                },
+                "trace_start_z": {
+                    "type": "number",
+                    "description": "Z height the downward trace starts from. Default 100000. Must be > 0.",
+                },
+                "decal_size": {
+                    "type": "object",
+                    "description": "Base decal half-extents {x, y, z}: x = projection depth, y/z = surface footprint. Default {16, 64, 64}.",
+                },
+                "scale_min": {
+                    "type": "number",
+                    "description": "Min uniform scale applied to decal_size per decal. Default 1.0; require 0 < scale_min <= scale_max.",
+                },
+                "scale_max": {
+                    "type": "number",
+                    "description": "Max uniform scale applied to decal_size per decal. Default 1.0.",
+                },
+                "rotation_jitter_deg": {
+                    "type": "number",
+                    "description": "Max random spin (degrees) about each decal's projection axis (roll). Default 0.",
+                },
+                "sort_order": {
+                    "type": "integer",
+                    "description": "Decal SortOrder (higher draws on top). Default 0.",
+                },
+                "seed": {
+                    "type": "integer",
+                    "description": "Seed for the deterministic scale/rotation/bounds RNG. Default 0.",
+                },
+                "label_prefix": {
+                    "type": "string",
+                    "description": "When set, each spawned decal is labelled '<prefix><index>'.",
+                },
             },
             "required": ["decal_material"],
         },
@@ -2059,7 +3098,10 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "path": {"type": "string", "description": "Package path to a UOpenColorIOConfiguration asset (e.g. '/Game/Color/OCIO_Studio')."},
+                "path": {
+                    "type": "string",
+                    "description": "Package path to a UOpenColorIOConfiguration asset (e.g. '/Game/Color/OCIO_Studio').",
+                },
             },
             "required": ["path"],
         },
@@ -2070,7 +3112,10 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "path": {"type": "string", "description": "Package path to an nDisplay config blueprint asset (e.g. '/Game/nDisplay/NDC_Stage')."},
+                "path": {
+                    "type": "string",
+                    "description": "Package path to an nDisplay config blueprint asset (e.g. '/Game/nDisplay/NDC_Stage').",
+                },
             },
             "required": ["path"],
         },
@@ -2081,17 +3126,50 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "static_mesh": {"type": "string", "description": "A /Game StaticMesh asset path to bake AO into (required)."},
-                "occlusion_rays": {"type": "integer", "description": "Number of occlusion rays cast per vertex. Default 16, clamped to 1..256."},
-                "max_distance": {"type": "number", "description": "Max ray distance for occlusion. Default 0 = infinite."},
-                "spread_angle": {"type": "number", "description": "Hemisphere spread angle (degrees) the rays sample over. Default 180."},
-                "bias_angle": {"type": "number", "description": "Bias angle (degrees) away from the surface to avoid self-shadowing artifacts. Default 15."},
-                "lod_index": {"type": "integer", "description": "SourceModel LOD index to bake into and write back. Default 0."},
-                "blur_iterations": {"type": "integer", "description": "Number of smoothing passes over the baked AO. Default 0 = no blur."},
-                "blur_strength": {"type": "number", "description": "Strength of each blur iteration. Default 0.5."},
-                "split_at_uv_seams": {"type": "boolean", "description": "Split occlusion at UV seams when baking. Default false."},
-                "split_at_normal_seams": {"type": "boolean", "description": "Split occlusion at hard-normal seams when baking. Default false."},
-                "save": {"type": "boolean", "description": "Save the edited asset to disk after baking. Default true."},
+                "static_mesh": {
+                    "type": "string",
+                    "description": "A /Game StaticMesh asset path to bake AO into (required).",
+                },
+                "occlusion_rays": {
+                    "type": "integer",
+                    "description": "Number of occlusion rays cast per vertex. Default 16, clamped to 1..256.",
+                },
+                "max_distance": {
+                    "type": "number",
+                    "description": "Max ray distance for occlusion. Default 0 = infinite.",
+                },
+                "spread_angle": {
+                    "type": "number",
+                    "description": "Hemisphere spread angle (degrees) the rays sample over. Default 180.",
+                },
+                "bias_angle": {
+                    "type": "number",
+                    "description": "Bias angle (degrees) away from the surface to avoid self-shadowing artifacts. Default 15.",
+                },
+                "lod_index": {
+                    "type": "integer",
+                    "description": "SourceModel LOD index to bake into and write back. Default 0.",
+                },
+                "blur_iterations": {
+                    "type": "integer",
+                    "description": "Number of smoothing passes over the baked AO. Default 0 = no blur.",
+                },
+                "blur_strength": {
+                    "type": "number",
+                    "description": "Strength of each blur iteration. Default 0.5.",
+                },
+                "split_at_uv_seams": {
+                    "type": "boolean",
+                    "description": "Split occlusion at UV seams when baking. Default false.",
+                },
+                "split_at_normal_seams": {
+                    "type": "boolean",
+                    "description": "Split occlusion at hard-normal seams when baking. Default false.",
+                },
+                "save": {
+                    "type": "boolean",
+                    "description": "Save the edited asset to disk after baking. Default true.",
+                },
             },
             "required": ["static_mesh"],
         },
@@ -2102,9 +3180,19 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "action": {"type": "string", "enum": ["save", "load"], "description": "'save' writes the target volume's grade to preset_path; 'load' applies the preset_path JSON onto the target volume."},
-                "target": {"type": "string", "description": "Label/FName of the PostProcessVolume actor."},
-                "preset_path": {"type": "string", "description": "Absolute filesystem path to the .json preset file (written on save, read on load)."},
+                "action": {
+                    "type": "string",
+                    "enum": ["save", "load"],
+                    "description": "'save' writes the target volume's grade to preset_path; 'load' applies the preset_path JSON onto the target volume.",
+                },
+                "target": {
+                    "type": "string",
+                    "description": "Label/FName of the PostProcessVolume actor.",
+                },
+                "preset_path": {
+                    "type": "string",
+                    "description": "Absolute filesystem path to the .json preset file (written on save, read on load).",
+                },
             },
             "required": ["action", "target", "preset_path"],
         },
@@ -2133,11 +3221,26 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "targets": {"type": "object", "description": "Actor selector  -  set exactly one of: by_label (string or list of strings), by_folder (World-Outliner folder path, matched as a prefix so '/Set/Walls' also catches '/Set/Walls/Sub'), or by_name_regex (regex matched against each actor's label and FName)."},
-                "parameter": {"type": "string", "description": "The material parameter name to set (e.g. 'GoldenHour_Intensity' or 'SkyColor')."},
-                "scalar": {"type": "number", "description": "Scalar float value to set. Supply this OR 'color' (exactly one)."},
-                "color": {"type": "object", "description": "Linear color value {r, g, b, a} (floats 0..1, 'a' defaults to 1.0). Supply this OR 'scalar' (exactly one)."},
-                "slot": {"type": "integer", "description": "Material slot index to target. Default -1 = all slots on each matched mesh component. Out-of-range slots on a component are silently skipped."},
+                "targets": {
+                    "type": "object",
+                    "description": "Actor selector  -  set exactly one of: by_label (string or list of strings), by_folder (World-Outliner folder path, matched as a prefix so '/Set/Walls' also catches '/Set/Walls/Sub'), or by_name_regex (regex matched against each actor's label and FName).",
+                },
+                "parameter": {
+                    "type": "string",
+                    "description": "The material parameter name to set (e.g. 'GoldenHour_Intensity' or 'SkyColor').",
+                },
+                "scalar": {
+                    "type": "number",
+                    "description": "Scalar float value to set. Supply this OR 'color' (exactly one).",
+                },
+                "color": {
+                    "type": "object",
+                    "description": "Linear color value {r, g, b, a} (floats 0..1, 'a' defaults to 1.0). Supply this OR 'scalar' (exactly one).",
+                },
+                "slot": {
+                    "type": "integer",
+                    "description": "Material slot index to target. Default -1 = all slots on each matched mesh component. Out-of-range slots on a component are silently skipped.",
+                },
             },
             "required": ["targets", "parameter"],
         },
@@ -2148,9 +3251,19 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "output_path": {"type": "string", "description": "Absolute filesystem path for the output file. Must end in .gltf (separate JSON + textures) or .glb (self-contained binary)."},
-                "actors": {"type": "array", "items": {"type": "string"}, "description": "Optional list of actor labels/FNames to export. If omitted and selected_only is false, the entire visible level is exported."},
-                "selected_only": {"type": "boolean", "description": "If true, export only the actors currently selected in the editor viewport. Ignored when 'actors' is supplied."},
+                "output_path": {
+                    "type": "string",
+                    "description": "Absolute filesystem path for the output file. Must end in .gltf (separate JSON + textures) or .glb (self-contained binary).",
+                },
+                "actors": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Optional list of actor labels/FNames to export. If omitted and selected_only is false, the entire visible level is exported.",
+                },
+                "selected_only": {
+                    "type": "boolean",
+                    "description": "If true, export only the actors currently selected in the editor viewport. Ignored when 'actors' is supplied.",
+                },
             },
             "required": ["output_path"],
         },
@@ -2190,13 +3303,13 @@ TOOLS = [
 # plus the universal Python escape hatch. Keep this list small -- every entry
 # here is permanent context cost.
 CORE_TOOL_NAMES = (
-    "get_project_summary",       # orient: what project / engine / maps
-    "list_tools",                # enumerate registered UE methods
-    "get_actors_in_level",       # observe current world
-    "execute_unreal_python",     # universal escape hatch
+    "get_project_summary",  # orient: what project / engine / maps
+    "list_tools",  # enumerate registered UE methods
+    "get_actors_in_level",  # observe current world
+    "execute_unreal_python",  # universal escape hatch
     "take_high_res_screenshot",  # see the result
-    "get_viewport_screenshot",   # see the result (inline)
-    "poll_events",               # async/event awareness
+    "get_viewport_screenshot",  # see the result (inline)
+    "poll_events",  # async/event awareness
 )
 
 # Curated daily-driver profile, measured from real production sessions
@@ -2208,23 +3321,46 @@ CORE_TOOL_NAMES = (
 # weight ~75% for clients that don't defer tool schemas.
 LEAN_TOOL_NAMES = (
     # orient
-    "get_project_summary", "get_engine_version", "list_levels", "load_level_by_path",
+    "get_project_summary",
+    "get_engine_version",
+    "list_levels",
+    "load_level_by_path",
     # observe
-    "get_actors_in_level", "find_actors_by_class",
+    "get_actors_in_level",
+    "find_actors_by_class",
     # actors
-    "spawn_actor", "delete_actor", "set_actor_transform", "set_actor_property", "focus_actor",
+    "spawn_actor",
+    "delete_actor",
+    "set_actor_transform",
+    "set_actor_property",
+    "focus_actor",
     # camera
-    "get_camera_transform", "set_camera_transform",
+    "get_camera_transform",
+    "set_camera_transform",
     # python
-    "execute_unreal_python", "exec_python_persistent", "reset_python_state", "run_python_file",
+    "execute_unreal_python",
+    "exec_python_persistent",
+    "reset_python_state",
+    "run_python_file",
     # async tasks
-    "start_python_task", "start_python_file_task", "poll_task", "list_tasks", "cancel_task",
+    "start_python_task",
+    "start_python_file_task",
+    "poll_task",
+    "list_tasks",
+    "cancel_task",
     # console + logs
-    "execute_console_command", "get_log_lines",
+    "execute_console_command",
+    "get_log_lines",
     # see the result
-    "get_viewport_screenshot", "take_screenshot", "take_high_res_screenshot", "render_camera_to_png",
+    "get_viewport_screenshot",
+    "take_screenshot",
+    "take_high_res_screenshot",
+    "render_camera_to_png",
     # materials + assets
-    "import_texture", "create_material_instance", "set_mi_parameter", "save_dirty_assets",
+    "import_texture",
+    "create_material_instance",
+    "set_mi_parameter",
+    "save_dirty_assets",
 )
 
 # Coarse workflow categories, matched by keyword against each tool's name +
@@ -2232,18 +3368,41 @@ LEAN_TOOL_NAMES = (
 # may match several. Ordering is intentional (more specific first) so the
 # single "primary" category reported per tool is the best fit.
 _TOOL_CATEGORIES = (
-    ("sequencer", ("sequence", "sequencer", "keyframe", "camera_cut", "cine_camera", "mrq", "playback")),
+    (
+        "sequencer",
+        ("sequence", "sequencer", "keyframe", "camera_cut", "cine_camera", "mrq", "playback"),
+    ),
     ("material", ("material", "_mi_", "mi_parameter", "shader", "texture", "ocio", "pbr")),
     ("blueprint", ("blueprint", "_bp_", "widget", "umg", "anim_blueprint", "node", "pin")),
     ("niagara", ("niagara", "vfx", "particle")),
-    ("lighting", ("light", "lumen", "nanite", "build_lighting", "post_process", "hdri", "cubemap", "grade")),
+    (
+        "lighting",
+        ("light", "lumen", "nanite", "build_lighting", "post_process", "hdri", "cubemap", "grade"),
+    ),
     ("actor", ("actor", "spawn", "transform", "component", "focus", "outliner", "folder")),
-    ("asset", ("asset", "import", "redirector", "data_table", "data_asset", "static_mesh", "skeletal_mesh", "metasound", "sound", "audio")),
+    (
+        "asset",
+        (
+            "asset",
+            "import",
+            "redirector",
+            "data_table",
+            "data_asset",
+            "static_mesh",
+            "skeletal_mesh",
+            "metasound",
+            "sound",
+            "audio",
+        ),
+    ),
     ("level", ("level", "world", "map", "umap")),
     ("rendering", ("screenshot", "render", "viewport", "capture", "screen", "png", "gltf")),
     ("async", ("event", "subscription", "subscribe", "task", "poll", "sleep", "wait")),
     ("python", ("python", "console", "command", "cvar", "console_variable")),
-    ("inspect", ("inspect", "audit", "find_", "list_", "get_", "compare", "dependency", "reference")),
+    (
+        "inspect",
+        ("inspect", "audit", "find_", "list_", "get_", "compare", "dependency", "reference"),
+    ),
 )
 
 # Hard caps so a hostile or buggy caller cannot make search_tools do
@@ -2264,7 +3423,8 @@ SEARCH_TOOLS_DESCRIPTOR = {
         "and/or a `category`. Returns the matching tools' name + description + "
         "inputSchema, ranked by relevance. Every returned tool is callable "
         "directly via tools/call by its name. Categories: "
-        + ", ".join(c for c, _ in _TOOL_CATEGORIES) + "."
+        + ", ".join(c for c, _ in _TOOL_CATEGORIES)
+        + "."
     ),
     "inputSchema": {
         "type": "object",
@@ -2396,8 +3556,11 @@ def search_tools_impl(args: dict) -> dict:
     envelopes, matching every other synthetic tool.
     """
     if not isinstance(args, dict):
-        return {"ok": False, "error_code": "invalid_arguments",
-                "message": "search_tools: arguments must be an object"}
+        return {
+            "ok": False,
+            "error_code": "invalid_arguments",
+            "message": "search_tools: arguments must be an object",
+        }
 
     query = args.get("query", "")
     category = args.get("category")
@@ -2407,33 +3570,51 @@ def search_tools_impl(args: dict) -> dict:
     if query is None:
         query = ""
     if not isinstance(query, str):
-        return {"ok": False, "error_code": "invalid_query",
-                "message": "search_tools: 'query' must be a string"}
+        return {
+            "ok": False,
+            "error_code": "invalid_query",
+            "message": "search_tools: 'query' must be a string",
+        }
     if len(query) > _SEARCH_QUERY_MAX_LEN:
-        return {"ok": False, "error_code": "query_too_long",
-                "message": f"search_tools: 'query' exceeds {_SEARCH_QUERY_MAX_LEN} characters"}
+        return {
+            "ok": False,
+            "error_code": "query_too_long",
+            "message": f"search_tools: 'query' exceeds {_SEARCH_QUERY_MAX_LEN} characters",
+        }
 
     # --- validate category --------------------------------------------------
     valid_categories = {c for c, _ in _TOOL_CATEGORIES}
     if category is not None:
         if not isinstance(category, str):
-            return {"ok": False, "error_code": "invalid_category",
-                    "message": "search_tools: 'category' must be a string"}
+            return {
+                "ok": False,
+                "error_code": "invalid_category",
+                "message": "search_tools: 'category' must be a string",
+            }
         category = category.strip().lower()
         if category and category not in valid_categories:
-            return {"ok": False, "error_code": "unknown_category",
-                    "message": f"search_tools: unknown category '{category}'. "
-                               f"Valid: {sorted(valid_categories)}"}
+            return {
+                "ok": False,
+                "error_code": "unknown_category",
+                "message": f"search_tools: unknown category '{category}'. "
+                f"Valid: {sorted(valid_categories)}",
+            }
         if not category:
             category = None
 
     # --- validate limit -----------------------------------------------------
     if isinstance(limit, bool) or not isinstance(limit, int):
-        return {"ok": False, "error_code": "invalid_limit",
-                "message": "search_tools: 'limit' must be an integer"}
+        return {
+            "ok": False,
+            "error_code": "invalid_limit",
+            "message": "search_tools: 'limit' must be an integer",
+        }
     if limit < 1:
-        return {"ok": False, "error_code": "invalid_limit",
-                "message": "search_tools: 'limit' must be >= 1"}
+        return {
+            "ok": False,
+            "error_code": "invalid_limit",
+            "message": "search_tools: 'limit' must be >= 1",
+        }
     limit = min(limit, _SEARCH_RESULT_HARD_CAP)
 
     raw_query = query.strip().lower()
@@ -2443,8 +3624,11 @@ def search_tools_impl(args: dict) -> dict:
     # one of the two so the model gives a real signal (and we never dump the
     # whole catalog through the search path -- that defeats the purpose).
     if not raw_query and not category:
-        return {"ok": False, "error_code": "empty_search",
-                "message": "search_tools: supply a 'query' and/or a 'category'."}
+        return {
+            "ok": False,
+            "error_code": "empty_search",
+            "message": "search_tools: supply a 'query' and/or a 'category'.",
+        }
 
     # Hoist the category-keyword lookup out of the loop: build the {category: keywords}
     # map ONCE (it was rebuilt up to 147x before, since _TOOL_CATEGORIES is a tuple of
@@ -2508,6 +3692,7 @@ def search_tools_impl(args: dict) -> dict:
 # Every TCP message is:
 #   <8-byte big-endian uint64 body length> <N bytes of UTF-8 JSON body>
 # ---------------------------------------------------------------------------
+
 
 def send_framed(sock: socket.socket, body_bytes: bytes) -> None:
     """Prepend the 8-byte big-endian length prefix and send the whole frame."""
@@ -2587,10 +3772,13 @@ def call_ue(method: str, params: dict | None) -> dict:
 
 def _wrap_tool_result(req_id, result_obj: dict | list | str | int | float | bool | None) -> dict:
     """Wrap a result object as an MCP tools/call response (JSON-stringified into a text block)."""
-    return make_response(req_id, {
-        "content": [{"type": "text", "text": json.dumps(result_obj, indent=2)}],
-        "isError": False,
-    })
+    return make_response(
+        req_id,
+        {
+            "content": [{"type": "text", "text": json.dumps(result_obj, indent=2)}],
+            "isError": False,
+        },
+    )
 
 
 def _validate_asset_path(tool_name: str, path, label: str) -> str | None:
@@ -2637,7 +3825,9 @@ def _validate_asset_path(tool_name: str, path, label: str) -> str | None:
     return None
 
 
-def _run_marker_pattern(req_id, tool_name: str, marker_prefix: str, py_code: str, context: str = "") -> dict:
+def _run_marker_pattern(
+    req_id, tool_name: str, marker_prefix: str, py_code: str, context: str = ""
+) -> dict:
     """Canonical Python-shim pattern for synthetic tools that need to run
     arbitrary `unreal.*` Python in the UE editor and read its JSON output.
 
@@ -2696,10 +3886,13 @@ def _run_marker_pattern(req_id, tool_name: str, marker_prefix: str, py_code: str
         return make_response(req_id, error=exec_resp["error"])
     if not exec_resp.get("result", {}).get("ok", False):
         output = exec_resp.get("result", {}).get("output", "")
-        return make_response(req_id, error={
-            "code": -32603,
-            "message": f"{tool_name}: python_failed: {output}",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32603,
+                "message": f"{tool_name}: python_failed: {output}",
+            },
+        )
 
     log_resp = call_ue("get_log_lines", {"category_filter": "LogPython", "count": 1000})
     if "error" in log_resp:
@@ -2727,33 +3920,44 @@ def _run_marker_pattern(req_id, tool_name: str, marker_prefix: str, py_code: str
                 payload = msg[start:end]
             except ValueError:
                 ctx_suffix = f" for path '{context}'" if context else ""
-                return _wrap_tool_result(req_id, {
-                    "ok": False,
-                    "error_code": "marker_truncated",
-                    "error_message": (
-                        f"{tool_name}: marker_truncated: end token '{end_token}' missing "
-                        f"after marker prefix '{marker_prefix}'{ctx_suffix} (caller can "
-                        "retry; LogPython buffer may have truncated the line)"
-                    ),
-                })
+                return _wrap_tool_result(
+                    req_id,
+                    {
+                        "ok": False,
+                        "error_code": "marker_truncated",
+                        "error_message": (
+                            f"{tool_name}: marker_truncated: end token '{end_token}' missing "
+                            f"after marker prefix '{marker_prefix}'{ctx_suffix} (caller can "
+                            "retry; LogPython buffer may have truncated the line)"
+                        ),
+                    },
+                )
             try:
                 data = json.loads(payload)
             except json.JSONDecodeError:
                 ctx_suffix = f" for path '{context}'" if context else ""
-                return _wrap_tool_result(req_id, {
-                    "ok": False,
-                    "error_code": "invalid_json",
-                    "error_message": f"{tool_name}: invalid_json: marker payload unparseable{ctx_suffix}",
-                })
+                return _wrap_tool_result(
+                    req_id,
+                    {
+                        "ok": False,
+                        "error_code": "invalid_json",
+                        "error_message": f"{tool_name}: invalid_json: marker payload unparseable{ctx_suffix}",
+                    },
+                )
             return _wrap_tool_result(req_id, data)
 
-    return _wrap_tool_result(req_id, {
-        "ok": False,
-        "error_code": "marker_not_found",
-        "error_message": (f"{tool_name}: marker_not_found: '{marker_prefix}' did not appear in "
-                          f"last {len(lines)} LogPython lines (log buffer may have overflowed; "
-                          "retry typically resolves)"),
-    })
+    return _wrap_tool_result(
+        req_id,
+        {
+            "ok": False,
+            "error_code": "marker_not_found",
+            "error_message": (
+                f"{tool_name}: marker_not_found: '{marker_prefix}' did not appear in "
+                f"last {len(lines)} LogPython lines (log buffer may have overflowed; "
+                "retry typically resolves)"
+            ),
+        },
+    )
 
 
 def synthetic_wait_for_events(req_id, args: dict) -> dict:
@@ -2775,10 +3979,13 @@ def synthetic_wait_for_events(req_id, args: dict) -> dict:
     overhead; slower than 1s defeats the purpose of long-poll).
     """
     if not isinstance(args, dict):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "wait_for_events: invalid_arguments: arguments must be an object",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "wait_for_events: invalid_arguments: arguments must be an object",
+            },
+        )
 
     # --- Validate + clamp params ---
     def _coerce_int(name, default, lo, hi):
@@ -2855,10 +4062,13 @@ def synthetic_get_camera_transform(req_id, args: dict) -> dict:
     if a `marker_not_found` envelope was returned from get.
     """
     if not isinstance(args, dict):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "get_camera_transform: invalid_arguments: arguments must be an object",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "get_camera_transform: invalid_arguments: arguments must be an object",
+            },
+        )
 
     # Phase H engine gate: blocks on UE < 5.0 (get_editor_subsystem is 5.0+).
     gate = check_engine_gate(req_id, "get_camera_transform")
@@ -2894,10 +4104,13 @@ def synthetic_set_camera_transform(req_id, args: dict) -> dict:
     in C++ we'd have direct access to UnrealEditorSubsystem's current state.
     """
     if not isinstance(args, dict):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "set_camera_transform: invalid_arguments: arguments must be an object",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "set_camera_transform: invalid_arguments: arguments must be an object",
+            },
+        )
 
     # Phase H engine gate: blocks on UE < 5.0 (get_editor_subsystem is 5.0+).
     gate = check_engine_gate(req_id, "set_camera_transform")
@@ -2913,15 +4126,21 @@ def synthetic_set_camera_transform(req_id, args: dict) -> dict:
         return synthetic_get_camera_transform(req_id, {})
 
     if location is not None and not isinstance(location, dict):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "set_camera_transform: 'location' must be an object {x, y, z}",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "set_camera_transform: 'location' must be an object {x, y, z}",
+            },
+        )
     if rotation is not None and not isinstance(rotation, dict):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "set_camera_transform: 'rotation' must be an object {pitch, yaw, roll}",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "set_camera_transform: 'rotation' must be an object {pitch, yaw, roll}",
+            },
+        )
 
     def _num(d, fld, default=0.0):
         v = d.get(fld, default)
@@ -2946,19 +4165,27 @@ def synthetic_set_camera_transform(req_id, args: dict) -> dict:
         get_resp_envelope = synthetic_get_camera_transform(0, {})
         # Layer 1: transport-level failure (UE down, call_ue couldn't reach).
         if "error" in get_resp_envelope:
-            return make_response(req_id, error={
-                "code": -32603,
-                "message": (f"set_camera_transform: failed to read current camera state for "
-                            f"partial-update preservation: {get_resp_envelope['error'].get('message', '')}"),
-            })
+            return make_response(
+                req_id,
+                error={
+                    "code": -32603,
+                    "message": (
+                        f"set_camera_transform: failed to read current camera state for "
+                        f"partial-update preservation: {get_resp_envelope['error'].get('message', '')}"
+                    ),
+                },
+            )
         # Layer 2: parse the success envelope's inner payload.
         try:
             inner = json.loads(get_resp_envelope["result"]["content"][0]["text"])
         except (KeyError, IndexError, json.JSONDecodeError) as e:
-            return make_response(req_id, error={
-                "code": -32603,
-                "message": f"set_camera_transform: failed to parse current camera state: {e}",
-            })
+            return make_response(
+                req_id,
+                error={
+                    "code": -32603,
+                    "message": f"set_camera_transform: failed to parse current camera state: {e}",
+                },
+            )
         # Layer 3: logical-error envelope from the marker-pattern helper
         # (post-refactor of get_camera_transform on 2026-05-12). The
         # underlying read could have hit marker_not_found / marker_truncated /
@@ -2968,12 +4195,17 @@ def synthetic_set_camera_transform(req_id, args: dict) -> dict:
         # fall through to `inner.get("location") or {}` -> empty dict ->
         # camera silently snaps to (0, 0, 0) on the omitted side.
         if isinstance(inner, dict) and (inner.get("ok") is False or "error_code" in inner):
-            return make_response(req_id, error={
-                "code": -32603,
-                "message": (f"set_camera_transform: get_camera_transform returned "
-                            f"{inner.get('error_code', 'unknown')} -- cannot preserve omitted "
-                            f"side of partial update: {inner.get('error_message', '')}"),
-            })
+            return make_response(
+                req_id,
+                error={
+                    "code": -32603,
+                    "message": (
+                        f"set_camera_transform: get_camera_transform returned "
+                        f"{inner.get('error_code', 'unknown')} -- cannot preserve omitted "
+                        f"side of partial update: {inner.get('error_message', '')}"
+                    ),
+                },
+            )
         current_loc = inner.get("location") or {}
         current_rot = inner.get("rotation") or {}
 
@@ -2996,10 +4228,13 @@ def synthetic_set_camera_transform(req_id, args: dict) -> dict:
             ry = float(current_rot.get("yaw", 0))
             rr = float(current_rot.get("roll", 0))
     except ValueError as e:
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": f"set_camera_transform: invalid_value_shape: {e}",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": f"set_camera_transform: invalid_value_shape: {e}",
+            },
+        )
 
     # CRITICAL: UE 5.7 Python `unreal.Rotator(a, b, c)` is `(roll, pitch, yaw)`
     # POSITIONALLY -- the args follow FRotator's struct-memory order, not the
@@ -3025,20 +4260,26 @@ def synthetic_set_camera_transform(req_id, args: dict) -> dict:
         return make_response(req_id, error=exec_resp["error"])
     if not exec_resp.get("result", {}).get("ok", False):
         output = exec_resp.get("result", {}).get("output", "")
-        return make_response(req_id, error={
-            "code": -32603,
-            "message": f"set_camera_transform: python_failed: {output}",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32603,
+                "message": f"set_camera_transform: python_failed: {output}",
+            },
+        )
 
-    return _wrap_tool_result(req_id, {
-        "ok": True,
-        "location": {"x": lx, "y": ly, "z": lz},
-        "rotation": {"pitch": rp, "yaw": ry, "roll": rr},
-        "preserved": {
-            "location": location is None,
-            "rotation": rotation is None,
+    return _wrap_tool_result(
+        req_id,
+        {
+            "ok": True,
+            "location": {"x": lx, "y": ly, "z": lz},
+            "rotation": {"pitch": rp, "yaw": ry, "roll": rr},
+            "preserved": {
+                "location": location is None,
+                "rotation": rotation is None,
+            },
         },
-    })
+    )
 
 
 def synthetic_screenshot_actor(req_id, args: dict) -> dict:
@@ -3064,17 +4305,23 @@ def synthetic_screenshot_actor(req_id, args: dict) -> dict:
     camera move against the readback.
     """
     if not isinstance(args, dict):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "screenshot_actor: invalid_arguments: arguments must be an object",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "screenshot_actor: invalid_arguments: arguments must be an object",
+            },
+        )
 
     name = args.get("name")
     if not isinstance(name, str) or not name:
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "screenshot_actor: missing_required_field: 'name' must be a non-empty string",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "screenshot_actor: missing_required_field: 'name' must be a non-empty string",
+            },
+        )
 
     focus_resp = call_ue("focus_actor", {"name": name})
     if "error" in focus_resp:
@@ -3084,35 +4331,44 @@ def synthetic_screenshot_actor(req_id, args: dict) -> dict:
         # Codex P2 review: hardcoding -32603 here masked retryable
         # connectivity errors as logical errors.
         upstream_err = focus_resp["error"]
-        return make_response(req_id, error={
-            "code": upstream_err.get("code", -32603),
-            "message": f"screenshot_actor: focus_failed: {upstream_err.get('message', '')}",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": upstream_err.get("code", -32603),
+                "message": f"screenshot_actor: focus_failed: {upstream_err.get('message', '')}",
+            },
+        )
     focus_result = focus_resp.get("result", {}) or {}
 
     shot_resp = call_ue("get_viewport_screenshot", {})
     if "error" in shot_resp:
         upstream_err = shot_resp["error"]
-        return make_response(req_id, error={
-            "code": upstream_err.get("code", -32603),
-            "message": f"screenshot_actor: screenshot_failed: {upstream_err.get('message', '')}",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": upstream_err.get("code", -32603),
+                "message": f"screenshot_actor: screenshot_failed: {upstream_err.get('message', '')}",
+            },
+        )
     shot_result = shot_resp.get("result", {}) or {}
 
-    return _wrap_tool_result(req_id, {
-        "ok": True,
-        "focused": focus_result.get("focused"),
-        "name": focus_result.get("name"),
-        "loc": {
-            "x": focus_result.get("loc_x"),
-            "y": focus_result.get("loc_y"),
-            "z": focus_result.get("loc_z"),
+    return _wrap_tool_result(
+        req_id,
+        {
+            "ok": True,
+            "focused": focus_result.get("focused"),
+            "name": focus_result.get("name"),
+            "loc": {
+                "x": focus_result.get("loc_x"),
+                "y": focus_result.get("loc_y"),
+                "z": focus_result.get("loc_z"),
+            },
+            "width": shot_result.get("width"),
+            "height": shot_result.get("height"),
+            "bytes": shot_result.get("bytes"),
+            "path": shot_result.get("path"),
         },
-        "width": shot_result.get("width"),
-        "height": shot_result.get("height"),
-        "bytes": shot_result.get("bytes"),
-        "path": shot_result.get("path"),
-    })
+    )
 
 
 def synthetic_compile_mod_pak(req_id, args: dict) -> dict:
@@ -3148,10 +4404,13 @@ def synthetic_compile_mod_pak(req_id, args: dict) -> dict:
     Exiles Enhanced) — falling back to BuildMod cleanly.
     """
     if not isinstance(args, dict):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "compile_mod_pak: invalid_arguments: arguments must be an object",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "compile_mod_pak: invalid_arguments: arguments must be an object",
+            },
+        )
 
     import os
     import shutil
@@ -3171,10 +4430,13 @@ def synthetic_compile_mod_pak(req_id, args: dict) -> dict:
     if extra_args is None:
         extra_args = []
     elif not isinstance(extra_args, list):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "compile_mod_pak: extra_args must be an array of strings",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "compile_mod_pak: extra_args must be an array of strings",
+            },
+        )
     # timeout_sec: permissive in FORM (int / float / numeric string all OK —
     # JSON clients that stringify numbers shouldn't break), strict in TYPE
     # (un-parseable -> -32602 rather than silent 1800 fallback that masks
@@ -3183,60 +4445,83 @@ def synthetic_compile_mod_pak(req_id, args: dict) -> dict:
     try:
         timeout_sec = int(float(raw_timeout))
     except (ValueError, TypeError):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": f"compile_mod_pak: timeout_sec must be numeric (int, float, or numeric string); got {type(raw_timeout).__name__}",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": f"compile_mod_pak: timeout_sec must be numeric (int, float, or numeric string); got {type(raw_timeout).__name__}",
+            },
+        )
     # Non-positive timeout would cause subprocess.TimeoutExpired immediately
     # (DoS via API).
     if timeout_sec <= 0:
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "compile_mod_pak: timeout_sec must be positive (got non-positive after int cast)",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "compile_mod_pak: timeout_sec must be positive (got non-positive after int cast)",
+            },
+        )
 
     if not project_path or not os.path.isfile(project_path):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "compile_mod_pak: project_path missing or invalid file",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "compile_mod_pak: project_path missing or invalid file",
+            },
+        )
 
     # output_dir is required at schema level too -- both BuildMod (for .pak
     # discovery) and BuildPlugin (for package output) need a known
     # destination. Schema enforces presence; this guards against empty string.
     if not output_dir:
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "compile_mod_pak: output_dir required (where the .pak or package lands)",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "compile_mod_pak: output_dir required (where the .pak or package lands)",
+            },
+        )
 
     if uat_command == "BuildMod" and not mod_name:
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "compile_mod_pak: mod_name required for BuildMod",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "compile_mod_pak: mod_name required for BuildMod",
+            },
+        )
 
     if uat_command == "BuildPlugin" and not plugin_path:
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "compile_mod_pak: plugin_path required for BuildPlugin",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "compile_mod_pak: plugin_path required for BuildPlugin",
+            },
+        )
 
     # Auto-discover RunUAT.bat from project Engine sibling
     if not run_uat_path:
         proj_dir = os.path.dirname(project_path)
         # Look 2 levels up for Engine/Build/BatchFiles/RunUAT.bat
-        candidate = os.path.join(os.path.dirname(proj_dir), "Engine", "Build", "BatchFiles", "RunUAT.bat")
+        candidate = os.path.join(
+            os.path.dirname(proj_dir), "Engine", "Build", "BatchFiles", "RunUAT.bat"
+        )
         if os.path.isfile(candidate):
             run_uat_path = candidate
         else:
             run_uat_path = shutil.which("RunUAT") or shutil.which("RunUAT.bat")
 
     if not run_uat_path or not os.path.isfile(run_uat_path):
-        return make_response(req_id, error={
-            "code": -32603,
-            "message": f"compile_mod_pak: RunUAT.bat not found (set run_uat_path or place near {project_path})",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32603,
+                "message": f"compile_mod_pak: RunUAT.bat not found (set run_uat_path or place near {project_path})",
+            },
+        )
 
     if output_dir:
         os.makedirs(output_dir, exist_ok=True)
@@ -3258,15 +4543,21 @@ def synthetic_compile_mod_pak(req_id, args: dict) -> dict:
         proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_sec)
         duration = time.time() - start
     except subprocess.TimeoutExpired:
-        return make_response(req_id, error={
-            "code": -32603,
-            "message": f"compile_mod_pak: timeout after {timeout_sec}s",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32603,
+                "message": f"compile_mod_pak: timeout after {timeout_sec}s",
+            },
+        )
     except Exception as e:
-        return make_response(req_id, error={
-            "code": -32603,
-            "message": f"compile_mod_pak: subprocess exception: {e!r}",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32603,
+                "message": f"compile_mod_pak: subprocess exception: {e!r}",
+            },
+        )
 
     # Look for the generated .pak in output_dir. Prefer:
     #   1) a .pak whose name contains mod_name (BuildMod path) -- catches the
@@ -3311,18 +4602,21 @@ def synthetic_compile_mod_pak(req_id, args: dict) -> dict:
     if uat_command == "BuildMod":
         ok = (proc.returncode == 0) and (pak_path is not None)
     else:  # BuildPlugin
-        ok = (proc.returncode == 0)
+        ok = proc.returncode == 0
 
-    return _wrap_tool_result(req_id, {
-        "ok": ok,
-        "pak_path": pak_path,
-        "exit_code": proc.returncode,
-        "stdout_tail": (proc.stdout or "")[-4000:],
-        "stderr_tail": (proc.stderr or "")[-2000:],
-        "duration_sec": round(duration, 2),
-        "uat_command": uat_command,
-        "cmd": cmd,
-    })
+    return _wrap_tool_result(
+        req_id,
+        {
+            "ok": ok,
+            "pak_path": pak_path,
+            "exit_code": proc.returncode,
+            "stdout_tail": (proc.stdout or "")[-4000:],
+            "stderr_tail": (proc.stderr or "")[-2000:],
+            "duration_sec": round(duration, 2),
+            "uat_command": uat_command,
+            "cmd": cmd,
+        },
+    )
 
 
 def synthetic_compile_mod_pak_direct(req_id, args: dict) -> dict:
@@ -3359,10 +4653,13 @@ def synthetic_compile_mod_pak_direct(req_id, args: dict) -> dict:
     can switch between the two transparently.
     """
     if not isinstance(args, dict):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "compile_mod_pak_direct: invalid_arguments: arguments must be an object",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "compile_mod_pak_direct: invalid_arguments: arguments must be an object",
+            },
+        )
 
     import os
     import subprocess
@@ -3381,22 +4678,31 @@ def synthetic_compile_mod_pak_direct(req_id, args: dict) -> dict:
         timeout_sec = 600
 
     if not unreal_pak_path or not os.path.isfile(unreal_pak_path):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "compile_mod_pak_direct: unreal_pak_path missing or invalid file",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "compile_mod_pak_direct: unreal_pak_path missing or invalid file",
+            },
+        )
 
     if not response_file or not os.path.isfile(response_file):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "compile_mod_pak_direct: response_file missing or invalid file",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "compile_mod_pak_direct: response_file missing or invalid file",
+            },
+        )
 
     if not output_pak:
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "compile_mod_pak_direct: output_pak required (success verification needs a known path)",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "compile_mod_pak_direct: output_pak required (success verification needs a known path)",
+            },
+        )
 
     # Create parent dir if missing
     parent = os.path.dirname(output_pak)
@@ -3413,15 +4719,21 @@ def synthetic_compile_mod_pak_direct(req_id, args: dict) -> dict:
         proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_sec)
         duration = time.time() - start
     except subprocess.TimeoutExpired:
-        return make_response(req_id, error={
-            "code": -32603,
-            "message": f"compile_mod_pak_direct: timeout after {timeout_sec}s",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32603,
+                "message": f"compile_mod_pak_direct: timeout after {timeout_sec}s",
+            },
+        )
     except Exception as e:
-        return make_response(req_id, error={
-            "code": -32603,
-            "message": f"compile_mod_pak_direct: subprocess exception: {e!r}",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32603,
+                "message": f"compile_mod_pak_direct: subprocess exception: {e!r}",
+            },
+        )
 
     # Verify pak exists + has nonzero size. UnrealPak occasionally exits 0
     # but writes a zero-byte .pak on malformed response files (rare); the
@@ -3435,16 +4747,19 @@ def synthetic_compile_mod_pak_direct(req_id, args: dict) -> dict:
 
     ok = (proc.returncode == 0) and (pak_path is not None)
 
-    return _wrap_tool_result(req_id, {
-        "ok": ok,
-        "pak_path": pak_path,
-        "pak_size_bytes": pak_size_bytes,
-        "exit_code": proc.returncode,
-        "stdout_tail": (proc.stdout or "")[-4000:],
-        "stderr_tail": (proc.stderr or "")[-2000:],
-        "duration_sec": round(duration, 2),
-        "cmd": cmd,
-    })
+    return _wrap_tool_result(
+        req_id,
+        {
+            "ok": ok,
+            "pak_path": pak_path,
+            "pak_size_bytes": pak_size_bytes,
+            "exit_code": proc.returncode,
+            "stdout_tail": (proc.stdout or "")[-4000:],
+            "stderr_tail": (proc.stderr or "")[-2000:],
+            "duration_sec": round(duration, 2),
+            "cmd": cmd,
+        },
+    )
 
 
 def _run_bulk_dispatch(entries, continue_on_error, dispatch, base_record):
@@ -3470,21 +4785,25 @@ def _run_bulk_dispatch(entries, continue_on_error, dispatch, base_record):
             error_code = upstream_err.get("code", -32603)
             if error_code is None:
                 error_code = -32603
-            record.update({
-                "ok": False,
-                "error_code": error_code,
-                "error_message": upstream_err.get("message") or "",
-            })
+            record.update(
+                {
+                    "ok": False,
+                    "error_code": error_code,
+                    "error_message": upstream_err.get("message") or "",
+                }
+            )
             results.append(record)
             if not continue_on_error:
                 break
             continue
 
-        record.update({
-            "ok": True,
-            "error_code": None,
-            "error_message": None,
-        })
+        record.update(
+            {
+                "ok": True,
+                "error_code": None,
+                "error_message": None,
+            }
+        )
         results.append(record)
 
     succeeded = sum(1 for result in results if result["ok"])
@@ -3518,30 +4837,42 @@ def synthetic_bulk_delete_assets(req_id, args: dict) -> dict:
     workflow learnings.
     """
     if not isinstance(args, dict):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "bulk_delete_assets: invalid_arguments: arguments must be an object",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "bulk_delete_assets: invalid_arguments: arguments must be an object",
+            },
+        )
 
     if "paths" not in args:
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "bulk_delete_assets: missing_required_field: 'paths' must be supplied as a list of non-empty strings",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "bulk_delete_assets: missing_required_field: 'paths' must be supplied as a list of non-empty strings",
+            },
+        )
 
     paths = args.get("paths")
     if not isinstance(paths, list):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "bulk_delete_assets: invalid_field: 'paths' must be a list of non-empty strings",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "bulk_delete_assets: invalid_field: 'paths' must be a list of non-empty strings",
+            },
+        )
 
     for i, path in enumerate(paths):
         if not isinstance(path, str) or not path:
-            return make_response(req_id, error={
-                "code": -32602,
-                "message": f"bulk_delete_assets: invalid_path: paths[{i}] must be a non-empty string",
-            })
+            return make_response(
+                req_id,
+                error={
+                    "code": -32602,
+                    "message": f"bulk_delete_assets: invalid_path: paths[{i}] must be a non-empty string",
+                },
+            )
         # Defensive shape checks. UE asset paths look like `/Game/...`,
         # `/Engine/...`, or `/<MountPoint>/...`. Embedded NUL or `..`
         # segments are never legitimate and almost always indicate either
@@ -3549,41 +4880,54 @@ def synthetic_bulk_delete_assets(req_id, args: dict) -> dict:
         # caller-actionable -32602 rather than forwarding a malformed path
         # to delete_asset and letting it surface a confusing UE-side error.
         if "\x00" in path:
-            return make_response(req_id, error={
-                "code": -32602,
-                "message": f"bulk_delete_assets: invalid_path: paths[{i}] contains a NUL byte",
-            })
+            return make_response(
+                req_id,
+                error={
+                    "code": -32602,
+                    "message": f"bulk_delete_assets: invalid_path: paths[{i}] contains a NUL byte",
+                },
+            )
         # Block `..` as a path SEGMENT (between slashes or at ends), not as
         # a substring -- legitimate asset names like `My..Asset` should
         # still pass. The check covers leading `..`, trailing `..`, and
         # `/../` mid-path.
         segments = path.split("/")
         if any(segment == ".." for segment in segments):
-            return make_response(req_id, error={
-                "code": -32602,
-                "message": f"bulk_delete_assets: invalid_path: paths[{i}] contains a '..' segment",
-            })
+            return make_response(
+                req_id,
+                error={
+                    "code": -32602,
+                    "message": f"bulk_delete_assets: invalid_path: paths[{i}] contains a '..' segment",
+                },
+            )
 
     continue_on_error = args.get("continue_on_error", True)
     if not isinstance(continue_on_error, bool):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "bulk_delete_assets: invalid_field: 'continue_on_error' must be a boolean",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "bulk_delete_assets: invalid_field: 'continue_on_error' must be a boolean",
+            },
+        )
 
     results, deleted, failed = _run_bulk_dispatch(
-        paths, continue_on_error,
+        paths,
+        continue_on_error,
         lambda path: call_ue("delete_asset", {"path": path}),
         lambda path: {"path": path},
     )
 
-    return _wrap_tool_result(req_id, {
-        "ok": failed == 0,
-        "total": len(paths),
-        "deleted": deleted,
-        "failed": failed,
-        "results": results,
-    })
+    return _wrap_tool_result(
+        req_id,
+        {
+            "ok": failed == 0,
+            "total": len(paths),
+            "deleted": deleted,
+            "failed": failed,
+            "results": results,
+        },
+    )
 
 
 def synthetic_bulk_move_assets(req_id, args: dict) -> dict:
@@ -3608,86 +4952,123 @@ def synthetic_bulk_move_assets(req_id, args: dict) -> dict:
     watch progress via the event bus.
     """
     if not isinstance(args, dict):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "bulk_move_assets: invalid_arguments: arguments must be an object",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "bulk_move_assets: invalid_arguments: arguments must be an object",
+            },
+        )
 
     if "paths" not in args:
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "bulk_move_assets: missing_required_field: 'paths' must be supplied as a list of non-empty strings",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "bulk_move_assets: missing_required_field: 'paths' must be supplied as a list of non-empty strings",
+            },
+        )
 
     if "dest_folder" not in args:
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "bulk_move_assets: missing_required_field: 'dest_folder' must be supplied as a non-empty string",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "bulk_move_assets: missing_required_field: 'dest_folder' must be supplied as a non-empty string",
+            },
+        )
 
     paths = args.get("paths")
     if not isinstance(paths, list):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "bulk_move_assets: invalid_field: 'paths' must be a list of non-empty strings",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "bulk_move_assets: invalid_field: 'paths' must be a list of non-empty strings",
+            },
+        )
 
     dest_folder = args.get("dest_folder")
     if not isinstance(dest_folder, str) or not dest_folder:
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "bulk_move_assets: invalid_field: 'dest_folder' must be a non-empty string",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "bulk_move_assets: invalid_field: 'dest_folder' must be a non-empty string",
+            },
+        )
     # Same defensive shape checks on dest_folder as on source paths.
     if "\x00" in dest_folder:
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "bulk_move_assets: invalid_dest_folder: contains a NUL byte",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "bulk_move_assets: invalid_dest_folder: contains a NUL byte",
+            },
+        )
     if any(segment == ".." for segment in dest_folder.split("/")):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "bulk_move_assets: invalid_dest_folder: contains a '..' segment",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "bulk_move_assets: invalid_dest_folder: contains a '..' segment",
+            },
+        )
 
     for i, path in enumerate(paths):
         if not isinstance(path, str) or not path:
-            return make_response(req_id, error={
-                "code": -32602,
-                "message": f"bulk_move_assets: invalid_path: paths[{i}] must be a non-empty string",
-            })
+            return make_response(
+                req_id,
+                error={
+                    "code": -32602,
+                    "message": f"bulk_move_assets: invalid_path: paths[{i}] must be a non-empty string",
+                },
+            )
         if "\x00" in path:
-            return make_response(req_id, error={
-                "code": -32602,
-                "message": f"bulk_move_assets: invalid_path: paths[{i}] contains a NUL byte",
-            })
+            return make_response(
+                req_id,
+                error={
+                    "code": -32602,
+                    "message": f"bulk_move_assets: invalid_path: paths[{i}] contains a NUL byte",
+                },
+            )
         if any(segment == ".." for segment in path.split("/")):
-            return make_response(req_id, error={
-                "code": -32602,
-                "message": f"bulk_move_assets: invalid_path: paths[{i}] contains a '..' segment",
-            })
+            return make_response(
+                req_id,
+                error={
+                    "code": -32602,
+                    "message": f"bulk_move_assets: invalid_path: paths[{i}] contains a '..' segment",
+                },
+            )
 
     continue_on_error = args.get("continue_on_error", True)
     if not isinstance(continue_on_error, bool):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "bulk_move_assets: invalid_field: 'continue_on_error' must be a boolean",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "bulk_move_assets: invalid_field: 'continue_on_error' must be a boolean",
+            },
+        )
 
     results, moved, failed = _run_bulk_dispatch(
-        paths, continue_on_error,
+        paths,
+        continue_on_error,
         lambda path: call_ue("move_asset", {"path": path, "dest_folder": dest_folder}),
         lambda path: {"path": path},
     )
 
-    return _wrap_tool_result(req_id, {
-        "ok": failed == 0,
-        "total": len(paths),
-        "moved": moved,
-        "failed": failed,
-        "dest_folder": dest_folder,
-        "results": results,
-    })
+    return _wrap_tool_result(
+        req_id,
+        {
+            "ok": failed == 0,
+            "total": len(paths),
+            "moved": moved,
+            "failed": failed,
+            "dest_folder": dest_folder,
+            "results": results,
+        },
+    )
 
 
 def synthetic_bulk_rename_assets(req_id, args: dict) -> dict:
@@ -3716,87 +5097,126 @@ def synthetic_bulk_rename_assets(req_id, args: dict) -> dict:
     (per rename_asset's leaf-name contract) and no NUL byte.
     """
     if not isinstance(args, dict):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "bulk_rename_assets: invalid_arguments: arguments must be an object",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "bulk_rename_assets: invalid_arguments: arguments must be an object",
+            },
+        )
 
     if "renames" not in args:
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "bulk_rename_assets: missing_required_field: 'renames' must be supplied as a list of {path, new_name} objects",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "bulk_rename_assets: missing_required_field: 'renames' must be supplied as a list of {path, new_name} objects",
+            },
+        )
 
     renames = args.get("renames")
     if not isinstance(renames, list):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "bulk_rename_assets: invalid_field: 'renames' must be a list of {path, new_name} objects",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "bulk_rename_assets: invalid_field: 'renames' must be a list of {path, new_name} objects",
+            },
+        )
 
     for i, entry in enumerate(renames):
         if not isinstance(entry, dict):
-            return make_response(req_id, error={
-                "code": -32602,
-                "message": f"bulk_rename_assets: invalid_entry: renames[{i}] must be an object with 'path' and 'new_name'",
-            })
+            return make_response(
+                req_id,
+                error={
+                    "code": -32602,
+                    "message": f"bulk_rename_assets: invalid_entry: renames[{i}] must be an object with 'path' and 'new_name'",
+                },
+            )
         path = entry.get("path")
         new_name = entry.get("new_name")
         if not isinstance(path, str) or not path:
-            return make_response(req_id, error={
-                "code": -32602,
-                "message": f"bulk_rename_assets: invalid_path: renames[{i}].path must be a non-empty string",
-            })
+            return make_response(
+                req_id,
+                error={
+                    "code": -32602,
+                    "message": f"bulk_rename_assets: invalid_path: renames[{i}].path must be a non-empty string",
+                },
+            )
         if "\x00" in path:
-            return make_response(req_id, error={
-                "code": -32602,
-                "message": f"bulk_rename_assets: invalid_path: renames[{i}].path contains a NUL byte",
-            })
+            return make_response(
+                req_id,
+                error={
+                    "code": -32602,
+                    "message": f"bulk_rename_assets: invalid_path: renames[{i}].path contains a NUL byte",
+                },
+            )
         if any(segment == ".." for segment in path.split("/")):
-            return make_response(req_id, error={
-                "code": -32602,
-                "message": f"bulk_rename_assets: invalid_path: renames[{i}].path contains a '..' segment",
-            })
+            return make_response(
+                req_id,
+                error={
+                    "code": -32602,
+                    "message": f"bulk_rename_assets: invalid_path: renames[{i}].path contains a '..' segment",
+                },
+            )
         if not isinstance(new_name, str) or not new_name:
-            return make_response(req_id, error={
-                "code": -32602,
-                "message": f"bulk_rename_assets: invalid_new_name: renames[{i}].new_name must be a non-empty string",
-            })
+            return make_response(
+                req_id,
+                error={
+                    "code": -32602,
+                    "message": f"bulk_rename_assets: invalid_new_name: renames[{i}].new_name must be a non-empty string",
+                },
+            )
         # new_name is a leaf name. UE rejects '/' (path separator) and '.'
         # (used to separate package path from object name); reject at the
         # validator with a caller-actionable message rather than forwarding
         # to rename_asset and surfacing a less clear UE-side error.
         if "/" in new_name or "." in new_name:
-            return make_response(req_id, error={
-                "code": -32602,
-                "message": f"bulk_rename_assets: invalid_new_name: renames[{i}].new_name must not contain '/' or '.' (it is a leaf name, not a path)",
-            })
+            return make_response(
+                req_id,
+                error={
+                    "code": -32602,
+                    "message": f"bulk_rename_assets: invalid_new_name: renames[{i}].new_name must not contain '/' or '.' (it is a leaf name, not a path)",
+                },
+            )
         if "\x00" in new_name:
-            return make_response(req_id, error={
-                "code": -32602,
-                "message": f"bulk_rename_assets: invalid_new_name: renames[{i}].new_name contains a NUL byte",
-            })
+            return make_response(
+                req_id,
+                error={
+                    "code": -32602,
+                    "message": f"bulk_rename_assets: invalid_new_name: renames[{i}].new_name contains a NUL byte",
+                },
+            )
 
     continue_on_error = args.get("continue_on_error", True)
     if not isinstance(continue_on_error, bool):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "bulk_rename_assets: invalid_field: 'continue_on_error' must be a boolean",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "bulk_rename_assets: invalid_field: 'continue_on_error' must be a boolean",
+            },
+        )
 
     results, renamed, failed = _run_bulk_dispatch(
-        renames, continue_on_error,
-        lambda entry: call_ue("rename_asset", {"path": entry["path"], "new_name": entry["new_name"]}),
+        renames,
+        continue_on_error,
+        lambda entry: call_ue(
+            "rename_asset", {"path": entry["path"], "new_name": entry["new_name"]}
+        ),
         lambda entry: {"path": entry["path"], "new_name": entry["new_name"]},
     )
 
-    return _wrap_tool_result(req_id, {
-        "ok": failed == 0,
-        "total": len(renames),
-        "renamed": renamed,
-        "failed": failed,
-        "results": results,
-    })
+    return _wrap_tool_result(
+        req_id,
+        {
+            "ok": failed == 0,
+            "total": len(renames),
+            "renamed": renamed,
+            "failed": failed,
+            "results": results,
+        },
+    )
 
 
 def synthetic_bulk_duplicate_assets(req_id, args: dict) -> dict:
@@ -3820,85 +5240,124 @@ def synthetic_bulk_duplicate_assets(req_id, args: dict) -> dict:
     name like bulk_rename's new_name.
     """
     if not isinstance(args, dict):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "bulk_duplicate_assets: invalid_arguments: arguments must be an object",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "bulk_duplicate_assets: invalid_arguments: arguments must be an object",
+            },
+        )
 
     if "duplicates" not in args:
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "bulk_duplicate_assets: missing_required_field: 'duplicates' must be supplied as a list of {path, dest_path} objects",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "bulk_duplicate_assets: missing_required_field: 'duplicates' must be supplied as a list of {path, dest_path} objects",
+            },
+        )
 
     duplicates = args.get("duplicates")
     if not isinstance(duplicates, list):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "bulk_duplicate_assets: invalid_field: 'duplicates' must be a list of {path, dest_path} objects",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "bulk_duplicate_assets: invalid_field: 'duplicates' must be a list of {path, dest_path} objects",
+            },
+        )
 
     for i, entry in enumerate(duplicates):
         if not isinstance(entry, dict):
-            return make_response(req_id, error={
-                "code": -32602,
-                "message": f"bulk_duplicate_assets: invalid_entry: duplicates[{i}] must be an object with 'path' and 'dest_path'",
-            })
+            return make_response(
+                req_id,
+                error={
+                    "code": -32602,
+                    "message": f"bulk_duplicate_assets: invalid_entry: duplicates[{i}] must be an object with 'path' and 'dest_path'",
+                },
+            )
         path = entry.get("path")
         dest_path = entry.get("dest_path")
         # Validate source path.
         if not isinstance(path, str) or not path:
-            return make_response(req_id, error={
-                "code": -32602,
-                "message": f"bulk_duplicate_assets: invalid_path: duplicates[{i}].path must be a non-empty string",
-            })
+            return make_response(
+                req_id,
+                error={
+                    "code": -32602,
+                    "message": f"bulk_duplicate_assets: invalid_path: duplicates[{i}].path must be a non-empty string",
+                },
+            )
         if "\x00" in path:
-            return make_response(req_id, error={
-                "code": -32602,
-                "message": f"bulk_duplicate_assets: invalid_path: duplicates[{i}].path contains a NUL byte",
-            })
+            return make_response(
+                req_id,
+                error={
+                    "code": -32602,
+                    "message": f"bulk_duplicate_assets: invalid_path: duplicates[{i}].path contains a NUL byte",
+                },
+            )
         if any(segment == ".." for segment in path.split("/")):
-            return make_response(req_id, error={
-                "code": -32602,
-                "message": f"bulk_duplicate_assets: invalid_path: duplicates[{i}].path contains a '..' segment",
-            })
+            return make_response(
+                req_id,
+                error={
+                    "code": -32602,
+                    "message": f"bulk_duplicate_assets: invalid_path: duplicates[{i}].path contains a '..' segment",
+                },
+            )
         # Validate destination path (same rules: it's a full asset path).
         if not isinstance(dest_path, str) or not dest_path:
-            return make_response(req_id, error={
-                "code": -32602,
-                "message": f"bulk_duplicate_assets: invalid_dest_path: duplicates[{i}].dest_path must be a non-empty string",
-            })
+            return make_response(
+                req_id,
+                error={
+                    "code": -32602,
+                    "message": f"bulk_duplicate_assets: invalid_dest_path: duplicates[{i}].dest_path must be a non-empty string",
+                },
+            )
         if "\x00" in dest_path:
-            return make_response(req_id, error={
-                "code": -32602,
-                "message": f"bulk_duplicate_assets: invalid_dest_path: duplicates[{i}].dest_path contains a NUL byte",
-            })
+            return make_response(
+                req_id,
+                error={
+                    "code": -32602,
+                    "message": f"bulk_duplicate_assets: invalid_dest_path: duplicates[{i}].dest_path contains a NUL byte",
+                },
+            )
         if any(segment == ".." for segment in dest_path.split("/")):
-            return make_response(req_id, error={
-                "code": -32602,
-                "message": f"bulk_duplicate_assets: invalid_dest_path: duplicates[{i}].dest_path contains a '..' segment",
-            })
+            return make_response(
+                req_id,
+                error={
+                    "code": -32602,
+                    "message": f"bulk_duplicate_assets: invalid_dest_path: duplicates[{i}].dest_path contains a '..' segment",
+                },
+            )
 
     continue_on_error = args.get("continue_on_error", True)
     if not isinstance(continue_on_error, bool):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "bulk_duplicate_assets: invalid_field: 'continue_on_error' must be a boolean",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "bulk_duplicate_assets: invalid_field: 'continue_on_error' must be a boolean",
+            },
+        )
 
     results, duplicated, failed = _run_bulk_dispatch(
-        duplicates, continue_on_error,
-        lambda entry: call_ue("duplicate_asset", {"path": entry["path"], "dest_path": entry["dest_path"]}),
+        duplicates,
+        continue_on_error,
+        lambda entry: call_ue(
+            "duplicate_asset", {"path": entry["path"], "dest_path": entry["dest_path"]}
+        ),
         lambda entry: {"path": entry["path"], "dest_path": entry["dest_path"]},
     )
 
-    return _wrap_tool_result(req_id, {
-        "ok": failed == 0,
-        "total": len(duplicates),
-        "duplicated": duplicated,
-        "failed": failed,
-        "results": results,
-    })
+    return _wrap_tool_result(
+        req_id,
+        {
+            "ok": failed == 0,
+            "total": len(duplicates),
+            "duplicated": duplicated,
+            "failed": failed,
+            "results": results,
+        },
+    )
 
 
 def synthetic_inspect_data_asset(req_id, args: dict) -> dict:
@@ -3933,10 +5392,13 @@ def synthetic_inspect_data_asset(req_id, args: dict) -> dict:
     """
     path = args.get("path") if isinstance(args, dict) else None
     if not isinstance(path, str) or not path:
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "inspect_data_asset: missing_required_field: 'path' must be a non-empty string",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "inspect_data_asset: missing_required_field: 'path' must be a non-empty string",
+            },
+        )
 
     marker = uuid.uuid4().hex[:12]
     # Embed path via json.dumps so quotes/backslashes are correctly escaped.
@@ -3991,7 +5453,9 @@ def synthetic_inspect_data_asset(req_id, args: dict) -> dict:
         f"    unreal.log('__DATA_{marker}__' + json.dumps(_out) + '__END__')\n"
     )
 
-    return _run_marker_pattern(req_id, "inspect_data_asset", f"__DATA_{marker}__", py_code, context=path)
+    return _run_marker_pattern(
+        req_id, "inspect_data_asset", f"__DATA_{marker}__", py_code, context=path
+    )
 
 
 def synthetic_inspect_sound_class(req_id, args: dict) -> dict:
@@ -4029,10 +5493,13 @@ def synthetic_inspect_sound_class(req_id, args: dict) -> dict:
     """
     path = args.get("path") if isinstance(args, dict) else None
     if not isinstance(path, str) or not path:
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "inspect_sound_class: missing_required_field: 'path' must be a non-empty string",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "inspect_sound_class: missing_required_field: 'path' must be a non-empty string",
+            },
+        )
 
     marker = uuid.uuid4().hex[:12]
     py_code = (
@@ -4119,7 +5586,9 @@ def synthetic_inspect_sound_class(req_id, args: dict) -> dict:
         "    unreal.log('__SOUNDCLASS_" + marker + "__' + json.dumps(_out) + '__END__')\n"
     )
 
-    return _run_marker_pattern(req_id, "inspect_sound_class", "__SOUNDCLASS_" + marker + "__", py_code, context=path)
+    return _run_marker_pattern(
+        req_id, "inspect_sound_class", "__SOUNDCLASS_" + marker + "__", py_code, context=path
+    )
 
 
 def synthetic_inspect_sound_submix(req_id, args: dict) -> dict:
@@ -4140,10 +5609,13 @@ def synthetic_inspect_sound_submix(req_id, args: dict) -> dict:
     """
     path = args.get("path") if isinstance(args, dict) else None
     if not isinstance(path, str) or not path:
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "inspect_sound_submix: missing_required_field: 'path' must be a non-empty string",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "inspect_sound_submix: missing_required_field: 'path' must be a non-empty string",
+            },
+        )
 
     marker = uuid.uuid4().hex[:12]
     py_code = (
@@ -4226,7 +5698,9 @@ def synthetic_inspect_sound_submix(req_id, args: dict) -> dict:
         "    unreal.log('__SOUNDSUBMIX_" + marker + "__' + json.dumps(_out) + '__END__')\n"
     )
 
-    return _run_marker_pattern(req_id, "inspect_sound_submix", "__SOUNDSUBMIX_" + marker + "__", py_code, context=path)
+    return _run_marker_pattern(
+        req_id, "inspect_sound_submix", "__SOUNDSUBMIX_" + marker + "__", py_code, context=path
+    )
 
 
 def synthetic_inspect_audio_bus(req_id, args: dict) -> dict:
@@ -4248,10 +5722,13 @@ def synthetic_inspect_audio_bus(req_id, args: dict) -> dict:
     """
     path = args.get("path") if isinstance(args, dict) else None
     if not isinstance(path, str) or not path:
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "inspect_audio_bus: missing_required_field: 'path' must be a non-empty string",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "inspect_audio_bus: missing_required_field: 'path' must be a non-empty string",
+            },
+        )
 
     marker = uuid.uuid4().hex[:12]
     py_code = (
@@ -4327,7 +5804,9 @@ def synthetic_inspect_audio_bus(req_id, args: dict) -> dict:
         "    unreal.log('__AUDIOBUS_" + marker + "__' + json.dumps(_out) + '__END__')\n"
     )
 
-    return _run_marker_pattern(req_id, "inspect_audio_bus", "__AUDIOBUS_" + marker + "__", py_code, context=path)
+    return _run_marker_pattern(
+        req_id, "inspect_audio_bus", "__AUDIOBUS_" + marker + "__", py_code, context=path
+    )
 
 
 def synthetic_inspect_material_function(req_id, args: dict) -> dict:
@@ -4352,10 +5831,13 @@ def synthetic_inspect_material_function(req_id, args: dict) -> dict:
     """
     path = args.get("path") if isinstance(args, dict) else None
     if not isinstance(path, str) or not path:
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "inspect_material_function: missing_required_field: 'path' must be a non-empty string",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "inspect_material_function: missing_required_field: 'path' must be a non-empty string",
+            },
+        )
 
     marker = uuid.uuid4().hex[:12]
     py_code = (
@@ -4468,7 +5950,9 @@ def synthetic_inspect_material_function(req_id, args: dict) -> dict:
         "    unreal.log('__MATFUNC_" + marker + "__' + json.dumps(_out) + '__END__')\n"
     )
 
-    return _run_marker_pattern(req_id, "inspect_material_function", "__MATFUNC_" + marker + "__", py_code, context=path)
+    return _run_marker_pattern(
+        req_id, "inspect_material_function", "__MATFUNC_" + marker + "__", py_code, context=path
+    )
 
 
 def synthetic_inspect_metasound(req_id, args: dict) -> dict:
@@ -4495,10 +5979,13 @@ def synthetic_inspect_metasound(req_id, args: dict) -> dict:
     """
     path = args.get("path") if isinstance(args, dict) else None
     if not isinstance(path, str) or not path:
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "inspect_metasound: missing_required_field: 'path' must be a non-empty string",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "inspect_metasound: missing_required_field: 'path' must be a non-empty string",
+            },
+        )
 
     marker = uuid.uuid4().hex[:12]
     py_code = (
@@ -4571,7 +6058,9 @@ def synthetic_inspect_metasound(req_id, args: dict) -> dict:
         "        unreal.log('__METASOUND_" + marker + "__' + json.dumps(_out) + '__END__')\n"
     )
 
-    return _run_marker_pattern(req_id, "inspect_metasound", "__METASOUND_" + marker + "__", py_code, context=path)
+    return _run_marker_pattern(
+        req_id, "inspect_metasound", "__METASOUND_" + marker + "__", py_code, context=path
+    )
 
 
 # Map of tool-name -> bridge-side synthetic implementation. These are
@@ -4604,58 +6093,82 @@ def synthetic_bulk_inspect_assets(req_id, args: dict) -> dict:
     their error_code/error_message are preserved in both modes.
     """
     if not isinstance(args, dict):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "bulk_inspect_assets: invalid_arguments: arguments must be an object",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "bulk_inspect_assets: invalid_arguments: arguments must be an object",
+            },
+        )
 
     if "paths" not in args:
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "bulk_inspect_assets: missing_required_field: 'paths' must be supplied as a list of non-empty strings",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "bulk_inspect_assets: missing_required_field: 'paths' must be supplied as a list of non-empty strings",
+            },
+        )
 
     paths = args.get("paths")
     if not isinstance(paths, list):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "bulk_inspect_assets: invalid_field: 'paths' must be a list of non-empty strings",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "bulk_inspect_assets: invalid_field: 'paths' must be a list of non-empty strings",
+            },
+        )
 
     for i, path in enumerate(paths):
         if not isinstance(path, str) or not path:
-            return make_response(req_id, error={
-                "code": -32602,
-                "message": f"bulk_inspect_assets: invalid_path: paths[{i}] must be a non-empty string",
-            })
+            return make_response(
+                req_id,
+                error={
+                    "code": -32602,
+                    "message": f"bulk_inspect_assets: invalid_path: paths[{i}] must be a non-empty string",
+                },
+            )
         # Same NUL + `..` path-shape guards as the other bulk_* synthetics.
         if "\x00" in path:
-            return make_response(req_id, error={
-                "code": -32602,
-                "message": f"bulk_inspect_assets: invalid_path: paths[{i}] contains a NUL byte",
-            })
+            return make_response(
+                req_id,
+                error={
+                    "code": -32602,
+                    "message": f"bulk_inspect_assets: invalid_path: paths[{i}] contains a NUL byte",
+                },
+            )
         if any(segment == ".." for segment in path.split("/")):
-            return make_response(req_id, error={
-                "code": -32602,
-                "message": f"bulk_inspect_assets: invalid_path: paths[{i}] contains a '..' segment",
-            })
+            return make_response(
+                req_id,
+                error={
+                    "code": -32602,
+                    "message": f"bulk_inspect_assets: invalid_path: paths[{i}] contains a '..' segment",
+                },
+            )
 
     continue_on_error = args.get("continue_on_error", True)
     if not isinstance(continue_on_error, bool):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "bulk_inspect_assets: invalid_field: 'continue_on_error' must be a boolean",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "bulk_inspect_assets: invalid_field: 'continue_on_error' must be a boolean",
+            },
+        )
 
     # verbose defaults to False -> per-asset SUMMARY (path/class + dep/ref
     # counts). verbose=True -> full inspect_asset blob under `data`
     # (backward-compatible pre-trim shape).
     verbose = args.get("verbose", False)
     if not isinstance(verbose, bool):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "bulk_inspect_assets: invalid_field: 'verbose' must be a boolean",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "bulk_inspect_assets: invalid_field: 'verbose' must be a boolean",
+            },
+        )
 
     results = []
     inspected = 0
@@ -4665,13 +6178,15 @@ def synthetic_bulk_inspect_assets(req_id, args: dict) -> dict:
         if "error" in ue_resp:
             failed += 1
             err = ue_resp["error"]
-            results.append({
-                "path": path,
-                "ok": False,
-                "data": None,
-                "error_code": err.get("code"),
-                "error_message": err.get("message"),
-            })
+            results.append(
+                {
+                    "path": path,
+                    "ok": False,
+                    "data": None,
+                    "error_code": err.get("code"),
+                    "error_message": err.get("message"),
+                }
+            )
             if not continue_on_error:
                 break
         else:
@@ -4679,27 +6194,31 @@ def synthetic_bulk_inspect_assets(req_id, args: dict) -> dict:
             data = ue_resp.get("result", {}) or {}
             if verbose:
                 # Full per-asset blob, unchanged from the pre-trim contract.
-                results.append({
-                    "path": path,
-                    "ok": True,
-                    "data": data,
-                    "error_code": None,
-                    "error_message": None,
-                })
+                results.append(
+                    {
+                        "path": path,
+                        "ok": True,
+                        "data": data,
+                        "error_code": None,
+                        "error_message": None,
+                    }
+                )
             else:
                 # Trimmed summary. Pull the high-signal scalars and collapse the
                 # (potentially long) dependencies/referencers arrays to counts.
                 deps = data.get("dependencies")
                 refs = data.get("referencers")
-                results.append({
-                    "path": path,
-                    "ok": True,
-                    "class": data.get("class"),
-                    "dependency_count": len(deps) if isinstance(deps, list) else None,
-                    "referencer_count": len(refs) if isinstance(refs, list) else None,
-                    "error_code": None,
-                    "error_message": None,
-                })
+                results.append(
+                    {
+                        "path": path,
+                        "ok": True,
+                        "class": data.get("class"),
+                        "dependency_count": len(deps) if isinstance(deps, list) else None,
+                        "referencer_count": len(refs) if isinstance(refs, list) else None,
+                        "error_code": None,
+                        "error_message": None,
+                    }
+                )
 
     body = {
         "ok": failed == 0,
@@ -4742,31 +6261,43 @@ def synthetic_find_unused_assets(req_id, args: dict) -> dict:
     inspect_asset's referencer lookup -- needlessly so.
     """
     if not isinstance(args, dict):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "find_unused_assets: invalid_arguments: arguments must be an object",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "find_unused_assets: invalid_arguments: arguments must be an object",
+            },
+        )
 
     path_under = args.get("path_under", "/Game")
     if not isinstance(path_under, str) or not path_under:
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "find_unused_assets: invalid_field: 'path_under' must be a non-empty string when supplied",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "find_unused_assets: invalid_field: 'path_under' must be a non-empty string when supplied",
+            },
+        )
 
     class_filter = args.get("class_filter")
     if class_filter is not None and (not isinstance(class_filter, str) or not class_filter):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "find_unused_assets: invalid_field: 'class_filter' must be a non-empty string when supplied",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "find_unused_assets: invalid_field: 'class_filter' must be a non-empty string when supplied",
+            },
+        )
 
     limit = args.get("limit", 100)
     if not isinstance(limit, int) or isinstance(limit, bool) or limit < 1 or limit > 500:
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "find_unused_assets: invalid_field: 'limit' must be an integer between 1 and 500",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "find_unused_assets: invalid_field: 'limit' must be an integer between 1 and 500",
+            },
+        )
 
     # find_assets requires class_path. Default to UObject (root of every
     # UE asset class) when caller didn't pin a class_filter; the path_under
@@ -4783,10 +6314,13 @@ def synthetic_find_unused_assets(req_id, args: dict) -> dict:
     find_resp = call_ue("find_assets", find_params)
     if "error" in find_resp:
         upstream = find_resp.get("error", {}) or {}
-        return make_response(req_id, error={
-            "code": upstream.get("code", -32603) or -32603,
-            "message": f"find_unused_assets: find_failed: {upstream.get('message') or 'find_assets returned an error'}",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": upstream.get("code", -32603) or -32603,
+                "message": f"find_unused_assets: find_failed: {upstream.get('message') or 'find_assets returned an error'}",
+            },
+        )
 
     candidates = (find_resp.get("result") or {}).get("assets") or []
     scanned = 0
@@ -4809,29 +6343,37 @@ def synthetic_find_unused_assets(req_id, args: dict) -> dict:
         result = inspect_resp.get("result") or {}
         referencers = result.get("referencers")
         if isinstance(referencers, list) and len(referencers) == 0:
-            unused.append({
-                "path": pkg,
-                "class": asset.get("class") or "",
-            })
+            unused.append(
+                {
+                    "path": pkg,
+                    "class": asset.get("class") or "",
+                }
+            )
             if len(unused) >= limit:
                 break
 
     # All inspects failed -> bubble the error up. A "0 unused, 0 scanned"
     # response would otherwise be confused with a clean codebase.
     if scanned > 0 and inspect_failures == scanned:
-        return make_response(req_id, error={
-            "code": -32603,
-            "message": "find_unused_assets: inspect_failed: every candidate's inspect_asset call failed; cannot determine unused set",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32603,
+                "message": "find_unused_assets: inspect_failed: every candidate's inspect_asset call failed; cannot determine unused set",
+            },
+        )
 
     truncated = len(unused) >= limit and scanned < len(candidates)
-    return _wrap_tool_result(req_id, {
-        "ok": True,
-        "scanned": scanned,
-        "unused_count": len(unused),
-        "unused": unused,
-        "truncated": truncated,
-    })
+    return _wrap_tool_result(
+        req_id,
+        {
+            "ok": True,
+            "scanned": scanned,
+            "unused_count": len(unused),
+            "unused": unused,
+            "truncated": truncated,
+        },
+    )
 
 
 def synthetic_get_reference_chain(req_id, args: dict) -> dict:
@@ -4863,16 +6405,22 @@ def synthetic_get_reference_chain(req_id, args: dict) -> dict:
     to the root.
     """
     if not isinstance(args, dict):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "get_reference_chain: invalid_arguments: arguments must be an object",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "get_reference_chain: invalid_arguments: arguments must be an object",
+            },
+        )
 
     if "path" not in args:
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "get_reference_chain: missing_required_field: 'path' is required",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "get_reference_chain: missing_required_field: 'path' is required",
+            },
+        )
 
     root = args.get("path")
     err = _validate_asset_path("get_reference_chain", root, "path")
@@ -4881,17 +6429,23 @@ def synthetic_get_reference_chain(req_id, args: dict) -> dict:
 
     depth = args.get("depth", 3)
     if not isinstance(depth, int) or isinstance(depth, bool) or depth < 1 or depth > 8:
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "get_reference_chain: invalid_depth: 'depth' must be an integer between 1 and 8",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "get_reference_chain: invalid_depth: 'depth' must be an integer between 1 and 8",
+            },
+        )
 
     direction = args.get("direction", "up")
     if direction not in ("up", "down"):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "get_reference_chain: invalid_direction: 'direction' must be 'up' or 'down'",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "get_reference_chain: invalid_direction: 'direction' must be 'up' or 'down'",
+            },
+        )
 
     # BFS: frontier holds nodes to expand at the current depth.
     visited: set[str] = {root}
@@ -4912,14 +6466,20 @@ def synthetic_get_reference_chain(req_id, args: dict) -> dict:
                     # Surface asset_not_found verbatim when the root doesn't
                     # exist -- nothing useful to walk from.
                     if "asset_not_found" in msg.lower() or "not_found" in msg.lower():
-                        return make_response(req_id, error={
-                            "code": -32602,
-                            "message": f"get_reference_chain: asset_not_found: root path '{root}' not in asset registry",
-                        })
-                    return make_response(req_id, error={
-                        "code": upstream.get("code", -32603) or -32603,
-                        "message": f"get_reference_chain: inspect_failed: inspecting root '{root}' failed: {msg}",
-                    })
+                        return make_response(
+                            req_id,
+                            error={
+                                "code": -32602,
+                                "message": f"get_reference_chain: asset_not_found: root path '{root}' not in asset registry",
+                            },
+                        )
+                    return make_response(
+                        req_id,
+                        error={
+                            "code": upstream.get("code", -32603) or -32603,
+                            "message": f"get_reference_chain: inspect_failed: inspecting root '{root}' failed: {msg}",
+                        },
+                    )
                 # Non-root inspect failure: skip the node, continue BFS.
                 continue
             if node == root:
@@ -4957,16 +6517,19 @@ def synthetic_get_reference_chain(req_id, args: dict) -> dict:
         # neighbors; that's a valid "no references" answer.
         pass
 
-    return _wrap_tool_result(req_id, {
-        "ok": True,
-        "root": root,
-        "direction": direction,
-        "depth": depth,
-        "node_count": len(visited),
-        "edge_count": len(edges),
-        "edges": edges,
-        "truncated": truncated,
-    })
+    return _wrap_tool_result(
+        req_id,
+        {
+            "ok": True,
+            "root": root,
+            "direction": direction,
+            "depth": depth,
+            "node_count": len(visited),
+            "edge_count": len(edges),
+            "edges": edges,
+            "truncated": truncated,
+        },
+    )
 
 
 def synthetic_bulk_compile_blueprints(req_id, args: dict) -> dict:
@@ -4985,29 +6548,41 @@ def synthetic_bulk_compile_blueprints(req_id, args: dict) -> dict:
     composition over the existing compile_blueprint handler.
     """
     if not isinstance(args, dict):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "bulk_compile_blueprints: invalid_arguments: arguments must be an object",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "bulk_compile_blueprints: invalid_arguments: arguments must be an object",
+            },
+        )
 
     if "paths" not in args:
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "bulk_compile_blueprints: missing_required_field: 'paths' must be supplied as a list of Blueprint asset paths",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "bulk_compile_blueprints: missing_required_field: 'paths' must be supplied as a list of Blueprint asset paths",
+            },
+        )
 
     paths = args.get("paths")
     if not isinstance(paths, list):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "bulk_compile_blueprints: invalid_paths_shape: 'paths' must be a list of strings",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "bulk_compile_blueprints: invalid_paths_shape: 'paths' must be a list of strings",
+            },
+        )
 
     if len(paths) > 1000:
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": f"bulk_compile_blueprints: invalid_paths_shape: at most 1000 paths per call (got {len(paths)})",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": f"bulk_compile_blueprints: invalid_paths_shape: at most 1000 paths per call (got {len(paths)})",
+            },
+        )
 
     for i, path in enumerate(paths):
         err = _validate_asset_path("bulk_compile_blueprints", path, f"paths[{i}]")
@@ -5016,10 +6591,13 @@ def synthetic_bulk_compile_blueprints(req_id, args: dict) -> dict:
 
     continue_on_error = args.get("continue_on_error", True)
     if not isinstance(continue_on_error, bool):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "bulk_compile_blueprints: invalid_field: 'continue_on_error' must be a boolean",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "bulk_compile_blueprints: invalid_field: 'continue_on_error' must be a boolean",
+            },
+        )
 
     results: list[dict] = []
     succeeded = 0
@@ -5032,27 +6610,32 @@ def synthetic_bulk_compile_blueprints(req_id, args: dict) -> dict:
             code = upstream.get("code", -32603)
             if code is None:
                 code = -32603
-            results.append({
-                "path": path,
-                "ok": False,
-                "error": {
-                    "code": code,
-                    "message": upstream.get("message") or "",
-                },
-            })
+            results.append(
+                {
+                    "path": path,
+                    "ok": False,
+                    "error": {
+                        "code": code,
+                        "message": upstream.get("message") or "",
+                    },
+                }
+            )
             if not continue_on_error:
                 break
         else:
             succeeded += 1
             results.append({"path": path, "ok": True})
 
-    return _wrap_tool_result(req_id, {
-        "ok": failed == 0,
-        "total": len(paths),
-        "succeeded": succeeded,
-        "failed": failed,
-        "results": results,
-    })
+    return _wrap_tool_result(
+        req_id,
+        {
+            "ok": failed == 0,
+            "total": len(paths),
+            "succeeded": succeeded,
+            "failed": failed,
+            "results": results,
+        },
+    )
 
 
 def synthetic_audit_blueprint_compile_status(req_id, args: dict) -> dict:
@@ -5080,17 +6663,23 @@ def synthetic_audit_blueprint_compile_status(req_id, args: dict) -> dict:
     until the host editor is cold-rebuilt against the new handler.
     """
     if not isinstance(args, dict):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "audit_blueprint_compile_status: invalid_arguments: arguments must be an object",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "audit_blueprint_compile_status: invalid_arguments: arguments must be an object",
+            },
+        )
 
     path_under = args.get("path_under", "/Game")
     if not isinstance(path_under, str) or not path_under:
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "audit_blueprint_compile_status: invalid_field: 'path_under' must be a non-empty string when supplied",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "audit_blueprint_compile_status: invalid_field: 'path_under' must be a non-empty string when supplied",
+            },
+        )
     # Normalize: find_assets's `path_under` validator rejects bare mount points
     # without a trailing slash (e.g. '/Game' errors with invalid_path_filter)
     # but accepts '/Game/'. Append the slash when missing so callers can pass
@@ -5100,22 +6689,31 @@ def synthetic_audit_blueprint_compile_status(req_id, args: dict) -> dict:
 
     compile_failures_only = args.get("compile_failures_only", True)
     if not isinstance(compile_failures_only, bool):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "audit_blueprint_compile_status: invalid_field: 'compile_failures_only' must be a boolean",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "audit_blueprint_compile_status: invalid_field: 'compile_failures_only' must be a boolean",
+            },
+        )
 
-    find_resp = call_ue("find_assets", {
-        "class_path": "/Script/Engine.Blueprint",
-        "path_under": path_under,
-        "limit": 500,
-    })
+    find_resp = call_ue(
+        "find_assets",
+        {
+            "class_path": "/Script/Engine.Blueprint",
+            "path_under": path_under,
+            "limit": 500,
+        },
+    )
     if "error" in find_resp:
         upstream = find_resp.get("error", {}) or {}
-        return make_response(req_id, error={
-            "code": upstream.get("code", -32603) or -32603,
-            "message": f"audit_blueprint_compile_status: find_failed: {upstream.get('message') or 'find_assets returned an error'}",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": upstream.get("code", -32603) or -32603,
+                "message": f"audit_blueprint_compile_status: find_failed: {upstream.get('message') or 'find_assets returned an error'}",
+            },
+        )
 
     candidates = (find_resp.get("result") or {}).get("assets") or []
     by_status = {
@@ -5159,17 +6757,23 @@ def synthetic_audit_blueprint_compile_status(req_id, args: dict) -> dict:
             problem_assets.append({"path": pkg, "status": status})
 
     if scanned > 0 and inspect_failures == scanned:
-        return make_response(req_id, error={
-            "code": -32603,
-            "message": "audit_blueprint_compile_status: inspect_failed: every candidate's inspect_blueprint call failed; audit results meaningless",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32603,
+                "message": "audit_blueprint_compile_status: inspect_failed: every candidate's inspect_blueprint call failed; audit results meaningless",
+            },
+        )
 
-    return _wrap_tool_result(req_id, {
-        "ok": True,
-        "scanned": scanned,
-        "by_status": by_status,
-        "problem_assets": problem_assets,
-    })
+    return _wrap_tool_result(
+        req_id,
+        {
+            "ok": True,
+            "scanned": scanned,
+            "by_status": by_status,
+            "problem_assets": problem_assets,
+        },
+    )
 
 
 def synthetic_find_actors_by_class(req_id, args: dict) -> dict:
@@ -5199,47 +6803,65 @@ def synthetic_find_actors_by_class(req_id, args: dict) -> dict:
     server-side would only duplicate logic the bridge can do trivially.
     """
     if not isinstance(args, dict):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "find_actors_by_class: invalid_arguments: arguments must be an object",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "find_actors_by_class: invalid_arguments: arguments must be an object",
+            },
+        )
 
     if "class_name" not in args:
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "find_actors_by_class: missing_required_field: 'class_name' must be supplied",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "find_actors_by_class: missing_required_field: 'class_name' must be supplied",
+            },
+        )
 
     class_name = args.get("class_name")
     if not isinstance(class_name, str) or not class_name:
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "find_actors_by_class: missing_required_field: 'class_name' must be a non-empty string",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "find_actors_by_class: missing_required_field: 'class_name' must be a non-empty string",
+            },
+        )
 
     level = args.get("level")
     if level is not None and (not isinstance(level, str) or not level):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "find_actors_by_class: invalid_field: 'level' must be a non-empty string when supplied",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "find_actors_by_class: invalid_field: 'level' must be a non-empty string when supplied",
+            },
+        )
 
     if isinstance(level, str):
         load_resp = call_ue("load_level_by_path", {"path": level})
         if "error" in load_resp:
             upstream = load_resp.get("error", {}) or {}
-            return make_response(req_id, error={
-                "code": upstream.get("code", -32603) or -32603,
-                "message": f"find_actors_by_class: get_actors_failed: load_level_by_path for '{level}' failed: {upstream.get('message') or ''}",
-            })
+            return make_response(
+                req_id,
+                error={
+                    "code": upstream.get("code", -32603) or -32603,
+                    "message": f"find_actors_by_class: get_actors_failed: load_level_by_path for '{level}' failed: {upstream.get('message') or ''}",
+                },
+            )
 
     actors_resp = call_ue("get_actors_in_level", {})
     if "error" in actors_resp:
         upstream = actors_resp.get("error", {}) or {}
-        return make_response(req_id, error={
-            "code": upstream.get("code", -32603) or -32603,
-            "message": f"find_actors_by_class: get_actors_failed: {upstream.get('message') or 'get_actors_in_level returned an error'}",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": upstream.get("code", -32603) or -32603,
+                "message": f"find_actors_by_class: get_actors_failed: {upstream.get('message') or 'get_actors_in_level returned an error'}",
+            },
+        )
 
     result = actors_resp.get("result") or {}
     all_actors = result.get("actors") or []
@@ -5254,10 +6876,13 @@ def synthetic_find_actors_by_class(req_id, args: dict) -> dict:
     # call silently returns count=0 with no error. Surface as -32602
     # invalid_field so callers know the input shape was malformed.
     if not needle_short:
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": f"find_actors_by_class: invalid_field: 'class_name' resolves to empty after trimming class-path prefix (input was '{class_name}')",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": f"find_actors_by_class: invalid_field: 'class_name' resolves to empty after trimming class-path prefix (input was '{class_name}')",
+            },
+        )
 
     matched: list[dict] = []
     for actor in all_actors:
@@ -5268,35 +6893,42 @@ def synthetic_find_actors_by_class(req_id, args: dict) -> dict:
             continue
         if cls.lower() != needle_short:
             continue
-        matched.append({
-            "name": actor.get("name"),
-            "label": actor.get("label"),
-            "class": cls,
-            "class_path": actor.get("class_path"),
-            "transform": {
-                "loc": {
-                    "x": actor.get("loc_x"),
-                    "y": actor.get("loc_y"),
-                    "z": actor.get("loc_z"),
+        matched.append(
+            {
+                "name": actor.get("name"),
+                "label": actor.get("label"),
+                "class": cls,
+                "class_path": actor.get("class_path"),
+                "transform": {
+                    "loc": {
+                        "x": actor.get("loc_x"),
+                        "y": actor.get("loc_y"),
+                        "z": actor.get("loc_z"),
+                    },
+                    "rot": {
+                        "pitch": actor.get("pitch"),
+                        "yaw": actor.get("yaw"),
+                        "roll": actor.get("roll"),
+                    },
                 },
-                "rot": {
-                    "pitch": actor.get("pitch"),
-                    "yaw": actor.get("yaw"),
-                    "roll": actor.get("roll"),
-                },
-            },
-        })
+            }
+        )
 
-    return _wrap_tool_result(req_id, {
-        "ok": True,
-        "class_name": class_name,
-        "total_in_level": total_in_level,
-        "count": len(matched),
-        "actors": matched,
-    })
+    return _wrap_tool_result(
+        req_id,
+        {
+            "ok": True,
+            "class_name": class_name,
+            "total_in_level": total_in_level,
+            "count": len(matched),
+            "actors": matched,
+        },
+    )
 
 
-def _validate_actor_names(tool_name: str, args: dict, max_names: int) -> tuple[list[str], dict | None]:
+def _validate_actor_names(
+    tool_name: str, args: dict, max_names: int
+) -> tuple[list[str], dict | None]:
     """Shape-check `names` list for the bulk_*_actors family.
 
     Returns (names, error_envelope). When error_envelope is not None the
@@ -5371,10 +7003,13 @@ def synthetic_bulk_focus_actors(req_id, args: dict) -> dict:
     get_viewport_screenshot internals.
     """
     if not isinstance(args, dict):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "bulk_focus_actors: invalid_arguments: arguments must be an object",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "bulk_focus_actors: invalid_arguments: arguments must be an object",
+            },
+        )
 
     names, err = _validate_actor_names("bulk_focus_actors", args, max_names=100)
     if err is not None:
@@ -5386,10 +7021,13 @@ def synthetic_bulk_focus_actors(req_id, args: dict) -> dict:
 
     screenshot_each = args.get("screenshot_each", False)
     if not isinstance(screenshot_each, bool):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "bulk_focus_actors: invalid_field: 'screenshot_each' must be a boolean",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "bulk_focus_actors: invalid_field: 'screenshot_each' must be a boolean",
+            },
+        )
 
     focused = 0
     failed: list[dict] = []
@@ -5398,13 +7036,15 @@ def synthetic_bulk_focus_actors(req_id, args: dict) -> dict:
         focus_resp = call_ue("focus_actor", {"name": name})
         if "error" in focus_resp:
             upstream = focus_resp.get("error", {}) or {}
-            failed.append({
-                "name": name,
-                "error": {
-                    "code": upstream.get("code", -32603) or -32603,
-                    "message": f"bulk_focus_actors: focus_failed: focus_actor on '{name}' failed: {upstream.get('message') or ''}",
-                },
-            })
+            failed.append(
+                {
+                    "name": name,
+                    "error": {
+                        "code": upstream.get("code", -32603) or -32603,
+                        "message": f"bulk_focus_actors: focus_failed: focus_actor on '{name}' failed: {upstream.get('message') or ''}",
+                    },
+                }
+            )
         else:
             focused += 1
             if screenshot_each:
@@ -5420,19 +7060,23 @@ def synthetic_bulk_focus_actors(req_id, args: dict) -> dict:
                 shot_resp = call_ue("get_viewport_screenshot", {})
                 if "error" in shot_resp:
                     upstream = shot_resp.get("error", {}) or {}
-                    failed.append({
-                        "name": name,
-                        "error": {
-                            "code": upstream.get("code", -32603) or -32603,
-                            "message": f"bulk_focus_actors: screenshot_failed: get_viewport_screenshot after '{name}' failed: {upstream.get('message') or ''}",
-                        },
-                    })
+                    failed.append(
+                        {
+                            "name": name,
+                            "error": {
+                                "code": upstream.get("code", -32603) or -32603,
+                                "message": f"bulk_focus_actors: screenshot_failed: get_viewport_screenshot after '{name}' failed: {upstream.get('message') or ''}",
+                            },
+                        }
+                    )
                 else:
                     shot_result = shot_resp.get("result", {}) or {}
-                    screenshots.append({
-                        "name": name,
-                        "path": shot_result.get("path"),
-                    })
+                    screenshots.append(
+                        {
+                            "name": name,
+                            "path": shot_result.get("path"),
+                        }
+                    )
 
         # Settle delay: when screenshot_each=true we sleep BEFORE the
         # screenshot inside the iteration (see block above — moved there
@@ -5476,10 +7120,13 @@ def synthetic_bulk_screenshot_actors(req_id, args: dict) -> dict:
     double the round-trip cost without functional gain.
     """
     if not isinstance(args, dict):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "bulk_screenshot_actors: invalid_arguments: arguments must be an object",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "bulk_screenshot_actors: invalid_arguments: arguments must be an object",
+            },
+        )
 
     names, err = _validate_actor_names("bulk_screenshot_actors", args, max_names=50)
     if err is not None:
@@ -5498,14 +7145,17 @@ def synthetic_bulk_screenshot_actors(req_id, args: dict) -> dict:
         shot_resp = synthetic_screenshot_actor(req_id, {"name": name})
         if "error" in shot_resp:
             upstream = shot_resp.get("error", {}) or {}
-            results.append({
-                "name": name,
-                "ok": False,
-                "error": {
-                    "code": upstream.get("code", -32603) or -32603,
-                    "message": upstream.get("message") or f"bulk_screenshot_actors: screenshot_failed: screenshot_actor on '{name}' failed",
-                },
-            })
+            results.append(
+                {
+                    "name": name,
+                    "ok": False,
+                    "error": {
+                        "code": upstream.get("code", -32603) or -32603,
+                        "message": upstream.get("message")
+                        or f"bulk_screenshot_actors: screenshot_failed: screenshot_actor on '{name}' failed",
+                    },
+                }
+            )
         else:
             # screenshot_actor wraps its body in {"result": {"content":
             # [{"type": "text", "text": json_blob}], "isError": false}}.
@@ -5519,33 +7169,40 @@ def synthetic_bulk_screenshot_actors(req_id, args: dict) -> dict:
                 # as succeeded. Previously we swallowed JSONDecodeError +
                 # marked the actor ok:true with null png_base64, which
                 # CodeRabbit flagged as a silent false-positive in PR #168.
-                results.append({
-                    "name": name,
-                    "ok": False,
-                    "error": {
-                        "code": -32603,
-                        "message": f"bulk_screenshot_actors: malformed_screenshot_payload: screenshot_actor on '{name}' returned non-JSON content: {e}",
-                    },
-                })
+                results.append(
+                    {
+                        "name": name,
+                        "ok": False,
+                        "error": {
+                            "code": -32603,
+                            "message": f"bulk_screenshot_actors: malformed_screenshot_payload: screenshot_actor on '{name}' returned non-JSON content: {e}",
+                        },
+                    }
+                )
                 continue
             succeeded += 1
-            results.append({
-                "name": name,
-                "ok": True,
-                "path": inner.get("path"),
-                "focused": inner.get("focused"),
-                "loc": inner.get("loc"),
-            })
+            results.append(
+                {
+                    "name": name,
+                    "ok": True,
+                    "path": inner.get("path"),
+                    "focused": inner.get("focused"),
+                    "loc": inner.get("loc"),
+                }
+            )
 
         if delay_ms > 0 and i < len(names) - 1:
             time.sleep(delay_ms / 1000.0)
 
-    return _wrap_tool_result(req_id, {
-        "ok": succeeded == len(names),
-        "total": len(names),
-        "succeeded": succeeded,
-        "results": results,
-    })
+    return _wrap_tool_result(
+        req_id,
+        {
+            "ok": succeeded == len(names),
+            "total": len(names),
+            "succeeded": succeeded,
+            "results": results,
+        },
+    )
 
 
 def synthetic_bulk_set_actor_property(req_id, args: dict) -> dict:
@@ -5572,60 +7229,87 @@ def synthetic_bulk_set_actor_property(req_id, args: dict) -> dict:
     bulk_* family.
     """
     if not isinstance(args, dict):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "bulk_set_actor_property: invalid_arguments: arguments must be an object",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "bulk_set_actor_property: invalid_arguments: arguments must be an object",
+            },
+        )
 
     if "assignments" not in args:
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "bulk_set_actor_property: missing_required_field: 'assignments' must be supplied as a list of {actor, property, value} objects",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "bulk_set_actor_property: missing_required_field: 'assignments' must be supplied as a list of {actor, property, value} objects",
+            },
+        )
 
     assignments = args.get("assignments")
     if not isinstance(assignments, list):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "bulk_set_actor_property: invalid_assignments_shape: 'assignments' must be a list of objects",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "bulk_set_actor_property: invalid_assignments_shape: 'assignments' must be a list of objects",
+            },
+        )
 
     if len(assignments) > 200:
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": f"bulk_set_actor_property: too_many_assignments: at most 200 assignments per call (got {len(assignments)})",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": f"bulk_set_actor_property: too_many_assignments: at most 200 assignments per call (got {len(assignments)})",
+            },
+        )
 
     for i, assignment in enumerate(assignments):
         if not isinstance(assignment, dict):
-            return make_response(req_id, error={
-                "code": -32602,
-                "message": f"bulk_set_actor_property: assignment_must_be_object: assignments[{i}] must be an object",
-            })
+            return make_response(
+                req_id,
+                error={
+                    "code": -32602,
+                    "message": f"bulk_set_actor_property: assignment_must_be_object: assignments[{i}] must be an object",
+                },
+            )
         actor = assignment.get("actor")
         if not isinstance(actor, str) or not actor:
-            return make_response(req_id, error={
-                "code": -32602,
-                "message": f"bulk_set_actor_property: assignment_missing_field: assignments[{i}].'actor' must be a non-empty string",
-            })
+            return make_response(
+                req_id,
+                error={
+                    "code": -32602,
+                    "message": f"bulk_set_actor_property: assignment_missing_field: assignments[{i}].'actor' must be a non-empty string",
+                },
+            )
         prop = assignment.get("property")
         if not isinstance(prop, str) or not prop:
-            return make_response(req_id, error={
-                "code": -32602,
-                "message": f"bulk_set_actor_property: assignment_missing_field: assignments[{i}].'property' must be a non-empty string",
-            })
+            return make_response(
+                req_id,
+                error={
+                    "code": -32602,
+                    "message": f"bulk_set_actor_property: assignment_missing_field: assignments[{i}].'property' must be a non-empty string",
+                },
+            )
         if "value" not in assignment:
-            return make_response(req_id, error={
-                "code": -32602,
-                "message": f"bulk_set_actor_property: assignment_missing_field: assignments[{i}].'value' is required (use null for explicit-null intent)",
-            })
+            return make_response(
+                req_id,
+                error={
+                    "code": -32602,
+                    "message": f"bulk_set_actor_property: assignment_missing_field: assignments[{i}].'value' is required (use null for explicit-null intent)",
+                },
+            )
 
     continue_on_error = args.get("continue_on_error", True)
     if not isinstance(continue_on_error, bool):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "bulk_set_actor_property: invalid_field: 'continue_on_error' must be a boolean",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "bulk_set_actor_property: invalid_field: 'continue_on_error' must be a boolean",
+            },
+        )
 
     succeeded = 0
     failed: list[dict] = []
@@ -5634,21 +7318,26 @@ def synthetic_bulk_set_actor_property(req_id, args: dict) -> dict:
         actor = assignment["actor"]
         prop = assignment["property"]
         value = assignment["value"]
-        set_resp = call_ue("set_actor_property", {
-            "name": actor,
-            "property": prop,
-            "value": value,
-        })
+        set_resp = call_ue(
+            "set_actor_property",
+            {
+                "name": actor,
+                "property": prop,
+                "value": value,
+            },
+        )
         if "error" in set_resp:
             upstream = set_resp.get("error", {}) or {}
-            failed.append({
-                "actor": actor,
-                "property": prop,
-                "error": {
-                    "code": upstream.get("code", -32603) or -32603,
-                    "message": f"bulk_set_actor_property: set_failed: set_actor_property on '{actor}'.'{prop}' failed: {upstream.get('message') or ''}",
-                },
-            })
+            failed.append(
+                {
+                    "actor": actor,
+                    "property": prop,
+                    "error": {
+                        "code": upstream.get("code", -32603) or -32603,
+                        "message": f"bulk_set_actor_property: set_failed: set_actor_property on '{actor}'.'{prop}' failed: {upstream.get('message') or ''}",
+                    },
+                }
+            )
             if not continue_on_error:
                 halted_at_index = i
                 break
@@ -5683,21 +7372,30 @@ def synthetic_compare_assets(req_id, args: dict) -> dict:
     the existing inspect_asset handler -- no UE side-effect, no shared state.
     """
     if not isinstance(args, dict):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "compare_assets: invalid_arguments: arguments must be an object",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "compare_assets: invalid_arguments: arguments must be an object",
+            },
+        )
 
     if "path_a" not in args:
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "compare_assets: missing_required_field: 'path_a' is required",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "compare_assets: missing_required_field: 'path_a' is required",
+            },
+        )
     if "path_b" not in args:
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "compare_assets: missing_required_field: 'path_b' is required",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "compare_assets: missing_required_field: 'path_b' is required",
+            },
+        )
 
     path_a = args.get("path_a")
     err = _validate_asset_path("compare_assets", path_a, "path_a")
@@ -5712,32 +7410,44 @@ def synthetic_compare_assets(req_id, args: dict) -> dict:
     fields = args.get("fields")
     if fields is not None:
         if not isinstance(fields, list):
-            return make_response(req_id, error={
-                "code": -32602,
-                "message": "compare_assets: invalid_field: 'fields' must be a list of strings",
-            })
+            return make_response(
+                req_id,
+                error={
+                    "code": -32602,
+                    "message": "compare_assets: invalid_field: 'fields' must be a list of strings",
+                },
+            )
         for i, f in enumerate(fields):
             if not isinstance(f, str) or not f:
-                return make_response(req_id, error={
-                    "code": -32602,
-                    "message": f"compare_assets: invalid_field: fields[{i}] must be a non-empty string",
-                })
+                return make_response(
+                    req_id,
+                    error={
+                        "code": -32602,
+                        "message": f"compare_assets: invalid_field: fields[{i}] must be a non-empty string",
+                    },
+                )
 
     resp_a = call_ue("inspect_asset", {"path": path_a})
     if "error" in resp_a:
         upstream = resp_a.get("error", {}) or {}
-        return make_response(req_id, error={
-            "code": upstream.get("code", -32603) or -32603,
-            "message": f"compare_assets: inspect_failed_a: inspecting '{path_a}' failed: {upstream.get('message') or ''}",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": upstream.get("code", -32603) or -32603,
+                "message": f"compare_assets: inspect_failed_a: inspecting '{path_a}' failed: {upstream.get('message') or ''}",
+            },
+        )
 
     resp_b = call_ue("inspect_asset", {"path": path_b})
     if "error" in resp_b:
         upstream = resp_b.get("error", {}) or {}
-        return make_response(req_id, error={
-            "code": upstream.get("code", -32603) or -32603,
-            "message": f"compare_assets: inspect_failed_b: inspecting '{path_b}' failed: {upstream.get('message') or ''}",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": upstream.get("code", -32603) or -32603,
+                "message": f"compare_assets: inspect_failed_b: inspecting '{path_b}' failed: {upstream.get('message') or ''}",
+            },
+        )
 
     result_a = resp_a.get("result") or {}
     result_b = resp_b.get("result") or {}
@@ -5756,20 +7466,25 @@ def synthetic_compare_assets(req_id, args: dict) -> dict:
         va = result_a.get(field)
         vb = result_b.get(field)
         if va != vb:
-            differences.append({
-                "field": field,
-                "value_a": va,
-                "value_b": vb,
-            })
+            differences.append(
+                {
+                    "field": field,
+                    "value_a": va,
+                    "value_b": vb,
+                }
+            )
 
-    return _wrap_tool_result(req_id, {
-        "ok": True,
-        "path_a": path_a,
-        "path_b": path_b,
-        "identical": len(differences) == 0,
-        "fields_compared": compared,
-        "differences": differences,
-    })
+    return _wrap_tool_result(
+        req_id,
+        {
+            "ok": True,
+            "path_a": path_a,
+            "path_b": path_b,
+            "identical": len(differences) == 0,
+            "fields_compared": compared,
+            "differences": differences,
+        },
+    )
 
 
 def synthetic_bulk_set_console_variables(req_id, args: dict) -> dict:
@@ -5792,50 +7507,71 @@ def synthetic_bulk_set_console_variables(req_id, args: dict) -> dict:
     the running editor (unlike bulk_inspect_assets which is read-only).
     """
     if not isinstance(args, dict):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "bulk_set_console_variables: invalid_arguments: arguments must be an object",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "bulk_set_console_variables: invalid_arguments: arguments must be an object",
+            },
+        )
 
     if "assignments" not in args:
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "bulk_set_console_variables: missing_required_field: 'assignments' must be supplied as an object mapping cvar_name -> new_value",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "bulk_set_console_variables: missing_required_field: 'assignments' must be supplied as an object mapping cvar_name -> new_value",
+            },
+        )
 
     assignments = args.get("assignments")
     if not isinstance(assignments, dict):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "bulk_set_console_variables: invalid_assignments_shape: 'assignments' must be an object (mapping cvar_name -> new_value)",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "bulk_set_console_variables: invalid_assignments_shape: 'assignments' must be an object (mapping cvar_name -> new_value)",
+            },
+        )
 
     if len(assignments) > 50:
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": f"bulk_set_console_variables: too_many_assignments: at most 50 assignments per call (got {len(assignments)})",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": f"bulk_set_console_variables: too_many_assignments: at most 50 assignments per call (got {len(assignments)})",
+            },
+        )
 
     for name, value in assignments.items():
         if not isinstance(name, str) or not name:
-            return make_response(req_id, error={
-                "code": -32602,
-                "message": "bulk_set_console_variables: invalid_assignments_shape: cvar names must be non-empty strings",
-            })
+            return make_response(
+                req_id,
+                error={
+                    "code": -32602,
+                    "message": "bulk_set_console_variables: invalid_assignments_shape: cvar names must be non-empty strings",
+                },
+            )
         # set_console_variable accepts string|number|bool. Mirror that here so
         # we reject mistyped values before any UE round-trip.
         if not isinstance(value, (str, int, float, bool)):
-            return make_response(req_id, error={
-                "code": -32602,
-                "message": f"bulk_set_console_variables: assignment_value_invalid_type: assignments['{name}'] must be a string, number, or boolean",
-            })
+            return make_response(
+                req_id,
+                error={
+                    "code": -32602,
+                    "message": f"bulk_set_console_variables: assignment_value_invalid_type: assignments['{name}'] must be a string, number, or boolean",
+                },
+            )
 
     rollback_on_error = args.get("rollback_on_error", True)
     if not isinstance(rollback_on_error, bool):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "bulk_set_console_variables: invalid_field: 'rollback_on_error' must be a boolean",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "bulk_set_console_variables: invalid_field: 'rollback_on_error' must be a boolean",
+            },
+        )
 
     applied: list[dict] = []
     failed: list[dict] = []
@@ -5846,13 +7582,15 @@ def synthetic_bulk_set_console_variables(req_id, args: dict) -> dict:
         get_resp = call_ue("get_console_variable", {"name": name})
         if "error" in get_resp:
             upstream = get_resp.get("error", {}) or {}
-            failed.append({
-                "name": name,
-                "error": {
-                    "code": upstream.get("code", -32603) or -32603,
-                    "message": f"bulk_set_console_variables: get_failed: capturing pre-value for '{name}' failed: {upstream.get('message') or ''}",
-                },
-            })
+            failed.append(
+                {
+                    "name": name,
+                    "error": {
+                        "code": upstream.get("code", -32603) or -32603,
+                        "message": f"bulk_set_console_variables: get_failed: capturing pre-value for '{name}' failed: {upstream.get('message') or ''}",
+                    },
+                }
+            )
             if rollback_on_error:
                 break
             continue
@@ -5863,13 +7601,15 @@ def synthetic_bulk_set_console_variables(req_id, args: dict) -> dict:
         set_resp = call_ue("set_console_variable", {"name": name, "value": value})
         if "error" in set_resp:
             upstream = set_resp.get("error", {}) or {}
-            failed.append({
-                "name": name,
-                "error": {
-                    "code": upstream.get("code", -32603) or -32603,
-                    "message": f"bulk_set_console_variables: set_failed: applying '{name}' failed: {upstream.get('message') or ''}",
-                },
-            })
+            failed.append(
+                {
+                    "name": name,
+                    "error": {
+                        "code": upstream.get("code", -32603) or -32603,
+                        "message": f"bulk_set_console_variables: set_failed: applying '{name}' failed: {upstream.get('message') or ''}",
+                    },
+                }
+            )
             if rollback_on_error:
                 break
             continue
@@ -5891,13 +7631,15 @@ def synthetic_bulk_set_console_variables(req_id, args: dict) -> dict:
             restore_resp = call_ue("set_console_variable", {"name": name, "value": old_value})
             if "error" in restore_resp:
                 upstream = restore_resp.get("error", {}) or {}
-                rollback_failures.append({
-                    "name": name,
-                    "error": {
-                        "code": upstream.get("code", -32603) or -32603,
-                        "message": f"bulk_set_console_variables: rollback_failed: restoring '{name}' to pre-value failed: {upstream.get('message') or ''}",
-                    },
-                })
+                rollback_failures.append(
+                    {
+                        "name": name,
+                        "error": {
+                            "code": upstream.get("code", -32603) or -32603,
+                            "message": f"bulk_set_console_variables: rollback_failed: restoring '{name}' to pre-value failed: {upstream.get('message') or ''}",
+                        },
+                    }
+                )
 
     body: dict = {
         "ok": len(failed) == 0,
@@ -5937,16 +7679,22 @@ def synthetic_inspect_dependency_graph(req_id, args: dict) -> dict:
     other inspect failures -> -32603).
     """
     if not isinstance(args, dict):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "inspect_dependency_graph: invalid_arguments: arguments must be an object",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "inspect_dependency_graph: invalid_arguments: arguments must be an object",
+            },
+        )
 
     if "path" not in args:
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "inspect_dependency_graph: missing_required_field: 'path' is required",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "inspect_dependency_graph: missing_required_field: 'path' is required",
+            },
+        )
 
     root = args.get("path")
     err = _validate_asset_path("inspect_dependency_graph", root, "path")
@@ -5955,27 +7703,41 @@ def synthetic_inspect_dependency_graph(req_id, args: dict) -> dict:
 
     depth = args.get("depth", 2)
     if not isinstance(depth, int) or isinstance(depth, bool) or depth < 1 or depth > 8:
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "inspect_dependency_graph: invalid_depth: 'depth' must be an integer between 1 and 8",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "inspect_dependency_graph: invalid_depth: 'depth' must be an integer between 1 and 8",
+            },
+        )
 
     include_referencers = args.get("include_referencers", False)
     if not isinstance(include_referencers, bool):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "inspect_dependency_graph: invalid_field: 'include_referencers' must be a boolean",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "inspect_dependency_graph: invalid_field: 'include_referencers' must be a boolean",
+            },
+        )
 
     # max_nodes bounds the visited set (default 100). Once the cap is hit, no
     # further neighbors are queued and `truncated` is set. The root counts as
     # node 1, so a cap of 1 returns just the root node with no edges and no expansion.
     max_nodes = args.get("max_nodes", 100)
-    if not isinstance(max_nodes, int) or isinstance(max_nodes, bool) or max_nodes < 1 or max_nodes > 100000:
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "inspect_dependency_graph: invalid_max_nodes: 'max_nodes' must be an integer between 1 and 100000",
-        })
+    if (
+        not isinstance(max_nodes, int)
+        or isinstance(max_nodes, bool)
+        or max_nodes < 1
+        or max_nodes > 100000
+    ):
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "inspect_dependency_graph: invalid_max_nodes: 'max_nodes' must be an integer between 1 and 100000",
+            },
+        )
 
     visited: set[str] = {root}
     edges: list[dict] = []
@@ -5991,14 +7753,20 @@ def synthetic_inspect_dependency_graph(req_id, args: dict) -> dict:
                     upstream = inspect_resp.get("error", {}) or {}
                     msg = upstream.get("message", "") or ""
                     if "asset_not_found" in msg.lower() or "not_found" in msg.lower():
-                        return make_response(req_id, error={
-                            "code": -32602,
-                            "message": f"inspect_dependency_graph: asset_not_found: root path '{root}' not in asset registry",
-                        })
-                    return make_response(req_id, error={
-                        "code": upstream.get("code", -32603) or -32603,
-                        "message": f"inspect_dependency_graph: inspect_failed: inspecting root '{root}' failed: {msg}",
-                    })
+                        return make_response(
+                            req_id,
+                            error={
+                                "code": -32602,
+                                "message": f"inspect_dependency_graph: asset_not_found: root path '{root}' not in asset registry",
+                            },
+                        )
+                    return make_response(
+                        req_id,
+                        error={
+                            "code": upstream.get("code", -32603) or -32603,
+                            "message": f"inspect_dependency_graph: inspect_failed: inspecting root '{root}' failed: {msg}",
+                        },
+                    )
                 # Non-root inspect failure: skip the node, continue BFS.
                 continue
 
@@ -6043,18 +7811,21 @@ def synthetic_inspect_dependency_graph(req_id, args: dict) -> dict:
     else:
         truncated = truncated or bool(frontier)
 
-    return _wrap_tool_result(req_id, {
-        "ok": True,
-        "root": root,
-        "depth": depth,
-        "include_referencers": include_referencers,
-        "max_nodes": max_nodes,
-        "node_count": len(visited),
-        "edge_count": len(edges),
-        "nodes": sorted(visited),
-        "edges": edges,
-        "truncated": truncated,
-    })
+    return _wrap_tool_result(
+        req_id,
+        {
+            "ok": True,
+            "root": root,
+            "depth": depth,
+            "include_referencers": include_referencers,
+            "max_nodes": max_nodes,
+            "node_count": len(visited),
+            "edge_count": len(edges),
+            "nodes": sorted(visited),
+            "edges": edges,
+            "truncated": truncated,
+        },
+    )
 
 
 def synthetic_bulk_fix_redirectors(req_id, args: dict) -> dict:
@@ -6070,58 +7841,84 @@ def synthetic_bulk_fix_redirectors(req_id, args: dict) -> dict:
     bulk_* family.
     """
     if not isinstance(args, dict):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "bulk_fix_redirectors: invalid_arguments: arguments must be an object",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "bulk_fix_redirectors: invalid_arguments: arguments must be an object",
+            },
+        )
 
     if "folders" not in args:
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "bulk_fix_redirectors: missing_required_field: 'folders' must be supplied as a list of content folder paths",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "bulk_fix_redirectors: missing_required_field: 'folders' must be supplied as a list of content folder paths",
+            },
+        )
 
     folders = args.get("folders")
     if not isinstance(folders, list):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "bulk_fix_redirectors: invalid_folders_shape: 'folders' must be a list of strings",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "bulk_fix_redirectors: invalid_folders_shape: 'folders' must be a list of strings",
+            },
+        )
 
     if len(folders) > 100:
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": f"bulk_fix_redirectors: too_many_folders: at most 100 folders per call (got {len(folders)})",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": f"bulk_fix_redirectors: too_many_folders: at most 100 folders per call (got {len(folders)})",
+            },
+        )
 
     for i, folder in enumerate(folders):
         if not isinstance(folder, str) or not folder:
-            return make_response(req_id, error={
-                "code": -32602,
-                "message": f"bulk_fix_redirectors: folder_must_be_string: folders[{i}] must be a non-empty string",
-            })
+            return make_response(
+                req_id,
+                error={
+                    "code": -32602,
+                    "message": f"bulk_fix_redirectors: folder_must_be_string: folders[{i}] must be a non-empty string",
+                },
+            )
         err = _validate_asset_path("bulk_fix_redirectors", folder, f"folders[{i}]")
         if err is not None:
             # _validate_asset_path emits path_must_be_string / path_invalid;
             # remap to folder_invalid so the error code matches the spec.
-            return make_response(req_id, error={
-                "code": -32602,
-                "message": err.replace("path_must_be_string", "folder_invalid").replace("path_invalid", "folder_invalid"),
-            })
+            return make_response(
+                req_id,
+                error={
+                    "code": -32602,
+                    "message": err.replace("path_must_be_string", "folder_invalid").replace(
+                        "path_invalid", "folder_invalid"
+                    ),
+                },
+            )
 
     recursive = args.get("recursive", True)
     if not isinstance(recursive, bool):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "bulk_fix_redirectors: invalid_field: 'recursive' must be a boolean",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "bulk_fix_redirectors: invalid_field: 'recursive' must be a boolean",
+            },
+        )
 
     continue_on_error = args.get("continue_on_error", True)
     if not isinstance(continue_on_error, bool):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "bulk_fix_redirectors: invalid_field: 'continue_on_error' must be a boolean",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "bulk_fix_redirectors: invalid_field: 'continue_on_error' must be a boolean",
+            },
+        )
 
     succeeded = 0
     failed: list[dict] = []
@@ -6130,13 +7927,15 @@ def synthetic_bulk_fix_redirectors(req_id, args: dict) -> dict:
         fix_resp = call_ue("fix_up_redirectors", {"path": folder})
         if "error" in fix_resp:
             upstream = fix_resp.get("error", {}) or {}
-            failed.append({
-                "folder": folder,
-                "error": {
-                    "code": upstream.get("code", -32603) or -32603,
-                    "message": f"bulk_fix_redirectors: fix_failed: fix_up_redirectors on '{folder}' failed: {upstream.get('message') or ''}",
-                },
-            })
+            failed.append(
+                {
+                    "folder": folder,
+                    "error": {
+                        "code": upstream.get("code", -32603) or -32603,
+                        "message": f"bulk_fix_redirectors: fix_failed: fix_up_redirectors on '{folder}' failed: {upstream.get('message') or ''}",
+                    },
+                }
+            )
             if not continue_on_error:
                 halted_at_index = i
                 break
@@ -6190,7 +7989,9 @@ def synthetic_bulk_fix_redirectors(req_id, args: dict) -> dict:
 # ---------------------------------------------------------------------------
 
 
-_MARKETPLACE_USER_AGENT = "UnrealAIConnection/0.9.1 (+https://github.com/NAJEMWEHBE/unreal-ai-connection)"
+_MARKETPLACE_USER_AGENT = (
+    "UnrealAIConnection/0.9.1 (+https://github.com/NAJEMWEHBE/unreal-ai-connection)"
+)
 _MARKETPLACE_TIMEOUT_SECS = 30
 
 
@@ -6202,12 +8003,18 @@ def _marketplace_http_get_json(url: str) -> tuple[dict | list | None, dict | Non
     """
     import urllib.error
     import urllib.request
-    req = urllib.request.Request(url, headers={"User-Agent": _MARKETPLACE_USER_AGENT, "Accept": "application/json"})
+
+    req = urllib.request.Request(
+        url, headers={"User-Agent": _MARKETPLACE_USER_AGENT, "Accept": "application/json"}
+    )
     try:
         with urllib.request.urlopen(req, timeout=_MARKETPLACE_TIMEOUT_SECS) as resp:
             body = resp.read()
     except urllib.error.HTTPError as e:
-        return None, {"code": -32603, "message": f"http_error: status={e.code} url={url}: {e.reason}"}
+        return None, {
+            "code": -32603,
+            "message": f"http_error: status={e.code} url={url}: {e.reason}",
+        }
     except urllib.error.URLError as e:
         return None, {"code": -32603, "message": f"network_error: url={url}: {e.reason}"}
     except Exception as e:
@@ -6227,21 +8034,31 @@ def _marketplace_http_download(url: str, dest_path: str) -> dict | None:
     import urllib.error
     import urllib.parse
     import urllib.request
+
     parsed = urllib.parse.urlparse(url)
     if parsed.scheme != "https" or not parsed.netloc:
-        return {"code": -32603, "message": f"invalid_download_url: scheme must be https, got '{parsed.scheme or ''}': {url}"}
+        return {
+            "code": -32603,
+            "message": f"invalid_download_url: scheme must be https, got '{parsed.scheme or ''}': {url}",
+        }
     tmp = dest_path + ".part"
     req = urllib.request.Request(url, headers={"User-Agent": _MARKETPLACE_USER_AGENT})
     err_result: dict | None = None
     try:
-        with urllib.request.urlopen(req, timeout=_MARKETPLACE_TIMEOUT_SECS) as resp, open(tmp, "wb") as out:
+        with (
+            urllib.request.urlopen(req, timeout=_MARKETPLACE_TIMEOUT_SECS) as resp,
+            open(tmp, "wb") as out,
+        ):
             while True:
                 chunk = resp.read(64 * 1024)
                 if not chunk:
                     break
                 out.write(chunk)
     except urllib.error.HTTPError as e:
-        err_result = {"code": -32603, "message": f"http_error: status={e.code} url={url}: {e.reason}"}
+        err_result = {
+            "code": -32603,
+            "message": f"http_error: status={e.code} url={url}: {e.reason}",
+        }
     except urllib.error.URLError as e:
         err_result = {"code": -32603, "message": f"network_error: url={url}: {e.reason}"}
     except Exception as e:
@@ -6271,7 +8088,9 @@ def _polyhaven_type_for(asset_type: str) -> str | None:
     return {"hdri": "hdris", "texture": "textures", "model": "models"}.get(asset_type)
 
 
-def _polyhaven_search(query: str, asset_type: str, limit: int) -> tuple[list[dict] | None, dict | None]:
+def _polyhaven_search(
+    query: str, asset_type: str, limit: int
+) -> tuple[list[dict] | None, dict | None]:
     type_filter = _polyhaven_type_for(asset_type) if asset_type != "all" else None
     # Polyhaven's /assets endpoint returns the full catalog scoped by
     # ?type=<hdris|textures|models|all> (omitted = all types). The
@@ -6287,7 +8106,10 @@ def _polyhaven_search(query: str, asset_type: str, limit: int) -> tuple[list[dic
     if err is not None:
         return None, err
     if not isinstance(data, dict):
-        return None, {"code": -32603, "message": "polyhaven: unexpected payload (not a JSON object)"}
+        return None, {
+            "code": -32603,
+            "message": "polyhaven: unexpected payload (not a JSON object)",
+        }
     inv_type = {0: "hdri", 1: "texture", 2: "model"}
     tokens = [t.lower() for t in (query or "").split() if t]
     candidates: list[dict] = []
@@ -6308,12 +8130,14 @@ def _polyhaven_search(query: str, asset_type: str, limit: int) -> tuple[list[dic
             "download_count": meta.get("download_count") or 0,
         }
         if tokens:
-            haystack = " ".join([
-                slug,
-                str(entry["name"]),
-                " ".join(entry["tags"]),
-                " ".join(entry["categories"]),
-            ]).lower()
+            haystack = " ".join(
+                [
+                    slug,
+                    str(entry["name"]),
+                    " ".join(entry["tags"]),
+                    " ".join(entry["categories"]),
+                ]
+            ).lower()
             if not all(tok in haystack for tok in tokens):
                 continue
         candidates.append(entry)
@@ -6321,11 +8145,14 @@ def _polyhaven_search(query: str, asset_type: str, limit: int) -> tuple[list[dic
     return candidates[:limit], None
 
 
-def _ambientcg_search(query: str, asset_type: str, limit: int) -> tuple[list[dict] | None, dict | None]:
+def _ambientcg_search(
+    query: str, asset_type: str, limit: int
+) -> tuple[list[dict] | None, dict | None]:
     # AmbientCG's /full_json endpoint accepts ?q=keyword and ?type=DataType.
     # DataType values used: "Material" (PBR texture set), "HDRI", "3DModel".
     type_map = {"texture": "Material", "hdri": "HDRI", "model": "3DModel"}
     import urllib.parse
+
     qparts = [f"limit={min(50, max(1, limit))}", "sort=Popular"]
     if asset_type != "all":
         dt = type_map.get(asset_type)
@@ -6345,20 +8172,24 @@ def _ambientcg_search(query: str, asset_type: str, limit: int) -> tuple[list[dic
     for asset in found[:limit]:
         if not isinstance(asset, dict):
             continue
-        results.append({
-            "slug": asset.get("assetId") or "",
-            "name": asset.get("displayName") or asset.get("assetId") or "",
-            "source": "ambientcg",
-            "asset_type": inv_type.get(asset.get("dataType") or "", "unknown"),
-            "thumbnail_url": (asset.get("previewImage") or {}).get("PreviewSphere") or "",
-            "tags": asset.get("tags") or [],
-            "categories": [asset.get("category") or ""] if asset.get("category") else [],
-            "description": asset.get("description") or "",
-        })
+        results.append(
+            {
+                "slug": asset.get("assetId") or "",
+                "name": asset.get("displayName") or asset.get("assetId") or "",
+                "source": "ambientcg",
+                "asset_type": inv_type.get(asset.get("dataType") or "", "unknown"),
+                "thumbnail_url": (asset.get("previewImage") or {}).get("PreviewSphere") or "",
+                "tags": asset.get("tags") or [],
+                "categories": [asset.get("category") or ""] if asset.get("category") else [],
+                "description": asset.get("description") or "",
+            }
+        )
     return results, None
 
 
-def _ambientcg_resolve_zip_url(slug: str, asset_type: str, resolution: str, fmt: str) -> tuple[str | None, str | None, list[str], dict | None]:
+def _ambientcg_resolve_zip_url(
+    slug: str, asset_type: str, resolution: str, fmt: str
+) -> tuple[str | None, str | None, list[str], dict | None]:
     """Hit AmbientCG's `/api/v2/full_json?id=<slug>&include=downloadData`
     and pick the per-resolution / per-format zip URL.
 
@@ -6369,12 +8200,18 @@ def _ambientcg_resolve_zip_url(slug: str, asset_type: str, resolution: str, fmt:
     and matches against the response's `attribute` strings.
     """
     import urllib.parse as _urlparse
+
     url = f"https://ambientcg.com/api/v2/full_json?id={_urlparse.quote(slug, safe='')}&include=downloadData"
     data, err = _marketplace_http_get_json(url)
     if err is not None:
         return None, None, [], err
     if not isinstance(data, dict):
-        return None, None, [], {"code": -32603, "message": "ambientcg: unexpected payload (not a JSON object)"}
+        return (
+            None,
+            None,
+            [],
+            {"code": -32603, "message": "ambientcg: unexpected payload (not a JSON object)"},
+        )
     found = data.get("foundAssets") or []
     if not found or not isinstance(found, list) or not isinstance(found[0], dict):
         return None, None, [], {"code": -32603, "message": f"ambientcg: asset_not_found: id={slug}"}
@@ -6382,7 +8219,12 @@ def _ambientcg_resolve_zip_url(slug: str, asset_type: str, resolution: str, fmt:
     folders = asset.get("downloadFolders") or {}
     default = folders.get("default") if isinstance(folders, dict) else None
     if not isinstance(default, dict):
-        return None, None, [], {"code": -32603, "message": f"ambientcg: no_download_folder: id={slug}"}
+        return (
+            None,
+            None,
+            [],
+            {"code": -32603, "message": f"ambientcg: no_download_folder: id={slug}"},
+        )
     cats = default.get("downloadFiletypeCategories") or {}
     zip_block = cats.get("zip") if isinstance(cats, dict) else None
     if not isinstance(zip_block, dict):
@@ -6392,7 +8234,7 @@ def _ambientcg_resolve_zip_url(slug: str, asset_type: str, resolution: str, fmt:
         return None, None, [], {"code": -32603, "message": f"ambientcg: no_downloads: id={slug}"}
     # Normalise caller request to AmbientCG attribute syntax.
     req_res = (resolution or "").upper()  # "2k" -> "2K"
-    req_fmt = (fmt or "").upper()           # "jpg" -> "JPG"; HDR fmt names match
+    req_fmt = (fmt or "").upper()  # "jpg" -> "JPG"; HDR fmt names match
     want = f"{req_res}-{req_fmt}"
     attrs = [d.get("attribute") for d in downloads if isinstance(d, dict) and d.get("attribute")]
     # Exact match first.
@@ -6415,10 +8257,20 @@ def _ambientcg_resolve_zip_url(slug: str, asset_type: str, resolution: str, fmt:
                 link = d.get("fullDownloadPath") or d.get("downloadLink")
                 if isinstance(link, str) and link:
                     return link, alt, attrs, None
-    return None, None, attrs, {"code": -32603, "message": f"ambientcg: resolution_or_format_unavailable: wanted '{want}' not in available {attrs}"}
+    return (
+        None,
+        None,
+        attrs,
+        {
+            "code": -32603,
+            "message": f"ambientcg: resolution_or_format_unavailable: wanted '{want}' not in available {attrs}",
+        },
+    )
 
 
-def _ambientcg_extract_primary_map(zip_path: str, asset_type: str, dest_dir: str) -> tuple[str | None, dict | None]:
+def _ambientcg_extract_primary_map(
+    zip_path: str, asset_type: str, dest_dir: str
+) -> tuple[str | None, dict | None]:
     """Extract the AmbientCG zip and return the path of the file the
     marketplace_import handler should hand to `import_texture`.
 
@@ -6432,13 +8284,19 @@ def _ambientcg_extract_primary_map(zip_path: str, asset_type: str, dest_dir: str
     """
     import os
     import zipfile
+
     try:
         with zipfile.ZipFile(zip_path, "r") as zf:
             names = zf.namelist()
             # Skip directories and hidden entries.
-            file_names = [n for n in names if not n.endswith("/") and not os.path.basename(n).startswith(".")]
+            file_names = [
+                n for n in names if not n.endswith("/") and not os.path.basename(n).startswith(".")
+            ]
             if not file_names:
-                return None, {"code": -32603, "message": f"ambientcg: bad_zip: {zip_path}: archive contains no files"}
+                return None, {
+                    "code": -32603,
+                    "message": f"ambientcg: bad_zip: {zip_path}: archive contains no files",
+                }
             pick: str | None = None
             if asset_type == "texture":
                 # Prefer the Color map; AmbientCG's canonical convention is
@@ -6451,7 +8309,10 @@ def _ambientcg_extract_primary_map(zip_path: str, asset_type: str, dest_dir: str
                         pick = sorted(matches)[0]
                         break
                 if pick is None:
-                    return None, {"code": -32603, "message": f"ambientcg: zip_has_no_color_map: files={[os.path.basename(n) for n in file_names]}"}
+                    return None, {
+                        "code": -32603,
+                        "message": f"ambientcg: zip_has_no_color_map: files={[os.path.basename(n) for n in file_names]}",
+                    }
             elif asset_type == "hdri":
                 # HDRI zip should ship exactly one .exr or .hdr. Prefer .exr.
                 exrs = [n for n in file_names if n.lower().endswith(".exr")]
@@ -6461,9 +8322,15 @@ def _ambientcg_extract_primary_map(zip_path: str, asset_type: str, dest_dir: str
                 elif hdrs:
                     pick = sorted(hdrs)[0]
                 else:
-                    return None, {"code": -32603, "message": f"ambientcg: zip_has_no_hdri: files={[os.path.basename(n) for n in file_names]}"}
+                    return None, {
+                        "code": -32603,
+                        "message": f"ambientcg: zip_has_no_hdri: files={[os.path.basename(n) for n in file_names]}",
+                    }
             else:
-                return None, {"code": -32603, "message": f"ambientcg: asset_type_unsupported: '{asset_type}'"}
+                return None, {
+                    "code": -32603,
+                    "message": f"ambientcg: asset_type_unsupported: '{asset_type}'",
+                }
             # Extract just the picked file. Use a flat path under dest_dir
             # so any directory components inside the zip (including
             # traversal sequences like "../") don't escape it.
@@ -6487,16 +8354,18 @@ def _ambientcg_extract_primary_map(zip_path: str, asset_type: str, dest_dir: str
 # tangent-space convention is OpenGL), but DX variants are kept as a fallback
 # so assets that only publish DX-tangent normals still resolve.
 _AMBIENTCG_MAP_MARKERS: dict[str, tuple[str, ...]] = {
-    "color":        ("_Color.", "_color.", "_Diffuse.", "_diffuse."),
-    "normal":       ("_NormalGL.", "_normalgl.", "_NormalDX.", "_normaldx.", "_Normal.", "_normal."),
-    "roughness":    ("_Roughness.", "_roughness.", "_Rough.", "_rough."),
-    "ao":           ("_AmbientOcclusion.", "_ambientocclusion.", "_AO.", "_ao."),
+    "color": ("_Color.", "_color.", "_Diffuse.", "_diffuse."),
+    "normal": ("_NormalGL.", "_normalgl.", "_NormalDX.", "_normaldx.", "_Normal.", "_normal."),
+    "roughness": ("_Roughness.", "_roughness.", "_Rough.", "_rough."),
+    "ao": ("_AmbientOcclusion.", "_ambientocclusion.", "_AO.", "_ao."),
     "displacement": ("_Displacement.", "_displacement.", "_Disp.", "_disp."),
-    "metalness":    ("_Metalness.", "_metalness.", "_Metal.", "_metal."),
+    "metalness": ("_Metalness.", "_metalness.", "_Metal.", "_metal."),
 }
 
 
-def _ambientcg_extract_pbr_maps(zip_path: str, dest_dir: str) -> tuple[dict[str, str] | None, dict | None]:
+def _ambientcg_extract_pbr_maps(
+    zip_path: str, dest_dir: str
+) -> tuple[dict[str, str] | None, dict | None]:
     """Multi-map sibling of `_ambientcg_extract_primary_map`. Extracts every
     canonical PBR map present in the AmbientCG zip and returns a dict of
     `canonical_name -> extracted_file_path`.
@@ -6510,12 +8379,18 @@ def _ambientcg_extract_pbr_maps(zip_path: str, dest_dir: str) -> tuple[dict[str,
     """
     import os
     import zipfile
+
     try:
         with zipfile.ZipFile(zip_path, "r") as zf:
             names = zf.namelist()
-            file_names = [n for n in names if not n.endswith("/") and not os.path.basename(n).startswith(".")]
+            file_names = [
+                n for n in names if not n.endswith("/") and not os.path.basename(n).startswith(".")
+            ]
             if not file_names:
-                return None, {"code": -32603, "message": f"ambientcg: bad_zip: {zip_path}: archive contains no files"}
+                return None, {
+                    "code": -32603,
+                    "message": f"ambientcg: bad_zip: {zip_path}: archive contains no files",
+                }
             picks: dict[str, str] = {}
             for canonical, markers in _AMBIENTCG_MAP_MARKERS.items():
                 for marker in markers:
@@ -6524,7 +8399,10 @@ def _ambientcg_extract_pbr_maps(zip_path: str, dest_dir: str) -> tuple[dict[str,
                         picks[canonical] = sorted(matches)[0]
                         break
             if "color" not in picks:
-                return None, {"code": -32603, "message": f"ambientcg: zip_has_no_color_map: files={[os.path.basename(n) for n in file_names]}"}
+                return None, {
+                    "code": -32603,
+                    "message": f"ambientcg: zip_has_no_color_map: files={[os.path.basename(n) for n in file_names]}",
+                }
             extracted: dict[str, str] = {}
             for canonical, pick in picks.items():
                 safe_name = os.path.basename(pick)
@@ -6549,34 +8427,49 @@ def synthetic_marketplace_search(req_id, args: dict) -> dict:
     list of asset descriptors so the caller can pick a slug to import
     via `marketplace_import`."""
     if not isinstance(args, dict):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "marketplace_search: invalid_arguments: arguments must be an object",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "marketplace_search: invalid_arguments: arguments must be an object",
+            },
+        )
     query = args.get("query", "")
     if not isinstance(query, str):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "marketplace_search: invalid_field: 'query' must be a string when supplied",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "marketplace_search: invalid_field: 'query' must be a string when supplied",
+            },
+        )
     source = args.get("source", "polyhaven")
     if source not in ("polyhaven", "ambientcg", "all"):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "marketplace_search: invalid_field: 'source' must be one of polyhaven|ambientcg|all",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "marketplace_search: invalid_field: 'source' must be one of polyhaven|ambientcg|all",
+            },
+        )
     asset_type = args.get("asset_type", "texture")
     if asset_type not in ("texture", "hdri", "model", "all"):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "marketplace_search: invalid_field: 'asset_type' must be one of texture|hdri|model|all",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "marketplace_search: invalid_field: 'asset_type' must be one of texture|hdri|model|all",
+            },
+        )
     limit = args.get("limit", 10)
     if not isinstance(limit, int) or isinstance(limit, bool) or limit < 1 or limit > 50:
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "marketplace_search: invalid_field: 'limit' must be an integer between 1 and 50",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "marketplace_search: invalid_field: 'limit' must be an integer between 1 and 50",
+            },
+        )
 
     results: list[dict] = []
     errors: list[str] = []
@@ -6608,10 +8501,13 @@ def synthetic_marketplace_search(req_id, args: dict) -> dict:
 
     # If both sources failed AND we have no results, surface the errors.
     if not results and errors:
-        return make_response(req_id, error={
-            "code": -32603,
-            "message": "marketplace_search: all_sources_failed: " + "; ".join(errors),
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32603,
+                "message": "marketplace_search: all_sources_failed: " + "; ".join(errors),
+            },
+        )
 
     body: dict = {
         "ok": True,
@@ -6627,7 +8523,9 @@ def synthetic_marketplace_search(req_id, args: dict) -> dict:
     return _wrap_tool_result(req_id, body)
 
 
-def _polyhaven_pick_file(files: dict, asset_type: str, resolution: str, fmt: str) -> tuple[str | None, str | None, list[str], dict | None]:
+def _polyhaven_pick_file(
+    files: dict, asset_type: str, resolution: str, fmt: str
+) -> tuple[str | None, str | None, list[str], dict | None]:
     """Drill into Polyhaven's /files/{slug} response to pull the URL of
     the diffuse/HDRI file at the requested resolution + format.
 
@@ -6636,6 +8534,7 @@ def _polyhaven_pick_file(files: dict, asset_type: str, resolution: str, fmt: str
     requested fmt when a fallback fires — e.g. caller asked 'png' but
     only 'jpg' exists). On failure download_url is None.
     """
+
     def _resolution_sort_key(r: str) -> tuple[int, str]:
         # Polyhaven resolutions are e.g. "1k","2k","4k","8k","16k". Sort
         # by leading integer so "10k" beats "2k". Fall back to lexical
@@ -6650,45 +8549,95 @@ def _polyhaven_pick_file(files: dict, asset_type: str, resolution: str, fmt: str
         resolutions = sorted(hdri.keys(), key=_resolution_sort_key)
         block = hdri.get(resolution)
         if not isinstance(block, dict):
-            return None, None, resolutions, {"code": -32603, "message": f"resolution_unavailable: '{resolution}' not in available {resolutions}"}
+            return (
+                None,
+                None,
+                resolutions,
+                {
+                    "code": -32603,
+                    "message": f"resolution_unavailable: '{resolution}' not in available {resolutions}",
+                },
+            )
         # Prefer EXR for HDRI; fall back to HDR.
         for f in [fmt, "exr", "hdr"]:
             entry = block.get(f)
             if isinstance(entry, dict) and "url" in entry:
                 return entry["url"], f, resolutions, None
-        return None, None, resolutions, {"code": -32603, "message": f"format_unavailable: tried {fmt}/exr/hdr in resolution {resolution}"}
+        return (
+            None,
+            None,
+            resolutions,
+            {
+                "code": -32603,
+                "message": f"format_unavailable: tried {fmt}/exr/hdr in resolution {resolution}",
+            },
+        )
     if asset_type == "texture":
         # Texture files: top-level keys are map names ("Diffuse", "Normal", etc.)
         # v1 imports diffuse only.
         diff = files.get("Diffuse") or files.get("diffuse") or files.get("Color")
         if not isinstance(diff, dict):
-            return None, None, [], {"code": -32603, "message": "texture_no_diffuse: Polyhaven payload lacks a Diffuse/Color map"}
+            return (
+                None,
+                None,
+                [],
+                {
+                    "code": -32603,
+                    "message": "texture_no_diffuse: Polyhaven payload lacks a Diffuse/Color map",
+                },
+            )
         resolutions = sorted(diff.keys(), key=_resolution_sort_key)
         block = diff.get(resolution)
         if not isinstance(block, dict):
-            return None, None, resolutions, {"code": -32603, "message": f"resolution_unavailable: '{resolution}' not in available {resolutions}"}
+            return (
+                None,
+                None,
+                resolutions,
+                {
+                    "code": -32603,
+                    "message": f"resolution_unavailable: '{resolution}' not in available {resolutions}",
+                },
+            )
         for f in [fmt, "png", "jpg"]:
             entry = block.get(f)
             if isinstance(entry, dict) and "url" in entry:
                 return entry["url"], f, resolutions, None
-        return None, None, resolutions, {"code": -32603, "message": f"format_unavailable: tried {fmt}/png/jpg in resolution {resolution}"}
-    return None, None, [], {"code": -32603, "message": f"asset_type_unsupported: '{asset_type}' (marketplace_import v1 supports texture + hdri only)"}
+        return (
+            None,
+            None,
+            resolutions,
+            {
+                "code": -32603,
+                "message": f"format_unavailable: tried {fmt}/png/jpg in resolution {resolution}",
+            },
+        )
+    return (
+        None,
+        None,
+        [],
+        {
+            "code": -32603,
+            "message": f"asset_type_unsupported: '{asset_type}' (marketplace_import v1 supports texture + hdri only)",
+        },
+    )
 
 
 # Polyhaven /files/{slug} top-level key -> canonical PBR map name. Preference
 # inside each tuple matters: `nor_gl` (OpenGL tangent-space normal) wins over
 # `Normal` because UE's tangent-space convention is OpenGL.
 _POLYHAVEN_MAP_KEYS: dict[str, tuple[str, ...]] = {
-    "color":        ("Diffuse", "diffuse", "Color", "color"),
-    "normal":       ("nor_gl", "nor_dx", "NormalDX", "Normal", "normal"),
-    "roughness":    ("Rough", "Roughness", "roughness"),
-    "ao":           ("AO", "ao"),
+    "color": ("Diffuse", "diffuse", "Color", "color"),
+    "normal": ("nor_gl", "nor_dx", "NormalDX", "Normal", "normal"),
+    "roughness": ("Rough", "Roughness", "roughness"),
+    "ao": ("AO", "ao"),
     "displacement": ("Displacement", "displacement", "Disp"),
-    "metalness":    ("Metal", "metal", "Metalness", "metalness"),
+    "metalness": ("Metal", "metal", "Metalness", "metalness"),
 }
 
 
-def _polyhaven_pick_pbr_files(files: dict, resolution: str, fmt: str) -> tuple[dict[str, str] | None, list[str], dict | None]:
+def _polyhaven_pick_pbr_files(
+    files: dict, resolution: str, fmt: str
+) -> tuple[dict[str, str] | None, list[str], dict | None]:
     """Multi-map sibling of `_polyhaven_pick_file`. Walks the Polyhaven
     /files/{slug} payload and returns a dict of `canonical_name -> URL`
     for every PBR map present at the requested resolution. Format-fallback
@@ -6702,6 +8651,7 @@ def _polyhaven_pick_pbr_files(files: dict, resolution: str, fmt: str) -> tuple[d
     derived from the diffuse map's resolution set (same source of truth
     used by the single-map picker).
     """
+
     def _resolution_sort_key(r: str) -> tuple[int, str]:
         if r.endswith("k") and r[:-1].isdigit():
             return (int(r[:-1]), r)
@@ -6717,10 +8667,24 @@ def _polyhaven_pick_pbr_files(files: dict, resolution: str, fmt: str) -> tuple[d
             diff_block = candidate
             break
     if diff_block is None:
-        return None, [], {"code": -32603, "message": "texture_no_diffuse: Polyhaven payload lacks a Diffuse/Color map"}
+        return (
+            None,
+            [],
+            {
+                "code": -32603,
+                "message": "texture_no_diffuse: Polyhaven payload lacks a Diffuse/Color map",
+            },
+        )
     resolutions = sorted(diff_block.keys(), key=_resolution_sort_key)
     if not isinstance(diff_block.get(resolution), dict):
-        return None, resolutions, {"code": -32603, "message": f"resolution_unavailable: '{resolution}' not in available {resolutions}"}
+        return (
+            None,
+            resolutions,
+            {
+                "code": -32603,
+                "message": f"resolution_unavailable: '{resolution}' not in available {resolutions}",
+            },
+        )
 
     urls: dict[str, str] = {}
     for canonical, keys in _POLYHAVEN_MAP_KEYS.items():
@@ -6742,7 +8706,14 @@ def _polyhaven_pick_pbr_files(files: dict, resolution: str, fmt: str) -> tuple[d
                 break
 
     if "color" not in urls:
-        return None, resolutions, {"code": -32603, "message": f"format_unavailable: diffuse map present but no {fmt}/png/jpg variant at resolution {resolution}"}
+        return (
+            None,
+            resolutions,
+            {
+                "code": -32603,
+                "message": f"format_unavailable: diffuse map present but no {fmt}/png/jpg variant at resolution {resolution}",
+            },
+        )
     return urls, resolutions, None
 
 
@@ -6789,10 +8760,13 @@ def _marketplace_import_multimap(
         if err is not None:
             return make_response(req_id, error=err)
         if not isinstance(files, dict):
-            return make_response(req_id, error={
-                "code": -32603,
-                "message": f"marketplace_import: unexpected_payload: /files/{slug} did not return a JSON object",
-            })
+            return make_response(
+                req_id,
+                error={
+                    "code": -32603,
+                    "message": f"marketplace_import: unexpected_payload: /files/{slug} did not return a JSON object",
+                },
+            )
         urls, available, pick_err = _polyhaven_pick_pbr_files(files, resolution, fmt)
         if pick_err is not None:
             return make_response(req_id, error=pick_err)
@@ -6803,7 +8777,9 @@ def _marketplace_import_multimap(
             # end with the actual file extension after the last dot.
             url_ext = url.rsplit(".", 1)[-1].lower()
             safe_ext = "".join(c for c in url_ext if c.isalnum()) or "bin"
-            tmp_path = os.path.join(tmp_dir, f"marketplace_{safe_slug}_{safe_resolution}_{safe_canonical}.{safe_ext}")
+            tmp_path = os.path.join(
+                tmp_dir, f"marketplace_{safe_slug}_{safe_resolution}_{safe_canonical}.{safe_ext}"
+            )
             dl_err = _marketplace_http_download(url, tmp_path)
             if dl_err is not None:
                 return make_response(req_id, error=dl_err)
@@ -6811,7 +8787,9 @@ def _marketplace_import_multimap(
             if canonical == "color":
                 chosen_fmt = safe_ext
     else:  # source == "ambientcg"
-        zip_url, chosen_attr, available, pick_err = _ambientcg_resolve_zip_url(slug, "texture", resolution, fmt)
+        zip_url, chosen_attr, available, pick_err = _ambientcg_resolve_zip_url(
+            slug, "texture", resolution, fmt
+        )
         if pick_err is not None:
             return make_response(req_id, error=pick_err)
         downloaded_from = zip_url or ""
@@ -6824,10 +8802,13 @@ def _marketplace_import_multimap(
         try:
             os.makedirs(extract_dir, exist_ok=True)
         except OSError as e:
-            return make_response(req_id, error={
-                "code": -32603,
-                "message": f"marketplace_import: ambientcg_mkdir_failed: {extract_dir}: {e}",
-            })
+            return make_response(
+                req_id,
+                error={
+                    "code": -32603,
+                    "message": f"marketplace_import: ambientcg_mkdir_failed: {extract_dir}: {e}",
+                },
+            )
         ex_maps, ex_err = _ambientcg_extract_pbr_maps(zip_tmp, extract_dir)
         if ex_err is not None:
             return make_response(req_id, error=ex_err)
@@ -6862,16 +8843,21 @@ def _marketplace_import_multimap(
             # or retry the failed map with `replace_existing=true`. Without
             # this, an `replace_existing=false` retry would hit the stale
             # color asset and double-fail.
-            return make_response(req_id, error={
-                "code": upstream.get("code", -32603) or -32603,
-                "message": f"marketplace_import: ue_import_failed: map={canonical}: {upstream.get('message') or 'import_texture returned an error'}",
-                "data": {
-                    "failed_map": canonical,
-                    "imported_so_far": imported,
-                    "remaining_maps": [m for m in map_order if m not in imported and m != canonical],
-                    "hint": "retry with replace_existing=true, or delete the assets in imported_so_far before retrying with replace_existing=false",
+            return make_response(
+                req_id,
+                error={
+                    "code": upstream.get("code", -32603) or -32603,
+                    "message": f"marketplace_import: ue_import_failed: map={canonical}: {upstream.get('message') or 'import_texture returned an error'}",
+                    "data": {
+                        "failed_map": canonical,
+                        "imported_so_far": imported,
+                        "remaining_maps": [
+                            m for m in map_order if m not in imported and m != canonical
+                        ],
+                        "hint": "retry with replace_existing=true, or delete the assets in imported_so_far before retrying with replace_existing=false",
+                    },
                 },
-            })
+            )
         result = import_resp.get("result") or {}
         imported[canonical] = result.get("asset_path") or f"{dest_path}/{per_map_dest_name}"
         import_results[canonical] = result
@@ -6912,75 +8898,110 @@ def synthetic_marketplace_import(req_id, args: dict) -> dict:
     not_implemented error so the surface is discoverable.
     """
     if not isinstance(args, dict):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "marketplace_import: invalid_arguments: arguments must be an object",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "marketplace_import: invalid_arguments: arguments must be an object",
+            },
+        )
     source = args.get("source", "polyhaven")
     if source not in ("polyhaven", "ambientcg"):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "marketplace_import: invalid_field: 'source' must be one of polyhaven|ambientcg",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "marketplace_import: invalid_field: 'source' must be one of polyhaven|ambientcg",
+            },
+        )
     slug = args.get("slug")
     if not isinstance(slug, str) or not slug:
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "marketplace_import: invalid_field: 'slug' must be a non-empty string",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "marketplace_import: invalid_field: 'slug' must be a non-empty string",
+            },
+        )
     asset_type = args.get("asset_type", "texture")
     if asset_type not in ("texture", "hdri", "model"):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "marketplace_import: invalid_field: 'asset_type' must be one of texture|hdri|model",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "marketplace_import: invalid_field: 'asset_type' must be one of texture|hdri|model",
+            },
+        )
     if asset_type == "model":
-        return make_response(req_id, error={
-            "code": -32603,
-            "message": "marketplace_import: not_implemented: model import is parked for v2 (native handler has no mesh-import wrapper today)",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32603,
+                "message": "marketplace_import: not_implemented: model import is parked for v2 (native handler has no mesh-import wrapper today)",
+            },
+        )
     resolution = args.get("resolution", "2k")
     if not isinstance(resolution, str) or not resolution:
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "marketplace_import: invalid_field: 'resolution' must be a non-empty string (e.g. '1k', '2k', '4k', '8k')",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "marketplace_import: invalid_field: 'resolution' must be a non-empty string (e.g. '1k', '2k', '4k', '8k')",
+            },
+        )
     fmt = args.get("format", "png" if asset_type == "texture" else "exr")
     if not isinstance(fmt, str) or not fmt:
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "marketplace_import: invalid_field: 'format' must be a non-empty string",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "marketplace_import: invalid_field: 'format' must be a non-empty string",
+            },
+        )
     dest_path = args.get("dest_path", "/Game/Marketplace")
     if not isinstance(dest_path, str) or not dest_path.startswith("/Game"):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "marketplace_import: invalid_field: 'dest_path' must start with /Game",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "marketplace_import: invalid_field: 'dest_path' must start with /Game",
+            },
+        )
     dest_name = args.get("dest_name") or slug
     multi_map = args.get("multi_map", False)
     if not isinstance(multi_map, bool):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": f"marketplace_import: invalid_field: 'multi_map' must be a boolean, got {type(multi_map).__name__}",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": f"marketplace_import: invalid_field: 'multi_map' must be a boolean, got {type(multi_map).__name__}",
+            },
+        )
     if multi_map and asset_type != "texture":
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": f"marketplace_import: invalid_field: 'multi_map=true' applies to asset_type='texture' only (got '{asset_type}'); HDRIs ship as a single file",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": f"marketplace_import: invalid_field: 'multi_map=true' applies to asset_type='texture' only (got '{asset_type}'); HDRIs ship as a single file",
+            },
+        )
     replace_existing = args.get("replace_existing", False)
     if not isinstance(replace_existing, bool):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": f"marketplace_import: invalid_field: 'replace_existing' must be a boolean, got {type(replace_existing).__name__}",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": f"marketplace_import: invalid_field: 'replace_existing' must be a boolean, got {type(replace_existing).__name__}",
+            },
+        )
 
     import os
     import tempfile
+
     def _safe_path_token(s: str, default: str) -> str:
         cleaned = "".join(c for c in (s or "") if c.isalnum() or c in "._-")
         return cleaned or default
+
     safe_slug = _safe_path_token(slug, "slug")
     safe_resolution = _safe_path_token(resolution, "res")
     tmp_dir = tempfile.gettempdir()
@@ -6991,9 +9012,17 @@ def synthetic_marketplace_import(req_id, args: dict) -> dict:
     # diffuse-only dest_name stays the color asset path for back-compat).
     if multi_map:
         return _marketplace_import_multimap(
-            req_id, source, slug, resolution, fmt,
-            dest_path, dest_name, replace_existing,
-            safe_slug, safe_resolution, tmp_dir,
+            req_id,
+            source,
+            slug,
+            resolution,
+            fmt,
+            dest_path,
+            dest_name,
+            replace_existing,
+            safe_slug,
+            safe_resolution,
+            tmp_dir,
         )
 
     # 1. Resolve download URL + 2. Download to temp. Branches per source.
@@ -7006,16 +9035,22 @@ def synthetic_marketplace_import(req_id, args: dict) -> dict:
         # format URLs. URL-encode the slug so a value containing '/', '?',
         # or '#' cannot escape the /files/{slug} path.
         import urllib.parse as _urlparse
+
         files_url = f"https://api.polyhaven.com/files/{_urlparse.quote(slug, safe='')}"
         files, err = _marketplace_http_get_json(files_url)
         if err is not None:
             return make_response(req_id, error=err)
         if not isinstance(files, dict):
-            return make_response(req_id, error={
-                "code": -32603,
-                "message": f"marketplace_import: unexpected_payload: /files/{slug} did not return a JSON object",
-            })
-        download_url, chosen_fmt, available, pick_err = _polyhaven_pick_file(files, asset_type, resolution, fmt)
+            return make_response(
+                req_id,
+                error={
+                    "code": -32603,
+                    "message": f"marketplace_import: unexpected_payload: /files/{slug} did not return a JSON object",
+                },
+            )
+        download_url, chosen_fmt, available, pick_err = _polyhaven_pick_file(
+            files, asset_type, resolution, fmt
+        )
         if pick_err is not None:
             return make_response(req_id, error=pick_err)
         # Suffix derives from the chosen format (may differ from the
@@ -7031,7 +9066,9 @@ def synthetic_marketplace_import(req_id, args: dict) -> dict:
         # AmbientCG: zip-archive per resolution/format. Resolve the zip
         # URL, download it, extract the diffuse map (or sole HDRI file),
         # then hand the extracted file to `import_texture`.
-        zip_url, chosen_attr, available, pick_err = _ambientcg_resolve_zip_url(slug, asset_type, resolution, fmt)
+        zip_url, chosen_attr, available, pick_err = _ambientcg_resolve_zip_url(
+            slug, asset_type, resolution, fmt
+        )
         if pick_err is not None:
             return make_response(req_id, error=pick_err)
         download_url = zip_url  # type: ignore[assignment]
@@ -7047,10 +9084,13 @@ def synthetic_marketplace_import(req_id, args: dict) -> dict:
         try:
             os.makedirs(extract_dir, exist_ok=True)
         except OSError as e:
-            return make_response(req_id, error={
-                "code": -32603,
-                "message": f"marketplace_import: ambientcg_mkdir_failed: {extract_dir}: {e}",
-            })
+            return make_response(
+                req_id,
+                error={
+                    "code": -32603,
+                    "message": f"marketplace_import: ambientcg_mkdir_failed: {extract_dir}: {e}",
+                },
+            )
         extracted_path, ex_err = _ambientcg_extract_primary_map(zip_tmp, asset_type, extract_dir)
         if ex_err is not None:
             return make_response(req_id, error=ex_err)
@@ -7074,10 +9114,13 @@ def synthetic_marketplace_import(req_id, args: dict) -> dict:
     import_resp = call_ue("import_texture", import_params)
     if "error" in import_resp:
         upstream = import_resp.get("error") or {}
-        return make_response(req_id, error={
-            "code": upstream.get("code", -32603) or -32603,
-            "message": f"marketplace_import: ue_import_failed: {upstream.get('message') or 'import_texture returned an error'}",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": upstream.get("code", -32603) or -32603,
+                "message": f"marketplace_import: ue_import_failed: {upstream.get('message') or 'import_texture returned an error'}",
+            },
+        )
     import_result = import_resp.get("result") or {}
 
     body: dict = {
@@ -7113,9 +9156,9 @@ _HDRI_CUBE_COMPRESSION_ALLOWED = {
 }
 
 
-def _render_hdri_to_cubemap_script(hdri_path: str, dest_pkg: str, cube_name: str,
-                                   cube_size: int, compression: str,
-                                   tag: str) -> str:
+def _render_hdri_to_cubemap_script(
+    hdri_path: str, dest_pkg: str, cube_name: str, cube_size: int, compression: str, tag: str
+) -> str:
     """Return the UE Python script that executes the longlat -> cubemap
     pipeline (SceneCaptureCube against an inside-out unit sphere with the
     HDRI as an unlit emissive material). Inputs MUST already be validated
@@ -7243,16 +9286,22 @@ def synthetic_convert_hdri_to_cubemap(req_id, args: dict) -> dict:
       - ok, cube_asset_path, source_hdri, cube_size, compression
     """
     if not isinstance(args, dict):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "convert_hdri_to_cubemap: invalid_arguments: arguments must be an object",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "convert_hdri_to_cubemap: invalid_arguments: arguments must be an object",
+            },
+        )
     hdri_path = args.get("hdri_path")
     if not isinstance(hdri_path, str) or not hdri_path.startswith("/Game/"):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "convert_hdri_to_cubemap: invalid_field: 'hdri_path' must be a non-empty string starting with /Game/",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "convert_hdri_to_cubemap: invalid_field: 'hdri_path' must be a non-empty string starting with /Game/",
+            },
+        )
     # Default dest = source's folder.
     if "/" in hdri_path:
         default_dest = hdri_path.rsplit("/", 1)[0]
@@ -7265,66 +9314,93 @@ def synthetic_convert_hdri_to_cubemap(req_id, args: dict) -> dict:
 
     dest_path = args.get("dest_path") or default_dest
     if not isinstance(dest_path, str):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "convert_hdri_to_cubemap: invalid_field: 'dest_path' must be a string",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "convert_hdri_to_cubemap: invalid_field: 'dest_path' must be a string",
+            },
+        )
     # Tight /Game/ guard — must be exactly "/Game" or start with "/Game/".
     # `/GameFoo`, `/Gameplay/x`, `/Engine/...` etc all fail. Also reject
     # backslashes and traversal segments so a malformed path can't push
     # weird state into UE.
     if dest_path != "/Game" and not dest_path.startswith("/Game/"):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "convert_hdri_to_cubemap: invalid_field: 'dest_path' must be '/Game' or start with '/Game/'",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "convert_hdri_to_cubemap: invalid_field: 'dest_path' must be '/Game' or start with '/Game/'",
+            },
+        )
     if "\\" in dest_path:
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "convert_hdri_to_cubemap: invalid_field: 'dest_path' must not contain '\\\\'",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "convert_hdri_to_cubemap: invalid_field: 'dest_path' must not contain '\\\\'",
+            },
+        )
     for seg in dest_path.split("/"):
         if seg in ("", ".", "..") and dest_path != "/Game":
             # leading slash makes the first segment "", which is fine.
             # Only reject empty/.//.. inside the path proper.
             if not (seg == "" and dest_path.startswith("/")):
-                return make_response(req_id, error={
+                return make_response(
+                    req_id,
+                    error={
+                        "code": -32602,
+                        "message": f"convert_hdri_to_cubemap: invalid_field: 'dest_path' must not contain '{seg}' segments",
+                    },
+                )
+        if seg in (".", ".."):
+            return make_response(
+                req_id,
+                error={
                     "code": -32602,
                     "message": f"convert_hdri_to_cubemap: invalid_field: 'dest_path' must not contain '{seg}' segments",
-                })
-        if seg in (".", ".."):
-            return make_response(req_id, error={
-                "code": -32602,
-                "message": f"convert_hdri_to_cubemap: invalid_field: 'dest_path' must not contain '{seg}' segments",
-            })
+                },
+            )
     dest_name = args.get("dest_name") or f"{default_basename}_Cube"
     if not isinstance(dest_name, str) or not dest_name:
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "convert_hdri_to_cubemap: invalid_field: 'dest_name' must be a non-empty string",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "convert_hdri_to_cubemap: invalid_field: 'dest_name' must be a non-empty string",
+            },
+        )
     # Asset names must not contain path separators / dots / quotes / shell
     # metacharacters that could break our generated UE Python literal.
     for ch in "/\\\"'`\n\r\t;":
         if ch in dest_name:
-            return make_response(req_id, error={
-                "code": -32602,
-                "message": f"convert_hdri_to_cubemap: invalid_field: 'dest_name' must not contain {ch!r}",
-            })
+            return make_response(
+                req_id,
+                error={
+                    "code": -32602,
+                    "message": f"convert_hdri_to_cubemap: invalid_field: 'dest_name' must not contain {ch!r}",
+                },
+            )
 
     cube_size = args.get("cube_size", 1024)
     if not isinstance(cube_size, int) or cube_size < 16 or cube_size > 8192:
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "convert_hdri_to_cubemap: invalid_field: 'cube_size' must be an int in [16, 8192]",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "convert_hdri_to_cubemap: invalid_field: 'cube_size' must be an int in [16, 8192]",
+            },
+        )
 
     compression = args.get("compression", "TC_HDR")
     if compression not in _HDRI_CUBE_COMPRESSION_ALLOWED:
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": f"convert_hdri_to_cubemap: invalid_field: 'compression' must be one of {sorted(_HDRI_CUBE_COMPRESSION_ALLOWED)}",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": f"convert_hdri_to_cubemap: invalid_field: 'compression' must be one of {sorted(_HDRI_CUBE_COMPRESSION_ALLOWED)}",
+            },
+        )
 
     # Phase H engine gate: blocks on UE < 5.0 (EditorAssetLibrary subsystem
     # + render-target cube APIs the inner script uses are 5.0+).
@@ -7335,21 +9411,30 @@ def synthetic_convert_hdri_to_cubemap(req_id, args: dict) -> dict:
     # Unique per-call suffix for temp asset names so concurrent invocations
     # don't race + the cleanup never targets pre-existing user content.
     import uuid as _uuid
+
     tag = _uuid.uuid4().hex[:12]
-    code = _render_hdri_to_cubemap_script(hdri_path, dest_path, dest_name, cube_size, compression, tag)
+    code = _render_hdri_to_cubemap_script(
+        hdri_path, dest_path, dest_name, cube_size, compression, tag
+    )
     resp = call_ue("execute_unreal_python", {"code": code, "capture_output": True})
     if "error" in resp:
         upstream = resp.get("error") or {}
-        return make_response(req_id, error={
-            "code": upstream.get("code", -32603) or -32603,
-            "message": f"convert_hdri_to_cubemap: ue_exec_failed: {upstream.get('message') or 'execute_unreal_python returned an error'}",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": upstream.get("code", -32603) or -32603,
+                "message": f"convert_hdri_to_cubemap: ue_exec_failed: {upstream.get('message') or 'execute_unreal_python returned an error'}",
+            },
+        )
     result = resp.get("result") or {}
     if not result.get("ok"):
-        return make_response(req_id, error={
-            "code": -32603,
-            "message": f"convert_hdri_to_cubemap: ue_python_error: {result.get('output') or result}",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32603,
+                "message": f"convert_hdri_to_cubemap: ue_python_error: {result.get('output') or result}",
+            },
+        )
 
     body = {
         "ok": True,
@@ -7405,9 +9490,9 @@ def _render_sequencer_add_transform_keyframe_script(
     sequence_path: str,
     binding_id: str,
     time_seconds: float,
-    location,            # list[float] | None
-    rotation,            # list[float] | None  (caller order: [pitch, yaw, roll])
-    scale,               # list[float] | None
+    location,  # list[float] | None
+    rotation,  # list[float] | None  (caller order: [pitch, yaw, roll])
+    scale,  # list[float] | None
     interpolation_member: str,
     auto_extend_section: bool,
 ) -> str:
@@ -7440,6 +9525,7 @@ def _render_sequencer_add_transform_keyframe_script(
     captured stdout if it wants to in a future revision; for now the body
     is composed from the caller-side validated inputs.
     """
+
     # Build the per-component payloads as Python literal lists. Each entry
     # is a (channel_name, value) tuple; the inner script then iterates over
     # the concatenated list. Skipping a component => empty list => zero
@@ -7594,44 +9680,62 @@ def synthetic_sequencer_add_transform_keyframe(req_id, args: dict) -> dict:
     rather than a no-op round trip into UE.
     """
     if not isinstance(args, dict):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "sequencer_add_transform_keyframe: invalid_arguments: arguments must be an object",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "sequencer_add_transform_keyframe: invalid_arguments: arguments must be an object",
+            },
+        )
 
     sequence_path = args.get("sequence_path")
     if not isinstance(sequence_path, str) or not sequence_path:
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "sequencer_add_transform_keyframe: invalid_field: 'sequence_path' must be a non-empty string starting with /Game/",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "sequencer_add_transform_keyframe: invalid_field: 'sequence_path' must be a non-empty string starting with /Game/",
+            },
+        )
     # Bare `/Game` is the root content folder, not an asset path. This tool
     # requires an actual LevelSequence asset path, so reject the folder up
     # front and keep the error in -32602 validation territory rather than
     # falling through to a UE-side `sequence_not_found`.
     if not sequence_path.startswith("/Game/"):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "sequencer_add_transform_keyframe: invalid_field: 'sequence_path' must start with '/Game/' and name a LevelSequence asset",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "sequencer_add_transform_keyframe: invalid_field: 'sequence_path' must start with '/Game/' and name a LevelSequence asset",
+            },
+        )
     if "\\" in sequence_path:
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "sequencer_add_transform_keyframe: invalid_field: 'sequence_path' must not contain '\\\\'",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "sequencer_add_transform_keyframe: invalid_field: 'sequence_path' must not contain '\\\\'",
+            },
+        )
     for seg in sequence_path.split("/"):
         if seg in (".", ".."):
-            return make_response(req_id, error={
-                "code": -32602,
-                "message": f"sequencer_add_transform_keyframe: invalid_field: 'sequence_path' must not contain '{seg}' segments",
-            })
+            return make_response(
+                req_id,
+                error={
+                    "code": -32602,
+                    "message": f"sequencer_add_transform_keyframe: invalid_field: 'sequence_path' must not contain '{seg}' segments",
+                },
+            )
 
     binding_id = args.get("binding_id")
     if not isinstance(binding_id, str) or not binding_id.strip():
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "sequencer_add_transform_keyframe: invalid_field: 'binding_id' must be a non-empty string",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "sequencer_add_transform_keyframe: invalid_field: 'binding_id' must be a non-empty string",
+            },
+        )
     # The GUID string is passed straight into the generated UE Python as a
     # repr()d literal, but defence-in-depth: only allow hex + dashes +
     # braces (UE's FGuid::ToString() variants all stay inside that set).
@@ -7639,33 +9743,48 @@ def synthetic_sequencer_add_transform_keyframe(req_id, args: dict) -> dict:
     # caller benefits from a fast-fail.
     binding_id_stripped = binding_id.strip()
     if not all(c in "0123456789abcdefABCDEF-{}" for c in binding_id_stripped):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "sequencer_add_transform_keyframe: invalid_field: 'binding_id' must be a hex GUID (with optional dashes/braces)",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "sequencer_add_transform_keyframe: invalid_field: 'binding_id' must be a hex GUID (with optional dashes/braces)",
+            },
+        )
 
     t_raw = args.get("time_seconds")
     if not isinstance(t_raw, (int, float)) or isinstance(t_raw, bool):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "sequencer_add_transform_keyframe: invalid_field: 'time_seconds' must be a number",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "sequencer_add_transform_keyframe: invalid_field: 'time_seconds' must be a number",
+            },
+        )
     time_seconds = float(t_raw)
     if time_seconds < 0.0:
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "sequencer_add_transform_keyframe: invalid_field: 'time_seconds' must be >= 0",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "sequencer_add_transform_keyframe: invalid_field: 'time_seconds' must be >= 0",
+            },
+        )
 
     def _validate_triple(name, value):
         if value is None:
             return None, None
         if not isinstance(value, (list, tuple)) or len(value) != 3:
-            return None, f"sequencer_add_transform_keyframe: invalid_field: '{name}' must be a 3-element list of numbers"
+            return (
+                None,
+                f"sequencer_add_transform_keyframe: invalid_field: '{name}' must be a 3-element list of numbers",
+            )
         coerced = []
         for v in value:
             if isinstance(v, bool) or not isinstance(v, (int, float)):
-                return None, f"sequencer_add_transform_keyframe: invalid_field: '{name}' entries must be numbers"
+                return (
+                    None,
+                    f"sequencer_add_transform_keyframe: invalid_field: '{name}' entries must be numbers",
+                )
             coerced.append(float(v))
         return coerced, None
 
@@ -7680,31 +9799,43 @@ def synthetic_sequencer_add_transform_keyframe(req_id, args: dict) -> dict:
         return make_response(req_id, error={"code": -32602, "message": err})
 
     if location is None and rotation is None and scale is None:
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "sequencer_add_transform_keyframe: nothing_to_key: at least one of 'location' / 'rotation' / 'scale' must be supplied",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "sequencer_add_transform_keyframe: nothing_to_key: at least one of 'location' / 'rotation' / 'scale' must be supplied",
+            },
+        )
 
     interpolation_raw = args.get("interpolation", "linear")
     if not isinstance(interpolation_raw, str):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "sequencer_add_transform_keyframe: invalid_field: 'interpolation' must be a string",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "sequencer_add_transform_keyframe: invalid_field: 'interpolation' must be a string",
+            },
+        )
     interpolation_key = interpolation_raw.strip().lower()
     if interpolation_key not in _SEQUENCER_KEY_INTERPOLATION:
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": f"sequencer_add_transform_keyframe: invalid_field: 'interpolation' must be one of {sorted(_SEQUENCER_KEY_INTERPOLATION.keys())}",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": f"sequencer_add_transform_keyframe: invalid_field: 'interpolation' must be one of {sorted(_SEQUENCER_KEY_INTERPOLATION.keys())}",
+            },
+        )
     interpolation_member = _SEQUENCER_KEY_INTERPOLATION[interpolation_key]
 
     auto_extend_section = args.get("auto_extend_section", True)
     if not isinstance(auto_extend_section, bool):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "sequencer_add_transform_keyframe: invalid_field: 'auto_extend_section' must be a bool",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "sequencer_add_transform_keyframe: invalid_field: 'auto_extend_section' must be a bool",
+            },
+        )
 
     # Phase H engine gate: blocks on UE < 5.0 (unreal.MovieSceneTimeUnit and
     # the MovieScene scripting channel APIs the inner script uses are 5.0+).
@@ -7726,10 +9857,13 @@ def synthetic_sequencer_add_transform_keyframe(req_id, args: dict) -> dict:
     resp = call_ue("execute_unreal_python", {"code": code, "capture_output": True})
     if "error" in resp:
         upstream = resp.get("error") or {}
-        return make_response(req_id, error={
-            "code": upstream.get("code", -32603) or -32603,
-            "message": f"sequencer_add_transform_keyframe: ue_exec_failed: {upstream.get('message') or 'execute_unreal_python returned an error'}",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": upstream.get("code", -32603) or -32603,
+                "message": f"sequencer_add_transform_keyframe: ue_exec_failed: {upstream.get('message') or 'execute_unreal_python returned an error'}",
+            },
+        )
     result = resp.get("result") or {}
     if not result.get("ok"):
         inner = result.get("output") or result
@@ -7739,10 +9873,13 @@ def synthetic_sequencer_add_transform_keyframe(req_id, args: dict) -> dict:
         # ue_python_error so MCP clients can pattern-match on the inner
         # code. The inner script raises RuntimeError(str(e)); the captured
         # traceback string contains "RuntimeError: <code>: ...".
-        return make_response(req_id, error={
-            "code": -32603,
-            "message": f"sequencer_add_transform_keyframe: ue_python_error: {inner_text}",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32603,
+                "message": f"sequencer_add_transform_keyframe: ue_python_error: {inner_text}",
+            },
+        )
 
     # Compose the result body from caller-validated inputs + the per-axis
     # remap so the caller doesn't have to know the internal channel layout.
@@ -7760,11 +9897,14 @@ def synthetic_sequencer_add_transform_keyframe(req_id, args: dict) -> dict:
     # the rendered script writes the marker via unreal.log instead. The
     # __END__ sentinel disambiguates the marker line during scrape.
     track_path = None
-    log_resp = call_ue("get_log_lines", {
-        "count": 64,
-        "category_filter": "LogPython",
-        "min_verbosity": "Log",
-    })
+    log_resp = call_ue(
+        "get_log_lines",
+        {
+            "count": 64,
+            "category_filter": "LogPython",
+            "min_verbosity": "Log",
+        },
+    )
     log_result = log_resp.get("result") if isinstance(log_resp, dict) else None
     log_lines = (log_result or {}).get("lines") or []
     # Walk newest-last -> scan in reverse so the most recent marker wins.
@@ -7774,7 +9914,7 @@ def synthetic_sequencer_add_transform_keyframe(req_id, args: dict) -> dict:
         end = msg.find("__END__", idx) if idx >= 0 else -1
         if idx >= 0 and end > idx:
             try:
-                payload = json.loads(msg[idx + len("SEQ_KEYFRAME_OK::"):end])
+                payload = json.loads(msg[idx + len("SEQ_KEYFRAME_OK::") : end])
                 track_path = payload.get("track_path")
             except Exception:
                 pass
@@ -7788,7 +9928,7 @@ def synthetic_sequencer_add_transform_keyframe(req_id, args: dict) -> dict:
             end = line.find("__END__", idx) if idx >= 0 else -1
             if idx >= 0 and end > idx:
                 try:
-                    payload = json.loads(line[idx + len("SEQ_KEYFRAME_OK::"):end])
+                    payload = json.loads(line[idx + len("SEQ_KEYFRAME_OK::") : end])
                     track_path = payload.get("track_path")
                 except Exception:
                     pass
@@ -7883,8 +10023,12 @@ def _get_connected_engine_version() -> tuple[int, int] | None:
 
     major = result.get("major")
     minor = result.get("minor")
-    if isinstance(major, (int, float)) and isinstance(minor, (int, float)) \
-            and not isinstance(major, bool) and not isinstance(minor, bool):
+    if (
+        isinstance(major, (int, float))
+        and isinstance(minor, (int, float))
+        and not isinstance(major, bool)
+        and not isinstance(minor, bool)
+    ):
         return _memoise((int(major), int(minor)))
 
     parsed = _parse_engine_minor(result.get("minor_dotted") or result.get("full") or "")
@@ -7941,18 +10085,21 @@ def check_engine_gate(req_id, tool_name: str) -> dict | None:
         return None
 
     actual_str = f"{actual[0]}.{actual[1]}"
-    return make_response(req_id, error={
-        "code": -32001,
-        "error_code": "unsupported_on_engine_version",
-        "message": (
-            f"{tool_name}: unsupported_on_engine_version: requires Unreal "
-            f"Engine {min_ver}+ (uses a {min_ver}+ unreal.* Python API); "
-            f"connected editor is {actual_str}. See docs/PHASE-H-COMPAT.md."
-        ),
-        "tool": tool_name,
-        "min_engine_version": min_ver,
-        "engine_version": actual_str,
-    })
+    return make_response(
+        req_id,
+        error={
+            "code": -32001,
+            "error_code": "unsupported_on_engine_version",
+            "message": (
+                f"{tool_name}: unsupported_on_engine_version: requires Unreal "
+                f"Engine {min_ver}+ (uses a {min_ver}+ unreal.* Python API); "
+                f"connected editor is {actual_str}. See docs/PHASE-H-COMPAT.md."
+            ),
+            "tool": tool_name,
+            "min_engine_version": min_ver,
+            "engine_version": actual_str,
+        },
+    )
 
 
 _IMPORT_MESH_EXTS = (".glb", ".gltf", ".fbx", ".obj")
@@ -8002,7 +10149,9 @@ def _build_import_mesh_script(source_path: str, dest_path: str, import_materials
         "            unreal.EditorAssetLibrary.delete_asset(a)\n"
         "    after = _list(DEST); new = sorted(after - before)\n"
         "sms = [a for a in new if _cls(a) == 'StaticMesh']\n"
-        "print(" + repr(_IMPORT_MESH_MARKER) + " + json.dumps({'static_meshes': sms, 'created': new, 'materials_imported': bool(WANT_MATS)}))\n"
+        "print("
+        + repr(_IMPORT_MESH_MARKER)
+        + " + json.dumps({'static_meshes': sms, 'created': new, 'materials_imported': bool(WANT_MATS)}))\n"
     )
 
 
@@ -8019,43 +10168,66 @@ def synthetic_import_mesh(req_id, args: dict) -> dict:
     Returns: ok, source_path, dest_path, static_meshes[], created[], count.
     """
     if not isinstance(args, dict):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "import_mesh: invalid_arguments: arguments must be an object",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "import_mesh: invalid_arguments: arguments must be an object",
+            },
+        )
     source_path = args.get("source_path")
     if not isinstance(source_path, str) or not source_path:
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "import_mesh: invalid_field: 'source_path' must be a non-empty string",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "import_mesh: invalid_field: 'source_path' must be a non-empty string",
+            },
+        )
     if not source_path.lower().endswith(_IMPORT_MESH_EXTS):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": f"import_mesh: invalid_field: 'source_path' must end with one of {list(_IMPORT_MESH_EXTS)}",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": f"import_mesh: invalid_field: 'source_path' must end with one of {list(_IMPORT_MESH_EXTS)}",
+            },
+        )
     if not os.path.isfile(source_path):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": f"import_mesh: file_not_found: no file at source_path {source_path!r}",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": f"import_mesh: file_not_found: no file at source_path {source_path!r}",
+            },
+        )
     dest_path = args.get("dest_path")
-    if not isinstance(dest_path, str) or (dest_path != "/Game" and not dest_path.startswith("/Game/")):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "import_mesh: invalid_field: 'dest_path' must be '/Game' or start with '/Game/'",
-        })
+    if not isinstance(dest_path, str) or (
+        dest_path != "/Game" and not dest_path.startswith("/Game/")
+    ):
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "import_mesh: invalid_field: 'dest_path' must be '/Game' or start with '/Game/'",
+            },
+        )
     if "\\" in dest_path or any(seg in (".", "..") for seg in dest_path.split("/")):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "import_mesh: invalid_field: 'dest_path' must not contain '\\\\' or '.'/'..' segments",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "import_mesh: invalid_field: 'dest_path' must not contain '\\\\' or '.'/'..' segments",
+            },
+        )
     import_materials = args.get("import_materials", True)
     if not isinstance(import_materials, bool):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "import_mesh: invalid_field: 'import_materials' must be a boolean",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "import_mesh: invalid_field: 'import_materials' must be a boolean",
+            },
+        )
 
     gate = check_engine_gate(req_id, "import_mesh")
     if gate is not None:
@@ -8065,16 +10237,22 @@ def synthetic_import_mesh(req_id, args: dict) -> dict:
     resp = call_ue("execute_unreal_python", {"code": code, "capture_output": True})
     if "error" in resp:
         upstream = resp.get("error") or {}
-        return make_response(req_id, error={
-            "code": upstream.get("code", -32603) or -32603,
-            "message": f"import_mesh: ue_exec_failed: {upstream.get('message') or 'execute_unreal_python returned an error'}",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": upstream.get("code", -32603) or -32603,
+                "message": f"import_mesh: ue_exec_failed: {upstream.get('message') or 'execute_unreal_python returned an error'}",
+            },
+        )
     result = resp.get("result") or {}
     if not result.get("ok"):
-        return make_response(req_id, error={
-            "code": -32603,
-            "message": f"import_mesh: ue_python_error: {result.get('output') or result}",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32603,
+                "message": f"import_mesh: ue_python_error: {result.get('output') or result}",
+            },
+        )
     # Parse the marker line out of stdout/output.
     blob = ""
     for key in ("stdout", "output"):
@@ -8092,18 +10270,24 @@ def synthetic_import_mesh(req_id, args: dict) -> dict:
             if isinstance(v, str) and v:
                 snippet = v[:300]
                 break
-        return make_response(req_id, error={
-            "code": -32603,
-            "message": f"import_mesh: missing_result_marker: import ran but emitted no result marker (output: {snippet!r})",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32603,
+                "message": f"import_mesh: missing_result_marker: import ran but emitted no result marker (output: {snippet!r})",
+            },
+        )
     line = blob.split(_IMPORT_MESH_MARKER, 1)[1].splitlines()[0].strip()
     try:
         parsed = json.loads(line)
     except (ValueError, TypeError):
-        return make_response(req_id, error={
-            "code": -32603,
-            "message": f"import_mesh: bad_result_marker: could not parse result payload {line[:200]!r}",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32603,
+                "message": f"import_mesh: bad_result_marker: could not parse result payload {line[:200]!r}",
+            },
+        )
     body = {
         "ok": True,
         "source_path": source_path,
@@ -8128,7 +10312,9 @@ _MATREMAP_SLOTS = {
 }
 
 
-def _build_material_remap_script(actor_label: str, textures: dict, dest_material: str, tiling: float) -> str:
+def _build_material_remap_script(
+    actor_label: str, textures: dict, dest_material: str, tiling: float
+) -> str:
     """Generate the UE Python that builds a PBR Material from `textures`, assigns it
     to the named actor's StaticMesh slots, and prints a marker line with the result.
     All caller values are baked via repr() (injection-safe). Only recognized slots are
@@ -8176,10 +10362,16 @@ def _build_material_remap_script(actor_label: str, textures: dict, dest_material
         mid += (
             "    _y += 300\n"
             "    _s = mel.create_material_expression(m, unreal.MaterialExpressionTextureSample, -500, _y)\n"
-            "    _s.set_editor_property('texture', unreal.EditorAssetLibrary.load_asset(" + repr(path) + "))\n"
+            "    _s.set_editor_property('texture', unreal.EditorAssetLibrary.load_asset("
+            + repr(path)
+            + "))\n"
             "    _s.set_editor_property('sampler_type', unreal.MaterialSamplerType." + st + ")\n"
             "    mel.connect_material_expressions(tc, '', _s, 'UVs')\n"
-            "    mel.connect_material_property(_s, " + repr(out) + ", unreal.MaterialProperty." + prop + ")\n"
+            "    mel.connect_material_property(_s, "
+            + repr(out)
+            + ", unreal.MaterialProperty."
+            + prop
+            + ")\n"
         )
     tail = (
         "    mel.recompile_material(m)\n"
@@ -8204,41 +10396,91 @@ def synthetic_material_auto_remap(req_id, args: dict) -> dict:
     slots_assigned, slots_used.
     """
     if not isinstance(args, dict):
-        return make_response(req_id, error={
-            "code": -32602, "message": "material_auto_remap: invalid_arguments: arguments must be an object"})
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "material_auto_remap: invalid_arguments: arguments must be an object",
+            },
+        )
     actor_label = args.get("actor_label")
     if not isinstance(actor_label, str) or not actor_label:
-        return make_response(req_id, error={
-            "code": -32602, "message": "material_auto_remap: invalid_field: 'actor_label' must be a non-empty string"})
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "material_auto_remap: invalid_field: 'actor_label' must be a non-empty string",
+            },
+        )
     textures = args.get("textures")
     if not isinstance(textures, dict) or not textures:
-        return make_response(req_id, error={
-            "code": -32602, "message": "material_auto_remap: invalid_field: 'textures' must be a non-empty object"})
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "material_auto_remap: invalid_field: 'textures' must be a non-empty object",
+            },
+        )
     recognized = {k: v for k, v in textures.items() if k in _MATREMAP_SLOTS}
     if "base_color" not in recognized:
-        return make_response(req_id, error={
-            "code": -32602, "message": "material_auto_remap: invalid_field: 'textures' must include a 'base_color' entry"})
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "material_auto_remap: invalid_field: 'textures' must include a 'base_color' entry",
+            },
+        )
     for slot, path in recognized.items():
         if not isinstance(path, str) or not path.startswith("/Game/"):
-            return make_response(req_id, error={
-                "code": -32602, "message": f"material_auto_remap: invalid_field: textures['{slot}'] must be a string starting with /Game/"})
+            return make_response(
+                req_id,
+                error={
+                    "code": -32602,
+                    "message": f"material_auto_remap: invalid_field: textures['{slot}'] must be a string starting with /Game/",
+                },
+            )
         if "\\" in path or any(seg in (".", "..") for seg in path.split("/")):
-            return make_response(req_id, error={
-                "code": -32602, "message": f"material_auto_remap: invalid_field: textures['{slot}'] must not contain '\\\\' or '.'/'..' segments"})
+            return make_response(
+                req_id,
+                error={
+                    "code": -32602,
+                    "message": f"material_auto_remap: invalid_field: textures['{slot}'] must not contain '\\\\' or '.'/'..' segments",
+                },
+            )
     dest_material = args.get("dest_material")
     if dest_material is None:
         safe = "".join(c if (c.isalnum() or c == "_") else "_" for c in actor_label)
         dest_material = f"/Game/AutoMaterials/M_{safe}"
     if not isinstance(dest_material, str) or not dest_material.startswith("/Game/"):
-        return make_response(req_id, error={
-            "code": -32602, "message": "material_auto_remap: invalid_field: 'dest_material' must be a string starting with /Game/"})
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "material_auto_remap: invalid_field: 'dest_material' must be a string starting with /Game/",
+            },
+        )
     if "\\" in dest_material or any(seg in (".", "..") for seg in dest_material.split("/")):
-        return make_response(req_id, error={
-            "code": -32602, "message": "material_auto_remap: invalid_field: 'dest_material' must not contain '\\\\' or '.'/'..' segments"})
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "material_auto_remap: invalid_field: 'dest_material' must not contain '\\\\' or '.'/'..' segments",
+            },
+        )
     tiling = args.get("tiling", 1.0)
-    if not isinstance(tiling, (int, float)) or isinstance(tiling, bool) or not math.isfinite(tiling) or tiling <= 0:
-        return make_response(req_id, error={
-            "code": -32602, "message": "material_auto_remap: invalid_field: 'tiling' must be a finite number > 0"})
+    if (
+        not isinstance(tiling, (int, float))
+        or isinstance(tiling, bool)
+        or not math.isfinite(tiling)
+        or tiling <= 0
+    ):
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "material_auto_remap: invalid_field: 'tiling' must be a finite number > 0",
+            },
+        )
 
     gate = check_engine_gate(req_id, "material_auto_remap")
     if gate is not None:
@@ -8248,13 +10490,22 @@ def synthetic_material_auto_remap(req_id, args: dict) -> dict:
     resp = call_ue("execute_unreal_python", {"code": code, "capture_output": True})
     if "error" in resp:
         upstream = resp.get("error") or {}
-        return make_response(req_id, error={
-            "code": upstream.get("code", -32603) or -32603,
-            "message": f"material_auto_remap: ue_exec_failed: {upstream.get('message') or 'execute_unreal_python returned an error'}"})
+        return make_response(
+            req_id,
+            error={
+                "code": upstream.get("code", -32603) or -32603,
+                "message": f"material_auto_remap: ue_exec_failed: {upstream.get('message') or 'execute_unreal_python returned an error'}",
+            },
+        )
     result = resp.get("result") or {}
     if not result.get("ok"):
-        return make_response(req_id, error={
-            "code": -32603, "message": f"material_auto_remap: ue_python_error: {result.get('output') or result}"})
+        return make_response(
+            req_id,
+            error={
+                "code": -32603,
+                "message": f"material_auto_remap: ue_python_error: {result.get('output') or result}",
+            },
+        )
     blob = ""
     for key in ("stdout", "output"):
         v = result.get(key)
@@ -8268,15 +10519,24 @@ def synthetic_material_auto_remap(req_id, args: dict) -> dict:
             if isinstance(v, str) and v:
                 snippet = v[:300]
                 break
-        return make_response(req_id, error={
-            "code": -32603,
-            "message": f"material_auto_remap: missing_result_marker: ran but emitted no result marker (output: {snippet!r})"})
+        return make_response(
+            req_id,
+            error={
+                "code": -32603,
+                "message": f"material_auto_remap: missing_result_marker: ran but emitted no result marker (output: {snippet!r})",
+            },
+        )
     line = blob.split(_MATREMAP_MARKER, 1)[1].splitlines()[0].strip()
     try:
         parsed = json.loads(line)
     except (ValueError, TypeError):
-        return make_response(req_id, error={
-            "code": -32603, "message": f"material_auto_remap: bad_result_marker: could not parse {line[:200]!r}"})
+        return make_response(
+            req_id,
+            error={
+                "code": -32603,
+                "message": f"material_auto_remap: bad_result_marker: could not parse {line[:200]!r}",
+            },
+        )
     body = {
         "ok": True,
         "actor_label": actor_label,
@@ -8318,17 +10578,23 @@ def synthetic_batch_capture_cameras(req_id, args: dict) -> dict:
       out_path, error?}].
     """
     if not isinstance(args, dict):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "batch_capture_cameras: invalid_arguments: arguments must be an object",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "batch_capture_cameras: invalid_arguments: arguments must be an object",
+            },
+        )
 
     output_dir = args.get("output_dir")
     if not isinstance(output_dir, str) or not output_dir:
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "batch_capture_cameras: missing_required_field: 'output_dir' must be a non-empty string",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "batch_capture_cameras: missing_required_field: 'output_dir' must be a non-empty string",
+            },
+        )
     output_dir = os.path.normpath(output_dir)
 
     camera_names = args.get("camera_names")
@@ -8336,49 +10602,66 @@ def synthetic_batch_capture_cameras(req_id, args: dict) -> dict:
         if not isinstance(camera_names, list) or not all(
             isinstance(n, str) and n for n in camera_names
         ):
-            return make_response(req_id, error={
-                "code": -32602,
-                "message": "batch_capture_cameras: invalid_field: 'camera_names' must be a list of non-empty strings when supplied",
-            })
+            return make_response(
+                req_id,
+                error={
+                    "code": -32602,
+                    "message": "batch_capture_cameras: invalid_field: 'camera_names' must be a list of non-empty strings when supplied",
+                },
+            )
 
     file_name_format = args.get("file_name_format", "{camera}.png")
     if not isinstance(file_name_format, str) or "{camera}" not in file_name_format:
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "batch_capture_cameras: invalid_field: 'file_name_format' must be a string containing '{camera}'",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "batch_capture_cameras: invalid_field: 'file_name_format' must be a string containing '{camera}'",
+            },
+        )
 
     width = height = None
     resolution = args.get("resolution")
     if resolution is not None:
         if not isinstance(resolution, dict):
-            return make_response(req_id, error={
-                "code": -32602,
-                "message": "batch_capture_cameras: invalid_field: 'resolution' must be an object with width and height",
-            })
+            return make_response(
+                req_id,
+                error={
+                    "code": -32602,
+                    "message": "batch_capture_cameras: invalid_field: 'resolution' must be an object with width and height",
+                },
+            )
         width = resolution.get("width")
         height = resolution.get("height")
         for label, val in (("width", width), ("height", height)):
             if not isinstance(val, int) or isinstance(val, bool) or val <= 0:
-                return make_response(req_id, error={
-                    "code": -32602,
-                    "message": f"batch_capture_cameras: invalid_field: resolution['{label}'] must be a positive integer",
-                })
+                return make_response(
+                    req_id,
+                    error={
+                        "code": -32602,
+                        "message": f"batch_capture_cameras: invalid_field: resolution['{label}'] must be a positive integer",
+                    },
+                )
 
     actors_resp = call_ue("get_actors_in_level", {})
     if "error" in actors_resp:
         upstream = actors_resp.get("error", {}) or {}
-        return make_response(req_id, error={
-            "code": upstream.get("code", -32603) or -32603,
-            "message": f"batch_capture_cameras: get_actors_failed: {upstream.get('message') or 'get_actors_in_level returned an error'}",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": upstream.get("code", -32603) or -32603,
+                "message": f"batch_capture_cameras: get_actors_failed: {upstream.get('message') or 'get_actors_in_level returned an error'}",
+            },
+        )
 
     all_actors = (actors_resp.get("result") or {}).get("actors") or []
     # CineCameraActor short-class match (case-insensitive), mirroring the
     # find_actors_by_class needle logic.
     cine_cameras = [
-        a for a in all_actors
-        if isinstance(a, dict) and isinstance(a.get("class"), str)
+        a
+        for a in all_actors
+        if isinstance(a, dict)
+        and isinstance(a.get("class"), str)
         and a["class"].lower() == "cinecameraactor"
     ]
 
@@ -8386,16 +10669,16 @@ def synthetic_batch_capture_cameras(req_id, args: dict) -> dict:
     # consumes camera_label, not the actor's unstable internal FName.
     if camera_names is not None:
         wanted = set(camera_names)
-        cine_cameras = [
-            a for a in cine_cameras
-            if a.get("label") in wanted
-        ]
+        cine_cameras = [a for a in cine_cameras if a.get("label") in wanted]
 
     if not cine_cameras:
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "batch_capture_cameras: no_cameras_matched: no CineCameraActor found in the level (or none matched 'camera_names')",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "batch_capture_cameras: no_cameras_matched: no CineCameraActor found in the level (or none matched 'camera_names')",
+            },
+        )
 
     succeeded = 0
     results: list[dict] = []
@@ -8412,26 +10695,32 @@ def synthetic_batch_capture_cameras(req_id, args: dict) -> dict:
         render_resp = call_ue("render_camera_to_png", render_args)
         if "error" in render_resp:
             upstream = render_resp.get("error", {}) or {}
-            results.append({
-                "camera": label,
-                "ok": False,
-                "out_path": out_path,
-                "error": {
-                    "code": upstream.get("code", -32603) or -32603,
-                    "message": upstream.get("message") or f"batch_capture_cameras: render_failed: render_camera_to_png on '{label}' failed",
-                },
-            })
+            results.append(
+                {
+                    "camera": label,
+                    "ok": False,
+                    "out_path": out_path,
+                    "error": {
+                        "code": upstream.get("code", -32603) or -32603,
+                        "message": upstream.get("message")
+                        or f"batch_capture_cameras: render_failed: render_camera_to_png on '{label}' failed",
+                    },
+                }
+            )
         else:
             succeeded += 1
             results.append({"camera": label, "ok": True, "out_path": out_path})
 
-    return _wrap_tool_result(req_id, {
-        "ok": succeeded == len(cine_cameras),
-        "output_dir": output_dir,
-        "total": len(cine_cameras),
-        "succeeded": succeeded,
-        "results": results,
-    })
+    return _wrap_tool_result(
+        req_id,
+        {
+            "ok": succeeded == len(cine_cameras),
+            "output_dir": output_dir,
+            "total": len(cine_cameras),
+            "succeeded": succeeded,
+            "results": results,
+        },
+    )
 
 
 # Column / row keys understood by batch_spawn_from_csv. `class` and `label`
@@ -8508,81 +10797,112 @@ def synthetic_batch_spawn_from_csv(req_id, args: dict) -> dict:
     Returns: ok, total, succeeded, results[{row, ok, name?, label?, error?}].
     """
     if not isinstance(args, dict):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "batch_spawn_from_csv: invalid_arguments: arguments must be an object",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "batch_spawn_from_csv: invalid_arguments: arguments must be an object",
+            },
+        )
 
     csv_path = args.get("csv_path")
     rows = args.get("rows")
     if (csv_path is None) == (rows is None):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "batch_spawn_from_csv: invalid_field: supply exactly one of 'csv_path' or 'rows'",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "batch_spawn_from_csv: invalid_field: supply exactly one of 'csv_path' or 'rows'",
+            },
+        )
 
     default_class = args.get("default_class")
     if default_class is not None and (not isinstance(default_class, str) or not default_class):
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "batch_spawn_from_csv: invalid_field: 'default_class' must be a non-empty string when supplied",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "batch_spawn_from_csv: invalid_field: 'default_class' must be a non-empty string when supplied",
+            },
+        )
 
     # Resolve the row list from either source.
     if csv_path is not None:
         if not isinstance(csv_path, str) or not csv_path:
-            return make_response(req_id, error={
-                "code": -32602,
-                "message": "batch_spawn_from_csv: invalid_field: 'csv_path' must be a non-empty string",
-            })
+            return make_response(
+                req_id,
+                error={
+                    "code": -32602,
+                    "message": "batch_spawn_from_csv: invalid_field: 'csv_path' must be a non-empty string",
+                },
+            )
         try:
             with open(csv_path, encoding="utf-8-sig", newline="") as f:
                 csv_text = f.read()
         except OSError as e:
-            return make_response(req_id, error={
-                "code": -32602,
-                "message": f"batch_spawn_from_csv: csv_read_failed: could not read '{csv_path}': {e}",
-            })
+            return make_response(
+                req_id,
+                error={
+                    "code": -32602,
+                    "message": f"batch_spawn_from_csv: csv_read_failed: could not read '{csv_path}': {e}",
+                },
+            )
         rows, parse_err = _parse_spawn_rows_from_csv(csv_text)
         if parse_err is not None:
-            return make_response(req_id, error={
-                "code": -32602,
-                "message": f"batch_spawn_from_csv: csv_parse_failed: {parse_err}",
-            })
+            return make_response(
+                req_id,
+                error={
+                    "code": -32602,
+                    "message": f"batch_spawn_from_csv: csv_parse_failed: {parse_err}",
+                },
+            )
     else:
         if not isinstance(rows, list):
-            return make_response(req_id, error={
-                "code": -32602,
-                "message": "batch_spawn_from_csv: invalid_field: 'rows' must be a list of objects",
-            })
+            return make_response(
+                req_id,
+                error={
+                    "code": -32602,
+                    "message": "batch_spawn_from_csv: invalid_field: 'rows' must be a list of objects",
+                },
+            )
 
     if not rows:
-        return make_response(req_id, error={
-            "code": -32602,
-            "message": "batch_spawn_from_csv: no_rows: the CSV / rows list produced zero spawn rows",
-        })
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "batch_spawn_from_csv: no_rows: the CSV / rows list produced zero spawn rows",
+            },
+        )
 
     succeeded = 0
     results: list[dict] = []
     for i, row in enumerate(rows):
         if not isinstance(row, dict):
-            results.append({
-                "row": i,
-                "ok": False,
-                "error": {"code": -32602, "message": f"batch_spawn_from_csv: bad_row: rows[{i}] must be an object"},
-            })
+            results.append(
+                {
+                    "row": i,
+                    "ok": False,
+                    "error": {
+                        "code": -32602,
+                        "message": f"batch_spawn_from_csv: bad_row: rows[{i}] must be an object",
+                    },
+                }
+            )
             continue
 
         class_path = row.get("class") or default_class
         if not isinstance(class_path, str) or not class_path:
-            results.append({
-                "row": i,
-                "ok": False,
-                "error": {
-                    "code": -32602,
-                    "message": f"batch_spawn_from_csv: missing_class: rows[{i}] has no 'class' and no 'default_class' was supplied",
-                },
-            })
+            results.append(
+                {
+                    "row": i,
+                    "ok": False,
+                    "error": {
+                        "code": -32602,
+                        "message": f"batch_spawn_from_csv: missing_class: rows[{i}] has no 'class' and no 'default_class' was supplied",
+                    },
+                }
+            )
             continue
 
         numbers: dict[str, float] = {}
@@ -8596,26 +10916,30 @@ def synthetic_batch_spawn_from_csv(req_id, args: dict) -> dict:
                 break
         if bad_number is not None:
             key, raw_value = bad_number
-            results.append({
-                "row": i,
-                "ok": False,
-                "error": {
-                    "code": -32602,
-                    "message": f"batch_spawn_from_csv: invalid_field: rows[{i}]['{key}'] value {raw_value!r} is not a number",
-                },
-            })
+            results.append(
+                {
+                    "row": i,
+                    "ok": False,
+                    "error": {
+                        "code": -32602,
+                        "message": f"batch_spawn_from_csv: invalid_field: rows[{i}]['{key}'] value {raw_value!r} is not a number",
+                    },
+                }
+            )
             continue
 
         props = row.get("properties")
         if "properties" in row and props is not None and not isinstance(props, dict):
-            results.append({
-                "row": i,
-                "ok": False,
-                "error": {
-                    "code": -32602,
-                    "message": f"batch_spawn_from_csv: invalid_field: rows[{i}]['properties'] must be an object when supplied",
-                },
-            })
+            results.append(
+                {
+                    "row": i,
+                    "ok": False,
+                    "error": {
+                        "code": -32602,
+                        "message": f"batch_spawn_from_csv: invalid_field: rows[{i}]['properties'] must be an object when supplied",
+                    },
+                }
+            )
             continue
 
         spawn_args: dict = {
@@ -8640,30 +10964,38 @@ def synthetic_batch_spawn_from_csv(req_id, args: dict) -> dict:
         spawn_resp = call_ue("spawn_actor", spawn_args)
         if "error" in spawn_resp:
             upstream = spawn_resp.get("error", {}) or {}
-            results.append({
-                "row": i,
-                "ok": False,
-                "error": {
-                    "code": upstream.get("code", -32603) or -32603,
-                    "message": upstream.get("message") or f"batch_spawn_from_csv: spawn_failed: spawn_actor for rows[{i}] failed",
-                },
-            })
+            results.append(
+                {
+                    "row": i,
+                    "ok": False,
+                    "error": {
+                        "code": upstream.get("code", -32603) or -32603,
+                        "message": upstream.get("message")
+                        or f"batch_spawn_from_csv: spawn_failed: spawn_actor for rows[{i}] failed",
+                    },
+                }
+            )
         else:
             succeeded += 1
             result = spawn_resp.get("result") or {}
-            results.append({
-                "row": i,
-                "ok": True,
-                "name": result.get("name"),
-                "label": result.get("label"),
-            })
+            results.append(
+                {
+                    "row": i,
+                    "ok": True,
+                    "name": result.get("name"),
+                    "label": result.get("label"),
+                }
+            )
 
-    return _wrap_tool_result(req_id, {
-        "ok": succeeded == len(rows),
-        "total": len(rows),
-        "succeeded": succeeded,
-        "results": results,
-    })
+    return _wrap_tool_result(
+        req_id,
+        {
+            "ok": succeeded == len(rows),
+            "total": len(rows),
+            "succeeded": succeeded,
+            "results": results,
+        },
+    )
 
 
 SYNTHETIC_TOOLS = {
@@ -8763,7 +11095,9 @@ def _wrap_code_for_stdout_capture(user_code: str, capture_path: str) -> str:
         # Use builtins.open via the captured module ref: an unqualified `open`
         # could be shadowed by a name in the user's globals (e.g. a var named
         # `open`), which would silently drop the captured stdout.
-        "        with __ucm_bi.open(" + repr(capture_path) + ", 'w', encoding='utf-8') as __ucm_f:\n"
+        "        with __ucm_bi.open("
+        + repr(capture_path)
+        + ", 'w', encoding='utf-8') as __ucm_f:\n"
         "            __ucm_f.write(__ucm_buf.getvalue())\n"
         "            if __ucm_exc:\n"
         "                __ucm_f.write(__ucm_exc)\n"
@@ -8830,11 +11164,14 @@ def handle(req: dict) -> dict | None:
         return None
 
     if method == "initialize":
-        return make_response(req_id, {
-            "protocolVersion": PROTOCOL_VERSION,
-            "capabilities": {"tools": {}},
-            "serverInfo": {"name": SERVER_NAME, "version": SERVER_VERSION},
-        })
+        return make_response(
+            req_id,
+            {
+                "protocolVersion": PROTOCOL_VERSION,
+                "capabilities": {"tools": {}},
+                "serverInfo": {"name": SERVER_NAME, "version": SERVER_VERSION},
+            },
+        )
 
     if method == "tools/list":
         # Honour progressive disclosure when UCMCP_TOOL_MODE=progressive;
@@ -8845,7 +11182,9 @@ def handle(req: dict) -> dict | None:
         tool_name = params.get("name")
         tool_args = params.get("arguments", {}) or {}
         if not tool_name:
-            return make_response(req_id, error={"code": -32602, "message": "tools/call missing 'name'"})
+            return make_response(
+                req_id, error={"code": -32602, "message": "tools/call missing 'name'"}
+            )
 
         # Bridge-only progressive-disclosure discovery tool. Served entirely
         # in-process: it never crosses the wire to UE and is always callable
@@ -8872,7 +11211,9 @@ def handle(req: dict) -> dict | None:
 
     # Unknown method
     if req_id is not None:
-        return make_response(req_id, error={"code": -32601, "message": f"Method not found: {method}"})
+        return make_response(
+            req_id, error={"code": -32601, "message": f"Method not found: {method}"}
+        )
     return None
 
 
@@ -8889,7 +11230,9 @@ def main() -> None:
             resp = handle(req)
         except Exception as e:
             req_id = req.get("id") if isinstance(req, dict) else None
-            resp = make_response(req_id, error={"code": -32603, "message": f"Bridge internal error: {e}"})
+            resp = make_response(
+                req_id, error={"code": -32603, "message": f"Bridge internal error: {e}"}
+            )
         if resp is not None:
             write_msg(resp)
 

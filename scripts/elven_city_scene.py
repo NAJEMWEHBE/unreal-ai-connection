@@ -9,6 +9,7 @@ Axis convention (cm): +X = North (into the cliff), -X = South (river
 outflow / main camera). +Y = East (golden sun side), -Y = West. Z up.
 River sits at Z=0; viaduct deck ~Z1800; cathedral spire tops ~Z6000.
 """
+
 import math
 import random
 
@@ -39,8 +40,9 @@ def make_mat(name, rgb, emissive=0.0, rough=0.6):
     # an idempotent scene script.
     if el.does_asset_exist(path):
         el.delete_asset(path)
-    m = tools.create_asset(f"M_{name}", "/Game/ElvenCity",
-                           unreal.Material, unreal.MaterialFactoryNew())
+    m = tools.create_asset(
+        f"M_{name}", "/Game/ElvenCity", unreal.Material, unreal.MaterialFactoryNew()
+    )
     col = mel.create_material_expression(m, unreal.MaterialExpressionConstant3Vector, -400, 0)
     col.set_editor_property("constant", unreal.LinearColor(rgb[0], rgb[1], rgb[2], 1.0))
     mel.connect_material_property(col, "", unreal.MaterialProperty.MP_BASE_COLOR)
@@ -49,7 +51,10 @@ def make_mat(name, rgb, emissive=0.0, rough=0.6):
     mel.connect_material_property(r, "", unreal.MaterialProperty.MP_ROUGHNESS)
     if emissive > 0:
         e = mel.create_material_expression(m, unreal.MaterialExpressionConstant3Vector, -400, -250)
-        e.set_editor_property("constant", unreal.LinearColor(rgb[0] * emissive, rgb[1] * emissive, rgb[2] * emissive, 1.0))
+        e.set_editor_property(
+            "constant",
+            unreal.LinearColor(rgb[0] * emissive, rgb[1] * emissive, rgb[2] * emissive, 1.0),
+        )
         mel.connect_material_property(e, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
     mel.recompile_material(m)
     el.save_asset(path)
@@ -66,9 +71,9 @@ def wipe():
 
 
 def spawn(shape, label, loc, scale, mat, rot=(0, 0, 0)):
-    a = ell.spawn_actor_from_object(SHAPES[shape],
-                                    unreal.Vector(*loc),
-                                    unreal.Rotator(roll=rot[0], pitch=rot[1], yaw=rot[2]))
+    a = ell.spawn_actor_from_object(
+        SHAPES[shape], unreal.Vector(*loc), unreal.Rotator(roll=rot[0], pitch=rot[1], yaw=rot[2])
+    )
     a.set_actor_label(PREFIX + label)
     a.set_actor_scale3d(unreal.Vector(*scale))
     smc = a.static_mesh_component
@@ -109,8 +114,13 @@ tiers = [
 ]
 for lbl, loc, sc in tiers:
     spawn("cube", lbl, loc, sc, STONE)
-    spawn("cone", lbl + "_Roof", (loc[0], loc[1], loc[2] + sc[2] * 50 + 220),
-          (sc[0] * 0.9, sc[1] * 0.9, 6), GOLD)
+    spawn(
+        "cone",
+        lbl + "_Roof",
+        (loc[0], loc[1], loc[2] + sc[2] * 50 + 220),
+        (sc[0] * 0.9, sc[1] * 0.9, 6),
+        GOLD,
+    )
 # cathedral spire (top focal of Ref2)
 spawn("cyl", "Spire", (4200, -2500, 4400), (4, 4, 12), STONE)
 spawn("cone", "SpireTip", (4200, -2500, 5150), (5, 5, 9), GOLD)
@@ -120,23 +130,25 @@ DECK_Z = 1800
 spawn("cube", "ViaductDeck", (1600, 200, DECK_Z), (7, 64, 0.6), STONE)
 for i, y in enumerate(range(-2800, 3400, 900)):
     spawn("cube", f"Pier{i}", (1600, y, DECK_Z / 2), (5, 4, DECK_Z / 100), STONE)
-    spawn("cyl", f"Arch{i}", (1600, y + 450, DECK_Z * 0.78),
-          (3, 7, 3), STONE, rot=(0, 90, 0))
+    spawn("cyl", f"Arch{i}", (1600, y + 450, DECK_Z * 0.78), (3, 7, 3), STONE, rot=(0, 90, 0))
 
 # --- (5) domed pavilion + (7) beacon crystal mid-span ---
 for k in range(8):
     ang = math.radians(k * 45)
-    spawn("cyl", f"Pav_Col{k}",
-          (1600 + 320 * math.cos(ang), 200 + 320 * math.sin(ang), DECK_Z + 380),
-          (1.4, 1.4, 7.4), GOLD)
+    spawn(
+        "cyl",
+        f"Pav_Col{k}",
+        (1600 + 320 * math.cos(ang), 200 + 320 * math.sin(ang), DECK_Z + 380),
+        (1.4, 1.4, 7.4),
+        GOLD,
+    )
 spawn("sphere", "Pav_Dome", (1600, 200, DECK_Z + 780), (8.5, 8.5, 5), GLASS)
 spawn("cone", "Beacon", (1600, 200, DECK_Z + 250), (2.2, 2.2, 4.2), CRYSTAL)
 spawn("sphere", "BeaconCore", (1600, 200, DECK_Z + 470), (1.6, 1.6, 1.6), CRYSTAL)
 
 # --- (2) descending side-stairs, SW foreground ---
 for s in range(14):
-    spawn("cube", f"Stair{s}", (-1800 + s * 130, -2400, 60 + s * 95),
-          (1.3, 9, 0.9), STONE)
+    spawn("cube", f"Stair{s}", (-1800 + s * 130, -2400, 60 + s * 95), (1.3, 9, 0.9), STONE)
 
 # --- (4) waterfalls down the cliff face ---
 for i, (x, y) in enumerate([(3800, -3050), (4250, -3050), (4900, -1900), (3500, 200)]):
@@ -145,8 +157,12 @@ for i, (x, y) in enumerate([(3800, -3050), (4250, -3050), (4900, -1900), (3500, 
 # --- (6) autumn pine forest, flanking E + W + foreground slopes ---
 random.seed(7)
 n = 0
-for (xc, yc, rad, count) in [(-700, 2600, 1700, 22), (-300, -2600, 1500, 20),
-                             (2600, 3400, 1500, 16), (3000, -3600, 1200, 12)]:
+for xc, yc, rad, count in [
+    (-700, 2600, 1700, 22),
+    (-300, -2600, 1500, 20),
+    (2600, 3400, 1500, 16),
+    (3000, -3600, 1200, 12),
+]:
     for _ in range(count):
         x = xc + random.uniform(-rad, rad)
         y = yc + random.uniform(-rad, rad)

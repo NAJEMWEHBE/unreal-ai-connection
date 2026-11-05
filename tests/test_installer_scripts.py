@@ -11,6 +11,7 @@ plus a real UE engine on the host. The actionable property checks:
   - the PowerShell script declares the right parameter set
   - the bash script's --client switch has the right ValidateSet
 """
+
 from __future__ import annotations
 
 import re
@@ -21,8 +22,16 @@ PS_SCRIPT = ROOT / "scripts" / "install.ps1"
 SH_SCRIPT = ROOT / "scripts" / "install.sh"
 
 SUPPORTED_CLIENTS = {
-    "claude-code", "claude-desktop", "cursor", "codex-cli", "windsurf",
-    "continue", "cline", "zed", "gemini-cli", "vscode-copilot",
+    "claude-code",
+    "claude-desktop",
+    "cursor",
+    "codex-cli",
+    "windsurf",
+    "continue",
+    "cline",
+    "zed",
+    "gemini-cli",
+    "vscode-copilot",
 }
 
 
@@ -56,7 +65,10 @@ def test_bash_script_lists_every_client():
 def test_powershell_references_bridge():
     text = PS_SCRIPT.read_text(encoding="utf-8")
     assert "unreal_ai_connection_bridge.py" in text
-    assert "bridge\\unreal_ai_connection_bridge.py" in text or "bridge/unreal_ai_connection_bridge.py" in text
+    assert (
+        "bridge\\unreal_ai_connection_bridge.py" in text
+        or "bridge/unreal_ai_connection_bridge.py" in text
+    )
 
 
 def test_bash_references_bridge():

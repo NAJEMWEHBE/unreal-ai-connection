@@ -36,6 +36,7 @@ PORT = int(os.environ.get("UCMCP_PORT", "18888"))
 
 # --- wire protocol (mirrors bridge send_framed / recv_framed) ---------------
 
+
 def _recv_exact(s: socket.socket, n: int) -> bytes:
     buf = b""
     while len(buf) < n:
@@ -80,13 +81,16 @@ def set_camera(cam: str) -> None:
     if len(parts) != 6:
         raise SystemExit("--cam wants 6 comma-separated numbers: x,y,z,pitch,yaw,roll")
     x, y, z, pitch, yaw, roll = parts
-    res = call_ue("execute_unreal_python", {
-        "code": SET_CAMERA_PY.format(x=x, y=y, z=z, pitch=pitch, yaw=yaw, roll=roll)})
+    res = call_ue(
+        "execute_unreal_python",
+        {"code": SET_CAMERA_PY.format(x=x, y=y, z=z, pitch=pitch, yaw=yaw, roll=roll)},
+    )
     if res.get("ok") is False:
         raise SystemExit(f"--cam: camera python failed: {res.get('output', '')}")
 
 
 # --- comparison ---------------------------------------------------------------
+
 
 def _rgb_pixels(img):
     """Pixel tuples of an RGB image without Image.getdata() (deprecated in
@@ -111,8 +115,7 @@ def compare(capture_path: str, ref_path: str, composite_path: str) -> dict:
     ref = Image.open(ref_path).convert("RGB")
 
     # Side-by-side composite at capture height.
-    ref_scaled = ref.resize(
-        (max(1, round(ref.width * cap.height / ref.height)), cap.height))
+    ref_scaled = ref.resize((max(1, round(ref.width * cap.height / ref.height)), cap.height))
     combo = Image.new("RGB", (cap.width + ref_scaled.width, cap.height), (16, 16, 16))
     combo.paste(cap, (0, 0))
     combo.paste(ref_scaled, (cap.width, 0))
@@ -124,24 +127,28 @@ def compare(capture_path: str, ref_path: str, composite_path: str) -> dict:
     cap_px, ref_px = _rgb_pixels(small_cap), _rgb_pixels(small_ref)
     mean_rgb_delta = sum(
         (abs(c[0] - r[0]) + abs(c[1] - r[1]) + abs(c[2] - r[2])) / 3.0
-        for c, r in zip(cap_px, ref_px, strict=False)) / len(cap_px)
+        for c, r in zip(cap_px, ref_px, strict=False)
+    ) / len(cap_px)
 
     metrics = {"mean_rgb_delta": round(mean_rgb_delta, 2), "thirds": {}}
     h = small_cap.height
-    for name, (y0, y1) in (("top", (0, h // 3)),
-                           ("mid", (h // 3, 2 * h // 3)),
-                           ("bottom", (2 * h // 3, h))):
+    for name, (y0, y1) in (
+        ("top", (0, h // 3)),
+        ("mid", (h // 3, 2 * h // 3)),
+        ("bottom", (2 * h // 3, h)),
+    ):
         box = (0, y0, small_cap.width, y1)
         cl, cs = _luma_sat(small_cap.crop(box))
         rl, rs = _luma_sat(small_ref.crop(box))
         metrics["thirds"][name] = {
-            "luma_delta": round(cl - rl, 1),   # + = capture brighter than ref
-            "sat_delta": round(cs - rs, 1),    # + = capture more saturated
+            "luma_delta": round(cl - rl, 1),  # + = capture brighter than ref
+            "sat_delta": round(cs - rs, 1),  # + = capture more saturated
         }
     return metrics
 
 
 # --- main ---------------------------------------------------------------------
+
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
@@ -150,7 +157,10 @@ def main() -> int:
     ap.add_argument("--fov", type=float, default=0.0, help="Optional FOV for the capture.")
     ap.add_argument("--width", type=int, default=0, help="Optional off-screen capture width.")
     ap.add_argument("--height", type=int, default=0, help="Optional off-screen capture height.")
-    ap.add_argument("--out", help="Capture out_path (project-relative; default Saved/AIConnection/LookLoop/<ts>.png).")
+    ap.add_argument(
+        "--out",
+        help="Capture out_path (project-relative; default Saved/AIConnection/LookLoop/<ts>.png).",
+    )
     args = ap.parse_args()
 
     if not os.path.isfile(args.ref):
@@ -172,8 +182,10 @@ def main() -> int:
     capture_path = shot.get("path", "")
     if not capture_path or not os.path.isfile(capture_path):
         raise SystemExit(f"take_screenshot returned no usable path: {json.dumps(shot)[:300]}")
-    print(f"capture: {capture_path} ({shot.get('width')}x{shot.get('height')}, "
-          f"{shot.get('bytes', 0):,} bytes)")
+    print(
+        f"capture: {capture_path} ({shot.get('width')}x{shot.get('height')}, "
+        f"{shot.get('bytes', 0):,} bytes)"
+    )
 
     try:
         composite_path = os.path.splitext(capture_path)[0] + "_vs_ref.png"

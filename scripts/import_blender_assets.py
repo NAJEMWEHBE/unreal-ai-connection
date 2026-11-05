@@ -113,6 +113,7 @@ for _stream in (sys.stdout, sys.stderr):
 #   <8-byte big-endian uint64 body length> <N bytes of UTF-8 JSON body>
 # ---------------------------------------------------------------------------
 
+
 def _send_framed(sock: socket.socket, body_bytes: bytes) -> None:
     """Prepend the 8-byte big-endian length prefix and send the whole frame."""
     length_prefix = len(body_bytes).to_bytes(8, byteorder="big", signed=False)
@@ -141,9 +142,14 @@ def _recv_framed(sock: socket.socket) -> bytes:
     return _recv_exact(sock, length)
 
 
-def call(host: str, port: int, method: str,
-         params: dict | None = None, request_id: int = 1,
-         timeout: float = 120.0) -> dict:
+def call(
+    host: str,
+    port: int,
+    method: str,
+    params: dict | None = None,
+    request_id: int = 1,
+    timeout: float = 120.0,
+) -> dict:
     """One framed JSON-RPC round-trip. Mirrors capture_demo_gif.call(): takes
     host/port explicitly and a per-call timeout (an asset import inside the
     editor can take well over 30 s). Transport errors are returned as
@@ -159,9 +165,11 @@ def call(host: str, port: int, method: str,
         try:
             s.connect((host, port))
         except (ConnectionRefusedError, OSError) as e:
-            return {"_error": f"Cannot reach UE at {host}:{port}: {e}. "
-                              f"Is the editor open with the built "
-                              f"UnrealAIConnection plugin?"}
+            return {
+                "_error": f"Cannot reach UE at {host}:{port}: {e}. "
+                f"Is the editor open with the built "
+                f"UnrealAIConnection plugin?"
+            }
         try:
             _send_framed(s, raw)
             payload_bytes = _recv_framed(s)
@@ -187,6 +195,7 @@ def call(host: str, port: int, method: str,
 # common reason this driver fails, so it gets a dedicated, unmistakable
 # message and a non-zero exit (handled by die()).
 # ---------------------------------------------------------------------------
+
 
 class CaptureError(RuntimeError):
     """Any unrecoverable failure in the pipeline."""
@@ -223,8 +232,7 @@ def unwrap(resp: dict, label: str) -> dict:
     result = resp["result"]
     if not isinstance(result, dict):
         raise CaptureError(
-            f"[{label}] expected an object 'result', got "
-            f"{type(result).__name__}: {result}"
+            f"[{label}] expected an object 'result', got {type(result).__name__}: {result}"
         )
     return result
 
@@ -278,8 +286,8 @@ def _sanitize_asset_name(stem: str) -> str:
 # authored, so treat them as proof-pending until then.
 # ---------------------------------------------------------------------------
 
-def ensure_scratch_level(host: str, port: int, scratch_level: str,
-                         request_id: int) -> None:
+
+def ensure_scratch_level(host: str, port: int, scratch_level: str, request_id: int) -> None:
     """Create (or load) the dedicated scratch level so the import + spawn
     never dirty the user's open map. Fatal only if the editor explicitly
     reports it could not make/load the level; a merely-absent sentinel
@@ -319,8 +327,9 @@ if not _ok:
             _ok = False
 unreal.log("{SCRATCH_LEVEL_OK} " + ("1" if _ok else "0") + " " + _path)
 '''
-    resp = call(host, port, "execute_unreal_python",
-                {"code": snippet}, request_id=request_id, timeout=120.0)
+    resp = call(
+        host, port, "execute_unreal_python", {"code": snippet}, request_id=request_id, timeout=120.0
+    )
     result = unwrap(resp, "execute_unreal_python[scratch-level]")
     if result.get("ok") is False:
         raise CaptureError(
@@ -337,13 +346,16 @@ unreal.log("{SCRATCH_LEVEL_OK} " + ("1" if _ok else "0") + " " + _path)
             f"import into the user's open map. result={result}"
         )
     else:
-        print(f"  (note: '{SCRATCH_LEVEL_OK}' sentinel not echoed; "
-              f"proceeding — per-asset verification still guards a real "
-              f"failure. raw keys: {sorted(result.keys())})")
+        print(
+            f"  (note: '{SCRATCH_LEVEL_OK}' sentinel not echoed; "
+            f"proceeding — per-asset verification still guards a real "
+            f"failure. raw keys: {sorted(result.keys())})"
+        )
 
 
-def import_one(host: str, port: int, src_path: str, dest_path: str,
-               asset_name: str, request_id: int) -> str:
+def import_one(
+    host: str, port: int, src_path: str, dest_path: str, asset_name: str, request_id: int
+) -> str:
     """Import a single mesh file via the EXISTING seam (execute_unreal_python
     running unreal.AssetImportTask — the exact block documented in
     docs/ASSET-PIPELINE-BLENDER.md). Returns the expected /Game asset object
@@ -380,13 +392,13 @@ try:
 except Exception as _e:
     unreal.log("{IMPORT_OK} 0 " + str(_e))
 '''
-    resp = call(host, port, "execute_unreal_python",
-                {"code": snippet}, request_id=request_id, timeout=300.0)
+    resp = call(
+        host, port, "execute_unreal_python", {"code": snippet}, request_id=request_id, timeout=300.0
+    )
     result = unwrap(resp, f"execute_unreal_python[import {asset_name}]")
     if result.get("ok") is False:
         raise CaptureError(
-            f"[import {asset_name}] execute_unreal_python reported "
-            f"ok=false: {result}"
+            f"[import {asset_name}] execute_unreal_python reported ok=false: {result}"
         )
     blob = json.dumps(result, default=str)
     if f"{IMPORT_OK} 0" in blob:
@@ -395,34 +407,41 @@ except Exception as _e:
             f"editor (sentinel reported failure). result={result}"
         )
     if f"{IMPORT_OK} 1" not in blob:
-        print(f"  (note: '{IMPORT_OK}' sentinel not echoed for "
-              f"{asset_name}; relying on the existence check next. "
-              f"raw keys: {sorted(result.keys())})")
+        print(
+            f"  (note: '{IMPORT_OK}' sentinel not echoed for "
+            f"{asset_name}; relying on the existence check next. "
+            f"raw keys: {sorted(result.keys())})"
+        )
     return f"{dest_path}/{asset_name}"
 
 
-def verify_asset(host: str, port: int, dest_path: str, asset_name: str,
-                 request_id: int) -> None:
+def verify_asset(host: str, port: int, dest_path: str, asset_name: str, request_id: int) -> None:
     """Confirm the imported asset actually exists. Uses find_assets if that
     handler answers; otherwise falls back to an EditorAssetLibrary.does_exist
     probe via execute_unreal_python (robust to a slimmer handler set)."""
     # Preferred: the native find_assets handler scoped to the dest folder.
-    fa = call(host, port, "find_assets",
-              {"path": dest_path, "recursive": True},
-              request_id=request_id, timeout=60.0)
+    fa = call(
+        host,
+        port,
+        "find_assets",
+        {"path": dest_path, "recursive": True},
+        request_id=request_id,
+        timeout=60.0,
+    )
     if "error" not in fa and "_error" not in fa:
         try:
             res = unwrap(fa, "find_assets")
             blob = json.dumps(res, default=str)
             if asset_name in blob:
-                print(f"  verified present (find_assets): "
-                      f"{dest_path}/{asset_name}")
+                print(f"  verified present (find_assets): {dest_path}/{asset_name}")
                 return
             # find_assets answered but the asset is not listed — fall
             # through to the authoritative does_exist probe rather than
             # failing on a possibly-narrow find_assets shape.
-            print(f"  (find_assets did not list '{asset_name}'; "
-                  f"confirming via EditorAssetLibrary.does_exist)")
+            print(
+                f"  (find_assets did not list '{asset_name}'; "
+                f"confirming via EditorAssetLibrary.does_exist)"
+            )
         except CaptureError:
             pass  # fall through to the does_exist probe
 
@@ -444,13 +463,18 @@ except Exception:
         _exists = False
 unreal.log("{ASSET_FOUND} " + ("1" if _exists else "0") + " " + {asset_pkg_lit})
 '''
-    resp = call(host, port, "execute_unreal_python",
-                {"code": snippet}, request_id=request_id + 1, timeout=60.0)
+    resp = call(
+        host,
+        port,
+        "execute_unreal_python",
+        {"code": snippet},
+        request_id=request_id + 1,
+        timeout=60.0,
+    )
     result = unwrap(resp, f"execute_unreal_python[verify {asset_name}]")
     blob = json.dumps(result, default=str)
     if f"{ASSET_FOUND} 1" in blob:
-        print(f"  verified present (does_asset_exist): "
-              f"{dest_path}/{asset_name}")
+        print(f"  verified present (does_asset_exist): {dest_path}/{asset_name}")
         return
     raise CaptureError(
         f"[verify {asset_name}] import call succeeded but the asset is "
@@ -459,8 +483,7 @@ unreal.log("{ASSET_FOUND} " + ("1" if _exists else "0") + " " + {asset_pkg_lit})
     )
 
 
-def spawn_and_frame(host: str, port: int, dest_path: str, asset_name: str,
-                    request_id: int) -> str:
+def spawn_and_frame(host: str, port: int, dest_path: str, asset_name: str, request_id: int) -> str:
     """Spawn a StaticMeshActor referencing the imported mesh into the
     (already-current) scratch level, then frame the viewport on it. Returns
     the spawned actor label. Best-effort framing: a focus failure is logged
@@ -471,12 +494,19 @@ def spawn_and_frame(host: str, port: int, dest_path: str, asset_name: str,
     # mesh via execute_unreal_python (set_actor_property cannot resolve a
     # nested component sub-object reliably across builds; the explicit
     # snippet is the robust path and mirrors the doc's guidance).
-    spawn = call(host, port, "spawn_actor", {
-        "class_path": STATIC_MESH_ACTOR_CLASS,
-        "label": actor_label,
-        "location": {"x": 0.0, "y": 0.0, "z": 0.0},
-        "rotation": {"roll": 0.0, "pitch": 0.0, "yaw": 0.0},
-    }, request_id=request_id, timeout=60.0)
+    spawn = call(
+        host,
+        port,
+        "spawn_actor",
+        {
+            "class_path": STATIC_MESH_ACTOR_CLASS,
+            "label": actor_label,
+            "location": {"x": 0.0, "y": 0.0, "z": 0.0},
+            "rotation": {"roll": 0.0, "pitch": 0.0, "yaw": 0.0},
+        },
+        request_id=request_id,
+        timeout=60.0,
+    )
     unwrap(spawn, f"spawn_actor[{actor_label}]")
 
     # JSON-encoded Python string literals for the caller/derived strings
@@ -485,7 +515,7 @@ def spawn_and_frame(host: str, port: int, dest_path: str, asset_name: str,
     # snippet cannot be broken out of for injection.
     meshpath_lit = json.dumps(mesh_obj_path)
     label_lit = json.dumps(actor_label)
-    assign = f'''
+    assign = f"""
 import unreal
 _eas = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
 _mesh = unreal.load_asset({meshpath_lit})
@@ -501,18 +531,32 @@ for _a in _eas.get_all_level_actors():
     except Exception:
         pass
 unreal.log("UCMCP_MESH_ASSIGNED " + ("1" if _done else "0") + " " + {label_lit})
-'''
-    a_resp = call(host, port, "execute_unreal_python",
-                  {"code": assign}, request_id=request_id + 1, timeout=120.0)
+"""
+    a_resp = call(
+        host,
+        port,
+        "execute_unreal_python",
+        {"code": assign},
+        request_id=request_id + 1,
+        timeout=120.0,
+    )
     a_res = unwrap(a_resp, f"execute_unreal_python[assign {actor_label}]")
     if "UCMCP_MESH_ASSIGNED 1" not in json.dumps(a_res, default=str):
-        print(f"  (note: mesh-assign sentinel not confirmed for "
-              f"{actor_label}; actor spawned but mesh ref may be unset)")
+        print(
+            f"  (note: mesh-assign sentinel not confirmed for "
+            f"{actor_label}; actor spawned but mesh ref may be unset)"
+        )
 
     # Best-effort frame — never fatal.
     try:
-        f_resp = call(host, port, "focus_actor", {"label": actor_label},
-                      request_id=request_id + 2, timeout=60.0)
+        f_resp = call(
+            host,
+            port,
+            "focus_actor",
+            {"label": actor_label},
+            request_id=request_id + 2,
+            timeout=60.0,
+        )
         unwrap(f_resp, f"focus_actor[{actor_label}]")
         print(f"  spawned + framed: {actor_label}")
     except CaptureError as e:
@@ -523,6 +567,7 @@ unreal.log("UCMCP_MESH_ASSIGNED " + ("1" if _done else "0") + " " + {label_lit})
 # ---------------------------------------------------------------------------
 # Pipeline.
 # ---------------------------------------------------------------------------
+
 
 def discover_assets(src_dir: str) -> list[str]:
     """Sorted list of importable files directly in src_dir (non-recursive —
@@ -562,25 +607,49 @@ def main() -> None:
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    ap.add_argument("--host",
-                    default=os.environ.get("UCMCP_HOST", "127.0.0.1"),
-                    help="UE MCP host (default 127.0.0.1 / $UCMCP_HOST)")
-    ap.add_argument("--port", type=int,
-                    default=_env_port_default(),
-                    help="UE MCP port (default 18888 / $UCMCP_PORT)")
-    ap.add_argument("--src-dir", dest="src_dir", default=DEFAULT_SRC_DIR,
-                    help=(f"dir of exported .glb/.fbx assets to import "
-                          f"(default {DEFAULT_SRC_DIR}; gitignored per "
-                          f"ADR-0002)"))
-    ap.add_argument("--dest", dest="dest", default=DEFAULT_DEST,
-                    help=f"UE content path to import into (default {DEFAULT_DEST})")
-    ap.add_argument("--level", dest="level", default=DEFAULT_SCRATCH_LEVEL,
-                    help=(f"dedicated throwaway scratch level the assets are "
-                          f"spawned into so the user's open map is never "
-                          f"dirtied (default {DEFAULT_SCRATCH_LEVEL})"))
-    ap.add_argument("--results", dest="results", default=None,
-                    help=(f"path for the JSON result dump (default "
-                          f"<repo>/{RESULTS_RELPATH})"))
+    ap.add_argument(
+        "--host",
+        default=os.environ.get("UCMCP_HOST", "127.0.0.1"),
+        help="UE MCP host (default 127.0.0.1 / $UCMCP_HOST)",
+    )
+    ap.add_argument(
+        "--port",
+        type=int,
+        default=_env_port_default(),
+        help="UE MCP port (default 18888 / $UCMCP_PORT)",
+    )
+    ap.add_argument(
+        "--src-dir",
+        dest="src_dir",
+        default=DEFAULT_SRC_DIR,
+        help=(
+            f"dir of exported .glb/.fbx assets to import "
+            f"(default {DEFAULT_SRC_DIR}; gitignored per "
+            f"ADR-0002)"
+        ),
+    )
+    ap.add_argument(
+        "--dest",
+        dest="dest",
+        default=DEFAULT_DEST,
+        help=f"UE content path to import into (default {DEFAULT_DEST})",
+    )
+    ap.add_argument(
+        "--level",
+        dest="level",
+        default=DEFAULT_SCRATCH_LEVEL,
+        help=(
+            f"dedicated throwaway scratch level the assets are "
+            f"spawned into so the user's open map is never "
+            f"dirtied (default {DEFAULT_SCRATCH_LEVEL})"
+        ),
+    )
+    ap.add_argument(
+        "--results",
+        dest="results",
+        default=None,
+        help=(f"path for the JSON result dump (default <repo>/{RESULTS_RELPATH})"),
+    )
     args = ap.parse_args()
 
     host, port = args.host, args.port
@@ -595,9 +664,13 @@ def main() -> None:
     print(f"  results    : {results_path}")
 
     run_report: dict = {
-        "host": host, "port": port, "src_dir": src_dir,
-        "dest": args.dest, "scratch_level": args.level,
-        "assets": [], "ok": False,
+        "host": host,
+        "port": port,
+        "src_dir": src_dir,
+        "dest": args.dest,
+        "scratch_level": args.level,
+        "assets": [],
+        "ok": False,
     }
 
     def _dump_report() -> None:
@@ -607,19 +680,14 @@ def main() -> None:
                 json.dump(run_report, fh, indent=2, default=str)
             print(f"\n  result report written: {results_path}")
         except OSError as e:
-            print(f"\n  (could not write result report to {results_path}: "
-                  f"{e})", file=sys.stderr)
+            print(f"\n  (could not write result report to {results_path}: {e})", file=sys.stderr)
 
     try:
         # --- (a) connectivity probe ------------------------------------
         print("\n[1/4] connectivity probe (get_actors_in_level) ...")
-        probe = call(host, port, "get_actors_in_level", {}, request_id=1,
-                     timeout=30.0)
+        probe = call(host, port, "get_actors_in_level", {}, request_id=1, timeout=30.0)
         if "_error" in probe:
-            raise CaptureError(
-                f"cannot reach a live editor at {host}:{port}: "
-                f"{probe['_error']}"
-            )
+            raise CaptureError(f"cannot reach a live editor at {host}:{port}: {probe['_error']}")
         unwrap(probe, "get_actors_in_level")
         print("  editor reachable; handler catalog live.")
 
@@ -632,12 +700,13 @@ def main() -> None:
                 f"import. Author + export at least one asset there per "
                 f"docs/ASSET-PIPELINE-BLENDER.md."
             )
-        print(f"  {len(assets)} asset(s): "
-              f"{[os.path.basename(a) for a in assets]}")
+        print(f"  {len(assets)} asset(s): {[os.path.basename(a) for a in assets]}")
 
         # --- (c) retarget to the dedicated scratch level ---------------
-        print(f"\n[3/4] retargeting to scratch level {args.level} (so the "
-              f"import + spawn never dirty the open map) ...")
+        print(
+            f"\n[3/4] retargeting to scratch level {args.level} (so the "
+            f"import + spawn never dirty the open map) ..."
+        )
         ensure_scratch_level(host, port, args.level, request_id=2)
 
         # --- (d) per-asset import → verify → spawn → frame -------------
@@ -648,18 +717,19 @@ def main() -> None:
             asset_name = _sanitize_asset_name(stem)
             rid = 100 + idx * 10
             entry: dict = {
-                "src": src_path, "asset_name": asset_name,
-                "dest": f"{args.dest}/{asset_name}", "ok": False,
+                "src": src_path,
+                "asset_name": asset_name,
+                "dest": f"{args.dest}/{asset_name}",
+                "ok": False,
             }
-            print(f"\n  [{idx + 1}/{len(assets)}] {os.path.basename(src_path)}"
-                  f" -> {args.dest}/{asset_name}")
+            print(
+                f"\n  [{idx + 1}/{len(assets)}] {os.path.basename(src_path)}"
+                f" -> {args.dest}/{asset_name}"
+            )
             try:
-                asset_path = import_one(host, port, src_path, args.dest,
-                                        asset_name, request_id=rid)
-                verify_asset(host, port, args.dest, asset_name,
-                             request_id=rid + 2)
-                actor_label = spawn_and_frame(host, port, args.dest,
-                                              asset_name, request_id=rid + 4)
+                asset_path = import_one(host, port, src_path, args.dest, asset_name, request_id=rid)
+                verify_asset(host, port, args.dest, asset_name, request_id=rid + 2)
+                actor_label = spawn_and_frame(host, port, args.dest, asset_name, request_id=rid + 4)
                 entry["asset_path"] = asset_path
                 entry["actor_label"] = actor_label
                 entry["ok"] = True
@@ -667,14 +737,11 @@ def main() -> None:
             except CaptureError as e:
                 entry["error"] = str(e)
                 failures.append(f"{os.path.basename(src_path)}: {e}")
-                print(f"  [{idx + 1}/{len(assets)}] FAILED: {e}",
-                      file=sys.stderr)
+                print(f"  [{idx + 1}/{len(assets)}] FAILED: {e}", file=sys.stderr)
             except Exception as e:  # pragma: no cover - defensive belt
                 entry["error"] = f"unexpected: {e!r}"
-                failures.append(f"{os.path.basename(src_path)}: "
-                                f"unexpected {e!r}")
-                print(f"  [{idx + 1}/{len(assets)}] UNEXPECTED: {e!r}",
-                      file=sys.stderr)
+                failures.append(f"{os.path.basename(src_path)}: unexpected {e!r}")
+                print(f"  [{idx + 1}/{len(assets)}] UNEXPECTED: {e!r}", file=sys.stderr)
             run_report["assets"].append(entry)
 
         run_report["ok"] = not failures
@@ -682,12 +749,8 @@ def main() -> None:
 
         if failures:
             shown = failures[:8]
-            more = (f"\n  ... and {len(failures) - 8} more"
-                    if len(failures) > 8 else "")
-            die(
-                f"{len(failures)}/{len(assets)} asset(s) failed:\n  "
-                + "\n  ".join(shown) + more
-            )
+            more = f"\n  ... and {len(failures) - 8} more" if len(failures) > 8 else ""
+            die(f"{len(failures)}/{len(assets)} asset(s) failed:\n  " + "\n  ".join(shown) + more)
 
     except CaptureError as e:
         run_report["ok"] = False

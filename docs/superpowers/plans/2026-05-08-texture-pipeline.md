@@ -42,11 +42,19 @@ def test_tool_names_are_unique_and_match_handlers():
     names = [t["name"] for t in bridge.TOOLS]
     assert len(names) == len(set(names)), "duplicate tool names"
     expected = {
-        "execute_unreal_python", "get_project_summary", "inspect_blueprint",
-        "inspect_widget_tree", "edit_widget_tree", "get_viewport_screenshot",
-        "list_tools", "get_actors_in_level", "focus_actor",
-        "load_level_by_path", "take_high_res_screenshot",
-        "import_texture", "configure_texture",
+        "execute_unreal_python",
+        "get_project_summary",
+        "inspect_blueprint",
+        "inspect_widget_tree",
+        "edit_widget_tree",
+        "get_viewport_screenshot",
+        "list_tools",
+        "get_actors_in_level",
+        "focus_actor",
+        "load_level_by_path",
+        "take_high_res_screenshot",
+        "import_texture",
+        "configure_texture",
     }
     assert set(names) == expected
 
@@ -102,38 +110,75 @@ Expected: 5 failures — `test_tools_list_has_thirteen_entries` (got 11), `test_
 In the `TOOLS` list (lines 41-137), append these two dictionaries before the closing `]`:
 
 ```python
+(
     {
         "name": "import_texture",
         "description": "Import an image file (PNG/JPG/EXR/TGA/BMP/HDR) from disk into the project as a UTexture2D asset, using the canonical UE asset import pipeline.",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "source_path": {"type": "string", "description": "Absolute filesystem path to the source image file."},
-                "dest_path": {"type": "string", "description": "UE package path; must start with /Game/ (e.g. /Game/Textures/Environment)."},
-                "dest_name": {"type": "string", "description": "Optional asset-name override; defaults to filename stem."},
-                "replace_existing": {"type": "boolean", "description": "Overwrite existing asset at dest_path/dest_name (default false)."},
-                "automated": {"type": "boolean", "description": "Suppress modal dialogs (default true)."},
-                "save": {"type": "boolean", "description": "Save the .uasset to disk after import (default true)."},
+                "source_path": {
+                    "type": "string",
+                    "description": "Absolute filesystem path to the source image file.",
+                },
+                "dest_path": {
+                    "type": "string",
+                    "description": "UE package path; must start with /Game/ (e.g. /Game/Textures/Environment).",
+                },
+                "dest_name": {
+                    "type": "string",
+                    "description": "Optional asset-name override; defaults to filename stem.",
+                },
+                "replace_existing": {
+                    "type": "boolean",
+                    "description": "Overwrite existing asset at dest_path/dest_name (default false).",
+                },
+                "automated": {
+                    "type": "boolean",
+                    "description": "Suppress modal dialogs (default true).",
+                },
+                "save": {
+                    "type": "boolean",
+                    "description": "Save the .uasset to disk after import (default true).",
+                },
             },
             "required": ["source_path", "dest_path"],
         },
     },
+)
+(
     {
         "name": "configure_texture",
         "description": "Adjust SRGB/CompressionSettings/LODGroup/Filter on an existing UTexture asset and persist the change. Triggers UE's standard PreEditChange/PostEditChange flow and rebuilds the GPU resource.",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "path": {"type": "string", "description": "UE package path of the existing texture asset, e.g. /Game/Textures/Environment/T_Stone_D."},
+                "path": {
+                    "type": "string",
+                    "description": "UE package path of the existing texture asset, e.g. /Game/Textures/Environment/T_Stone_D.",
+                },
                 "srgb": {"type": "boolean", "description": "Set UTexture::SRGB."},
-                "compression": {"type": "string", "description": "TextureCompressionSettings enum name (e.g. Default, Normalmap, Masks, BC7, HDR)."},
-                "lod_group": {"type": "string", "description": "TextureGroup enum name (e.g. World, WorldNormalMap, UI, Lightmap)."},
-                "filter": {"type": "string", "description": "TextureFilter enum name: Nearest | Bilinear | Trilinear | Default."},
-                "compress": {"type": "boolean", "description": "Call UpdateResource() after mutation (default true). Set false for batches."},
+                "compression": {
+                    "type": "string",
+                    "description": "TextureCompressionSettings enum name (e.g. Default, Normalmap, Masks, BC7, HDR).",
+                },
+                "lod_group": {
+                    "type": "string",
+                    "description": "TextureGroup enum name (e.g. World, WorldNormalMap, UI, Lightmap).",
+                },
+                "filter": {
+                    "type": "string",
+                    "description": "TextureFilter enum name: Nearest | Bilinear | Trilinear | Default.",
+                },
+                "compress": {
+                    "type": "boolean",
+                    "description": "Call UpdateResource() after mutation (default true). Set false for batches.",
+                },
             },
             "required": ["path"],
         },
     },
+)
 ```
 
 - [ ] **Step 4: Add the two new entries to `UnrealClaudeMCP/Resources/mcp_manifest.json`**
@@ -357,8 +402,10 @@ Calling the handler:
 
 ```python
 import socket, json
-s = socket.socket(); s.connect(('127.0.0.1', 18888))
-s.send(json.dumps({"jsonrpc":"2.0","id":1,"method":"import_texture","params":{}}).encode())
+
+s = socket.socket()
+s.connect(("127.0.0.1", 18888))
+s.send(json.dumps({"jsonrpc": "2.0", "id": 1, "method": "import_texture", "params": {}}).encode())
 print(s.recv(65536).decode())
 ```
 
@@ -462,16 +509,27 @@ With UE running, execute these via Python:
 
 ```python
 import socket, json
+
+
 def call(params):
-    s = socket.socket(); s.connect(('127.0.0.1', 18888))
-    s.send(json.dumps({"jsonrpc":"2.0","id":1,"method":"import_texture","params":params}).encode())
-    print(s.recv(65536).decode()); s.close()
+    s = socket.socket()
+    s.connect(("127.0.0.1", 18888))
+    s.send(
+        json.dumps(
+            {"jsonrpc": "2.0", "id": 1, "method": "import_texture", "params": params}
+        ).encode()
+    )
+    print(s.recv(65536).decode())
+    s.close()
+
 
 call({})  # expect "missing params" or "source_path required"
 call({"source_path": "C:/none.png"})  # expect "dest_path required"
 call({"source_path": "C:/none.png", "dest_path": "Foo"})  # expect "must start with /Game/"
 call({"source_path": "C:/none.png", "dest_path": "/Game/X"})  # expect "source_path not found"
-call({"source_path": "C:/Windows/notepad.exe", "dest_path": "/Game/X"})  # expect "unsupported extension 'exe'"
+call(
+    {"source_path": "C:/Windows/notepad.exe", "dest_path": "/Game/X"}
+)  # expect "unsupported extension 'exe'"
 ```
 
 All five should return JSON-RPC error responses with the relevant message.
@@ -589,16 +647,24 @@ Place a test PNG in `tests/fixtures/test_texture.png` (any small PNG works — e
 
 ```python
 import socket, json, os
+
 fixture = os.path.abspath("tests/fixtures/test_texture.png")
-s = socket.socket(); s.connect(('127.0.0.1', 18888))
-s.send(json.dumps({
-    "jsonrpc":"2.0","id":1,"method":"import_texture",
-    "params":{
-        "source_path": fixture,
-        "dest_path": "/Game/_UnrealClaudeMCPSmoke",
-        "dest_name": "T_TextureSmoke",
-    }
-}).encode())
+s = socket.socket()
+s.connect(("127.0.0.1", 18888))
+s.send(
+    json.dumps(
+        {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "import_texture",
+            "params": {
+                "source_path": fixture,
+                "dest_path": "/Game/_UnrealClaudeMCPSmoke",
+                "dest_name": "T_TextureSmoke",
+            },
+        }
+    ).encode()
+)
 print(s.recv(65536).decode())
 ```
 
@@ -716,14 +782,23 @@ Output Log should show 13 `Registered handler '...'` lines on editor startup.
 
 ```python
 def call_cfg(params):
-    s = socket.socket(); s.connect(('127.0.0.1', 18888))
-    s.send(json.dumps({"jsonrpc":"2.0","id":1,"method":"configure_texture","params":params}).encode())
-    print(s.recv(65536).decode()); s.close()
+    s = socket.socket()
+    s.connect(("127.0.0.1", 18888))
+    s.send(
+        json.dumps(
+            {"jsonrpc": "2.0", "id": 1, "method": "configure_texture", "params": params}
+        ).encode()
+    )
+    print(s.recv(65536).decode())
+    s.close()
+
 
 call_cfg({})  # missing path
 call_cfg({"path": "/Game/_UnrealClaudeMCPSmoke/T_TextureSmoke"})  # no_changes_specified
 call_cfg({"path": "/Game/Nothing/Here", "srgb": False})  # asset_not_found
-call_cfg({"path": "/Game/_UnrealClaudeMCPSmoke/T_TextureSmoke", "srgb": False})  # "lookup ok; mutation not yet wired"
+call_cfg(
+    {"path": "/Game/_UnrealClaudeMCPSmoke/T_TextureSmoke", "srgb": False}
+)  # "lookup ok; mutation not yet wired"
 ```
 
 - [ ] **Step 5: Commit**
@@ -911,13 +986,15 @@ If you see `unresolved external symbol` for `UEditorAssetLibrary::SaveLoadedAsse
 With the texture from Task 5 still present at `/Game/_UnrealClaudeMCPSmoke/T_TextureSmoke`:
 
 ```python
-call_cfg({
-    "path": "/Game/_UnrealClaudeMCPSmoke/T_TextureSmoke",
-    "srgb": False,
-    "compression": "Normalmap",
-    "lod_group": "WorldNormalMap",
-    "filter": "Default",
-})
+call_cfg(
+    {
+        "path": "/Game/_UnrealClaudeMCPSmoke/T_TextureSmoke",
+        "srgb": False,
+        "compression": "Normalmap",
+        "lod_group": "WorldNormalMap",
+        "filter": "Default",
+    }
+)
 ```
 
 Expected: `{"jsonrpc":"2.0","id":1,"result":{"ok":true,"path":"...","applied":{"srgb":false,"compression":"Normalmap","lod_group":"WorldNormalMap","filter":"Default"},"message":"Settings applied..."}}`.
@@ -927,10 +1004,12 @@ In the editor: open the texture asset and confirm in the Details panel that all 
 Test the unknown_enum_value path:
 
 ```python
-call_cfg({
-    "path": "/Game/_UnrealClaudeMCPSmoke/T_TextureSmoke",
-    "compression": "DefinitelyNotARealEnumValue",
-})
+call_cfg(
+    {
+        "path": "/Game/_UnrealClaudeMCPSmoke/T_TextureSmoke",
+        "compression": "DefinitelyNotARealEnumValue",
+    }
+)
 ```
 
 Expected: error with `unknown_enum_value 'compression'='DefinitelyNotARealEnumValue'`.
@@ -983,6 +1062,7 @@ Any 256×256 (or smaller) PNG works. Create one via Python if needed:
 ```python
 # Run once to generate the fixture
 from PIL import Image
+
 img = Image.new("RGBA", (256, 256), (255, 0, 0, 255))
 for x in range(0, 256, 32):
     for y in range(256):
@@ -997,19 +1077,25 @@ Or supply your own. Keep it under 100 KB so it doesn't bloat the repo.
 In `examples/smoke_test.py`, find the section currently labeled `header("1. list_tools (should list 11 tool names)")` (around line 143). Update both the header string and the count assertion:
 
 ```python
-    header("1. list_tools (should list 13 tool names)")
-    def t1():
-        resp = call("list_tools")
-        show(resp)
-        result = assert_ok(resp, "list_tools")
-        tools = result.get("tools")
-        if not isinstance(tools, list):
-            raise SmokeFailure(f"[list_tools] 'tools' not a list: {result}")
-        if len(tools) != 13:
-            raise SmokeFailure(f"[list_tools] expected 13 tools, got {len(tools)}: {tools}")
-        if result.get("count") != len(tools):
-            raise SmokeFailure(f"[list_tools] 'count' ({result.get('count')}) != len(tools) ({len(tools)})")
-    step("list_tools", t1)
+header("1. list_tools (should list 13 tool names)")
+
+
+def t1():
+    resp = call("list_tools")
+    show(resp)
+    result = assert_ok(resp, "list_tools")
+    tools = result.get("tools")
+    if not isinstance(tools, list):
+        raise SmokeFailure(f"[list_tools] 'tools' not a list: {result}")
+    if len(tools) != 13:
+        raise SmokeFailure(f"[list_tools] expected 13 tools, got {len(tools)}: {tools}")
+    if result.get("count") != len(tools):
+        raise SmokeFailure(
+            f"[list_tools] 'count' ({result.get('count')}) != len(tools) ({len(tools)})"
+        )
+
+
+step("list_tools", t1)
 ```
 
 - [ ] **Step 3: Add a new step for the texture-pipeline round-trip**
@@ -1017,52 +1103,60 @@ In `examples/smoke_test.py`, find the section currently labeled `header("1. list
 Insert this block in `main()` after the existing `step("get_viewport_screenshot", t6)` and before the `if args.bp:` block:
 
 ```python
-    header("7. texture pipeline round-trip (import + configure + cleanup)")
-    def t_texture():
-        fixture = os.path.abspath(
-            os.path.join(os.path.dirname(__file__), "..",
-                         "tests", "fixtures", "test_texture.png"))
-        if not os.path.exists(fixture):
-            raise SmokeFailure(f"[texture] fixture missing: {fixture}")
+header("7. texture pipeline round-trip (import + configure + cleanup)")
 
-        smoke_dest = "/Game/_UnrealClaudeMCPSmoke"
-        asset_name = "T_PipelineSmoke"
-        asset_path = f"{smoke_dest}/{asset_name}.{asset_name}"
 
-        # Import
-        imp = call("import_texture", {
+def t_texture():
+    fixture = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "tests", "fixtures", "test_texture.png")
+    )
+    if not os.path.exists(fixture):
+        raise SmokeFailure(f"[texture] fixture missing: {fixture}")
+
+    smoke_dest = "/Game/_UnrealClaudeMCPSmoke"
+    asset_name = "T_PipelineSmoke"
+    asset_path = f"{smoke_dest}/{asset_name}.{asset_name}"
+
+    # Import
+    imp = call(
+        "import_texture",
+        {
             "source_path": fixture,
             "dest_path": smoke_dest,
             "dest_name": asset_name,
             "replace_existing": True,
-        })
-        result = assert_ok(imp, "import_texture")
-        if not (result.get("width") == 256 and result.get("height") == 256):
-            raise SmokeFailure(f"[import_texture] unexpected dims: {result}")
+        },
+    )
+    result = assert_ok(imp, "import_texture")
+    if not (result.get("width") == 256 and result.get("height") == 256):
+        raise SmokeFailure(f"[import_texture] unexpected dims: {result}")
 
-        # Configure
-        cfg = call("configure_texture", {
+    # Configure
+    cfg = call(
+        "configure_texture",
+        {
             "path": asset_path,
             "srgb": False,
             "compression": "Normalmap",
             "lod_group": "WorldNormalMap",
-        })
-        cfg_res = assert_ok(cfg, "configure_texture")
-        applied = cfg_res.get("applied") or {}
-        if applied.get("srgb") is not False:
-            raise SmokeFailure(f"[configure_texture] srgb not applied: {cfg_res}")
-        if applied.get("compression") != "Normalmap":
-            raise SmokeFailure(f"[configure_texture] compression not applied: {cfg_res}")
+        },
+    )
+    cfg_res = assert_ok(cfg, "configure_texture")
+    applied = cfg_res.get("applied") or {}
+    if applied.get("srgb") is not False:
+        raise SmokeFailure(f"[configure_texture] srgb not applied: {cfg_res}")
+    if applied.get("compression") != "Normalmap":
+        raise SmokeFailure(f"[configure_texture] compression not applied: {cfg_res}")
 
-        # Clean up via execute_unreal_python so we don't leave smoke assets behind
-        cleanup = call("execute_unreal_python", {
-            "code": (
-                "import unreal\n"
-                f"unreal.EditorAssetLibrary.delete_directory('{smoke_dest}')\n"
-            )
-        })
-        assert_ok(cleanup, "texture_pipeline.cleanup")
-    step("texture_pipeline", t_texture)
+    # Clean up via execute_unreal_python so we don't leave smoke assets behind
+    cleanup = call(
+        "execute_unreal_python",
+        {"code": (f"import unreal\nunreal.EditorAssetLibrary.delete_directory('{smoke_dest}')\n")},
+    )
+    assert_ok(cleanup, "texture_pipeline.cleanup")
+
+
+step("texture_pipeline", t_texture)
 ```
 
 (Also bump the index numbers on later headers — `7. inspect_blueprint` becomes `8.`, etc. — so the sequential numbering reads cleanly.)

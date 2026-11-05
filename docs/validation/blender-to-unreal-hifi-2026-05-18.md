@@ -310,31 +310,30 @@ State this the way `elven-hifi-2026-05-16-NOTES.md` does — this is not
 
    ```python
    import unreal
-   mi = unreal.load_asset(
-       "/Game/BlenderImports/hero_pavilion/Materials/M_Hero_Baked")
+
+   mi = unreal.load_asset("/Game/BlenderImports/hero_pavilion/Materials/M_Hero_Baked")
    pairs = {
-       "BaseColorTexture":
-           "/Game/BlenderImports/hero_pavilion/Textures/hero_basecolor",
-       "NormalTexture":
-           "/Game/BlenderImports/hero_pavilion/Textures/hero_normal",
-       "MetallicRoughnessTexture":
-           "/Game/BlenderImports/hero_pavilion/Textures/"
-           "T_hero_Metallic-T_hero_Roughness",
+       "BaseColorTexture": "/Game/BlenderImports/hero_pavilion/Textures/hero_basecolor",
+       "NormalTexture": "/Game/BlenderImports/hero_pavilion/Textures/hero_normal",
+       "MetallicRoughnessTexture": "/Game/BlenderImports/hero_pavilion/Textures/"
+       "T_hero_Metallic-T_hero_Roughness",
    }
    for param, tpath in pairs.items():
        tex = unreal.load_asset(tpath)
-       unreal.MaterialEditingLibrary.set_material_instance_texture_parameter_value(
-           mi, param, tex)
+       unreal.MaterialEditingLibrary.set_material_instance_texture_parameter_value(mi, param, tex)
    unreal.MaterialEditingLibrary.update_material_instance(mi)
    unreal.EditorAssetLibrary.save_asset(
-       "/Game/BlenderImports/hero_pavilion/Materials/M_Hero_Baked",
-       only_if_is_dirty=False)
+       "/Game/BlenderImports/hero_pavilion/Materials/M_Hero_Baked", only_if_is_dirty=False
+   )
    # Verify (set_*_parameter_value can return False yet still apply —
    # trust this read, not its return):
    for param in pairs:
-       print(param,
-             unreal.MaterialEditingLibrary.get_material_instance_texture_parameter_value(
-                 mi, param).get_path_name())
+       print(
+           param,
+           unreal.MaterialEditingLibrary.get_material_instance_texture_parameter_value(
+               mi, param
+           ).get_path_name(),
+       )
    ```
 5. Assemble + light the scratch level, then `render_camera_to_png`
    per camera at ≥1920×1080. Visually verify each PNG is a real lit

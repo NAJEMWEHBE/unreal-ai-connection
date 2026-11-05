@@ -6,6 +6,7 @@ SceneCapture2D rendering into a TextureRenderTarget2D is independent of
 viewport state and includes post-process (tonemap, exposure, grade), so
 the captured PNG matches the final look. Reusable for any hero framing.
 """
+
 import json
 import os
 
@@ -18,8 +19,8 @@ SHOTS = [
     ("spire", (1200, -1400, 2600), (6, -150, 0), 55.0),
 ]
 OUTDIR = os.environ.get(
-    "UCMCP_VALIDATION_DIR",
-    os.path.join(unreal.Paths.project_dir(), "Saved", "ValidationShots"))
+    "UCMCP_VALIDATION_DIR", os.path.join(unreal.Paths.project_dir(), "Saved", "ValidationShots")
+)
 os.makedirs(OUTDIR, exist_ok=True)
 RES = (1600, 900)
 out = {"shots": []}
@@ -27,8 +28,7 @@ out = {"shots": []}
 
 def editor_world():
     for getter in (
-        lambda: unreal.get_editor_subsystem(
-            unreal.UnrealEditorSubsystem).get_editor_world(),
+        lambda: unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_editor_world(),
         lambda: unreal.EditorLevelLibrary.get_editor_world(),
     ):
         try:
@@ -39,8 +39,7 @@ def editor_world():
             pass
     actors = eas.get_all_level_actors()
     if not actors:
-        raise RuntimeError(
-            "no editor world and empty level — cannot derive world context")
+        raise RuntimeError("no editor world and empty level — cannot derive world context")
     return actors[0]
 
 
@@ -48,25 +47,22 @@ eas = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
 world = editor_world()
 
 rt = unreal.RenderingLibrary.create_render_target2d(
-    world, RES[0], RES[1], unreal.TextureRenderTargetFormat.RTF_RGBA8)
+    world, RES[0], RES[1], unreal.TextureRenderTargetFormat.RTF_RGBA8
+)
 try:
     rt.set_editor_property("target_gamma", 2.2)
 except Exception:
     pass
 
-cap = eas.spawn_actor_from_class(
-    unreal.SceneCapture2D, unreal.Vector(0, 0, 0))
+cap = eas.spawn_actor_from_class(unreal.SceneCapture2D, unreal.Vector(0, 0, 0))
 cap.set_actor_label("HFX_Capture")
 cc = cap.get_component_by_class(unreal.SceneCaptureComponent2D)
 cc.set_editor_property("texture_target", rt)
 try:
-    cc.set_editor_property(
-        "capture_source",
-        unreal.SceneCaptureSource.SCS_FINAL_COLOR_LDR)
+    cc.set_editor_property("capture_source", unreal.SceneCaptureSource.SCS_FINAL_COLOR_LDR)
 except Exception as e:
     out["src_err"] = str(e)[:80]
-for k, v in (("capture_every_frame", False),
-             ("capture_on_movement", False)):
+for k, v in (("capture_every_frame", False), ("capture_on_movement", False)):
     try:
         cc.set_editor_property(k, v)
     except Exception:
@@ -74,9 +70,8 @@ for k, v in (("capture_every_frame", False),
 
 for name, loc, rot, fov in SHOTS:
     cap.set_actor_location_and_rotation(
-        unreal.Vector(*loc),
-        unreal.Rotator(pitch=rot[0], yaw=rot[1], roll=rot[2]),
-        False, False)
+        unreal.Vector(*loc), unreal.Rotator(pitch=rot[0], yaw=rot[1], roll=rot[2]), False, False
+    )
     try:
         cc.set_editor_property("fov_angle", fov)
     except Exception:
@@ -89,7 +84,8 @@ for name, loc, rot, fov in SHOTS:
     ok = False
     try:
         ok = unreal.RenderingLibrary.export_render_target(
-            world, rt, OUTDIR, "elven-hifi-%s-2026-05-16.png" % name)
+            world, rt, OUTDIR, "elven-hifi-%s-2026-05-16.png" % name
+        )
     except Exception as e:
         out["shots"].append({name: "export_err:" + str(e)[:90]})
         continue

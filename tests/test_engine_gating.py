@@ -80,10 +80,14 @@ def test_gate_blocks_each_gated_tool_on_engine_4_27(tool_name):
     """Connected editor is UE 4.27 -> every gated tool must be refused with
     the structured error and NEVER reach its UE round-trip."""
     with patch.object(bridge, "call_ue", return_value=_engine_version_resp(4, 27)) as m:
-        resp = bridge.handle({
-            "jsonrpc": "2.0", "id": 7, "method": "tools/call",
-            "params": {"name": tool_name, "arguments": _VALID_ARGS[tool_name]},
-        })
+        resp = bridge.handle(
+            {
+                "jsonrpc": "2.0",
+                "id": 7,
+                "method": "tools/call",
+                "params": {"name": tool_name, "arguments": _VALID_ARGS[tool_name]},
+            }
+        )
 
     # Only the get_engine_version preflight round-trip happened -- the
     # synthetic's UE round-trip was never reached.
@@ -124,7 +128,8 @@ def test_gate_fails_open_when_engine_version_undeterminable():
     must FAIL OPEN (return None / proceed) -- not hard-block. The underlying
     tool surfaces its own error if the API genuinely isn't present."""
     transport_err = {
-        "jsonrpc": "2.0", "id": 1,
+        "jsonrpc": "2.0",
+        "id": 1,
         "error": {"code": -32099, "message": "UE server not reachable"},
     }
     with patch.object(bridge, "call_ue", return_value=transport_err):
@@ -139,7 +144,8 @@ def test_fail_open_result_is_memoised():
     the cubic P2: the fail-open path previously returned without caching,
     re-issuing the RPC on every subsequent gated invocation."""
     transport_err = {
-        "jsonrpc": "2.0", "id": 1,
+        "jsonrpc": "2.0",
+        "id": 1,
         "error": {"code": -32099, "message": "UE server not reachable"},
     }
     with patch.object(bridge, "call_ue", return_value=transport_err) as m:
@@ -148,8 +154,7 @@ def test_fail_open_result_is_memoised():
         g3 = bridge.check_engine_gate(3, "get_camera_transform")
     assert g1 is None and g2 is None and g3 is None, "all must fail OPEN"
     assert m.call_count == 1, (
-        f"undeterminable engine version must be memoised once; "
-        f"got {m.call_count} round-trips"
+        f"undeterminable engine version must be memoised once; got {m.call_count} round-trips"
     )
 
 
@@ -170,8 +175,7 @@ def test_engine_version_lookup_is_memoised():
         bridge.check_engine_gate(2, "set_camera_transform")
         bridge.check_engine_gate(3, "convert_hdri_to_cubemap")
     assert m.call_count == 1, (
-        f"engine version should be discovered once and cached; "
-        f"got {m.call_count} round-trips"
+        f"engine version should be discovered once and cached; got {m.call_count} round-trips"
     )
 
 
@@ -179,7 +183,8 @@ def test_gate_parses_minor_dotted_fallback():
     """When the handler omits integer major/minor but supplies minor_dotted,
     the gate still resolves the version (defensive fallback path)."""
     resp = {
-        "jsonrpc": "2.0", "id": 1,
+        "jsonrpc": "2.0",
+        "id": 1,
         "result": {"minor_dotted": "4.27", "full": "4.27.2-0"},
     }
     with patch.object(bridge, "call_ue", return_value=resp):
@@ -190,16 +195,27 @@ def test_gate_parses_minor_dotted_fallback():
 def test_structured_error_shape_matches_spec():
     """Pin the exact structured-error envelope shape consumers will see."""
     with patch.object(bridge, "call_ue", return_value=_engine_version_resp(4, 27)):
-        resp = bridge.handle({
-            "jsonrpc": "2.0", "id": 12, "method": "tools/call",
-            "params": {"name": "convert_hdri_to_cubemap", "arguments": {"hdri_path": "/Game/X"}},
-        })
+        resp = bridge.handle(
+            {
+                "jsonrpc": "2.0",
+                "id": 12,
+                "method": "tools/call",
+                "params": {
+                    "name": "convert_hdri_to_cubemap",
+                    "arguments": {"hdri_path": "/Game/X"},
+                },
+            }
+        )
     assert resp["jsonrpc"] == "2.0"
     assert resp["id"] == 12
     err = resp["error"]
     assert set(err.keys()) == {
-        "code", "error_code", "message", "tool",
-        "min_engine_version", "engine_version",
+        "code",
+        "error_code",
+        "message",
+        "tool",
+        "min_engine_version",
+        "engine_version",
     }
     # JSON-RPC 2.0 mandates an integer error.code; the string identifier
     # rides alongside it in `error_code`.

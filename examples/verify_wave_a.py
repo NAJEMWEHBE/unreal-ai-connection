@@ -66,6 +66,7 @@ import sys
 #   <8-byte big-endian uint64 body length> <N bytes of UTF-8 JSON body>
 # ---------------------------------------------------------------------------
 
+
 def _send_framed(sock: socket.socket, body_bytes: bytes) -> None:
     """Prepend the 8-byte big-endian length prefix and send the whole frame."""
     length_prefix = len(body_bytes).to_bytes(8, byteorder="big", signed=False)
@@ -94,8 +95,9 @@ def _recv_framed(sock: socket.socket) -> bytes:
     return _recv_exact(sock, length)
 
 
-def call(host: str, port: int, method: str,
-         params: dict | None = None, request_id: int = 1) -> dict:
+def call(
+    host: str, port: int, method: str, params: dict | None = None, request_id: int = 1
+) -> dict:
     """One framed JSON-RPC round-trip. Mirrors smoke_test.call() but takes
     host/port explicitly so --host/--port work per invocation (smoke_test
     reads module globals; we deliberately do not)."""
@@ -110,8 +112,10 @@ def call(host: str, port: int, method: str,
         try:
             s.connect((host, port))
         except (ConnectionRefusedError, OSError) as e:
-            return {"_error": f"Cannot reach UE at {host}:{port}: {e}. "
-                              f"Is the editor open with the rebuilt UnrealAIConnection plugin?"}
+            return {
+                "_error": f"Cannot reach UE at {host}:{port}: {e}. "
+                f"Is the editor open with the rebuilt UnrealAIConnection plugin?"
+            }
 
         try:
             _send_framed(s, raw)
@@ -133,6 +137,7 @@ def call(host: str, port: int, method: str,
 # ---------------------------------------------------------------------------
 # Output helpers (mirror smoke_test.py's header / show style).
 # ---------------------------------------------------------------------------
+
 
 def header(name: str) -> None:
     print()
@@ -156,6 +161,7 @@ def show(resp: dict, *, max_chars: int = 600) -> None:
 # module (host rebuild missing / handler inert). Every other failure mode is
 # a normal VerifyFailure.
 # ---------------------------------------------------------------------------
+
 
 class VerifyFailure(AssertionError):
     pass
@@ -207,6 +213,7 @@ def _is_list_like(v) -> bool:
 # common ones so the catalog check is robust.
 # ---------------------------------------------------------------------------
 
+
 def _extract_tool_names(result) -> list[str]:
     """Pull a flat list of tool names out of whatever shape tools/list used.
 
@@ -255,28 +262,42 @@ WAVE_A_TOOLS = [
 def main() -> None:
     env_host = os.environ.get("UCMCP_HOST", "127.0.0.1")
     env_port = os.environ.get("UCMCP_PORT", "18888")
-    default_out = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                               "verify_render.png")
-    default_json = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                "verify_wave_a_results.json")
+    default_out = os.path.join(os.path.dirname(os.path.abspath(__file__)), "verify_render.png")
+    default_json = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "verify_wave_a_results.json"
+    )
 
     ap = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    ap.add_argument("--host", default=env_host,
-                    help=f"UE MCP host (default {env_host}; env UCMCP_HOST)")
-    ap.add_argument("--port", default=env_port,
-                    help=f"UE MCP port (default {env_port}; env UCMCP_PORT)")
-    ap.add_argument("--out-path", dest="out_path", default=default_out,
-                    help=("Absolute path render_camera_to_png writes to. "
-                          f"Default: {default_out}"))
-    ap.add_argument("--pie", action="store_true",
-                    help=("ALSO exercise pie_control start + stop. WARNING: "
-                          "this LAUNCHES Play-In-Editor on the live editor. "
-                          "Off by default; query-only without this flag."))
-    ap.add_argument("--json-out", dest="json_out", default=default_json,
-                    help=(f"Raw-response artifact path. Default: {default_json}"))
+    ap.add_argument(
+        "--host", default=env_host, help=f"UE MCP host (default {env_host}; env UCMCP_HOST)"
+    )
+    ap.add_argument(
+        "--port", default=env_port, help=f"UE MCP port (default {env_port}; env UCMCP_PORT)"
+    )
+    ap.add_argument(
+        "--out-path",
+        dest="out_path",
+        default=default_out,
+        help=(f"Absolute path render_camera_to_png writes to. Default: {default_out}"),
+    )
+    ap.add_argument(
+        "--pie",
+        action="store_true",
+        help=(
+            "ALSO exercise pie_control start + stop. WARNING: "
+            "this LAUNCHES Play-In-Editor on the live editor. "
+            "Off by default; query-only without this flag."
+        ),
+    )
+    ap.add_argument(
+        "--json-out",
+        dest="json_out",
+        default=default_json,
+        help=(f"Raw-response artifact path. Default: {default_json}"),
+    )
     args = ap.parse_args()
 
     host = args.host
@@ -284,8 +305,7 @@ def main() -> None:
         port = int(args.port)
     except (TypeError, ValueError) as exc:
         raise SystemExit(
-            f"Invalid port {args.port!r}; expected an integer "
-            f"(via --port or UCMCP_PORT)."
+            f"Invalid port {args.port!r}; expected an integer (via --port or UCMCP_PORT)."
         ) from exc
 
     print("Wave A / Wave A.5 / PR #214 live-verification panel")
@@ -301,8 +321,7 @@ def main() -> None:
     failures: list[str] = []
 
     def record(step_no: int, label: str, status: str, detail: str = "") -> None:
-        results.append({"step": step_no, "label": label,
-                        "status": status, "detail": detail})
+        results.append({"step": step_no, "label": label, "status": status, "detail": detail})
 
     def run(step_no: int, label: str, fn) -> None:
         """Run one panel step. Collect raw response + PASS/FAIL; never abort."""
@@ -354,8 +373,10 @@ def main() -> None:
             )
         # Server-reported count, if present, should match the list length.
         reported = result.get("count") if isinstance(result, dict) else None
-        print(f"  catalog: {len(names)} tools"
-              + (f" (server count={reported})" if reported is not None else ""))
+        print(
+            f"  catalog: {len(names)} tools"
+            + (f" (server count={reported})" if reported is not None else "")
+        )
         if isinstance(reported, int) and reported != len(names):
             raise VerifyFailure(
                 f"[tools_list] server count ({reported}) != extracted "
@@ -366,21 +387,35 @@ def main() -> None:
         # native vs synthetic from the wire, but the bulk_* / inspect_* /
         # *_assets synthetic family is well-known. Report a best-effort
         # native-handler estimate for the maintainer's eye.
-        synthetic_markers = ("bulk_", "compile_mod_pak", "marketplace_",
-                             "convert_hdri", "sequencer_add_transform_keyframe",
-                             "wait_for_events", "get_camera_transform",
-                             "set_camera_transform", "screenshot_actor",
-                             "find_unused_assets", "get_reference_chain",
-                             "find_actors_by_class", "compare_assets",
-                             "inspect_dependency_graph", "inspect_data_asset",
-                             "inspect_sound_class", "inspect_sound_submix",
-                             "inspect_audio_bus", "inspect_material_function",
-                             "inspect_metasound", "audit_blueprint_compile_status")
-        synthetic = [n for n in names if any(n.startswith(m) or n == m
-                                             for m in synthetic_markers)]
+        synthetic_markers = (
+            "bulk_",
+            "compile_mod_pak",
+            "marketplace_",
+            "convert_hdri",
+            "sequencer_add_transform_keyframe",
+            "wait_for_events",
+            "get_camera_transform",
+            "set_camera_transform",
+            "screenshot_actor",
+            "find_unused_assets",
+            "get_reference_chain",
+            "find_actors_by_class",
+            "compare_assets",
+            "inspect_dependency_graph",
+            "inspect_data_asset",
+            "inspect_sound_class",
+            "inspect_sound_submix",
+            "inspect_audio_bus",
+            "inspect_material_function",
+            "inspect_metasound",
+            "audit_blueprint_compile_status",
+        )
+        synthetic = [n for n in names if any(n.startswith(m) or n == m for m in synthetic_markers)]
         native_est = len(names) - len(synthetic)
-        print(f"  est. native C++ handlers: ~{native_est} "
-              f"(catalog {len(names)} - ~{len(synthetic)} known synthetic)")
+        print(
+            f"  est. native C++ handlers: ~{native_est} "
+            f"(catalog {len(names)} - ~{len(synthetic)} known synthetic)"
+        )
 
         nameset = set(names)
         missing = [t for t in WAVE_A_TOOLS if t not in nameset]
@@ -389,8 +424,7 @@ def main() -> None:
                 f"[tools_list] Wave A/A.5 handlers MISSING from catalog "
                 f"{missing} -- host plugin not rebuilt with these compiled in"
             )
-        print(f"  all {len(WAVE_A_TOOLS)} Wave A/A.5 tools present in catalog: "
-              f"{WAVE_A_TOOLS}")
+        print(f"  all {len(WAVE_A_TOOLS)} Wave A/A.5 tools present in catalog: {WAVE_A_TOOLS}")
 
     run(1, "tools_list", t1)
 
@@ -402,22 +436,23 @@ def main() -> None:
         raw_dump["2.get_engine_version"] = resp
         show(resp)
         result = assert_handler_compiled(resp, "get_engine_version")
-        for key in ("major", "minor", "patch", "changelist", "branch",
-                    "minor_dotted"):
+        for key in ("major", "minor", "patch", "changelist", "branch", "minor_dotted"):
             if key not in result:
-                raise VerifyFailure(
-                    f"[get_engine_version] missing key '{key}': {result}"
-                )
+                raise VerifyFailure(f"[get_engine_version] missing key '{key}': {result}")
 
     run(2, "get_engine_version", t2)
 
     # ----- 3. list_levels --------------------------------------------------
-    header('3. list_levels { path_under:/Game, name_contains:Map }')
+    header("3. list_levels { path_under:/Game, name_contains:Map }")
 
     def t3() -> None:
-        resp = call(host, port, "list_levels",
-                    {"path_under": "/Game/", "name_contains": "Map"},
-                    request_id=3)
+        resp = call(
+            host,
+            port,
+            "list_levels",
+            {"path_under": "/Game/", "name_contains": "Map"},
+            request_id=3,
+        )
         raw_dump["3.list_levels"] = resp
         show(resp)
         result = assert_handler_compiled(resp, "list_levels")
@@ -441,13 +476,12 @@ def main() -> None:
         show(resp)
         result = assert_handler_compiled(resp, "save_dirty_assets")
         if not isinstance(result, dict):
-            raise VerifyFailure(
-                f"[save_dirty_assets] expected an object result: {result}"
-            )
+            raise VerifyFailure(f"[save_dirty_assets] expected an object result: {result}")
         if not isinstance(result.get("ok"), bool):
             raise VerifyFailure(
                 f"[save_dirty_assets] 'ok' must be a bool (false is a legitimate "
-                f"no-op when nothing is dirty): {result}")
+                f"no-op when nothing is dirty): {result}"
+            )
         if not isinstance(result.get("include_levels"), bool):
             raise VerifyFailure(f"[save_dirty_assets] 'include_levels' not a bool: {result}")
         if not isinstance(result.get("include_content"), bool):
@@ -486,25 +520,20 @@ def main() -> None:
         show(resp)
         result = assert_handler_compiled(resp, "inspect_input_mappings")
         if not isinstance(result, dict):
-            raise VerifyFailure(
-                f"[inspect_input_mappings] expected an object result: {result}"
-            )
+            raise VerifyFailure(f"[inspect_input_mappings] expected an object result: {result}")
         if not _is_list_like(result.get("action_mappings")):
-            raise VerifyFailure(
-                f"[inspect_input_mappings] 'action_mappings' not a list: {result}"
-            )
+            raise VerifyFailure(f"[inspect_input_mappings] 'action_mappings' not a list: {result}")
         if not _is_list_like(result.get("axis_mappings")):
-            raise VerifyFailure(
-                f"[inspect_input_mappings] 'axis_mappings' not a list: {result}"
-            )
+            raise VerifyFailure(f"[inspect_input_mappings] 'axis_mappings' not a list: {result}")
         if not isinstance(result.get("uses_enhanced_input"), bool):
             raise VerifyFailure(
-                f"[inspect_input_mappings] 'uses_enhanced_input' not a bool: "
-                f"{result}"
+                f"[inspect_input_mappings] 'uses_enhanced_input' not a bool: {result}"
             )
-        print(f"  action_mappings={len(result['action_mappings'])} "
-              f"axis_mappings={len(result['axis_mappings'])} "
-              f"uses_enhanced_input={result['uses_enhanced_input']}")
+        print(
+            f"  action_mappings={len(result['action_mappings'])} "
+            f"axis_mappings={len(result['axis_mappings'])} "
+            f"uses_enhanced_input={result['uses_enhanced_input']}"
+        )
 
     run(6, "inspect_input_mappings", t6)
 
@@ -512,19 +541,14 @@ def main() -> None:
     header("7. pie_control { action: query }  (handler-live = bool is_playing)")
 
     def t7() -> None:
-        resp = call(host, port, "pie_control", {"action": "query"},
-                    request_id=7)
+        resp = call(host, port, "pie_control", {"action": "query"}, request_id=7)
         raw_dump["7.pie_control.query"] = resp
         show(resp)
         result = assert_handler_compiled(resp, "pie_control.query")
         if not isinstance(result, dict):
-            raise VerifyFailure(
-                f"[pie_control.query] expected an object result: {result}"
-            )
+            raise VerifyFailure(f"[pie_control.query] expected an object result: {result}")
         if "is_playing" not in result:
-            raise VerifyFailure(
-                f"[pie_control.query] missing 'is_playing': {result}"
-            )
+            raise VerifyFailure(f"[pie_control.query] missing 'is_playing': {result}")
         # Handler-live proof is that it answered with a bool 'is_playing'
         # field -- NOT that the field is exactly False. An already-running
         # PIE session is a valid editor state; treating True as a FAIL would
@@ -553,8 +577,7 @@ def main() -> None:
         started_pie = False
         if args.pie and not initially_playing:
             print("  --pie set: starting PIE (INTRUSIVE) ...")
-            start = call(host, port, "pie_control", {"action": "start"},
-                         request_id=701)
+            start = call(host, port, "pie_control", {"action": "start"}, request_id=701)
             raw_dump["7.pie_control.start"] = start
             show(start)
             start_res = assert_handler_compiled(start, "pie_control.start")
@@ -563,39 +586,41 @@ def main() -> None:
 
             if started_pie:
                 print("  --pie set: stopping PIE (script-owned session) ...")
-                stop = call(host, port, "pie_control", {"action": "stop"},
-                            request_id=702)
+                stop = call(host, port, "pie_control", {"action": "stop"}, request_id=702)
                 raw_dump["7.pie_control.stop"] = stop
                 show(stop)
                 stop_res = assert_handler_compiled(stop, "pie_control.stop")
                 print(f"  pie stop result: {stop_res}")
 
                 # Re-query: editor should be idle again.
-                requery = call(host, port, "pie_control", {"action": "query"},
-                               request_id=703)
+                requery = call(host, port, "pie_control", {"action": "query"}, request_id=703)
                 raw_dump["7.pie_control.requery"] = requery
                 rq = assert_handler_compiled(requery, "pie_control.requery")
                 if rq.get("is_playing") is not False:
                     raise VerifyFailure(
-                        f"[pie_control.requery] PIE did not return to idle "
-                        f"after stop: {rq}"
+                        f"[pie_control.requery] PIE did not return to idle after stop: {rq}"
                     )
                 print("  PIE returned to idle (is_playing=false)")
         elif args.pie and initially_playing:
-            print("  --pie set but PIE already running: leaving the "
-                  "pre-existing session UNTOUCHED (no start/stop -- this "
-                  "script only stops a session it itself started).")
+            print(
+                "  --pie set but PIE already running: leaving the "
+                "pre-existing session UNTOUCHED (no start/stop -- this "
+                "script only stops a session it itself started)."
+            )
 
     run(7, "pie_control", t7)
 
     # ----- 8. inspect_project_setting -------------------------------------
-    header("8. inspect_project_setting "
-           "{ settings_class:/Script/Engine.RendererSettings }")
+    header("8. inspect_project_setting { settings_class:/Script/Engine.RendererSettings }")
 
     def t8() -> None:
-        resp = call(host, port, "inspect_project_setting",
-                    {"settings_class": "/Script/Engine.RendererSettings"},
-                    request_id=8)
+        resp = call(
+            host,
+            port,
+            "inspect_project_setting",
+            {"settings_class": "/Script/Engine.RendererSettings"},
+            request_id=8,
+        )
         raw_dump["8.inspect_project_setting"] = resp
         show(resp)
         result = assert_handler_compiled(resp, "inspect_project_setting")
@@ -606,8 +631,7 @@ def main() -> None:
             props = result["properties"]
         if not isinstance(props, (dict, list)):
             raise VerifyFailure(
-                f"[inspect_project_setting] expected a dict/list of "
-                f"UPROPERTYs, got: {result}"
+                f"[inspect_project_setting] expected a dict/list of UPROPERTYs, got: {result}"
             )
         n = len(props) if isinstance(props, (dict, list)) else 0
         if n == 0:
@@ -620,8 +644,7 @@ def main() -> None:
     run(8, "inspect_project_setting", t8)
 
     # ----- 9. bulk_inspect_assets (synthetic sanity) ----------------------
-    header("9. bulk_inspect_assets "
-           "{ paths:[/Engine/BasicShapes/Cube, ...BaseFlattenMaterial] }")
+    header("9. bulk_inspect_assets { paths:[/Engine/BasicShapes/Cube, ...BaseFlattenMaterial] }")
 
     def t9() -> None:
         raise SkipStep(
@@ -648,8 +671,7 @@ def main() -> None:
         except OSError as e:
             print(f"  (note: could not remove stale {out_path}: {e})")
 
-        resp = call(host, port, "render_camera_to_png",
-                    {"out_path": out_path}, request_id=10)
+        resp = call(host, port, "render_camera_to_png", {"out_path": out_path}, request_id=10)
         raw_dump["10.render_camera_to_png"] = resp
         show(resp)
         assert_handler_compiled(resp, "render_camera_to_png")
@@ -698,7 +720,7 @@ def main() -> None:
     print("  Wave A / Wave A.5 / PR #214 verification summary")
     print("=" * 60)
     print(f"  {'#':>2}  {'STATUS':<6}  {'STEP':<24}  DETAIL")
-    print(f"  {'-'*2}  {'-'*6}  {'-'*24}  {'-'*20}")
+    print(f"  {'-' * 2}  {'-' * 6}  {'-' * 24}  {'-' * 20}")
     for r in results:
         detail = r["detail"]
         if len(detail) > 60:
@@ -712,12 +734,12 @@ def main() -> None:
 
     if failures:
         print(f"\n  RESULT: FAILED -- {len(failures)} step(s) did not pass")
-        print("  (a -32601 on any step => host plugin NOT rebuilt with that "
-              "handler compiled in)")
+        print("  (a -32601 on any step => host plugin NOT rebuilt with that handler compiled in)")
         print("=" * 60)
         sys.exit(1)
-    print("\n  RESULT: PASS -- all panel steps green; Wave A/A.5 handlers "
-          "compiled in and responding.")
+    print(
+        "\n  RESULT: PASS -- all panel steps green; Wave A/A.5 handlers compiled in and responding."
+    )
     print("=" * 60)
     sys.exit(0)
 

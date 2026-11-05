@@ -75,9 +75,7 @@ def read_canonical_text() -> str:
     try:
         json.loads(text)
     except json.JSONDecodeError as exc:
-        raise ValueError(
-            f"Canonical .uplugin is not valid JSON: {exc}"
-        ) from exc
+        raise ValueError(f"Canonical .uplugin is not valid JSON: {exc}") from exc
     return text
 
 
@@ -125,16 +123,10 @@ def generate(check_only: bool = False) -> list[Path]:
         out_path = OUTPUT_DIR / filename
         variant_text = build_variant_text(canonical_text, engine_version)
         if check_only:
-            print(
-                f"[plan] {label}: {_display_path(out_path)} "
-                f"-> EngineVersion {engine_version}"
-            )
+            print(f"[plan] {label}: {_display_path(out_path)} -> EngineVersion {engine_version}")
         else:
             out_path.write_text(variant_text, encoding="utf-8")
-            print(
-                f"[write] {label}: {_display_path(out_path)} "
-                f"-> EngineVersion {engine_version}"
-            )
+            print(f"[write] {label}: {_display_path(out_path)} -> EngineVersion {engine_version}")
         written.append(out_path)
 
     # Hard invariant: the generator must NEVER mutate the shipped file.

@@ -72,6 +72,5 @@ def test_canonical_dict_contains_all_pattern_keys() -> None:
     pattern_keys = {key for _, key in drift_sweep.PATTERNS}
     missing = pattern_keys - canonical.keys()
     assert not missing, (
-        f"PATTERNS reference canonical keys not provided by "
-        f"canonical_numbers(): {sorted(missing)}"
+        f"PATTERNS reference canonical keys not provided by canonical_numbers(): {sorted(missing)}"
     )

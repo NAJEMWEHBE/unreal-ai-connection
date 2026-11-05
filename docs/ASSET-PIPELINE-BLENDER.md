@@ -133,6 +133,7 @@ a live editor through the `execute_unreal_python` tool (adjust the three paths):
 
 ```python
 import unreal
+
 task = unreal.AssetImportTask()
 task.filename = r"F:\blender-exports\hero.glb"
 task.destination_path = "/Game/BlenderImports"

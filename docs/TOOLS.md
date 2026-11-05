@@ -8,8 +8,10 @@ To run any of the **C++** tools manually from the shell, use Python:
 
 ```python
 import socket, json
-s = socket.socket(); s.connect(('127.0.0.1', 18888))
-s.send(json.dumps({"jsonrpc":"2.0","id":1,"method":"<METHOD>","params":{...}}).encode())
+
+s = socket.socket()
+s.connect(("127.0.0.1", 18888))
+s.send(json.dumps({"jsonrpc": "2.0", "id": 1, "method": "<METHOD>", "params": {...}}).encode())
 print(s.recv(65536).decode())
 ```
 

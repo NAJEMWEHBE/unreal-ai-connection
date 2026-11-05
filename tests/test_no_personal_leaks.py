@@ -13,6 +13,7 @@ leaked into 7 tracked files across multiple PRs. The forward-fix scrubbed
 those + this test prevents reintroduction. The git history was rewritten
 separately to remove the pattern from old commits.
 """
+
 import subprocess
 from pathlib import Path
 
@@ -33,12 +34,12 @@ FORBIDDEN_PATTERNS = [
     # references to the runtime or specific model names in tracked files.
     # If a contributor PR mentions these by name, ask them to genericize
     # ("local OSS provider" / "local model") before merge.
-    "olla" + "ma",       # runtime name (lowercase form)
-    "Olla" + "ma",       # runtime name (capitalized form)
-    "qwen" + "3",        # Qwen 3.x model family
-    "gemm" + "a4",       # Gemma 4 model family
-    "nemo" + "tron",     # Nemotron model family (lowercase)
-    "Nemo" + "tron",     # Nemotron model family (capitalized)
+    "olla" + "ma",  # runtime name (lowercase form)
+    "Olla" + "ma",  # runtime name (capitalized form)
+    "qwen" + "3",  # Qwen 3.x model family
+    "gemm" + "a4",  # Gemma 4 model family
+    "nemo" + "tron",  # Nemotron model family (lowercase)
+    "Nemo" + "tron",  # Nemotron model family (capitalized)
 ]
 
 # Tracked files allowed to contain the forbidden patterns. The test file
