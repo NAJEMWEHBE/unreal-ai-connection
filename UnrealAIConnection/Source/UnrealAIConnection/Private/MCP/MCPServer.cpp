@@ -52,8 +52,9 @@ static constexpr int32 kRecvChunkBytes = 16 * 1024;
 //   - InProgress: would-block; resume next tick
 //   - Disconnect: real error; drop the client
 //
-// IsWouldBlock disambiguates via ISocketSubsystem::GetLastErrorCode() ==
-// SE_EWOULDBLOCK — same pattern UE 5.7's BSD socket implementation uses.
+// Reads: Recv() returning true with 0 bytes is would-block, false is a
+// disconnect (see RecvStopReason). Writes: IsWouldBlock disambiguates a
+// failed Send() via ISocketSubsystem::GetLastErrorCode() == SE_EWOULDBLOCK.
 // ---------------------------------------------------------------------------
 
 enum class EUCMCPFrameResult : uint8
@@ -76,6 +77,22 @@ static bool IsWouldBlock()
 }
 
 /**
+ * Why a Recv() returned no bytes. FSocketBSD::Recv (SocketsBSD.cpp) returns
+ * true with 0 bytes for would-block on a stream socket, and false for a real
+ * error AND for a clean close by the peer (recv() == 0). Checking
+ * IsWouldBlock() after a false Recv is wrong: a clean close sets no error,
+ * so GetLastErrorCode() still holds the SE_EWOULDBLOCK left by an earlier
+ * read, and the closed client was kept as a zombie. With the client cap
+ * (F12) those zombies would fill every slot, so trust bOk instead.
+ * (IsWouldBlock stays right for Send(), which returns false on would-block
+ * with a fresh error code.)
+ */
+static EUCMCPFrameResult RecvStopReason(bool bRecvOk)
+{
+    return bRecvOk ? EUCMCPFrameResult::InProgress : EUCMCPFrameResult::Disconnect;
+}
+
+/**
  * Advance the per-client read state by whatever bytes are available right now.
  * Returns Complete only when a full frame has assembled in State.BodyBuf.
  * Adds every byte received to OutBytesMoved (for the idle timeout).
@@ -93,8 +110,7 @@ static EUCMCPFrameResult AdvanceRead(FSocket* Socket, FUCMCPClientReadState& Sta
             ESocketReceiveFlags::None);
         if (!bOk || BytesRead == 0)
         {
-            return IsWouldBlock() ? EUCMCPFrameResult::InProgress
-                                  : EUCMCPFrameResult::Disconnect;
+            return RecvStopReason(bOk);
         }
         State.PrefixAccum += BytesRead;
         OutBytesMoved += BytesRead;
@@ -134,8 +150,7 @@ static EUCMCPFrameResult AdvanceRead(FSocket* Socket, FUCMCPClientReadState& Sta
         const bool bOk = Socket->Recv(Chunk, Want, BytesRead, ESocketReceiveFlags::None);
         if (!bOk || BytesRead == 0)
         {
-            return IsWouldBlock() ? EUCMCPFrameResult::InProgress
-                                  : EUCMCPFrameResult::Disconnect;
+            return RecvStopReason(bOk);
         }
         State.BodyBuf.Append(Chunk, BytesRead);
         State.BodyAccum += BytesRead;
@@ -349,7 +364,8 @@ void FUCMCPServer::Start(int32 InPort)
                 TEXT("or another program, holds it). MCP clients pointed at %d are talking to that ")
                 TEXT("process, not this editor. To run several editors, start each one with its own ")
                 TEXT("port, e.g. -UCMCPPort=18889 on the editor command line (or set UCMCP_PORT), and ")
-                TEXT("give the bridge the same UCMCP_PORT."),
+                TEXT("give the bridge the same UCMCP_PORT. (On Linux/macOS, an editor restarted within ")
+                TEXT("about a minute can also see this while old connections sit in TIME_WAIT.)"),
                 Port, Port);
         }
         else
