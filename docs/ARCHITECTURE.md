@@ -99,7 +99,7 @@ Three helpers extract cross-cutting concerns from multiple handlers. Each lives 
 - **`PropertyCoercion`** — JSON ↔ FProperty value bridge. Supports the v0.3.0 type list (primitives, strings, FName/FText, FVector/FVector2D/FRotator/FLinearColor/FColor, enums, TSoftObjectPtr). Used by `spawn_actor.properties`, `set_actor_property`, and `add_component.relative_transform`. Returns `ECoerceResult::Unsupported` with the FProperty class name for types deferred to v0.4.0 (USTRUCT, TArray, TMap, FObjectProperty, FInstancedStruct).
 - **`LogCapture`** (v0.6.0) — `FUCMCPLogCapture : public FOutputDevice`, a thread-safe ring buffer that captures the last 1000 UE Output Log entries. Registered globally via `GLog->AddOutputDevice` in `StartupModule` (before handler registration, so early log lines are captured) and deregistered in `ShutdownModule`. `get_log_lines` reads a snapshot from this buffer. **Thread safety:** `FOutputDeviceRedirector` calls registered output devices from any thread; `FUCMCPLogCapture::Serialize` takes a `FCriticalSection` lock for each write. `GetLines()` copies the ring under the same lock, then releases before filtering — the lock is never held while iterating.
 
-Each handler stays a leaf — these modules just lift cross-cutting concerns to where they can be tested once. The "leaf with bounded responsibility" pattern still holds.
+Each handler stays a leaf — these modules just lift cross-cutting concerns to where they can be tested once. `PropertyCoercion` and `ActorIdentity` (plus the server's port parsing and frame-length rules) have UE Automation tests under `Private/Tests/`, named `UCMCP.*`, using the reflected fixture types in `Private/Tests/UCMCPTestTypes.h`. Run them headless with `UnrealEditor-Cmd.exe "<project>.uproject" -nullrhi -unattended -ExecCmds="Automation RunTests UCMCP;Quit" -log` (host-build runbook step 7 in `docs/HANDOFF.md`). The "leaf with bounded responsibility" pattern still holds.
 
 ## Threading
 
@@ -115,6 +115,12 @@ The socket drain runs on the core ticker at a 50 ms cadence (`AddTicker(..., 0.0
 
 Handlers that mutate level/actor state are made undoable at the dispatcher. `IUCMCPHandler::IsMutating()` (default `false`) marks such handlers; when true, `FUCMCPDispatcher::HandleMessage` wraps the `Handle()` call in an `FScopedTransaction`, so the whole operation collapses to a single editor undo step (Ctrl+Z). For the transaction to record a change, the handler must call `UObject::Modify()` on each object it edits **before** mutating it (and use editor-undo-aware paths — e.g. `UWorld::EditorDestroyActor` rather than the runtime `DestroyActor`). An empty transaction (handler bailed during validation before any `Modify()`) is discarded automatically, so marking a handler mutating is safe even on its error paths. The first wave covers the level/actor mutators (`spawn_actor`, `delete_actor`, `set_actor_transform`, `set_actor_property`, `add_component`); asset-content authoring (material instances, textures, widget blueprints) uses the package/save model rather than the level undo stack and is intentionally left un-transacted for now.
 
+## Port and bind
+
+The listener binds `127.0.0.1` only. The port comes from `-UCMCPPort=<n>` on the editor command line, else the `UCMCP_PORT` environment variable (the bridge reads the same variable), else `18888`. A value outside 1..65535 logs a warning and falls through to the next source (`FUCMCPServer::ResolveConfiguredPort`).
+
+`FUCMCPServer::Start` creates, binds and listens on the socket itself, then hands it to `FTcpListener`'s `FSocket&` constructor. `FTcpListener`'s endpoint constructor would bind inside `FRunnable::Init()` on its own thread, where a failure can't be seen by the caller. So `Listening on 127.0.0.1:<port>` is only logged after a real bind; a failed bind logs `NOT listening ...` at Error and the server stays off. The socket is **not** reusable (no `SO_REUSEADDR`): on Windows that flag lets a second editor bind a port that is already listening, and UE's `SetReuseAddr` also sets `SO_REUSEPORT` on Linux/macOS. With it off, a second editor on the same port gets `SE_EADDRINUSE` and says so. To run several editors, give each its own `-UCMCPPort=`.
+
 ## JSON-RPC framing (v0.5.0+)
 
 Every TCP message uses explicit length-prefixed framing. Each frame on the wire is:
@@ -127,11 +133,15 @@ Every TCP message uses explicit length-prefixed framing. Each frame on the wire 
 
 - The 8-byte prefix encodes the body byte count as an unsigned 64-bit integer in network (big-endian) byte order.
 - The body is the raw UTF-8 JSON-RPC 2.0 object.
-- Length of 0 is invalid. Length > 1 GB is invalid. Both are rejected with `framing_error`.
+- Length of 0 is invalid. On the plugin side a request body over **64 MB** is invalid (`UCMCP::Framing::kMaxBodyBytes` in `MCPServer.h`). Both are rejected with `framing_error` and the client is dropped. (The bridge still accepts response frames up to 1 GB; its own cap is a separate change.)
+- The plugin never allocates the declared length up front: the body buffer grows as bytes actually arrive, so a bare 8-byte prefix can't pin memory.
+- At most **8 clients** are connected at once; a 9th connection is closed straight away by the listener thread (Warning `Refused client ...`). The bridge opens one short connection per call, so this only bites if something holds sockets open.
+- A client with **no bytes moving in either direction for 300 s** (mid-frame or between frames) is dropped. Handlers run synchronously on the game thread and the client's clock is stamped after its handler returns, so a request that legitimately runs for minutes does not trip it.
+- An HTTP request sent to the port by mistake (or by a browser) reads `GET / HT` as the length, about 5.1e18 bytes, and is dropped by the cap.
 
 Both sides (`MCPServer.cpp` via `ReadFramedMessage` / `WriteFramedMessage`, and the bridge via `recv_framed` / `send_framed`) loop on `Recv` / `Send` until the exact byte count is transferred, eliminating the old "one `recv()` = one whole message" assumption.
 
-**Stable error code: `framing_error`** — returned when the length prefix is unreadable, when the declared length exceeds the 1 GB cap, when the declared length is zero, or when body bytes stop arriving before the declared length is met (socket timeout or premature close).
+**Stable error code: `framing_error`** — returned when the length prefix is unreadable, when the declared length exceeds the cap (64 MB for requests into the plugin, 1 GB for responses into the bridge), when the declared length is zero, or when body bytes stop arriving before the declared length is met (socket timeout or premature close).
 
 Mixed-version connections (v0.4.0 bridge + v0.5.0 plugin, or vice versa) fail immediately with a framing error on the receiving side — loud, not silent. The bridge and plugin must be upgraded together.
 

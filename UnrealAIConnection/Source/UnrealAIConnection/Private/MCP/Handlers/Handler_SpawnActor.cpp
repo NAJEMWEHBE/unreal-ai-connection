@@ -12,6 +12,7 @@
 #include "MCP/PropertyCoercion.h"
 
 #include "Dom/JsonObject.h"
+#include "UCMCPCompat.h"
 #include "Editor.h"
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
@@ -117,7 +118,7 @@ public:
             {
                 UCMCP::PropertyCoercion::FResolvedProperty Resolved;
                 UCMCP::PropertyCoercion::FCoerceOutcome ResolveOutcome =
-                    UCMCP::PropertyCoercion::ResolvePropertyPath(Actor, Pair.Key, Resolved);
+                    UCMCP::PropertyCoercion::ResolvePropertyPath(Actor, UCMCPCompat::JsonKey(Pair.Key), Resolved);
                 if (ResolveOutcome.Result != UCMCP::PropertyCoercion::ECoerceResult::Success)
                 {
                     FailedProperty = FString::Printf(TEXT("'%s' (%s)"), *Pair.Key, *ResolveOutcome.Detail);

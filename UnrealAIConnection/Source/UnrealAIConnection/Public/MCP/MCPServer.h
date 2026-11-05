@@ -23,6 +23,38 @@ class FSocket;
 class FTcpListener;
 
 /**
+ * Wire-framing limits and helpers shared by MCPServer.cpp and the
+ * UCMCP.Server automation tests. Frame = 8-byte big-endian length + body.
+ */
+namespace UCMCP::Framing
+{
+    /**
+     * Largest request body the server accepts. A declared length above this
+     * (or zero) drops the client with framing_error. 64 MB is far above any
+     * real JSON-RPC request; it also keeps the cross-protocol guard: an HTTP
+     * request line "GET / HT" read as a length is ~5.1e18 bytes.
+     */
+    constexpr uint64 kMaxBodyBytes = 64ULL * 1024ULL * 1024ULL;
+
+    /** Decode the 8-byte big-endian length prefix. */
+    inline uint64 DecodeLengthPrefix(const uint8 (&Prefix)[8])
+    {
+        uint64 Len = 0;
+        for (int32 i = 0; i < 8; ++i)
+        {
+            Len = (Len << 8) | static_cast<uint64>(Prefix[i]);
+        }
+        return Len;
+    }
+
+    /** True if a declared body length is acceptable (1..kMaxBodyBytes). */
+    inline bool IsAcceptableBodyLength(uint64 Len)
+    {
+        return Len > 0 && Len <= kMaxBodyBytes;
+    }
+}
+
+/**
  * Per-client read state. Buffers a partial frame across TickClients calls so
  * a TCP-fragmented message doesn't get mistaken for a closed connection.
  *
@@ -38,10 +70,17 @@ struct FUCMCPClientReadState
     uint8 PrefixBuf[8] = {};
     int32 PrefixAccum = 0;
 
-    // Phase 2: body (size known once PrefixAccum reaches 8)
+    // Phase 2: body (size known once PrefixAccum reaches 8). BodyBuf grows
+    // as bytes actually arrive; it is never pre-sized to the declared
+    // BodyLength, so a bare prefix can't pin memory.
     uint64 BodyLength = 0;
     TArray<uint8> BodyBuf;
     int32 BodyAccum = 0;
+
+    // FPlatformTime::Seconds() when bytes last moved in either direction on
+    // this client. Drives the idle timeout. NOT cleared by Reset(): it spans
+    // frames.
+    double LastProgressSeconds = 0.0;
 
     bool IsHeaderComplete() const { return PrefixAccum >= 8; }
     bool IsBodyComplete() const
@@ -52,7 +91,15 @@ struct FUCMCPClientReadState
     {
         PrefixAccum = 0;
         BodyLength = 0;
-        BodyBuf.Reset();
+        // Keep a small allocation for the next frame; free a big one.
+        if (BodyBuf.Max() > 1024 * 1024)
+        {
+            BodyBuf.Empty();
+        }
+        else
+        {
+            BodyBuf.Reset();
+        }
         BodyAccum = 0;
         FMemory::Memzero(PrefixBuf, sizeof(PrefixBuf));
     }
@@ -77,8 +124,33 @@ class UNREALAICONNECTION_API FUCMCPServer
 public:
     static FUCMCPServer& Get();
 
-    /** Open the loopback listener. Idempotent: no-op if already running. */
-    void Start(int32 InPort = 18888);
+    /** Port used when neither -UCMCPPort= nor UCMCP_PORT names a valid one. */
+    static constexpr int32 kDefaultPort = 18888;
+
+    /**
+     * Parse a decimal TCP port. Returns 1..65535, or 0 when Text is empty,
+     * has anything but ASCII digits (surrounding whitespace is ignored), or
+     * is out of range. Pure; covered by the UCMCP.Server automation tests.
+     */
+    static int32 ParsePortString(const FString& Text);
+
+    /**
+     * Port to listen on, in order of precedence:
+     *   1. -UCMCPPort=<n> on the editor command line
+     *   2. the UCMCP_PORT environment variable (the Python bridge reads the
+     *      same variable, so one setting drives both sides)
+     *   3. kDefaultPort
+     * An invalid value logs a warning and falls through to the next source.
+     */
+    static int32 ResolveConfiguredPort();
+
+    /**
+     * Open the loopback listener. Idempotent: no-op if already running.
+     * The listen socket is bound synchronously, so a failed bind (port taken
+     * by another editor, for example) is logged as an error here and the
+     * server stays stopped (IsRunning() == false).
+     */
+    void Start(int32 InPort = kDefaultPort);
 
     /** Close the listener and any open client sockets. Idempotent. */
     void Stop();
@@ -100,6 +172,13 @@ private:
     bool TickClients(float DeltaTime);
 
     TUniquePtr<FTcpListener> Listener;
+
+    // The bound + listening socket handed to FTcpListener's FSocket& ctor.
+    // That ctor does not take ownership (bDeleteSocket = false in
+    // TcpListener.h), so Stop() destroys it AFTER Listener.Reset() has joined
+    // the accept thread.
+    FSocket* ListenSocket = nullptr;
+
     TArray<FSocket*> ConnectedClients;
 
     // D2 (PR #226 hardening layered on #225): FTcpListener runs its accept
@@ -110,6 +189,13 @@ private:
     // snapshot copy and the ranged-for can never race the listener thread.
     FCriticalSection PendingClientsCS;
     TArray<FSocket*> PendingAccepted;
+
+    // Guarded by PendingClientsCS. Mirror of ConnectedClients.Num() that the
+    // listener thread can read, so OnConnectionAccepted can enforce the
+    // client cap (AdoptedClientCount + PendingAccepted.Num()) without
+    // touching game-thread-only ConnectedClients. Written by the game thread
+    // under the lock in TickClients (adopt, drop) and Stop().
+    int32 AdoptedClientCount = 0;
 
     // v0.9.1: per-client partial-frame state. Keys are FSocket* — same lifetime
     // as ConnectedClients. Cleanup happens in three places: TickClients drop

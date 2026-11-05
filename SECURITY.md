@@ -3,7 +3,8 @@
 ## Scope & threat model
 
 Unreal AI Connection is a UE editor-automation plugin plus a Python stdio↔TCP
-bridge. The plugin binds **`127.0.0.1:18888` only** (localhost) — there is no
+bridge. The plugin binds **`127.0.0.1:18888` only** (localhost; the port can be
+changed with `-UCMCPPort=<n>` or `UCMCP_PORT`, the address can't) — there is no
 remote listener by design, so the primary threat surface is a local user who can
 already reach the loopback interface. The most security-relevant class of bug is
 therefore **a crafted MCP `tools/call` that escalates into arbitrary code

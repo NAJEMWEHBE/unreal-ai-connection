@@ -35,6 +35,9 @@
 #include "AssetRegistry/ARFilter.h"
 #include "AssetRegistry/AssetData.h"
 #include "AssetRegistry/IAssetRegistry.h"
+#if UCMCP_ENGINE_AT_LEAST(5, 8)
+#include "Containers/SharedString.h"   // UE::FSharedString, FJsonObject's key type from 5.8 (JsonKey below)
+#endif
 
 // ============================================================
 // FUCMCPTicker -- ticker type alias
@@ -364,6 +367,19 @@ namespace UCMCPCompat
         }
 #endif
     }
+
+    // --------------------------------------------------------
+    // JsonKey -- FJsonObject::Values key as an FString
+    // --------------------------------------------------------
+    // API boundary: UE 5.8
+    //   <= 5.7 : TMap<FString, TSharedPtr<FJsonValue>>
+    //   >= 5.8 : TMap<UE::FSharedString, ...> (FString again only when the
+    //            build defines UE_JSONOBJECT_LEGACY_STRING_KEYS=1)
+    // Overloads, so the right one is picked from the map's real key type.
+    FORCEINLINE const FString& JsonKey(const FString& Key) { return Key; }
+#if UCMCP_ENGINE_AT_LEAST(5, 8)
+    FORCEINLINE FString JsonKey(const UE::FSharedString& Key) { return FString(Key.ToView()); }
+#endif
 
 } // namespace UCMCPCompat
 

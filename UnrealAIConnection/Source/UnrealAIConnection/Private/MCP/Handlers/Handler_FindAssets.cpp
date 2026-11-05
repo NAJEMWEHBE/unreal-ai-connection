@@ -98,7 +98,7 @@ public:
         {
             for (const auto& Pair : (*TagsObjPtr)->Values)
             {
-                const FString& TagName = Pair.Key;
+                const FString TagName = UCMCPCompat::JsonKey(Pair.Key);
                 const TSharedPtr<FJsonValue>& Val = Pair.Value;
                 if (!Val.IsValid())
                 {
