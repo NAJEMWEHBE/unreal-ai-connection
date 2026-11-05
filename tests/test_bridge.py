@@ -1164,7 +1164,7 @@ def test_bulk_compile_blueprints_rejects_missing_paths():
 
 
 def test_bulk_compile_blueprints_rejects_path_with_nul_byte():
-    """NUL byte in any path -> -32602 + path_invalid before any compile call."""
+    """NUL byte in any path -> -32602 + invalid_path before any compile call."""
     with patch.object(bridge, "call_ue") as m:
         resp = bridge.handle(
             {
@@ -1186,7 +1186,7 @@ def test_bulk_compile_blueprints_rejects_path_with_nul_byte():
 
 
 def test_bulk_compile_blueprints_rejects_path_with_dotdot_segment():
-    """`..` as a path SEGMENT -> -32602 + path_invalid before any compile."""
+    """`..` as a path SEGMENT -> -32602 + invalid_path before any compile."""
     with patch.object(bridge, "call_ue") as m:
         resp = bridge.handle(
             {
@@ -1548,7 +1548,7 @@ def test_validate_asset_path_helper_accepts_valid_path():
 def test_validate_asset_path_helper_rejects_non_string():
     msg = bridge._validate_asset_path("tool", 42, "path")
     assert msg is not None
-    assert "path_must_be_string" in msg
+    assert "invalid_path" in msg
 
 
 def test_validate_asset_path_helper_rejects_nul_byte():

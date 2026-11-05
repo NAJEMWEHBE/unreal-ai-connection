@@ -3865,24 +3865,19 @@ def _wrap_tool_result(req_id, result_obj: dict | list | str | int | float | bool
     return make_response(req_id, {"content": content, "isError": False})
 
 
-def _validate_asset_path(tool_name: str, path, label: str) -> str | None:
+def _validate_asset_path(
+    tool_name: str, path, label: str, error_code: str = "invalid_path"
+) -> str | None:
     """Shape-check a single UE asset path; return an error message or None.
 
-    Hoisted out of the bulk_*_assets family of synthetics in the
-    feat/wave-b-asset-hygiene-synthetics branch. The four older synthetics
-    (bulk_delete_assets / bulk_move_assets / bulk_rename_assets /
-    bulk_duplicate_assets / bulk_inspect_assets) duplicate the same NUL +
-    '..' segment guard; rather than refactor those tested-green call sites
-    in this branch, the new wave-B synthetics (`find_unused_assets`,
-    `get_reference_chain`, `bulk_compile_blueprints`,
-    `audit_blueprint_compile_status`) consume this helper. Existing
-    synthetics may be migrated in a future cleanup pass.
+    The one asset-path rule every path-taking synthetic uses, so the same
+    mistake gets the same error code in every tool.
 
     UE asset paths look like `/Game/...`, `/Engine/...`, or
     `/<MountPoint>/...`. Embedded NUL bytes or `..` segments are never
     legitimate and almost always indicate either input corruption or
     path-traversal intent; reject early with a caller-actionable -32602
-    error_code rather than forwarding malformed paths to the C++ handler.
+    error rather than forwarding malformed paths to the C++ handler.
 
     Args:
         tool_name: synthetic tool's name (used as error-message prefix).
@@ -3890,22 +3885,22 @@ def _validate_asset_path(tool_name: str, path, label: str) -> str | None:
         label: caller-supplied context for the error message
             (e.g. "paths[0]" or "path"). Goes into the message verbatim
             so the caller can pinpoint which input field failed.
+        error_code: `invalid_path` for source asset paths; destination
+            fields pass their own (`invalid_dest_path`, `invalid_dest_folder`).
 
     Returns:
-        None when `path` passes all checks; an error message string
-        otherwise. The message follows the canonical
-        `<tool>: <error_code>: <detail>` shape with `path_invalid` as
-        the error code (matching the wave-B spec). Caller wraps the
-        returned string in `make_response(req_id, error={...})`.
+        None when `path` passes all checks; otherwise a message in the
+        canonical `<tool>: <error_code>: <detail>` shape. Caller wraps it in
+        `make_response(req_id, error={"code": -32602, "message": ...})`.
     """
     if not isinstance(path, str) or not path:
-        return f"{tool_name}: path_must_be_string: {label} must be a non-empty string"
+        return f"{tool_name}: {error_code}: {label} must be a non-empty string"
     if "\x00" in path:
-        return f"{tool_name}: path_invalid: {label} contains a NUL byte"
+        return f"{tool_name}: {error_code}: {label} contains a NUL byte"
     # Block `..` as a path SEGMENT (between slashes or at ends), not as a
     # substring -- legitimate asset names like `My..Asset` should still pass.
     if any(segment == ".." for segment in path.split("/")):
-        return f"{tool_name}: path_invalid: {label} contains a '..' segment"
+        return f"{tool_name}: {error_code}: {label} contains a '..' segment"
     return None
 
 
@@ -4949,41 +4944,9 @@ def synthetic_bulk_delete_assets(req_id, args: dict) -> dict:
         )
 
     for i, path in enumerate(paths):
-        if not isinstance(path, str) or not path:
-            return make_response(
-                req_id,
-                error={
-                    "code": -32602,
-                    "message": f"bulk_delete_assets: invalid_path: paths[{i}] must be a non-empty string",
-                },
-            )
-        # Defensive shape checks. UE asset paths look like `/Game/...`,
-        # `/Engine/...`, or `/<MountPoint>/...`. Embedded NUL or `..`
-        # segments are never legitimate and almost always indicate either
-        # input corruption or path-traversal intent; reject early with a
-        # caller-actionable -32602 rather than forwarding a malformed path
-        # to delete_asset and letting it surface a confusing UE-side error.
-        if "\x00" in path:
-            return make_response(
-                req_id,
-                error={
-                    "code": -32602,
-                    "message": f"bulk_delete_assets: invalid_path: paths[{i}] contains a NUL byte",
-                },
-            )
-        # Block `..` as a path SEGMENT (between slashes or at ends), not as
-        # a substring -- legitimate asset names like `My..Asset` should
-        # still pass. The check covers leading `..`, trailing `..`, and
-        # `/../` mid-path.
-        segments = path.split("/")
-        if any(segment == ".." for segment in segments):
-            return make_response(
-                req_id,
-                error={
-                    "code": -32602,
-                    "message": f"bulk_delete_assets: invalid_path: paths[{i}] contains a '..' segment",
-                },
-            )
+        err = _validate_asset_path("bulk_delete_assets", path, f"paths[{i}]")
+        if err:
+            return make_response(req_id, error={"code": -32602, "message": err})
 
     continue_on_error = args.get("continue_on_error", True)
     if not isinstance(continue_on_error, bool):
@@ -5082,48 +5045,16 @@ def synthetic_bulk_move_assets(req_id, args: dict) -> dict:
             },
         )
     # Same defensive shape checks on dest_folder as on source paths.
-    if "\x00" in dest_folder:
-        return make_response(
-            req_id,
-            error={
-                "code": -32602,
-                "message": "bulk_move_assets: invalid_dest_folder: contains a NUL byte",
-            },
-        )
-    if any(segment == ".." for segment in dest_folder.split("/")):
-        return make_response(
-            req_id,
-            error={
-                "code": -32602,
-                "message": "bulk_move_assets: invalid_dest_folder: contains a '..' segment",
-            },
-        )
+    err = _validate_asset_path(
+        "bulk_move_assets", dest_folder, "dest_folder", error_code="invalid_dest_folder"
+    )
+    if err:
+        return make_response(req_id, error={"code": -32602, "message": err})
 
     for i, path in enumerate(paths):
-        if not isinstance(path, str) or not path:
-            return make_response(
-                req_id,
-                error={
-                    "code": -32602,
-                    "message": f"bulk_move_assets: invalid_path: paths[{i}] must be a non-empty string",
-                },
-            )
-        if "\x00" in path:
-            return make_response(
-                req_id,
-                error={
-                    "code": -32602,
-                    "message": f"bulk_move_assets: invalid_path: paths[{i}] contains a NUL byte",
-                },
-            )
-        if any(segment == ".." for segment in path.split("/")):
-            return make_response(
-                req_id,
-                error={
-                    "code": -32602,
-                    "message": f"bulk_move_assets: invalid_path: paths[{i}] contains a '..' segment",
-                },
-            )
+        err = _validate_asset_path("bulk_move_assets", path, f"paths[{i}]")
+        if err:
+            return make_response(req_id, error={"code": -32602, "message": err})
 
     continue_on_error = args.get("continue_on_error", True)
     if not isinstance(continue_on_error, bool):
@@ -5219,30 +5150,9 @@ def synthetic_bulk_rename_assets(req_id, args: dict) -> dict:
             )
         path = entry.get("path")
         new_name = entry.get("new_name")
-        if not isinstance(path, str) or not path:
-            return make_response(
-                req_id,
-                error={
-                    "code": -32602,
-                    "message": f"bulk_rename_assets: invalid_path: renames[{i}].path must be a non-empty string",
-                },
-            )
-        if "\x00" in path:
-            return make_response(
-                req_id,
-                error={
-                    "code": -32602,
-                    "message": f"bulk_rename_assets: invalid_path: renames[{i}].path contains a NUL byte",
-                },
-            )
-        if any(segment == ".." for segment in path.split("/")):
-            return make_response(
-                req_id,
-                error={
-                    "code": -32602,
-                    "message": f"bulk_rename_assets: invalid_path: renames[{i}].path contains a '..' segment",
-                },
-            )
+        err = _validate_asset_path("bulk_rename_assets", path, f"renames[{i}].path")
+        if err:
+            return make_response(req_id, error={"code": -32602, "message": err})
         if not isinstance(new_name, str) or not new_name:
             return make_response(
                 req_id,
@@ -5363,55 +5273,18 @@ def synthetic_bulk_duplicate_assets(req_id, args: dict) -> dict:
         path = entry.get("path")
         dest_path = entry.get("dest_path")
         # Validate source path.
-        if not isinstance(path, str) or not path:
-            return make_response(
-                req_id,
-                error={
-                    "code": -32602,
-                    "message": f"bulk_duplicate_assets: invalid_path: duplicates[{i}].path must be a non-empty string",
-                },
-            )
-        if "\x00" in path:
-            return make_response(
-                req_id,
-                error={
-                    "code": -32602,
-                    "message": f"bulk_duplicate_assets: invalid_path: duplicates[{i}].path contains a NUL byte",
-                },
-            )
-        if any(segment == ".." for segment in path.split("/")):
-            return make_response(
-                req_id,
-                error={
-                    "code": -32602,
-                    "message": f"bulk_duplicate_assets: invalid_path: duplicates[{i}].path contains a '..' segment",
-                },
-            )
+        err = _validate_asset_path("bulk_duplicate_assets", path, f"duplicates[{i}].path")
+        if err:
+            return make_response(req_id, error={"code": -32602, "message": err})
         # Validate destination path (same rules: it's a full asset path).
-        if not isinstance(dest_path, str) or not dest_path:
-            return make_response(
-                req_id,
-                error={
-                    "code": -32602,
-                    "message": f"bulk_duplicate_assets: invalid_dest_path: duplicates[{i}].dest_path must be a non-empty string",
-                },
-            )
-        if "\x00" in dest_path:
-            return make_response(
-                req_id,
-                error={
-                    "code": -32602,
-                    "message": f"bulk_duplicate_assets: invalid_dest_path: duplicates[{i}].dest_path contains a NUL byte",
-                },
-            )
-        if any(segment == ".." for segment in dest_path.split("/")):
-            return make_response(
-                req_id,
-                error={
-                    "code": -32602,
-                    "message": f"bulk_duplicate_assets: invalid_dest_path: duplicates[{i}].dest_path contains a '..' segment",
-                },
-            )
+        err = _validate_asset_path(
+            "bulk_duplicate_assets",
+            dest_path,
+            f"duplicates[{i}].dest_path",
+            error_code="invalid_dest_path",
+        )
+        if err:
+            return make_response(req_id, error={"code": -32602, "message": err})
 
     continue_on_error = args.get("continue_on_error", True)
     if not isinstance(continue_on_error, bool):
@@ -6205,31 +6078,9 @@ def synthetic_bulk_inspect_assets(req_id, args: dict) -> dict:
         )
 
     for i, path in enumerate(paths):
-        if not isinstance(path, str) or not path:
-            return make_response(
-                req_id,
-                error={
-                    "code": -32602,
-                    "message": f"bulk_inspect_assets: invalid_path: paths[{i}] must be a non-empty string",
-                },
-            )
-        # Same NUL + `..` path-shape guards as the other bulk_* synthetics.
-        if "\x00" in path:
-            return make_response(
-                req_id,
-                error={
-                    "code": -32602,
-                    "message": f"bulk_inspect_assets: invalid_path: paths[{i}] contains a NUL byte",
-                },
-            )
-        if any(segment == ".." for segment in path.split("/")):
-            return make_response(
-                req_id,
-                error={
-                    "code": -32602,
-                    "message": f"bulk_inspect_assets: invalid_path: paths[{i}] contains a '..' segment",
-                },
-            )
+        err = _validate_asset_path("bulk_inspect_assets", path, f"paths[{i}]")
+        if err:
+            return make_response(req_id, error={"code": -32602, "message": err})
 
     continue_on_error = args.get("continue_on_error", True)
     if not isinstance(continue_on_error, bool):
@@ -7970,19 +7821,11 @@ def synthetic_bulk_fix_redirectors(req_id, args: dict) -> dict:
                     "message": f"bulk_fix_redirectors: folder_must_be_string: folders[{i}] must be a non-empty string",
                 },
             )
-        err = _validate_asset_path("bulk_fix_redirectors", folder, f"folders[{i}]")
+        err = _validate_asset_path(
+            "bulk_fix_redirectors", folder, f"folders[{i}]", error_code="folder_invalid"
+        )
         if err is not None:
-            # _validate_asset_path emits path_must_be_string / path_invalid;
-            # remap to folder_invalid so the error code matches the spec.
-            return make_response(
-                req_id,
-                error={
-                    "code": -32602,
-                    "message": err.replace("path_must_be_string", "folder_invalid").replace(
-                        "path_invalid", "folder_invalid"
-                    ),
-                },
-            )
+            return make_response(req_id, error={"code": -32602, "message": err})
 
     recursive = args.get("recursive", True)
     if not isinstance(recursive, bool):

@@ -4530,7 +4530,7 @@ Recompile multiple Blueprints in one MCP call by composing the [`compile_bluepri
   - `ok` (bool)
   - `error` (object, only on failure) — `{code: int, message: string}` preserved from the upstream `compile_blueprint` response
 
-**Errors (envelope-level):** `-32602` (`missing_required_field` / `invalid_paths_shape` / `path_must_be_string` / `path_invalid` / non-bool `continue_on_error`).
+**Errors (envelope-level):** `-32602` (`missing_required_field` / `invalid_paths_shape` / `invalid_path` / non-bool `continue_on_error`).
 
 **Example — happy path**
 ```json
