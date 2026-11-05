@@ -386,3 +386,11 @@ Ruling executed from the maintainer's estate-wide sweep (2026-07-17 decision —
 **What shipped:** README deprecation banner at the very top — unmaintained; last-known-good UE 5.7 official (source build) + UE 5.6 via the prebuilt `v0.9.1-ue5.6` release; other versions best-effort via the kept ADR-0001 compat scaffold; the `BuildConfiguration.xml` `<CompilerVersion>` pin **stays cleared** (the 36th note's carry-forward becomes the permanent end-state — UE ≤5.3 source builds require a self-managed re-pin); no new build promises; MIT forks welcome. Draft PR #278 (`[WIP] audio_analyze_and_place`, Wave 3) closed as **abandoned** with an explicit comment — the Wave-3 prep stays banked on `feat/wave3-audio-analyze`, unmerged by design, available to any fork. Local merged branches `feat/progressive-tool-disclosure` (merged as PR #280) and `refactor/bulk-dispatch-helper` (merged as PR #289) deleted.
 
 **Thirty-seventh consecutive closing-note — the closing one.** Session 2026-07-17: public deprecation executed. README banner shipped; PR #278 closed as abandoned (Wave-3 work banked on its branch); 2 merged local branches deleted; toolchain pin remains cleared as the permanent state. No code touched. Public counts per README at close: 151 tools, 645 tests (badges). Standing rules: **5**. The cadence ends here — the repo is unmaintained; a 38th note exists only if the project is revived.
+
+---
+
+## Session 2026-11-05 (revival: maintenance resumes)
+
+Najem reversed the 2026-07-17 deprecation: the project is maintained and improved again. The README banner is removed; Status gains a **Maintenance** row (active since 2026-11-05) and the UE ≤5.3 toolchain note moves into "Roadmap / status honesty". Earlier the same day: `ruff check` + `ruff format --check` joined CI (PRs #307, #308; `.git-blame-ignore-revs` skips the format commit; ruff pinned 0.17.x). A full repo review ran the same day; its findings live outside the repo, in Najem's workspace audit, and land here as issues or PRs once Najem picks them.
+
+**Thirty-eighth closing note: the revival.** The cadence resumes. Open issues #288 and #290 (UE 5.8 toolset port spec) are live again. Public counts per README: 151 tools, 645 tests. Standing rules: **5**.
