@@ -53,6 +53,8 @@ Authoring high-quality assets: see [docs/ASSET-PIPELINE-BLENDER.md](docs/ASSET-P
 /plugin install unreal-ai-connection@unreal-ai-connection
 ```
 
+The plugin starts the bridge with `python3`. On Windows that name can resolve to the Microsoft Store stub instead of Python (when `where python3` lists a `WindowsApps` path first): if the server fails to start, install Python from python.org with "Add to PATH", or turn off the `python3` alias in Settings > Apps > Advanced app settings > App execution aliases. A project `.mcp.json` can use `py` instead ([docs/setup/claude-code.md](docs/setup/claude-code.md)).
+
 **Cursor** — one-click deeplink. Base64-encode your machine's bridge path into this template:
 
 ```text
