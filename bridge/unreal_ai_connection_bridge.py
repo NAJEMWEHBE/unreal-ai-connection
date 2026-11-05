@@ -10085,22 +10085,27 @@ def _get_connected_engine_version() -> tuple[int, int] | None:
     `minor_dotted`. Any transport error / missing field -> None (fail open).
     No new UE round-trip type is introduced; this is the existing
     get_engine_version handler the catalog already documents.
+
+    Only an answer from the editor is memoised. A transport failure (editor
+    not up yet, busy, closed) fails open for this call but is NOT cached, so
+    a gated call made before the editor started can't disable the gate for
+    the rest of the bridge's life.
     """
     global _ENGINE_VERSION_CACHE
     if _ENGINE_VERSION_CACHE is not _ENGINE_VERSION_UNSET:
         return _ENGINE_VERSION_CACHE
 
     def _memoise(value: tuple[int, int] | None) -> tuple[int, int] | None:
-        # Always write the looked-up result -- including `None`
-        # (undeterminable) -- so the lookup happens exactly once. A cached
-        # `None` still means "fail open / proceed".
+        # The editor answered: cache what it said -- including `None`
+        # (answer without a usable version) -- so this editor is asked
+        # exactly once. A cached `None` still means "fail open / proceed".
         global _ENGINE_VERSION_CACHE
         _ENGINE_VERSION_CACHE = value
         return value
 
     resp = call_ue("get_engine_version", {})
     if not isinstance(resp, dict) or "error" in resp:
-        return _memoise(None)
+        return None  # transport/editor error: fail open, ask again next time
     result = resp.get("result")
     if not isinstance(result, dict):
         return _memoise(None)
