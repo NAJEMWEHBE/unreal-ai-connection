@@ -45,6 +45,8 @@ _NEAR_MISS_CUTOFF = 0.85
 NON_TOOL_TOKENS = {
     # JSON-Schema parameter names
     "continue_on_error",
+    "rollback_on_error",
+    "dest_folder",
     "time_seconds",
     "timeout_sec",
     "actor_name",
