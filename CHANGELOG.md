@@ -12,6 +12,13 @@ Per-tool details live in [`docs/TOOLS.md`](docs/TOOLS.md); architecture and the 
 
 - Maintenance resumed (2026-11-05): the 2026-07-17 deprecation banner is gone from the README, and a Maintenance row in Status says the project is active again.
 - CI runs `ruff check` and `ruff format --check` (#307, #308); the first pass fixed 72 findings, including a NameError in `scripts/elven_city_hifi.py` when both console-command attempts failed.
+- **Bridge: tool failures are MCP tool results with `isError: true`**, not JSON-RPC protocol errors. The text block is the original error object as JSON (`code`, `message`, `error_code` unchanged). A missing tool name, non-object `arguments`/`params` and an unknown tool stay protocol errors. Clients that read `response.error` after `tools/call` should read `result.isError` and `result.content[0].text` instead.
+- **Bridge: a busy editor is no longer reported as "not running".** A request that reached the editor but got no answer in time is now `-32098` with `error_code: "ue_busy_timeout"` (the operation may still apply); `-32099` is kept for "nothing listening". New env `UCMCP_TIMEOUT` (seconds, default 30). A bad frame from the editor is `-32700` instead of an exception, and the socket is closed on every path.
+- **Bridge: `list_tools` returns editor and bridge tools together**, each tagged `native` or `bridge`, so the 37 bridge-side tools are no longer missing from the live inventory.
+- **Bridge: screenshot thumbnails reach the model as MCP image content** (`get_viewport_screenshot include_thumb=true`); the JSON keeps a placeholder instead of the base64.
+- **Bridge: MCP protocol 2025-06-18** with version negotiation (2025-03-26 and 2024-11-05 still accepted), plus a `title` and `annotations` (`readOnlyHint`, `openWorldHint`) on every tool. `ping` gets an empty result; a line that isn't JSON gets `-32700`.
+- **Bridge: one asset-path error code.** The bulk_* asset tools and the newer path-taking tools all answer `invalid_path` for a NUL byte or a `..` segment (the newer ones used to say `path_invalid` / `path_must_be_string`).
+- **Bridge: the engine-version gate no longer caches a failed probe**, so a gated call made before the editor started can't switch the gate off for the session.
 
 ### Added
 
