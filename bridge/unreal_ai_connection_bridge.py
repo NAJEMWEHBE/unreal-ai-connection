@@ -47,6 +47,33 @@ import uuid
 UE_HOST = os.environ.get("UCMCP_HOST", "127.0.0.1")
 UE_PORT = int(os.environ.get("UCMCP_PORT", "18888"))
 
+_DEFAULT_TIMEOUT_S = 30.0
+
+
+def _parse_timeout_env(raw: str | None) -> float:
+    """Parse UCMCP_TIMEOUT (seconds to wait for the editor's answer).
+
+    Anything missing, non-numeric or not positive falls back to 30 s so a
+    typo in a client config can never turn into an instant or endless wait.
+    """
+    try:
+        value = float(raw) if raw else _DEFAULT_TIMEOUT_S
+    except ValueError:
+        return _DEFAULT_TIMEOUT_S
+    if not math.isfinite(value) or value <= 0:
+        return _DEFAULT_TIMEOUT_S
+    return value
+
+
+# How long call_ue waits for the editor's answer once the request is sent.
+UE_TIMEOUT_S = _parse_timeout_env(os.environ.get("UCMCP_TIMEOUT"))
+# Connecting to a loopback port either works or is refused at once; a short
+# connect timeout keeps "editor not running" fast to report.
+UE_CONNECT_TIMEOUT_S = 5.0
+# JSON-RPC server-error code for "request sent, editor still working".
+# -32099 stays "UE server not reachable" (nothing listening on the port).
+UE_BUSY_TIMEOUT_CODE = -32098
+
 PROTOCOL_VERSION = "2024-11-05"
 SERVER_NAME = "unreal-ai-connection"
 SERVER_VERSION = "0.9.1"
@@ -3740,34 +3767,69 @@ def make_response(req_id, result=None, error: dict | None = None) -> dict:
     return msg
 
 
+def _ue_error(code: int, message: str, **extra) -> dict:
+    error = {"code": code, "message": message}
+    error.update(extra)
+    return {"jsonrpc": "2.0", "id": 1, "error": error}
+
+
 def call_ue(method: str, params: dict | None) -> dict:
-    """Send one JSON-RPC request to the UE server, return the response dict."""
+    """Send one JSON-RPC request to the UE server, return the response dict.
+
+    Never raises for transport trouble. The failure modes stay distinct so an
+    agent can tell the user the right thing:
+      -32099  nothing answered the connect: the editor isn't running (or the
+              plugin isn't enabled / is on another port).
+      -32098  error_code "ue_busy_timeout": the request reached the editor but
+              no answer came within UE_TIMEOUT_S. The editor is busy; the
+              operation may still finish and apply.
+      -32700  the editor's answer couldn't be parsed (bad frame or not JSON).
+    """
+    s = socket.socket()
     try:
-        s = socket.socket()
-        s.settimeout(30)
-        s.connect((UE_HOST, UE_PORT))
+        try:
+            s.settimeout(UE_CONNECT_TIMEOUT_S)
+            s.connect((UE_HOST, UE_PORT))
+        except OSError as e:  # includes TimeoutError and ConnectionRefusedError
+            return _ue_error(
+                -32099,
+                f"UE server not reachable on {UE_HOST}:{UE_PORT}: {e}. Open the UE editor "
+                "with the UnrealAIConnection plugin enabled.",
+            )
+
         msg = {"jsonrpc": "2.0", "id": 1, "method": method}
         if params:
             msg["params"] = params
-        send_framed(s, json.dumps(msg).encode("utf-8"))
-        raw = recv_framed(s).decode("utf-8", errors="replace")
+        try:
+            s.settimeout(UE_TIMEOUT_S)
+            send_framed(s, json.dumps(msg).encode("utf-8"))
+            raw = recv_framed(s).decode("utf-8", errors="replace")
+        except TimeoutError:
+            return _ue_error(
+                UE_BUSY_TIMEOUT_CODE,
+                f"{method}: ue_busy_timeout: the request was sent and the editor on "
+                f"{UE_HOST}:{UE_PORT} is still working after {UE_TIMEOUT_S:g} s. The "
+                "operation may still finish and apply; don't resend it blindly. Check "
+                "the editor (or retry a read-only call) before repeating it. Raise "
+                "UCMCP_TIMEOUT for long synchronous operations, or use the async "
+                "start_python_task / poll_task tools.",
+                error_code="ue_busy_timeout",
+            )
+        except ValueError as e:  # recv_framed's framing_error
+            return _ue_error(-32700, f"UE server sent a bad frame: {e}")
+        except OSError as e:
+            return _ue_error(
+                -32099,
+                f"UE server on {UE_HOST}:{UE_PORT} closed the connection after the "
+                f"request was sent: {e}. The editor may have crashed or been closed.",
+            )
+    finally:
         s.close()
+
+    try:
         return json.loads(raw)
-    except (TimeoutError, ConnectionRefusedError, OSError) as e:
-        return {
-            "jsonrpc": "2.0",
-            "id": 1,
-            "error": {
-                "code": -32099,
-                "message": f"UE server not reachable on {UE_HOST}:{UE_PORT}: {e}. Open the UE editor with the UnrealAIConnection plugin enabled.",
-            },
-        }
     except json.JSONDecodeError as e:
-        return {
-            "jsonrpc": "2.0",
-            "id": 1,
-            "error": {"code": -32700, "message": f"UE server returned non-JSON: {e}"},
-        }
+        return _ue_error(-32700, f"UE server returned non-JSON: {e}")
 
 
 def _wrap_tool_result(req_id, result_obj: dict | list | str | int | float | bool | None) -> dict:
