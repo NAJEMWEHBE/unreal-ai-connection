@@ -8,6 +8,11 @@ Per-tool details live in [`docs/TOOLS.md`](docs/TOOLS.md); architecture and the 
 
 ## [Unreleased]
 
+### Changed
+
+- Maintenance resumed (2026-11-05): the 2026-07-17 deprecation banner is gone from the README, and a Maintenance row in Status says the project is active again.
+- CI runs `ruff check` and `ruff format --check` (#307, #308); the first pass fixed 72 findings, including a NameError in `scripts/elven_city_hifi.py` when both console-command attempts failed.
+
 ### Added
 
 Entries listed reverse-chronologically by PR number (newest first).
