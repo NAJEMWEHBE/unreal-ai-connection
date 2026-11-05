@@ -17,7 +17,7 @@ description: >
 
 # Driving Unreal Engine via the unreal-ai-connection MCP tools
 
-This skill is the know-how layer for the `unreal-ai-connection` plugin. The plugin exposes ~105 UE
+This skill is the know-how layer for the `unreal-ai-connection` plugin. The plugin exposes 150+ UE
 editor-automation tools; this file tells you **how to operate them** — the chaining order, the
 verification checkpoints, and the failure modes. Deep step-by-step recipes and the full UE-quirk
 table live in [`reference.md`](reference.md); read it when executing a specific workflow.

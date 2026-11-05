@@ -57,6 +57,25 @@ SCAN_FILES = [
     ".github/copilot-instructions.md",
     "bridge/unreal_ai_connection_bridge.py",
     "UnrealAIConnection/Resources/mcp_manifest.json",
+    # Shipped metadata: what UE's Plugins browser, the Claude Code plugin
+    # listing and the MCP Registry show users.
+    "UnrealAIConnection/UnrealAIConnection.uplugin",
+    ".claude-plugin/plugin.json",
+    ".claude-plugin/marketplace.json",
+    "server.json",
+    # The bundled skill and the remaining user-facing docs.
+    "skills/driving-unreal/SKILL.md",
+    "skills/driving-unreal/reference.md",
+    "llms-install.md",
+    "docs/PERF.md",
+    "docs/DISTRIBUTION.md",
+    "docs/setup/README.md",
+    "docs/setup/claude-code.md",
+    "docs/setup/cline.md",
+    "docs/setup/codex-cli.md",
+    "docs/setup/cursor.md",
+    "docs/setup/gemini-cli.md",
+    "docs/setup/vscode-copilot.md",
 ]
 
 
@@ -76,6 +95,28 @@ PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"badge/tools-(\d+)", re.IGNORECASE), "tools"),
     # "**N live**" Status-table cell (README "Tools" row) — "tools" implied by context.
     (re.compile(r"\*\*(\d+)\s+live\*\*", re.IGNORECASE), "tools"),
+    # Spellings that drifted unnoticed before the sweep covered them.
+    (re.compile(r"~\s*(\d+)\s+tools?\b", re.IGNORECASE), "tools"),
+    (re.compile(r"across\s+(\d+)\s+tools?\b", re.IGNORECASE), "tools"),
+    (re.compile(r"\ball\s+(\d+)\s+schemas\b", re.IGNORECASE), "tools"),
+    (re.compile(r"\b(\d+)\s+tools?\s+grouped\b", re.IGNORECASE), "tools"),
+    (re.compile(r"\b(\d+)\s+tool\s+entries\b", re.IGNORECASE), "tools"),
+    (re.compile(r"catalog\s+is\s+now\s+(\d+)\s+tools?\b", re.IGNORECASE), "tools"),
+    (re.compile(r"\bfor\s+(\d+)\s+total\b", re.IGNORECASE), "tools"),
+    (
+        re.compile(
+            r"\b(\d+)\s+(?:Unreal\s+Engine\s+|UE\s+)?editor-automation\s+tools?\b",
+            re.IGNORECASE,
+        ),
+        "tools",
+    ),
+    # "150+ tools" in prose: true while the real count is at least that.
+    (
+        re.compile(r"\b(\d+)\+\s+(?:UE\s+)?(?:editor-automation\s+)?(?:tools?|schemas)\b"),
+        "tools_floor",
+    ),
+    (re.compile(r"C\+\+\s+handlers?\s+\((\d+)\)", re.IGNORECASE), "cpp_handlers"),
+    (re.compile(r"\b(\d+)\s+more\s+synthetic\b", re.IGNORECASE), "synthetic_tools"),
     (re.compile(r"\b(\d+)\s+native\s+C\+\+\s+handlers?\b", re.IGNORECASE), "cpp_handlers"),
     (re.compile(r"\b(\d+)\s+UE\s+C\+\+\s+handlers?\b", re.IGNORECASE), "cpp_handlers"),
     (re.compile(r"\((\d+)\s+native\s+C\+\+\s+handlers?", re.IGNORECASE), "cpp_handlers"),
@@ -244,12 +285,39 @@ def canonical_numbers() -> dict[str, CanonicalValue]:
     plugin_version, ue_engine_minor = _read_uplugin_versions()
     return {
         "tools": cpp + syn,
+        # Upper bound for "N+ tools" prose claims (see _is_stale).
+        "tools_floor": cpp + syn,
         "cpp_handlers": cpp,
         "synthetic_tools": syn,
         "pytest_cases": _read_live_pytest_count(),
         "plugin_version": plugin_version,
         "ue_engine_minor": ue_engine_minor,
     }
+
+
+def _is_stale(key: str, found: CanonicalValue, expected: CanonicalValue) -> bool:
+    """Exact keys must match; `*_floor` keys ("150+ tools") must only not
+    claim more than the real count."""
+    if key.endswith("_floor"):
+        return int(found) > int(expected)
+    return found != expected
+
+
+def scan_text(relpath: str, text: str, canonical: dict[str, CanonicalValue]) -> list[str]:
+    """Return one finding string per stale value in `text`."""
+    findings: list[str] = []
+    for lineno, line in enumerate(text.splitlines(), start=1):
+        for pattern, key in PATTERNS:
+            for match in pattern.finditer(line):
+                expected = canonical[key]
+                raw = match.group(1)
+                found: CanonicalValue = int(raw) if isinstance(expected, int) else raw
+                if _is_stale(key, found, expected):
+                    findings.append(
+                        f"{relpath}:{lineno}: '{match.group(0).strip()}' "
+                        f"({key}={found!r}, expected {expected!r})"
+                    )
+    return findings
 
 
 def scan(canonical: dict[str, CanonicalValue]) -> list[str]:
@@ -259,18 +327,7 @@ def scan(canonical: dict[str, CanonicalValue]) -> list[str]:
         path = REPO_ROOT / relpath
         if not path.exists():
             continue
-        lines = _read_text_lenient(path).splitlines()
-        for lineno, line in enumerate(lines, start=1):
-            for pattern, key in PATTERNS:
-                for match in pattern.finditer(line):
-                    expected = canonical[key]
-                    raw = match.group(1)
-                    found: CanonicalValue = int(raw) if isinstance(expected, int) else raw
-                    if found != expected:
-                        findings.append(
-                            f"{relpath}:{lineno}: '{match.group(0).strip()}' "
-                            f"({key}={found!r}, expected {expected!r})"
-                        )
+        findings += scan_text(relpath, _read_text_lenient(path), canonical)
     return findings
 
 
