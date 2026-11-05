@@ -1,7 +1,7 @@
 {
  "name": "UnrealAIConnection",
  "version": "0.9.1",
- "description": "Drive Unreal Engine 5.7 from any MCP-compliant client over a local TCP socket. 151 tools total (114 native C++ handlers plus 37 bridge-side synthetic tools) that work with any UE 5.7 project.",
+ "description": "Drive Unreal Engine 5.7 from any MCP-compliant client over a local TCP socket. 155 tools total (118 native C++ handlers plus 37 bridge-side synthetic tools) that work with any UE 5.7 project.",
  "transport": {
   "type": "tcp",
   "host": "127.0.0.1",
@@ -2329,6 +2329,42 @@
    "returns": "see docs/TOOLS.md"
   },
   {
+   "name": "create_dmx_patch",
+   "description": "Create a DMX fixture patch in a DMXLibrary and bind it to a fixture type by display name. Provided by the optional UnrealAIConnectionDMX companion plugin.",
+   "params": {
+    "library_path": "string (required) - DMXLibrary asset path",
+    "fixture_type": "string (required) - fixture type display name in that library",
+    "patch_name": "string (required) - display name for the new patch",
+    "universe": "int (optional, default 1)",
+    "starting_address": "int (optional, default 1)",
+    "active_mode": "int (optional, default 0)",
+    "save": "bool (optional, default true)"
+   },
+   "returns": "see docs/TOOLS.md"
+  },
+  {
+   "name": "dmx_stream_set",
+   "description": "Set DMX channel values and keep re-sending them every editor frame to all output ports. Provided by the optional UnrealAIConnectionDMX companion plugin.",
+   "params": {
+    "channels": "object (required) - {\"<1-based channel>\": 0..255}",
+    "universe": "int (optional, default 1)",
+    "merge": "bool (optional, default true)"
+   },
+   "returns": "see docs/TOOLS.md"
+  },
+  {
+   "name": "dmx_stream_stop",
+   "description": "Stop continuous DMX output and clear the held buffers. Provided by the optional UnrealAIConnectionDMX companion plugin.",
+   "params": {},
+   "returns": "see docs/TOOLS.md"
+  },
+  {
+   "name": "dmx_stream_status",
+   "description": "Report continuous DMX output state (running, frames, output ports, universes). Provided by the optional UnrealAIConnectionDMX companion plugin.",
+   "params": {},
+   "returns": "see docs/TOOLS.md"
+  },
+  {
    "name": "mesh_bake_ao_to_vertex_color",
    "description": "Bake self-occlusion ambient occlusion into a Static Mesh asset's vertex colors, in place. Native C++ handler (optional UnrealAIConnectionGeometry companion; needs the GeometryScripting engine plugin enabled). Copies the mesh out via Geometry Scripting, bakes AO to the RGBA vertex-color channel (self-occlusion), optionally blurs, writes back into the chosen SourceModel LOD and saves. Look/optimization use: cheap baked occlusion in vertex colors for real-time shading. Edits + saves the asset.",
    "params": {
@@ -2385,14 +2421,14 @@
    "returns": "see docs/TOOLS.md"
   },
   {
-  "name": "export_actor_as_gltf",
-  "description": "Export selected or named actor(s) to a .gltf/.glb file for handoff to external DCC / glTF-compatible tools. Native C++ handler via Epic's GLTFExporter plugin. Supply 'actors' (array of labels) for named actors, 'selected_only'=true for the current viewport selection, or omit both to export the entire visible level. GLTFExporter is an optional cascade-enabled dependency (no manual setup); material baking is disabled for stability.",
-  "params": {
+   "name": "export_actor_as_gltf",
+   "description": "Export selected or named actor(s) to a .gltf/.glb file for handoff to external DCC / glTF-compatible tools. Native C++ handler via Epic's GLTFExporter plugin. Supply 'actors' (array of labels) for named actors, 'selected_only'=true for the current viewport selection, or omit both to export the entire visible level. GLTFExporter is an optional cascade-enabled dependency (no manual setup); material baking is disabled for stability.",
+   "params": {
     "output_path": "string (required) - absolute filesystem path ending in .gltf or .glb",
     "actors": "array of string (optional) - actor labels/FNames to export; omit for whole-level export",
     "selected_only": "bool (optional) - if true, export only the current editor selection (ignored when 'actors' is set)"
-  },
-  "returns": "see docs/TOOLS.md"
-}
+   },
+   "returns": "see docs/TOOLS.md"
+  }
  ]
 }

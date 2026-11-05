@@ -1,74 +1,65 @@
-# AGENTS.md — universal agent context for Unreal AI Connection
+# AGENTS.md
 
-This file is read by Codex CLI, Copilot CLI, Gemini CLI, Cursor, and any other coding agent that respects the `AGENTS.md` convention. Claude Code reads [`CLAUDE.md`](CLAUDE.md) instead (same content semantically; CLAUDE.md is the canonical version).
+Context for any coding agent working on Unreal AI Connection: a UE 5.7 editor plugin plus a stdlib-only Python bridge that serves editor automation to MCP clients over `127.0.0.1:18888`. The wire protocol is open MCP, so everything that ships stays vendor-neutral.
 
-**All agents: read [`docs/HANDOFF.md`](docs/HANDOFF.md) before any substantive work.** The "Closing notes from prior sessions" section at the bottom of HANDOFF.md captures the operative state for resumption. **The latest closing note wins** if anything contradicts the at-a-glance counts at the top of HANDOFF.md.
+**Start here:** read the "At a glance" section of [`docs/HANDOFF.md`](docs/HANDOFF.md) for the current state and open work. If a gitignored `CLAUDE.local.md` exists, read it too: it holds this machine's engine and host-project paths and the maintainer's standing permissions.
 
-## Quick orientation
+## Layout
 
-UE 5.7 plugin + Python bridge exposing editor automation to MCP-compliant clients (Claude Code, Codex CLI, Copilot CLI, Cursor, Gemini CLI, Continue, …) over a localhost TCP socket. **151 tools total: 114 native C++ handlers + 37 bridge-side synthetic tools.** Vendor-neutral by design — the wire protocol is open MCP; the "Claude" in the repo name is decorative.
+- **C++ handlers:** `UnrealAIConnection/Source/UnrealAIConnection/Private/MCP/Handlers/Handler_*.cpp`, one MCP method each (`GetMethodName()`), registered in the `Reg.Register(...)` block of `UnrealAIConnectionModule.cpp`. Optional companion plugins (`UnrealAIConnectionDMX`, `-Geometry`, `-NDisplay`, `-OCIO`) register their own handlers the same way.
+- **Bridge:** `bridge/unreal_ai_connection_bridge.py`. `TOOLS` is the advertised catalog; `SYNTHETIC_TOOLS` maps the bridge-side tools (composed from existing handlers or run as editor Python) to their functions; everything else is forwarded to UE.
+- **Catalog, three places:** `TOOLS`, `UnrealAIConnection/Resources/mcp_manifest.json` and `docs/TOOLS.md`. `tests/test_manifest_sync.py` and `tests/test_catalog_sync.py` fail when they disagree with each other or with the C++ handlers.
+- **Counts:** the exact counts are `EXPECTED_*` in `tests/conftest.py`, tied to the code by `test_catalog_sync`. Prose says "150+ tools"; exact numbers appear only in the README badge and Status row, the `docs/TOOLS.md` intro and the shipped metadata (`.uplugin`, manifest, `.claude-plugin/*.json`).
+- **Reference:** `docs/ARCHITECTURE.md` (design and UE 5.7 API gotchas), `docs/TOOLS.md` (per-tool schemas and examples), `docs/HANDOFF.md` (state, runbook, closing notes).
 
-## Where to look first
+## House rules
 
-- **C++ handlers** (106) — `UnrealAIConnection/Source/UnrealAIConnection/Private/MCP/Handlers/Handler_*.cpp`. Registered in `UnrealAIConnectionModule.cpp`.
-- **Bridge-side synthetic tools** (37) — `bridge/unreal_ai_connection_bridge.py`'s `SYNTHETIC_TOOLS` dict: `wait_for_events`, `get_camera_transform`, `set_camera_transform`, `screenshot_actor`, `compile_mod_pak`, `compile_mod_pak_direct`, `bulk_delete_assets`, `bulk_move_assets`, `bulk_rename_assets`, `bulk_duplicate_assets`, `bulk_inspect_assets`, `inspect_data_asset`, `inspect_sound_class`, `inspect_sound_submix`, `inspect_audio_bus`, `inspect_material_function`, `inspect_metasound`, `find_unused_assets`, `get_reference_chain`, `bulk_compile_blueprints`, `audit_blueprint_compile_status`, `find_actors_by_class`, `bulk_focus_actors`, `bulk_screenshot_actors`, `bulk_set_actor_property`, `compare_assets`, `bulk_set_console_variables`, `inspect_dependency_graph`, `bulk_fix_redirectors`, `marketplace_search`, `marketplace_import`, `convert_hdri_to_cubemap`, `sequencer_add_transform_keyframe`, `import_mesh`, `material_auto_remap`, `batch_capture_cameras`, `batch_spawn_from_csv`.
-- **Tool catalog (manual 3-place sync)** — `UnrealAIConnection/Resources/mcp_manifest.json`, `bridge/unreal_ai_connection_bridge.py`'s `TOOLS` list, `docs/TOOLS.md`. `tests/test_manifest_sync.py` catches drift between the first two.
-- **Architecture + UE 5.7 API gotchas** — `docs/ARCHITECTURE.md`.
-- **Host-build runbook** — top of `docs/HANDOFF.md`.
-- **Per-tool JSON schemas + examples** — `docs/TOOLS.md`.
+- **One handler, one `.cpp`:** a new native tool is a new `Handler_*.cpp` plus one `extern` declaration and one `Reg.Register(...)` line. Add leaves; leave the foundation alone.
+- **Verify every UE API against UE 5.7 source** before committing C++. Reviewer agents have asserted UE APIs that don't exist.
+- **Vendor-neutral copy** in everything that ships: the `.uplugin` Description, README, tool descriptions, metadata. Name MCP clients as examples, never as the target.
+- **Feature branches and PRs only;** the maintainer merges.
+- **Bot-review gate:** after CI is green and before merging, read every bot review on the PR. Apply each finding as a follow-up commit on the branch, or dismiss it in a PR comment with a verifiable reason. A follow-up that only applies bot fixes surgically can merge without a second bot pass; new logic needs one.
+- **C++ is verified on a host build:** CI and pytest never compile C++. A C++ PR merges only after a UE 5.7 host build (`Build.bat`), an editor load and a smoke test (`examples/smoke_test.py` against a live editor).
 
-## House rules carried across all agents
+## Checks before a PR
 
-- **One handler = one `.cpp` file** in `Source/UnrealAIConnection/Private/MCP/Handlers/`, plus one `extern` declaration and one `Reg.Register(...)` line in `UnrealAIConnectionModule.cpp`. Don't grow the foundation; add leaves.
-- **Verify UE API claims against UE 5.7 source** before committing C++. Past reviewer agents have asserted UE APIs that turned out wrong.
-- **Vendor-neutral framing** in any user-facing copy — repo description, `.uplugin` Description, README, tool descriptions. Don't bake "Claude Code" specifically into anything that ships.
-- **Smoke test runs against a live UE editor** (`examples/smoke_test.py` hits `127.0.0.1:18888` directly). Bridge unit tests under `tests/` run without UE.
-- **Live UE launches are pre-authorized by default in any session.** The maintainer granted standing permission on 2026-05-12: "we always use Unreal for testing if you want." Launch UE 5.7 against the host project at `F:/ai/ax plug in/HDMediaVirtualStudio/HDMediaVirtualStudio.uproject` whenever live verification is the next step. **Path-quoting recipe (critical):** `Start-Process 'F:\UE_5.7\Engine\Binaries\Win64\UnrealEditor.exe' -ArgumentList '"F:\ai\ax plug in\HDMediaVirtualStudio\HDMediaVirtualStudio.uproject"'` — pre-quote the path inside the array element so PowerShell doesn't tokenize on whitespace. Without that, UE falls back to Project Browser and the bridge port never binds.
-- **Delegation-by-default (token conservation).** Every concrete work step goes to a sub-agent. Main Opus thread plays leader / integrator / decision-maker only — receives summaries, makes calls, ships. Concrete routing: file search / grep / repo exploration → Sonnet code-explorer or Explore agent; code review of in-flight diffs → local OSS LLM runtime (see private workflow config — coding-focused reasoning model + fast small instruction model in parallel) and GitHub PR bots (rule #5); both free, zero Claude tokens. Claude sub-agents (Sonnet code-reviewer, codex-rescue) reserved for true escalation when local capability is insufficient or for diff classes the GitHub bots historically miss; C++ implementation → Codex CLI; UE 5.7 API verification → codex-rescue or NVIDIA cloud reasoning agent; multi-file mechanical edits → general-purpose agent or `caveman:cavecrew-builder` (≤2 files); bot-review readout → delegated agent reads + summarises; memory file writes → delegated agent. Main thread NEVER does work a sub-agent can do; reserves itself for orchestration + integration + final decisions. Reason: the maintainer's Claude session token budget is the constraining resource; sub-agent runs do not bill against it. Sub-agents are the fleet; Opus is the captain.
-- **Bot-review gate before any merge.** Never blind-merge a PR. After CI green + before `gh pr merge`, read every bot review on the PR. Current roster (2026-05-13): Gemini auto-review, CodeRabbit, chatgpt-codex-connector (Codex GitHub bot), greptile-apps, GitHub Copilot CLI. Any future bot the maintainer wires up joins the same gate. For each bot finding: **Apply** as a follow-up commit on the same branch (preferred for small fixes), OR **Dismiss** with explicit reason posted as a PR comment (e.g. "false positive: Build.cs:19 already has the dep" — verifiable claim). Bots regularly surface real defects the pre-commit ensemble missed; worked examples — PR #161's P0 `UInputSettings::GetActionMappings(NAME_None, ...)` non-existent overload (chatgpt-codex-connector caught post-merge); PR #162's vendor-neutral manifest regression (CodeRabbit caught); PR #164's three P2 follow-ups on error-code reuse / cached-state inconsistency / cross-handler `class` shape drift (greptile-apps + chatgpt-codex-connector caught). Blind-merging discards this safety net. **Mechanical-fix follow-up exception (reconciles with directive #7):** when a follow-up commit on the same branch applies bot findings as direct surgical fixes (no new logic — e.g. add quote-around-identifier, split error-code, cache a state read, restore a field name for parity), self-merge is permitted without waiting for a second-pass bot review since the bots' first pass already directed the fix. New-logic commits still require a fresh bot pass before merge.
-- **Push to feature branches, never directly to `main`.** Open a PR; merge after CI green.
-- **Cold-compile-before-merge for C++ changes.** Bridge-only Python/doc changes can self-merge on CI green per directive #7 (recorded in HANDOFF).
-
-## MCP server setup per agent
-
-The bridge is registered as `unreal-ai-connection` in this project's `.mcp.json` (read by Claude Code, Copilot CLI, Cursor). Codex CLI uses `~/.codex/config.toml` — register with:
 ```bash
-codex mcp add unreal-ai-connection -- py F:\UnrealAIConnection\bridge\unreal_ai_connection_bridge.py
+python -m pytest                    # bridge suite, no UE needed (Windows: py -m pytest)
+python -m ruff check . && python -m ruff format --check .
+python scripts/drift_sweep.py       # stale counts and versions in docs and metadata
 ```
-After registration, all 151 tools become available through the standard MCP `tools/list` + `tools/call` flow. Open the host UE project with the plugin enabled before any tool call (the bridge surfaces a clear error otherwise).
 
-## Cross-agent prompt-discipline recipe (validated PR #90 + #92)
+CI runs all three on every PR, plus a job that builds the wheel and runs its `unreal-ai-connection` console script.
 
-When dispatching a coding task to ANY agent (Codex, Copilot, sub-Claude, future entrants), the 5-step recipe below produces ship-ready output on first try:
+## Traps
 
-1. **Name a literal template file by path + line range.** Not "the pattern" or "the convention" — name the specific function the AI should mirror.
-2. **Spell the upstream contract.** Return shapes, error vs success keys, what's in `result.*` vs what goes through a separate channel.
-3. **Forbid the shortcut explicitly.** "DO NOT INVENT X" beats "follow Y."
-4. **Pin test style.** Project mock library + project assertion style.
-5. **Order the reading explicitly.** "Required reading order: 1, 2, 3, 4, 5." Sequential numbered reading makes the grounding step measurable.
+- **Manifest "required" substring:** `test_manifest_sync.py` greps the word "required" in manifest param descriptions. Word conditional params as "needed when X".
+- **`call_ue` returns** `{"jsonrpc", "id", "result"}` or `{"jsonrpc", "id", "error"}`, never a top-level `ok`; branch on `"error" in resp`. On `tools/call` the bridge turns tool failures into results with `isError: true` (the error object as JSON text); only an unknown tool or a malformed request stays a JSON-RPC error.
+- **Transport errors keep their code** through synthetic tools: -32099 not reachable, -32098 `ue_busy_timeout` (the request was sent and may still apply), -32700 bad frame. Pass them through; don't remap to -32603.
+- **`execute_unreal_python`:** `result.output` is the traceback on failure, not stdout; captured `print()` output comes back in `result.stdout`. `unreal.log()` goes to `LogPython`, read back with `get_log_lines` (see `synthetic_get_camera_transform`).
+- **UE 5.7 protected members:** use `USoundCue::GetSubtitlePriority()`, `USoundWave::GetSampleRateForCurrentPlatform()`, `UTexture::GetCompositeTexture()`; handler modules build with warnings as errors. The full list is under "UE 5.7 traps already mapped" in `docs/HANDOFF.md`.
+- **Launching the editor from PowerShell:** pre-quote a project path that has spaces inside the argument, `Start-Process '<UE>\Engine\Binaries\Win64\UnrealEditor.exe' -ArgumentList '"<path with spaces>\Project.uproject"'`; otherwise UE opens the Project Browser and port 18888 never binds. A cold launch takes about 2 minutes to bind.
 
-This recipe was hardened for Codex over PRs #76 → #81 → #85, then proven to transfer to Copilot CLI in PR #92 with no agent-specific changes. Likely transfers to other agents — cheap to test.
+## Registering the bridge
 
-## Trap-table — read before writing C++ or modifying bridge
+Claude Code, Copilot CLI and Cursor read the project's `.mcp.json` (copy `examples/.mcp.json.example`). Codex CLI:
 
-The full trap-table lives in `docs/HANDOFF.md` closing-notes. Highlights every agent should know:
+```bash
+codex mcp add unreal-ai-connection -- python <repo>/bridge/unreal_ai_connection_bridge.py
+```
 
-- **Manifest "required" substring trap.** `test_manifest_sync.py::test_manifest_required_params_match_bridge_required` substring-greps the literal word "required" in manifest param descriptions. Conditional params worded "required for X" trip it. Phrase as "needed when X" / "must be supplied when X".
-- **Two-then-three-now-via-conftest count assertions.** `tests/conftest.py` exports `EXPECTED_TOOL_COUNT` as the single source of truth for the 3 hardcoded test count assertions. Bump it there; the 3 tests pick it up.
-- **`call_ue` shape.** Returns `{"jsonrpc":..., "id":..., "result": {...}}` OR `{"jsonrpc":..., "id":..., "error": {...}}`. **No top-level `ok` key.** Test with `if "error" in resp:` — never `resp.get("ok")`.
-- **`execute_unreal_python` result shape.** `result.output` is the Python traceback on failure, NOT the Python stdout. Stdout goes through `unreal.log()` → `LogPython` → retrieved via a SEPARATE `get_log_lines` second round-trip with the marker pattern. See `synthetic_get_camera_transform` (bridge.py lines 1004-1076) as the canonical example.
-- **`call_ue` mid-loop transport failures** preserve the upstream JSON-RPC error code. Don't hardcode `-32603` in synthetic-tool error handlers.
-- **UE 5.7 access-modifier traps.** `USoundCue::SubtitlePriority` is protected; use `GetSubtitlePriority()`. `USoundWave::SampleRate` is protected; use `GetSampleRateForCurrentPlatform()`. See HANDOFF.md trap-table for the full list.
-- **`UTexture::CompositeTexture` is C4996-deprecated** as of UE 5.7. Use `GetCompositeTexture()`. Each handler module enables warnings-as-errors.
+On Windows, use `py` instead of `python` if `python` resolves to the Microsoft Store stub. Per-client guides: `docs/setup/`.
 
-## On finishing work
+## Briefing another agent
 
-1. **For C++ changes:** robocopy → Build.bat → editor → smoke test BEFORE git push (PR #81 onward cadence). Pre-merge pytest does NOT compile C++.
-2. **For bridge / docs changes:** pytest sufficient. Self-merge on CI green for mechanical PRs per directive #7. The `main` branch has a protection ruleset (PR #96, ruleset `16243165`) — admin owner self-merge requires the `--admin` flag: `gh pr merge <N> --merge --admin --delete-branch`. Without `--admin`, `gh` errors out with "base branch policy prohibits the merge" even though the admin role has bypass permission (verified `current_user_can_bypass: always`).
-3. **Always:** doc-drift sweep before close-of-PR. Run:
-   ```
-   rg -n "\b(56|60|65|68|70|71|72|74|75)\b.*\b(C\+\+|handlers?|tools? total|synthetic)" \
-     --glob '!docs/superpowers/**' --glob '!docs/HANDOFF.md'
-   ```
-   Update CLAUDE.md / AGENTS.md / README.md / TOOLS.md / .uplugin Description / manifest description / HANDOFF.md at-a-glance + runbook step 5. The closing-note records sprint chronology — leave those frozen.
-4. **HANDOFF closing-note append** for any session that ships meaningful changes. Cadence: feature PR + HANDOFF-append PR. Pickup is mechanical for the next agent.
+A coding brief that ships on the first try (proven with Codex and Copilot CLI):
+
+1. Name a template by file path and line range for the agent to mirror.
+2. Spell out the contract: return shapes, error versus success keys.
+3. Name the shortcut it must not take.
+4. Pin the test style: mock library and assertion style.
+5. Number the reading order.
+
+## Finishing a session
+
+Add a closing note to `docs/HANDOFF.md` for any session that ships meaningful changes, and update its "At a glance" section. Closing notes record history: leave older ones as they are.

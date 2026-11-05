@@ -1,11 +1,12 @@
 # driving-unreal — workflow recipes & UE gotchas
 
 Detailed companion to [`SKILL.md`](SKILL.md). Every tool named here is verified against the bridge
-`TOOLS` catalog. When in doubt, call `list_tools` against the live editor and trust that over any
-document. Tools are invoked as `mcp__unreal-ai-connection__<name>`.
+`TOOLS` catalog. When in doubt, call `list_tools` (native and bridge-side tools, merged) against the
+live editor and trust that over any document. Tool names are written bare; your client adds its
+server prefix.
 
 Read the **cross-cutting operating patterns** in SKILL.md first — they apply to all recipes below
-(hybrid actor lookup, capture/verify, async events, bulk envelope, read-back-and-verify, save before
+(hybrid actor lookup, capture/verify, async events, bulk inputs per family, read-back-and-verify, save before
 restart, the `execute_unreal_python` escape hatch and struct-order traps).
 
 ---

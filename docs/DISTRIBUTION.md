@@ -18,45 +18,30 @@ Cross-cutting caveat: **no channel can install the UE 5.7 plugin or launch the e
 
 Nothing else to publish — Claude Code reads these straight from the GitHub repo.
 
-## Official MCP Registry — [MAINTAINER ACTION]
+## PyPI package — [IN-REPO DONE] build, [MAINTAINER ACTION] upload
 
-`server.json` ships in the repo (`io.github.NAJEMWEHBE/unreal-ai-connection`). Publishing it feeds VS Code's MCP gallery, mcp.so, and PulseMCP automatically. One-time:
+`pyproject.toml` builds the PyPI package `unreal-ai-connection` with hatchling: a wheel holding the single stdlib-only module `unreal_ai_connection_bridge` plus a console script `unreal-ai-connection` (its `main()`). The version is read from `SERVER_VERSION` in the bridge; `tests/test_packaging.py` keeps `server.json` and the `.uplugin` on the same version, and the CI `package` job builds the wheel, installs it in a clean venv and answers an MCP `initialize` through the console script.
+
+Build and check locally:
+
+```bash
+python -m pip install build
+python -m build                # dist/unreal_ai_connection-<version>-py3-none-any.whl + .tar.gz
+```
+
+Publish (human, needs a PyPI account + API token): `python -m pip install twine && twine upload dist/*`. Once it is on PyPI, `uvx unreal-ai-connection` runs the bridge with no checkout and no absolute script path.
+
+## Official MCP Registry — [MAINTAINER ACTION], after the PyPI upload
+
+`server.json` ships in the repo (`io.github.najemwehbe/unreal-ai-connection`) and points at the PyPI package above, run with `uvx`. Publishing it feeds VS Code's MCP gallery, mcp.so and PulseMCP. The registry checks two things the repo already carries: the `description` fits the schema's 100-character limit, and the package README contains `mcp-name: io.github.najemwehbe/unreal-ai-connection` (an HTML comment at the top of `README.md`). One-time, after the PyPI upload:
 
 ```bash
 # install the publisher CLI from github.com/modelcontextprotocol/registry releases
-mcp-publisher login github     # GitHub device-flow; the io.github.NAJEMWEHBE namespace requires you own that GitHub account
+mcp-publisher login github     # GitHub device-flow; the io.github.najemwehbe namespace needs that GitHub account
 mcp-publisher publish          # reads ./server.json
 ```
 
-Re-run on each release (can be a GitHub Actions step).
-
-> **Blocking follow-up TODO (not done yet):** `server.json` references a PyPI package `unreal-ai-connection` that does **not exist yet**. Until the PyPI publish below lands, the registry entry will not resolve to an installable package. Track this as the next distribution PR.
-
-## PyPI package — [MAINTAINER ACTION] + small packaging follow-up
-
-The bridge **already exposes a `main()` entrypoint with an `if __name__ == "__main__":` guard** (`bridge/unreal_ai_connection_bridge.py`). No code refactor is needed. The only follow-up to make `uvx unreal-ai-connection` / `pip install unreal-ai-connection` work is packaging config:
-
-1. Add to `pyproject.toml` (the bridge lives in `bridge/`, so include it as a py-module via the build backend's source config — e.g. hatchling `[tool.hatch.build.targets.wheel] only-include = ["bridge"]`, or move the module onto the package path):
-   ```toml
-   [build-system]
-   requires = ["hatchling"]
-   build-backend = "hatchling.build"
-
-   [tool.hatch.build.targets.wheel]
-   only-include = ["bridge/unreal_ai_connection_bridge.py"]
-   sources = ["bridge"]
-
-   [project.scripts]
-   unreal-ai-connection = "unreal_ai_connection_bridge:main"
-
-   [tool.mcp]
-   name = "io.github.NAJEMWEHBE/unreal-ai-connection"
-   ```
-2. Then (human): `python -m build` && `twine upload dist/*` (needs a PyPI account + token).
-
-This is packaging-only (no behaviour change) and can ride in the same PR as the registry publish.
-
-This refactor is intentionally NOT bundled with the marketplace metadata PR — it touches code and needs its own review + test pass.
+Re-run on each release, after the matching PyPI upload (can be a GitHub Actions step).
 
 ## Cline MCP Marketplace — [MAINTAINER ACTION]
 
@@ -78,7 +63,7 @@ Deeplink badges/templates are in `README.md` → "Install (one paste, any client
 
 ## Priority order (most reach per effort)
 
-1. **MCP Registry publish** (+ the PyPI follow-up that unblocks it) — one action feeds VS Code gallery + mcp.so + PulseMCP.
+1. **PyPI upload, then MCP Registry publish** — one action feeds VS Code gallery + mcp.so + PulseMCP.
 2. **Claude Code marketplace** — already live from the repo; just document the two `/plugin` commands.
 3. **Cline marketplace** — one GitHub issue + a logo, large built-in audience.
 4. Cursor/VS Code badges — already in README, zero submission.

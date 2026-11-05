@@ -36,7 +36,7 @@ latest release line is supported.
 | Latest release (`v0.9.1` and newer) | ✅ |
 | Older tagged releases | ❌ — update to latest |
 | UE 5.7 (official target) | ✅ |
-| UE 5.6 (host-certified, prebuilt binaries) | ✅ best-effort |
+| UE 5.6 (host-certified, build from source) | ✅ best-effort |
 | UE 4.27 / 5.0–5.5 / 5.8 (uncertified compat scaffold) | ❌ — community build-from-source, unsupported |
 
 ## Reporting a vulnerability

@@ -19,6 +19,7 @@ import json
 from unittest.mock import patch
 
 import pytest
+from conftest import is_tool_error, tool_error
 
 import unreal_ai_connection_bridge as bridge
 
@@ -94,8 +95,8 @@ def test_gate_blocks_each_gated_tool_on_engine_4_27(tool_name):
     assert m.call_count == 1
     assert m.call_args[0][0] == "get_engine_version"
 
-    assert "error" in resp, f"expected structured error envelope, got {resp}"
-    err = resp["error"]
+    assert is_tool_error(resp), f"expected structured error envelope, got {resp}"
+    err = tool_error(resp)
     # JSON-RPC 2.0: error.code is an INTEGER (application-defined range);
     # the string identifier lives in the sibling `error_code` field.
     assert err["code"] == -32001
@@ -137,18 +138,31 @@ def test_gate_fails_open_when_engine_version_undeterminable():
     assert gate is None, "undeterminable engine version must fail OPEN"
 
 
-def test_fail_open_result_is_memoised():
-    """An undeterminable engine version (fail-open `None`) must be cached
-    exactly like a resolved tuple -- repeated gated calls cost ONE
-    get_engine_version round-trip total, not one per call. Regression for
-    the cubic P2: the fail-open path previously returned without caching,
-    re-issuing the RPC on every subsequent gated invocation."""
+def test_transport_failure_is_not_memoised():
+    """A gated call made before the editor is up must not switch the gate off
+    for the rest of the session: once the editor answers, the next gated
+    call probes again and the gate applies."""
     transport_err = {
         "jsonrpc": "2.0",
         "id": 1,
         "error": {"code": -32099, "message": "UE server not reachable"},
     }
-    with patch.object(bridge, "call_ue", return_value=transport_err) as m:
+    with patch.object(
+        bridge, "call_ue", side_effect=[transport_err, _engine_version_resp(4, 27)]
+    ) as m:
+        g1 = bridge.check_engine_gate(1, "convert_hdri_to_cubemap")
+        g2 = bridge.check_engine_gate(2, "convert_hdri_to_cubemap")
+    assert g1 is None, "unreachable editor must fail OPEN"
+    assert tool_error_code(g2) == "unsupported_on_engine_version"
+    assert m.call_count == 2
+
+
+def test_undeterminable_answer_is_memoised():
+    """The editor answered but without a usable version (fail-open `None`):
+    that answer won't change for this editor, so repeated gated calls cost
+    ONE get_engine_version round-trip total, not one per call."""
+    garbled = {"jsonrpc": "2.0", "id": 1, "result": {"full": "garbled"}}
+    with patch.object(bridge, "call_ue", return_value=garbled) as m:
         g1 = bridge.check_engine_gate(1, "convert_hdri_to_cubemap")
         g2 = bridge.check_engine_gate(2, "sequencer_add_transform_keyframe")
         g3 = bridge.check_engine_gate(3, "get_camera_transform")
@@ -156,6 +170,12 @@ def test_fail_open_result_is_memoised():
     assert m.call_count == 1, (
         f"undeterminable engine version must be memoised once; got {m.call_count} round-trips"
     )
+
+
+def tool_error_code(gate_resp):
+    """check_engine_gate returns a raw JSON-RPC error envelope (pre-handle())."""
+    assert gate_resp is not None and "error" in gate_resp, gate_resp
+    return gate_resp["error"]["error_code"]
 
 
 def test_gate_ignores_non_gated_tool():
@@ -208,7 +228,7 @@ def test_structured_error_shape_matches_spec():
         )
     assert resp["jsonrpc"] == "2.0"
     assert resp["id"] == 12
-    err = resp["error"]
+    err = tool_error(resp)
     assert set(err.keys()) == {
         "code",
         "error_code",

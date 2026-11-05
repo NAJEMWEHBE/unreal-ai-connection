@@ -64,18 +64,15 @@ A single compiled binary cannot span 4.27-5.8. Breaking changes:
 - .uplugin EngineVersion: 5.4.0 (5.5-5.8 load fine with a lower EngineVersion).
 - UCMCPCompat.h shims always take the >=5.1 branch.
 
-> **UE 5.6 host-certified + binaries published (2026-05-25).** Built from the
-> T1 variant against a real UE 5.6 editor with MSVC 14.38.33130, then
-> smoke-tested live (`examples/smoke_test.py`) with the plugin loaded — all
-> suites passed. Prebuilt Win64 binaries shipped as the
-> [`v0.9.1-ue5.6`](https://github.com/NAJEMWEHBE/unreal-ai-connection/releases/tag/v0.9.1-ue5.6)
-> release. **Load note:** the plugin's DMX handlers link against `DMXRuntime` /
-> `DMXProtocol`, so the host project must enable the engine's `DMXEngine` +
-> `DMXProtocol` plugins or `UnrealAIConnection` fails to load. **Toolchain note:**
-> UE 5.6 pins MSVC `14.38.33130` (`Engine/Config/Windows/Windows_SDK.json`); a
-> user-level `BuildConfiguration.xml` `<CompilerVersion>` pin to anything below
-> 14.38 blocks the build. This is the first non-5.7 engine with a published
-> binary; the SCAFFOLDING-ONLY caveats still apply to 4.27 / 5.0–5.5 / 5.8.
+> **UE 5.6 host-certified from source (2026-05-25).** Built from the T1 variant
+> against a real UE 5.6 editor with MSVC 14.38.33130, then smoke-tested live
+> (`examples/smoke_test.py`) with the plugin loaded: all suites passed. No
+> prebuilt 5.6 binaries are published (a `v0.9.1-ue5.6` release was planned but
+> never created), so 5.6 users build from source like every other engine.
+> **DMX note:** the DMX tools need the optional `UnrealAIConnectionDMX` companion plugin, which pulls in the engine's `DMXEngine` + `DMXProtocol`; the core plugin loads without them. **Toolchain note:** UE 5.6 pins MSVC `14.38.33130`
+> (`Engine/Config/Windows/Windows_SDK.json`); a user-level
+> `BuildConfiguration.xml` `<CompilerVersion>` pin to anything below 14.38
+> blocks the build. The SCAFFOLDING-ONLY caveats still apply to 4.27 / 5.0–5.5 / 5.8.
 
 ### Bucket T2 -- UE 5.0 through 5.3
 

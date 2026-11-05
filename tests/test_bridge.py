@@ -15,7 +15,7 @@ import socket
 from unittest.mock import MagicMock, patch
 
 import pytest
-from conftest import EXPECTED_TOOL_COUNT
+from conftest import EXPECTED_TOOL_COUNT, is_tool_error, tool_error
 
 import unreal_ai_connection_bridge as bridge
 
@@ -229,6 +229,10 @@ def test_tool_names_are_unique_and_match_handlers():
         "decal_scatter",
         "inspect_ocio_config",
         "inspect_ndisplay_config",
+        "create_dmx_patch",
+        "dmx_stream_set",
+        "dmx_stream_stop",
+        "dmx_stream_status",
         "mesh_bake_ao_to_vertex_color",
     }
     assert set(names) == expected
@@ -585,8 +589,8 @@ def test_bulk_inspect_assets_rejects_non_bool_verbose():
             },
         }
     )
-    assert resp["error"]["code"] == -32602
-    assert "verbose" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "verbose" in tool_error(resp)["message"]
 
 
 def test_bulk_inspect_assets_partial_failure_continues_when_continue_on_error_true():
@@ -641,9 +645,9 @@ def test_bulk_inspect_assets_rejects_missing_paths():
             "params": {"name": "bulk_inspect_assets", "arguments": {}},
         }
     )
-    assert resp["error"]["code"] == -32602
-    assert "bulk_inspect_assets" in resp["error"]["message"]
-    assert "paths" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "bulk_inspect_assets" in tool_error(resp)["message"]
+    assert "paths" in tool_error(resp)["message"]
 
 
 # ============================================================================
@@ -794,9 +798,9 @@ def test_find_unused_assets_all_inspects_fail_surfaces_error():
             }
         )
 
-    assert "error" in resp
-    assert resp["error"]["code"] == -32603
-    assert "inspect_failed" in resp["error"]["message"]
+    assert is_tool_error(resp)
+    assert tool_error(resp)["code"] == -32603
+    assert "inspect_failed" in tool_error(resp)["message"]
 
 
 def test_find_unused_assets_rejects_invalid_limit():
@@ -809,8 +813,8 @@ def test_find_unused_assets_rejects_invalid_limit():
             "params": {"name": "find_unused_assets", "arguments": {"limit": 20000}},
         }
     )
-    assert resp["error"]["code"] == -32602
-    assert "limit" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "limit" in tool_error(resp)["message"]
 
 
 def test_find_unused_assets_find_failed_propagates():
@@ -826,8 +830,8 @@ def test_find_unused_assets_find_failed_propagates():
                 "params": {"name": "find_unused_assets", "arguments": {}},
             }
         )
-    assert "error" in resp
-    assert "find_failed" in resp["error"]["message"]
+    assert is_tool_error(resp)
+    assert "find_failed" in tool_error(resp)["message"]
 
 
 # ---- get_reference_chain ---------------------------------------------------
@@ -976,9 +980,9 @@ def test_get_reference_chain_rejects_root_not_found():
             }
         )
 
-    assert "error" in resp
-    assert resp["error"]["code"] == -32602
-    assert "asset_not_found" in resp["error"]["message"]
+    assert is_tool_error(resp)
+    assert tool_error(resp)["code"] == -32602
+    assert "asset_not_found" in tool_error(resp)["message"]
 
 
 def test_get_reference_chain_rejects_invalid_direction():
@@ -997,8 +1001,8 @@ def test_get_reference_chain_rejects_invalid_direction():
             },
         }
     )
-    assert resp["error"]["code"] == -32602
-    assert "invalid_direction" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "invalid_direction" in tool_error(resp)["message"]
 
 
 def test_get_reference_chain_rejects_invalid_depth():
@@ -1017,8 +1021,8 @@ def test_get_reference_chain_rejects_invalid_depth():
             },
         }
     )
-    assert resp["error"]["code"] == -32602
-    assert "invalid_depth" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "invalid_depth" in tool_error(resp)["message"]
 
 
 def test_get_reference_chain_rejects_path_with_nul_byte():
@@ -1038,8 +1042,8 @@ def test_get_reference_chain_rejects_path_with_nul_byte():
             }
         )
     assert m.call_count == 0
-    assert resp["error"]["code"] == -32602
-    assert "NUL" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "NUL" in tool_error(resp)["message"]
 
 
 # ---- bulk_compile_blueprints -----------------------------------------------
@@ -1159,12 +1163,12 @@ def test_bulk_compile_blueprints_rejects_missing_paths():
             "params": {"name": "bulk_compile_blueprints", "arguments": {}},
         }
     )
-    assert resp["error"]["code"] == -32602
-    assert "missing_required_field" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "missing_required_field" in tool_error(resp)["message"]
 
 
 def test_bulk_compile_blueprints_rejects_path_with_nul_byte():
-    """NUL byte in any path -> -32602 + path_invalid before any compile call."""
+    """NUL byte in any path -> -32602 + invalid_path before any compile call."""
     with patch.object(bridge, "call_ue") as m:
         resp = bridge.handle(
             {
@@ -1180,13 +1184,13 @@ def test_bulk_compile_blueprints_rejects_path_with_nul_byte():
             }
         )
     assert m.call_count == 0
-    assert resp["error"]["code"] == -32602
-    assert "paths[1]" in resp["error"]["message"]
-    assert "NUL" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "paths[1]" in tool_error(resp)["message"]
+    assert "NUL" in tool_error(resp)["message"]
 
 
 def test_bulk_compile_blueprints_rejects_path_with_dotdot_segment():
-    """`..` as a path SEGMENT -> -32602 + path_invalid before any compile."""
+    """`..` as a path SEGMENT -> -32602 + invalid_path before any compile."""
     with patch.object(bridge, "call_ue") as m:
         resp = bridge.handle(
             {
@@ -1202,8 +1206,8 @@ def test_bulk_compile_blueprints_rejects_path_with_dotdot_segment():
             }
         )
     assert m.call_count == 0
-    assert resp["error"]["code"] == -32602
-    assert ".." in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert ".." in tool_error(resp)["message"]
 
 
 def test_bulk_compile_blueprints_rejects_too_many_paths():
@@ -1219,8 +1223,8 @@ def test_bulk_compile_blueprints_rejects_too_many_paths():
             }
         )
     assert m.call_count == 0
-    assert resp["error"]["code"] == -32602
-    assert "invalid_paths_shape" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "invalid_paths_shape" in tool_error(resp)["message"]
 
 
 # ---- audit_blueprint_compile_status ---------------------------------------
@@ -1436,8 +1440,8 @@ def test_audit_blueprint_compile_status_find_failed_propagates():
                 "params": {"name": "audit_blueprint_compile_status", "arguments": {}},
             }
         )
-    assert "error" in resp
-    assert "find_failed" in resp["error"]["message"]
+    assert is_tool_error(resp)
+    assert "find_failed" in tool_error(resp)["message"]
 
 
 def test_audit_blueprint_compile_status_rejects_non_bool_compile_failures_only():
@@ -1455,8 +1459,8 @@ def test_audit_blueprint_compile_status_rejects_non_bool_compile_failures_only()
             },
         }
     )
-    assert resp["error"]["code"] == -32602
-    assert "compile_failures_only" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "compile_failures_only" in tool_error(resp)["message"]
 
 
 def test_audit_blueprint_compile_status_normalizes_path_under_without_trailing_slash():
@@ -1494,7 +1498,7 @@ def test_audit_blueprint_compile_status_normalizes_path_under_without_trailing_s
             }
         )
 
-    assert "error" not in resp
+    assert not is_tool_error(resp) and "error" not in resp
     assert captured[0]["method"] == "find_assets"
     assert captured[0]["params"]["path_under"] == "/Game/"
 
@@ -1533,7 +1537,7 @@ def test_audit_blueprint_compile_status_normalizes_path_under_already_trailing_s
             }
         )
 
-    assert "error" not in resp
+    assert not is_tool_error(resp) and "error" not in resp
     assert captured[0]["params"]["path_under"] == "/Game/"
 
 
@@ -1548,7 +1552,7 @@ def test_validate_asset_path_helper_accepts_valid_path():
 def test_validate_asset_path_helper_rejects_non_string():
     msg = bridge._validate_asset_path("tool", 42, "path")
     assert msg is not None
-    assert "path_must_be_string" in msg
+    assert "invalid_path" in msg
 
 
 def test_validate_asset_path_helper_rejects_nul_byte():
@@ -2030,7 +2034,7 @@ def test_get_camera_transform_marker_not_found_returns_logical_error_envelope():
 
     # Logical errors come back as success envelopes (isError=False) with
     # ok:False + error_code inside the inner payload.
-    assert "error" not in resp, (
+    assert not is_tool_error(resp) and "error" not in resp, (
         f"marker_not_found must NOT be a JSON-RPC transport error post-refactor; "
         f"got envelope={resp}"
     )
@@ -2093,12 +2097,12 @@ def test_set_camera_transform_rejects_partial_update_when_get_returns_logical_er
                 }
             )
 
-    assert "error" in resp, (
+    assert is_tool_error(resp), (
         "set_camera_transform must refuse a partial update when get returns "
         "a logical-error envelope -- silent (0,0,0) fallback is a regression."
     )
-    assert resp["error"]["code"] == -32603
-    msg = resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32603
+    msg = tool_error(resp)["message"]
     assert "marker_not_found" in msg, (
         f"refusal message must surface the upstream error_code so a caller can triage; got: {msg!r}"
     )
@@ -2331,10 +2335,10 @@ def test_compile_mod_pak_rejects_non_positive_timeout():
                 },
             }
         )
-        assert "error" in resp, f"expected error envelope for timeout_sec={bad!r}, got {resp}"
-        assert resp["error"]["code"] == -32602, f"expected -32602 for timeout_sec={bad!r}"
-        assert "timeout_sec" in resp["error"]["message"], (
-            f"error message must mention timeout_sec; got {resp['error']['message']!r}"
+        assert is_tool_error(resp), f"expected error envelope for timeout_sec={bad!r}, got {resp}"
+        assert tool_error(resp)["code"] == -32602, f"expected -32602 for timeout_sec={bad!r}"
+        assert "timeout_sec" in tool_error(resp)["message"], (
+            f"error message must mention timeout_sec; got {tool_error(resp)['message']!r}"
         )
 
 
@@ -2363,10 +2367,10 @@ def test_compile_mod_pak_accepts_float_timeout():
                 },
             }
         )
-        assert "error" in resp
-        assert "project_path" in resp["error"]["message"], (
+        assert is_tool_error(resp)
+        assert "project_path" in tool_error(resp)["message"], (
             f"expected project_path error (proving timeout parsed OK) for "
-            f"timeout_sec={good!r}; got {resp['error']['message']!r}"
+            f"timeout_sec={good!r}; got {tool_error(resp)['message']!r}"
         )
 
 
@@ -2392,10 +2396,10 @@ def test_compile_mod_pak_rejects_wrong_type_extra_args():
                 },
             }
         )
-        assert "error" in resp, f"expected error envelope for extra_args={bad!r}, got {resp}"
-        assert resp["error"]["code"] == -32602, f"expected -32602 for extra_args={bad!r}"
-        assert "extra_args" in resp["error"]["message"], (
-            f"error message must mention extra_args; got {resp['error']['message']!r}"
+        assert is_tool_error(resp), f"expected error envelope for extra_args={bad!r}, got {resp}"
+        assert tool_error(resp)["code"] == -32602, f"expected -32602 for extra_args={bad!r}"
+        assert "extra_args" in tool_error(resp)["message"], (
+            f"error message must mention extra_args; got {tool_error(resp)['message']!r}"
         )
 
 
@@ -2421,10 +2425,10 @@ def test_compile_mod_pak_rejects_unparseable_timeout():
                 },
             }
         )
-        assert "error" in resp, f"expected error envelope for timeout_sec={bad!r}, got {resp}"
-        assert resp["error"]["code"] == -32602, f"expected -32602 for timeout_sec={bad!r}"
-        assert "timeout_sec" in resp["error"]["message"], (
-            f"error message must mention timeout_sec; got {resp['error']['message']!r}"
+        assert is_tool_error(resp), f"expected error envelope for timeout_sec={bad!r}, got {resp}"
+        assert tool_error(resp)["code"] == -32602, f"expected -32602 for timeout_sec={bad!r}"
+        assert "timeout_sec" in tool_error(resp)["message"], (
+            f"error message must mention timeout_sec; got {tool_error(resp)['message']!r}"
         )
 
 
@@ -2448,9 +2452,9 @@ def test_compile_mod_pak_omitted_extra_args_defaults_empty():
             },
         }
     )
-    assert "error" in resp
+    assert is_tool_error(resp)
     # Should error on project_path (validation downstream), NOT on extra_args.
-    assert "project_path" in resp["error"]["message"]
+    assert "project_path" in tool_error(resp)["message"]
 
 
 def test_bulk_delete_assets_is_synthetic():
@@ -2563,8 +2567,8 @@ def test_bulk_delete_assets_rejects_missing_paths():
             "params": {"name": "bulk_delete_assets", "arguments": {}},
         }
     )
-    assert resp["error"]["code"] == -32602
-    assert "bulk_delete_assets" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "bulk_delete_assets" in tool_error(resp)["message"]
 
 
 def test_bulk_delete_assets_rejects_path_with_nul_byte():
@@ -2586,9 +2590,9 @@ def test_bulk_delete_assets_rejects_path_with_nul_byte():
         )
 
     assert m.call_count == 0, "validation must short-circuit before any call_ue"
-    assert resp["error"]["code"] == -32602
-    assert "paths[1]" in resp["error"]["message"]
-    assert "NUL" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "paths[1]" in tool_error(resp)["message"]
+    assert "NUL" in tool_error(resp)["message"]
 
 
 def test_bulk_delete_assets_rejects_path_with_dotdot_segment():
@@ -2609,9 +2613,9 @@ def test_bulk_delete_assets_rejects_path_with_dotdot_segment():
         )
 
     assert m.call_count == 0
-    assert resp["error"]["code"] == -32602
-    assert "paths[0]" in resp["error"]["message"]
-    assert ".." in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "paths[0]" in tool_error(resp)["message"]
+    assert ".." in tool_error(resp)["message"]
 
 
 def test_bulk_delete_assets_allows_consecutive_dots_inside_segment():
@@ -2810,8 +2814,8 @@ def test_bulk_move_assets_rejects_missing_paths():
             "params": {"name": "bulk_move_assets", "arguments": {"dest_folder": "/Game/Archive"}},
         }
     )
-    assert resp["error"]["code"] == -32602
-    assert "paths" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "paths" in tool_error(resp)["message"]
 
 
 def test_bulk_move_assets_rejects_missing_dest_folder():
@@ -2829,8 +2833,8 @@ def test_bulk_move_assets_rejects_missing_dest_folder():
         )
 
     assert m.call_count == 0, "validation must short-circuit before any call_ue"
-    assert resp["error"]["code"] == -32602
-    assert "dest_folder" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "dest_folder" in tool_error(resp)["message"]
 
 
 def test_bulk_move_assets_rejects_path_with_nul_byte():
@@ -2853,9 +2857,9 @@ def test_bulk_move_assets_rejects_path_with_nul_byte():
         )
 
     assert m.call_count == 0
-    assert resp["error"]["code"] == -32602
-    assert "paths[1]" in resp["error"]["message"]
-    assert "NUL" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "paths[1]" in tool_error(resp)["message"]
+    assert "NUL" in tool_error(resp)["message"]
 
 
 def test_bulk_move_assets_rejects_dotdot_segment_in_dest_folder():
@@ -2880,9 +2884,9 @@ def test_bulk_move_assets_rejects_dotdot_segment_in_dest_folder():
         )
 
     assert m.call_count == 0
-    assert resp["error"]["code"] == -32602
-    assert "dest_folder" in resp["error"]["message"]
-    assert ".." in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "dest_folder" in tool_error(resp)["message"]
+    assert ".." in tool_error(resp)["message"]
 
 
 def test_bulk_rename_assets_is_synthetic():
@@ -3053,8 +3057,8 @@ def test_bulk_rename_assets_rejects_missing_renames():
             "params": {"name": "bulk_rename_assets", "arguments": {}},
         }
     )
-    assert resp["error"]["code"] == -32602
-    assert "renames" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "renames" in tool_error(resp)["message"]
 
 
 def test_bulk_rename_assets_rejects_new_name_with_slash_or_dot():
@@ -3091,9 +3095,9 @@ def test_bulk_rename_assets_rejects_new_name_with_slash_or_dot():
 
     assert m.call_count == 0
     for resp in (resp1, resp2):
-        assert resp["error"]["code"] == -32602
-        assert "new_name" in resp["error"]["message"]
-        assert "'/' or '.'" in resp["error"]["message"]
+        assert tool_error(resp)["code"] == -32602
+        assert "new_name" in tool_error(resp)["message"]
+        assert "'/' or '.'" in tool_error(resp)["message"]
 
 
 def test_bulk_rename_assets_rejects_path_with_nul_byte():
@@ -3118,9 +3122,9 @@ def test_bulk_rename_assets_rejects_path_with_nul_byte():
         )
 
     assert m.call_count == 0
-    assert resp["error"]["code"] == -32602
-    assert "renames[1].path" in resp["error"]["message"]
-    assert "NUL" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "renames[1].path" in tool_error(resp)["message"]
+    assert "NUL" in tool_error(resp)["message"]
 
 
 def test_bulk_duplicate_assets_is_synthetic():
@@ -3286,8 +3290,8 @@ def test_bulk_duplicate_assets_rejects_missing_duplicates():
             "params": {"name": "bulk_duplicate_assets", "arguments": {}},
         }
     )
-    assert resp["error"]["code"] == -32602
-    assert "duplicates" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "duplicates" in tool_error(resp)["message"]
 
 
 def test_bulk_duplicate_assets_rejects_dotdot_in_dest_path():
@@ -3312,9 +3316,9 @@ def test_bulk_duplicate_assets_rejects_dotdot_in_dest_path():
         )
 
     assert m.call_count == 0
-    assert resp["error"]["code"] == -32602
-    assert "duplicates[0].dest_path" in resp["error"]["message"]
-    assert ".." in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "duplicates[0].dest_path" in tool_error(resp)["message"]
+    assert ".." in tool_error(resp)["message"]
 
 
 def test_bulk_duplicate_assets_rejects_missing_dest_path():
@@ -3337,8 +3341,8 @@ def test_bulk_duplicate_assets_rejects_missing_dest_path():
         )
 
     assert m.call_count == 0, "validation must short-circuit before any call_ue"
-    assert resp["error"]["code"] == -32602
-    assert "dest_path" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "dest_path" in tool_error(resp)["message"]
 
 
 def test_bulk_duplicate_assets_rejects_path_with_nul_byte():
@@ -3363,8 +3367,8 @@ def test_bulk_duplicate_assets_rejects_path_with_nul_byte():
         )
 
     assert m.call_count == 0, "validation must short-circuit before any call_ue"
-    assert resp["error"]["code"] == -32602
-    assert "NUL" in resp["error"]["message"] or "nul" in resp["error"]["message"].lower()
+    assert tool_error(resp)["code"] == -32602
+    assert "NUL" in tool_error(resp)["message"] or "nul" in tool_error(resp)["message"].lower()
 
 
 def test_inspect_data_asset_is_synthetic():
@@ -3606,8 +3610,8 @@ def test_marker_pattern_propagates_execute_unreal_python_failure_envelope():
     # Failure surfaces as a JSON-RPC -32603 transport error (not a
     # success-envelope with ok=False), because the caller can't usefully
     # retry — the Python is broken, retry won't help.
-    assert "error" in resp, f"expected JSON-RPC error envelope, got: {resp}"
-    assert resp["error"]["code"] == -32603
+    assert is_tool_error(resp), f"expected JSON-RPC error envelope, got: {resp}"
+    assert tool_error(resp)["code"] == -32603
 
 
 def test_marker_pattern_bad_json_returns_invalid_json_error_code():
@@ -3662,8 +3666,8 @@ def test_inspect_data_asset_rejects_missing_path():
             "params": {"name": "inspect_data_asset", "arguments": {}},
         }
     )
-    assert resp["error"]["code"] == -32602
-    assert "inspect_data_asset" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "inspect_data_asset" in tool_error(resp)["message"]
 
 
 def test_inspect_sound_class_is_synthetic():
@@ -3798,8 +3802,8 @@ def test_inspect_sound_class_rejects_missing_path():
             "params": {"name": "inspect_sound_class", "arguments": {}},
         }
     )
-    assert resp["error"]["code"] == -32602
-    assert "inspect_sound_class" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "inspect_sound_class" in tool_error(resp)["message"]
 
 
 def test_inspect_sound_submix_is_synthetic():
@@ -3879,8 +3883,8 @@ def test_inspect_sound_submix_rejects_missing_path():
         )
 
     m.assert_not_called()
-    assert resp["error"]["code"] == -32602
-    assert "inspect_sound_submix" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "inspect_sound_submix" in tool_error(resp)["message"]
 
 
 def test_inspect_sound_submix_propagates_wrong_asset_type():
@@ -4032,8 +4036,8 @@ def test_inspect_audio_bus_rejects_missing_path():
             "params": {"name": "inspect_audio_bus", "arguments": {}},
         }
     )
-    assert resp["error"]["code"] == -32602
-    assert "inspect_audio_bus" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "inspect_audio_bus" in tool_error(resp)["message"]
 
 
 def test_inspect_audio_bus_propagates_wrong_asset_type():
@@ -4194,8 +4198,8 @@ def test_inspect_material_function_rejects_missing_path():
             "params": {"name": "inspect_material_function", "arguments": {}},
         }
     )
-    assert resp["error"]["code"] == -32602
-    assert "inspect_material_function" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "inspect_material_function" in tool_error(resp)["message"]
 
 
 def test_inspect_material_function_propagates_wrong_asset_type():
@@ -4417,8 +4421,8 @@ def test_inspect_metasound_rejects_missing_path():
             "params": {"name": "inspect_metasound", "arguments": {}},
         }
     )
-    assert resp["error"]["code"] == -32602
-    assert "inspect_metasound" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "inspect_metasound" in tool_error(resp)["message"]
 
 
 def test_inspect_metasound_marker_not_found():
@@ -4525,9 +4529,9 @@ def test_screenshot_actor_propagates_focus_error():
     # Only focus_actor was called; screenshot was not attempted
     assert m.call_count == 1
     assert m.call_args_list[0].args == ("focus_actor", {"name": "BadName"})
-    assert "error" in resp
-    assert "focus_failed" in resp["error"]["message"]
-    assert "Actor not found: BadName" in resp["error"]["message"]
+    assert is_tool_error(resp)
+    assert "focus_failed" in tool_error(resp)["message"]
+    assert "Actor not found: BadName" in tool_error(resp)["message"]
 
 
 def test_screenshot_actor_propagates_screenshot_error():
@@ -4562,9 +4566,9 @@ def test_screenshot_actor_propagates_screenshot_error():
             }
         )
     assert m.call_count == 2
-    assert "error" in resp
-    assert "screenshot_failed" in resp["error"]["message"]
-    assert "No active viewport" in resp["error"]["message"]
+    assert is_tool_error(resp)
+    assert "screenshot_failed" in tool_error(resp)["message"]
+    assert "No active viewport" in tool_error(resp)["message"]
 
 
 def test_screenshot_actor_rejects_missing_name():
@@ -4582,8 +4586,8 @@ def test_screenshot_actor_rejects_missing_name():
             )
         # No call_ue invocation — validation rejected the request immediately
         m.assert_not_called()
-        assert "error" in resp
-        assert "missing_required_field" in resp["error"]["message"]
+        assert is_tool_error(resp)
+        assert "missing_required_field" in tool_error(resp)["message"]
 
 
 def test_exec_python_persistent_in_tools_catalog():
@@ -4911,8 +4915,8 @@ def test_wait_for_events_rejects_non_integer_timeout():
             "params": {"name": "wait_for_events", "arguments": {"timeout_ms": 1.5}},
         }
     )
-    assert "error" in resp
-    assert resp["error"]["code"] == -32602
+    assert is_tool_error(resp)
+    assert tool_error(resp)["code"] == -32602
 
 
 def test_wait_for_events_propagates_ue_error():
@@ -4933,7 +4937,7 @@ def test_wait_for_events_propagates_ue_error():
         )
     m.assert_called_once()
     sleep_mock.assert_not_called()
-    assert resp["error"]["code"] == -32099
+    assert tool_error(resp)["code"] == -32099
 
 
 def test_required_params_match_handler_contract():
@@ -5235,10 +5239,10 @@ def test_handle_tools_call_forwards_to_ue_and_wraps_result():
                 "jsonrpc": "2.0",
                 "id": 4,
                 "method": "tools/call",
-                "params": {"name": "list_tools", "arguments": {}},
+                "params": {"name": "get_project_summary", "arguments": {}},
             }
         )
-    m.assert_called_once_with("list_tools", {})
+    m.assert_called_once_with("get_project_summary", {})
     assert resp["id"] == 4
     assert resp["result"]["isError"] is False
     assert resp["result"]["content"][0]["type"] == "text"
@@ -5257,8 +5261,8 @@ def test_handle_tools_call_propagates_ue_error():
                 "params": {"name": "list_tools", "arguments": {}},
             }
         )
-    assert "error" in resp
-    assert resp["error"]["code"] == -32099
+    assert is_tool_error(resp)
+    assert tool_error(resp)["code"] == -32099
 
 
 def test_handle_tools_call_passes_arguments_through():
@@ -5509,15 +5513,16 @@ def test_handle_internal_exception_is_caught_in_main(monkeypatch, capsys):
     assert "boom" in resp["error"]["message"]
 
 
-def test_main_skips_blank_and_malformed_lines(monkeypatch, capsys):
+def test_main_skips_blank_lines_and_answers_malformed_ones(monkeypatch, capsys):
     monkeypatch.setattr(
         "sys.stdin",
         iter(["\n", "not-json\n", '{"jsonrpc":"2.0","id":1,"method":"initialize"}\n']),
     )
     bridge.main()
-    lines = [ln for ln in capsys.readouterr().out.splitlines() if ln.strip()]
-    assert len(lines) == 1
-    assert json.loads(lines[0])["id"] == 1
+    lines = [json.loads(ln) for ln in capsys.readouterr().out.splitlines() if ln.strip()]
+    assert len(lines) == 2
+    assert lines[0]["id"] is None and lines[0]["error"]["code"] == -32700
+    assert lines[1]["id"] == 1
 
 
 def test_synthetic_inspect_asset_not_found_messages_use_canonical_prefix() -> None:
@@ -5729,9 +5734,9 @@ def test_find_actors_by_class_rejects_missing_class_name():
             "params": {"name": "find_actors_by_class", "arguments": {}},
         }
     )
-    assert resp["error"]["code"] == -32602
-    assert "missing_required_field" in resp["error"]["message"]
-    assert "class_name" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "missing_required_field" in tool_error(resp)["message"]
+    assert "class_name" in tool_error(resp)["message"]
 
 
 def test_find_actors_by_class_loads_level_when_supplied():
@@ -5787,8 +5792,8 @@ def test_find_actors_by_class_get_actors_failure_propagates():
                 },
             }
         )
-    assert resp["error"]["code"] == -32099
-    assert "get_actors_failed" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32099
+    assert "get_actors_failed" in tool_error(resp)["message"]
 
 
 # ---- bulk_focus_actors (Wave C) --------------------------------------------
@@ -5927,8 +5932,8 @@ def test_bulk_focus_actors_rejects_missing_names():
             "params": {"name": "bulk_focus_actors", "arguments": {}},
         }
     )
-    assert resp["error"]["code"] == -32602
-    assert "missing_required_field" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "missing_required_field" in tool_error(resp)["message"]
 
 
 def test_bulk_focus_actors_rejects_non_string_name():
@@ -5948,9 +5953,9 @@ def test_bulk_focus_actors_rejects_non_string_name():
             }
         )
     assert m.call_count == 0
-    assert resp["error"]["code"] == -32602
-    assert "name_must_be_string" in resp["error"]["message"]
-    assert "names[1]" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "name_must_be_string" in tool_error(resp)["message"]
+    assert "names[1]" in tool_error(resp)["message"]
 
 
 def test_bulk_focus_actors_rejects_too_many_names():
@@ -5965,8 +5970,8 @@ def test_bulk_focus_actors_rejects_too_many_names():
             }
         )
     assert m.call_count == 0
-    assert resp["error"]["code"] == -32602
-    assert "too_many_names" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "too_many_names" in tool_error(resp)["message"]
 
 
 def test_bulk_focus_actors_rejects_invalid_delay():
@@ -5984,8 +5989,8 @@ def test_bulk_focus_actors_rejects_invalid_delay():
             },
         }
     )
-    assert resp["error"]["code"] == -32602
-    assert "invalid_delay" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "invalid_delay" in tool_error(resp)["message"]
 
 
 # ---- bulk_screenshot_actors (Wave C) ---------------------------------------
@@ -6113,8 +6118,8 @@ def test_bulk_screenshot_actors_rejects_missing_names():
             "params": {"name": "bulk_screenshot_actors", "arguments": {}},
         }
     )
-    assert resp["error"]["code"] == -32602
-    assert "missing_required_field" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "missing_required_field" in tool_error(resp)["message"]
 
 
 def test_bulk_screenshot_actors_rejects_too_many_names():
@@ -6131,8 +6136,8 @@ def test_bulk_screenshot_actors_rejects_too_many_names():
             }
         )
     assert m.call_count == 0
-    assert resp["error"]["code"] == -32602
-    assert "too_many_names" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "too_many_names" in tool_error(resp)["message"]
 
 
 def test_bulk_screenshot_actors_rejects_invalid_delay():
@@ -6150,8 +6155,8 @@ def test_bulk_screenshot_actors_rejects_invalid_delay():
             },
         }
     )
-    assert resp["error"]["code"] == -32602
-    assert "invalid_delay" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "invalid_delay" in tool_error(resp)["message"]
 
 
 # ---- bulk_set_actor_property (Wave C) --------------------------------------
@@ -6282,8 +6287,8 @@ def test_bulk_set_actor_property_rejects_missing_assignments():
             "params": {"name": "bulk_set_actor_property", "arguments": {}},
         }
     )
-    assert resp["error"]["code"] == -32602
-    assert "missing_required_field" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "missing_required_field" in tool_error(resp)["message"]
 
 
 def test_bulk_set_actor_property_rejects_non_object_assignment():
@@ -6306,9 +6311,9 @@ def test_bulk_set_actor_property_rejects_non_object_assignment():
             }
         )
     assert m.call_count == 0
-    assert resp["error"]["code"] == -32602
-    assert "assignment_must_be_object" in resp["error"]["message"]
-    assert "assignments[1]" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "assignment_must_be_object" in tool_error(resp)["message"]
+    assert "assignments[1]" in tool_error(resp)["message"]
 
 
 def test_bulk_set_actor_property_rejects_missing_value_field():
@@ -6331,9 +6336,9 @@ def test_bulk_set_actor_property_rejects_missing_value_field():
             }
         )
     assert m.call_count == 0
-    assert resp["error"]["code"] == -32602
-    assert "assignment_missing_field" in resp["error"]["message"]
-    assert "value" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "assignment_missing_field" in tool_error(resp)["message"]
+    assert "value" in tool_error(resp)["message"]
 
 
 def test_bulk_set_actor_property_rejects_too_many_assignments():
@@ -6353,8 +6358,8 @@ def test_bulk_set_actor_property_rejects_too_many_assignments():
             }
         )
     assert m.call_count == 0
-    assert resp["error"]["code"] == -32602
-    assert "too_many_assignments" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "too_many_assignments" in tool_error(resp)["message"]
 
 
 # ---- compare_assets (Wave D) -----------------------------------------------
@@ -6503,9 +6508,9 @@ def test_compare_assets_rejects_missing_path_a():
             "params": {"name": "compare_assets", "arguments": {"path_b": "/Game/B"}},
         }
     )
-    assert resp["error"]["code"] == -32602
-    assert "missing_required_field" in resp["error"]["message"]
-    assert "path_a" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "missing_required_field" in tool_error(resp)["message"]
+    assert "path_a" in tool_error(resp)["message"]
 
 
 def test_compare_assets_rejects_missing_path_b():
@@ -6517,9 +6522,9 @@ def test_compare_assets_rejects_missing_path_b():
             "params": {"name": "compare_assets", "arguments": {"path_a": "/Game/A"}},
         }
     )
-    assert resp["error"]["code"] == -32602
-    assert "missing_required_field" in resp["error"]["message"]
-    assert "path_b" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "missing_required_field" in tool_error(resp)["message"]
+    assert "path_b" in tool_error(resp)["message"]
 
 
 def test_compare_assets_surfaces_inspect_failure_on_path_a():
@@ -6540,8 +6545,8 @@ def test_compare_assets_surfaces_inspect_failure_on_path_a():
                 },
             }
         )
-    assert "error" in resp
-    assert "inspect_failed_a" in resp["error"]["message"]
+    assert is_tool_error(resp)
+    assert "inspect_failed_a" in tool_error(resp)["message"]
 
 
 def test_compare_assets_rejects_path_with_nul_byte():
@@ -6562,8 +6567,8 @@ def test_compare_assets_rejects_path_with_nul_byte():
             }
         )
     assert m.call_count == 0
-    assert resp["error"]["code"] == -32602
-    assert "NUL" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "NUL" in tool_error(resp)["message"]
 
 
 # ---- bulk_set_console_variables (Wave D) -----------------------------------
@@ -6738,8 +6743,8 @@ def test_bulk_set_console_variables_rejects_missing_assignments():
             "params": {"name": "bulk_set_console_variables", "arguments": {}},
         }
     )
-    assert resp["error"]["code"] == -32602
-    assert "missing_required_field" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "missing_required_field" in tool_error(resp)["message"]
 
 
 def test_bulk_set_console_variables_rejects_non_dict_assignments():
@@ -6759,8 +6764,8 @@ def test_bulk_set_console_variables_rejects_non_dict_assignments():
             }
         )
     assert m.call_count == 0
-    assert resp["error"]["code"] == -32602
-    assert "invalid_assignments_shape" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "invalid_assignments_shape" in tool_error(resp)["message"]
 
 
 def test_bulk_set_console_variables_rejects_invalid_value_type():
@@ -6780,8 +6785,8 @@ def test_bulk_set_console_variables_rejects_invalid_value_type():
             }
         )
     assert m.call_count == 0
-    assert resp["error"]["code"] == -32602
-    assert "assignment_value_invalid_type" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "assignment_value_invalid_type" in tool_error(resp)["message"]
 
 
 def test_bulk_set_console_variables_rejects_too_many_assignments():
@@ -6801,8 +6806,8 @@ def test_bulk_set_console_variables_rejects_too_many_assignments():
             }
         )
     assert m.call_count == 0
-    assert resp["error"]["code"] == -32602
-    assert "too_many_assignments" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "too_many_assignments" in tool_error(resp)["message"]
 
 
 # ---- inspect_dependency_graph (Wave D) --------------------------------------
@@ -6992,8 +6997,8 @@ def test_inspect_dependency_graph_rejects_missing_path():
             "params": {"name": "inspect_dependency_graph", "arguments": {}},
         }
     )
-    assert resp["error"]["code"] == -32602
-    assert "missing_required_field" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "missing_required_field" in tool_error(resp)["message"]
 
 
 def test_inspect_dependency_graph_rejects_invalid_depth():
@@ -7011,8 +7016,8 @@ def test_inspect_dependency_graph_rejects_invalid_depth():
             },
         }
     )
-    assert resp["error"]["code"] == -32602
-    assert "invalid_depth" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "invalid_depth" in tool_error(resp)["message"]
 
 
 def test_inspect_dependency_graph_surfaces_root_not_found():
@@ -7035,8 +7040,8 @@ def test_inspect_dependency_graph_surfaces_root_not_found():
                 },
             }
         )
-    assert resp["error"]["code"] == -32602
-    assert "asset_not_found" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "asset_not_found" in tool_error(resp)["message"]
 
 
 def test_inspect_dependency_graph_max_nodes_caps_and_truncates():
@@ -7101,8 +7106,8 @@ def test_inspect_dependency_graph_rejects_invalid_max_nodes():
                 },
             }
         )
-        assert resp["error"]["code"] == -32602, f"max_nodes={bad!r} should be rejected"
-        assert "invalid_max_nodes" in resp["error"]["message"]
+        assert tool_error(resp)["code"] == -32602, f"max_nodes={bad!r} should be rejected"
+        assert "invalid_max_nodes" in tool_error(resp)["message"]
 
 
 # ---- bulk_fix_redirectors (Wave D) ------------------------------------------
@@ -7222,8 +7227,8 @@ def test_bulk_fix_redirectors_rejects_missing_folders():
             "params": {"name": "bulk_fix_redirectors", "arguments": {}},
         }
     )
-    assert resp["error"]["code"] == -32602
-    assert "missing_required_field" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "missing_required_field" in tool_error(resp)["message"]
 
 
 def test_bulk_fix_redirectors_rejects_non_list_folders():
@@ -7243,8 +7248,8 @@ def test_bulk_fix_redirectors_rejects_non_list_folders():
             }
         )
     assert m.call_count == 0
-    assert resp["error"]["code"] == -32602
-    assert "invalid_folders_shape" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "invalid_folders_shape" in tool_error(resp)["message"]
 
 
 def test_bulk_fix_redirectors_rejects_folder_with_nul_byte():
@@ -7264,9 +7269,9 @@ def test_bulk_fix_redirectors_rejects_folder_with_nul_byte():
             }
         )
     assert m.call_count == 0
-    assert resp["error"]["code"] == -32602
-    assert "folder_invalid" in resp["error"]["message"]
-    assert "folders[1]" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "folder_invalid" in tool_error(resp)["message"]
+    assert "folders[1]" in tool_error(resp)["message"]
 
 
 def test_bulk_fix_redirectors_rejects_too_many_folders():
@@ -7286,8 +7291,8 @@ def test_bulk_fix_redirectors_rejects_too_many_folders():
             }
         )
     assert m.call_count == 0
-    assert resp["error"]["code"] == -32602
-    assert "too_many_folders" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "too_many_folders" in tool_error(resp)["message"]
 
 
 # -------- marketplace_import: ambientcg zip-unpack path ----------------------
@@ -7503,9 +7508,9 @@ def test_marketplace_import_rejects_invalid_source():
             }
         )
     assert m.call_count == 0
-    assert resp["error"]["code"] == -32602
-    assert "invalid_field" in resp["error"]["message"]
-    assert "source" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "invalid_field" in tool_error(resp)["message"]
+    assert "source" in tool_error(resp)["message"]
 
 
 def test_marketplace_import_ambientcg_end_to_end(tmp_path):
@@ -7557,7 +7562,7 @@ def test_marketplace_import_ambientcg_end_to_end(tmp_path):
             }
         )
 
-    assert "error" not in resp, resp
+    assert not is_tool_error(resp) and "error" not in resp, resp
     body = json.loads(resp["result"]["content"][0]["text"])
     assert body["ok"] is True
     assert body["source"] == "ambientcg"
@@ -7746,8 +7751,8 @@ def test_marketplace_import_multimap_rejects_hdri():
             }
         )
     assert m.call_count == 0
-    assert resp["error"]["code"] == -32602
-    assert "multi_map" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "multi_map" in tool_error(resp)["message"]
 
 
 def test_marketplace_import_multimap_rejects_non_bool():
@@ -7768,8 +7773,8 @@ def test_marketplace_import_multimap_rejects_non_bool():
             }
         )
     assert m.call_count == 0
-    assert resp["error"]["code"] == -32602
-    assert "multi_map" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "multi_map" in tool_error(resp)["message"]
 
 
 def test_marketplace_import_multimap_ambientcg_end_to_end(tmp_path):
@@ -7825,7 +7830,7 @@ def test_marketplace_import_multimap_ambientcg_end_to_end(tmp_path):
             }
         )
 
-    assert "error" not in resp, resp
+    assert not is_tool_error(resp) and "error" not in resp, resp
     body = json.loads(resp["result"]["content"][0]["text"])
     assert body["ok"] is True
     assert set(body["maps"].keys()) == {"color", "normal", "roughness", "ao", "displacement"}
@@ -7883,7 +7888,7 @@ def test_marketplace_import_multimap_polyhaven_end_to_end(tmp_path):
             }
         )
 
-    assert "error" not in resp, resp
+    assert not is_tool_error(resp) and "error" not in resp, resp
     body = json.loads(resp["result"]["content"][0]["text"])
     assert set(body["maps"].keys()) == {"color", "normal", "roughness"}
     assert body["maps"]["color"] == "/Game/Marketplace/beach.beach"
@@ -7953,8 +7958,8 @@ def test_marketplace_import_multimap_partial_failure_surfaces_imported_so_far(tm
             }
         )
 
-    assert "error" in resp
-    err = resp["error"]
+    assert is_tool_error(resp)
+    err = tool_error(resp)
     assert err["code"] == -32603
     assert "map=normal" in err["message"]
     # The structured `data` block lets callers recover without parsing the
@@ -8017,8 +8022,8 @@ def test_convert_hdri_to_cubemap_rejects_non_game_path():
             }
         )
     assert m.call_count == 0
-    assert resp["error"]["code"] == -32602
-    assert "hdri_path" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "hdri_path" in tool_error(resp)["message"]
 
 
 def test_convert_hdri_to_cubemap_rejects_missing_hdri_path():
@@ -8033,8 +8038,8 @@ def test_convert_hdri_to_cubemap_rejects_missing_hdri_path():
             }
         )
     assert m.call_count == 0
-    assert resp["error"]["code"] == -32602
-    assert "hdri_path" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "hdri_path" in tool_error(resp)["message"]
 
 
 def test_convert_hdri_to_cubemap_rejects_disallowed_compression():
@@ -8056,8 +8061,8 @@ def test_convert_hdri_to_cubemap_rejects_disallowed_compression():
             }
         )
     assert m.call_count == 0
-    assert resp["error"]["code"] == -32602
-    assert "compression" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "compression" in tool_error(resp)["message"]
 
 
 def test_convert_hdri_to_cubemap_rejects_bad_cube_size():
@@ -8078,8 +8083,8 @@ def test_convert_hdri_to_cubemap_rejects_bad_cube_size():
             }
         )
     assert m.call_count == 0
-    assert resp["error"]["code"] == -32602
-    assert "cube_size" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "cube_size" in tool_error(resp)["message"]
 
 
 def test_convert_hdri_to_cubemap_rejects_path_injection_in_dest_name():
@@ -8102,8 +8107,8 @@ def test_convert_hdri_to_cubemap_rejects_path_injection_in_dest_name():
                 }
             )
         assert m.call_count == 0, f"call_ue dispatched for bad dest_name={bad!r}"
-        assert resp["error"]["code"] == -32602
-        assert "dest_name" in resp["error"]["message"]
+        assert tool_error(resp)["code"] == -32602
+        assert "dest_name" in tool_error(resp)["message"]
 
 
 def test_convert_hdri_to_cubemap_end_to_end():
@@ -8129,7 +8134,7 @@ def test_convert_hdri_to_cubemap_end_to_end():
                 },
             }
         )
-    assert "error" not in resp, resp
+    assert not is_tool_error(resp) and "error" not in resp, resp
     body = json.loads(resp["result"]["content"][0]["text"])
     assert body["ok"] is True
     assert body["source_hdri"] == "/Game/HDRI/test"
@@ -8170,10 +8175,10 @@ def test_convert_hdri_to_cubemap_propagates_ue_python_error():
                 },
             }
         )
-    assert "error" in resp
-    assert resp["error"]["code"] == -32603
-    assert "ue_python_error" in resp["error"]["message"]
-    assert "hdri_not_found" in resp["error"]["message"]
+    assert is_tool_error(resp)
+    assert tool_error(resp)["code"] == -32603
+    assert "ue_python_error" in tool_error(resp)["message"]
+    assert "hdri_not_found" in tool_error(resp)["message"]
 
 
 def test_convert_hdri_to_cubemap_rejects_gameplus_prefix():
@@ -8195,8 +8200,8 @@ def test_convert_hdri_to_cubemap_rejects_gameplus_prefix():
                 }
             )
         assert m.call_count == 0, f"call_ue dispatched for bad dest_path={bad!r}"
-        assert resp["error"]["code"] == -32602
-        assert "dest_path" in resp["error"]["message"]
+        assert tool_error(resp)["code"] == -32602
+        assert "dest_path" in tool_error(resp)["message"]
 
 
 def test_convert_hdri_to_cubemap_rejects_traversal_segments():
@@ -8218,7 +8223,7 @@ def test_convert_hdri_to_cubemap_rejects_traversal_segments():
                 }
             )
         assert m.call_count == 0, f"call_ue dispatched for bad dest_path={bad!r}"
-        assert resp["error"]["code"] == -32602
+        assert tool_error(resp)["code"] == -32602
 
 
 def test_convert_hdri_to_cubemap_generated_script_uses_hdr_capture_source():
@@ -8331,8 +8336,8 @@ def test_convert_hdri_to_cubemap_propagates_call_ue_error():
                 },
             }
         )
-    assert "error" in resp
-    assert "ue_exec_failed" in resp["error"]["message"]
+    assert is_tool_error(resp)
+    assert "ue_exec_failed" in tool_error(resp)["message"]
 
 
 # ---------------------------------------------------------------------------
@@ -8367,8 +8372,8 @@ def test_sequencer_add_transform_keyframe_rejects_missing_sequence_path():
             }
         )
     assert m.call_count == 0
-    assert resp["error"]["code"] == -32602
-    assert "sequence_path" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "sequence_path" in tool_error(resp)["message"]
 
 
 def test_sequencer_add_transform_keyframe_rejects_missing_binding_id():
@@ -8390,8 +8395,8 @@ def test_sequencer_add_transform_keyframe_rejects_missing_binding_id():
             }
         )
     assert m.call_count == 0
-    assert resp["error"]["code"] == -32602
-    assert "binding_id" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "binding_id" in tool_error(resp)["message"]
 
 
 def test_sequencer_add_transform_keyframe_rejects_missing_time_seconds():
@@ -8413,8 +8418,8 @@ def test_sequencer_add_transform_keyframe_rejects_missing_time_seconds():
             }
         )
     assert m.call_count == 0
-    assert resp["error"]["code"] == -32602
-    assert "time_seconds" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "time_seconds" in tool_error(resp)["message"]
 
 
 def test_sequencer_add_transform_keyframe_rejects_non_game_path():
@@ -8437,8 +8442,8 @@ def test_sequencer_add_transform_keyframe_rejects_non_game_path():
             }
         )
     assert m.call_count == 0
-    assert resp["error"]["code"] == -32602
-    assert "sequence_path" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "sequence_path" in tool_error(resp)["message"]
 
 
 def test_sequencer_add_transform_keyframe_rejects_negative_time():
@@ -8461,8 +8466,8 @@ def test_sequencer_add_transform_keyframe_rejects_negative_time():
             }
         )
     assert m.call_count == 0
-    assert resp["error"]["code"] == -32602
-    assert "time_seconds" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "time_seconds" in tool_error(resp)["message"]
 
 
 def test_sequencer_add_transform_keyframe_rejects_empty_binding_id():
@@ -8486,8 +8491,8 @@ def test_sequencer_add_transform_keyframe_rejects_empty_binding_id():
                 }
             )
         assert m.call_count == 0, f"call_ue dispatched for empty binding_id={bad!r}"
-        assert resp["error"]["code"] == -32602
-        assert "binding_id" in resp["error"]["message"]
+        assert tool_error(resp)["code"] == -32602
+        assert "binding_id" in tool_error(resp)["message"]
 
 
 def test_sequencer_add_transform_keyframe_rejects_non_hex_binding_id():
@@ -8511,8 +8516,8 @@ def test_sequencer_add_transform_keyframe_rejects_non_hex_binding_id():
                 }
             )
         assert m.call_count == 0, f"call_ue dispatched for non-hex binding_id={bad!r}"
-        assert resp["error"]["code"] == -32602
-        assert "binding_id" in resp["error"]["message"]
+        assert tool_error(resp)["code"] == -32602
+        assert "binding_id" in tool_error(resp)["message"]
 
 
 def test_sequencer_add_transform_keyframe_rejects_nothing_to_key():
@@ -8534,8 +8539,8 @@ def test_sequencer_add_transform_keyframe_rejects_nothing_to_key():
             }
         )
     assert m.call_count == 0
-    assert resp["error"]["code"] == -32602
-    assert "nothing_to_key" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "nothing_to_key" in tool_error(resp)["message"]
 
 
 def test_sequencer_add_transform_keyframe_rejects_bad_interpolation():
@@ -8559,8 +8564,8 @@ def test_sequencer_add_transform_keyframe_rejects_bad_interpolation():
             }
         )
     assert m.call_count == 0
-    assert resp["error"]["code"] == -32602
-    assert "interpolation" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "interpolation" in tool_error(resp)["message"]
 
 
 def test_sequencer_add_transform_keyframe_rejects_malformed_location():
@@ -8591,8 +8596,8 @@ def test_sequencer_add_transform_keyframe_rejects_malformed_location():
                 }
             )
         assert m.call_count == 0, f"call_ue dispatched for {label}={value!r}"
-        assert resp["error"]["code"] == -32602
-        assert "location" in resp["error"]["message"]
+        assert tool_error(resp)["code"] == -32602
+        assert "location" in tool_error(resp)["message"]
 
 
 def _make_sequencer_call_ue_side_effect(exec_output: str = ""):
@@ -8731,7 +8736,7 @@ def test_sequencer_add_transform_keyframe_end_to_end_happy_path():
     assert "/Game/Cinematics/Shot" in code
     assert _VALID_GUID in code
     # Response body shape.
-    assert "error" not in resp, resp
+    assert not is_tool_error(resp) and "error" not in resp, resp
     body = json.loads(resp["result"]["content"][0]["text"])
     assert body["ok"] is True
     assert body["sequence_path"] == "/Game/Cinematics/Shot"
@@ -8780,10 +8785,10 @@ def test_sequencer_add_transform_keyframe_propagates_ue_python_error():
                 },
             }
         )
-    assert "error" in resp
-    assert resp["error"]["code"] == -32603
-    assert "ue_python_error" in resp["error"]["message"]
-    assert "binding_not_found" in resp["error"]["message"]
+    assert is_tool_error(resp)
+    assert tool_error(resp)["code"] == -32603
+    assert "ue_python_error" in tool_error(resp)["message"]
+    assert "binding_not_found" in tool_error(resp)["message"]
 
 
 def test_sequencer_add_transform_keyframe_propagates_call_ue_error():
@@ -8806,8 +8811,8 @@ def test_sequencer_add_transform_keyframe_propagates_call_ue_error():
                 },
             }
         )
-    assert "error" in resp
-    assert "ue_exec_failed" in resp["error"]["message"]
+    assert is_tool_error(resp)
+    assert "ue_exec_failed" in tool_error(resp)["message"]
 
 
 # ---------------------------------------------------------------------------
@@ -8833,8 +8838,8 @@ def test_import_mesh_rejects_missing_source():
             }
         )
     assert m.call_count == 0
-    assert resp["error"]["code"] == -32602
-    assert "source_path" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "source_path" in tool_error(resp)["message"]
 
 
 def test_import_mesh_rejects_bad_extension():
@@ -8851,8 +8856,8 @@ def test_import_mesh_rejects_bad_extension():
             }
         )
     assert m.call_count == 0
-    assert resp["error"]["code"] == -32602
-    assert "source_path" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "source_path" in tool_error(resp)["message"]
 
 
 def test_import_mesh_rejects_missing_file():
@@ -8873,8 +8878,8 @@ def test_import_mesh_rejects_missing_file():
             }
         )
     assert m.call_count == 0
-    assert resp["error"]["code"] == -32602
-    assert "file_not_found" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "file_not_found" in tool_error(resp)["message"]
 
 
 def test_import_mesh_rejects_non_game_dest():
@@ -8894,8 +8899,8 @@ def test_import_mesh_rejects_non_game_dest():
             }
         )
     assert m.call_count == 0
-    assert resp["error"]["code"] == -32602
-    assert "dest_path" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "dest_path" in tool_error(resp)["message"]
 
 
 def test_import_mesh_happy_path_parses_created_paths():
@@ -8924,7 +8929,7 @@ def test_import_mesh_happy_path_parses_created_paths():
                 },
             }
         )
-    assert "error" not in resp, resp
+    assert not is_tool_error(resp) and "error" not in resp, resp
     body = json.loads(resp["result"]["content"][0]["text"])
     assert body["ok"] is True
     assert body["static_meshes"] == sms
@@ -8980,9 +8985,9 @@ def test_import_mesh_propagates_ue_python_error():
                 },
             }
         )
-    assert "error" in resp
-    assert resp["error"]["code"] == -32603
-    assert "ue_python_error" in resp["error"]["message"]
+    assert is_tool_error(resp)
+    assert tool_error(resp)["code"] == -32603
+    assert "ue_python_error" in tool_error(resp)["message"]
 
 
 def test_import_mesh_fails_closed_when_marker_missing():
@@ -9003,9 +9008,9 @@ def test_import_mesh_fails_closed_when_marker_missing():
                 },
             }
         )
-    assert "error" in resp
-    assert resp["error"]["code"] == -32603
-    assert "missing_result_marker" in resp["error"]["message"]
+    assert is_tool_error(resp)
+    assert tool_error(resp)["code"] == -32603
+    assert "missing_result_marker" in tool_error(resp)["message"]
 
 
 def test_import_mesh_no_materials_generates_delete_branch():
@@ -9083,8 +9088,8 @@ def test_material_auto_remap_rejects_missing_actor():
             }
         )
     assert m.call_count == 0
-    assert resp["error"]["code"] == -32602
-    assert "actor_label" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "actor_label" in tool_error(resp)["message"]
 
 
 def test_material_auto_remap_requires_base_color():
@@ -9101,8 +9106,8 @@ def test_material_auto_remap_requires_base_color():
             }
         )
     assert m.call_count == 0
-    assert resp["error"]["code"] == -32602
-    assert "base_color" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "base_color" in tool_error(resp)["message"]
 
 
 def test_material_auto_remap_rejects_non_game_texture():
@@ -9119,8 +9124,8 @@ def test_material_auto_remap_rejects_non_game_texture():
             }
         )
     assert m.call_count == 0
-    assert resp["error"]["code"] == -32602
-    assert "base_color" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "base_color" in tool_error(resp)["message"]
 
 
 def test_material_auto_remap_rejects_bad_tiling():
@@ -9141,8 +9146,8 @@ def test_material_auto_remap_rejects_bad_tiling():
             }
         )
     assert m.call_count == 0
-    assert resp["error"]["code"] == -32602
-    assert "tiling" in resp["error"]["message"]
+    assert tool_error(resp)["code"] == -32602
+    assert "tiling" in tool_error(resp)["message"]
 
 
 def test_material_auto_remap_happy_path():
@@ -9168,7 +9173,7 @@ def test_material_auto_remap_happy_path():
                 },
             }
         )
-    assert "error" not in resp, resp
+    assert not is_tool_error(resp) and "error" not in resp, resp
     body = json.loads(resp["result"]["content"][0]["text"])
     assert body["ok"] is True
     assert body["actor_found"] is True
@@ -9226,9 +9231,9 @@ def test_material_auto_remap_fails_closed_when_marker_missing():
                 },
             }
         )
-    assert "error" in resp
-    assert resp["error"]["code"] == -32603
-    assert "missing_result_marker" in resp["error"]["message"]
+    assert is_tool_error(resp)
+    assert tool_error(resp)["code"] == -32603
+    assert "missing_result_marker" in tool_error(resp)["message"]
 
 
 def test_material_auto_remap_resolves_actor_before_creating_material():
@@ -9261,8 +9266,8 @@ def test_material_auto_remap_rejects_nonfinite_tiling():
                 }
             )
         assert m.call_count == 0
-        assert resp["error"]["code"] == -32602
-        assert "tiling" in resp["error"]["message"]
+        assert tool_error(resp)["code"] == -32602
+        assert "tiling" in tool_error(resp)["message"]
 
 
 def test_material_auto_remap_rejects_texture_path_traversal():
@@ -9280,4 +9285,4 @@ def test_material_auto_remap_rejects_texture_path_traversal():
                 }
             )
         assert m.call_count == 0
-        assert resp["error"]["code"] == -32602
+        assert tool_error(resp)["code"] == -32602
