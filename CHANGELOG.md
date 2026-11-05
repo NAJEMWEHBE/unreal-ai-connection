@@ -19,6 +19,13 @@ Per-tool details live in [`docs/TOOLS.md`](docs/TOOLS.md); architecture and the 
 - **Bridge: MCP protocol 2025-06-18** with version negotiation (2025-03-26 and 2024-11-05 still accepted), plus a `title` and `annotations` (`readOnlyHint`, `openWorldHint`) on every tool. `ping` gets an empty result; a line that isn't JSON gets `-32700`.
 - **Bridge: one asset-path error code.** The bulk_* asset tools and the newer path-taking tools all answer `invalid_path` for a NUL byte or a `..` segment (the newer ones used to say `path_invalid` / `path_must_be_string`).
 - **Bridge: the engine-version gate no longer caches a failed probe**, so a gated call made before the editor started can't switch the gate off for the session.
+- **The 4 DMX tools are advertised** (`create_dmx_patch`, `dmx_stream_set`, `dmx_stream_stop`, `dmx_stream_status`). Their handlers shipped in the `UnrealAIConnectionDMX` companion plugin but were missing from the bridge catalog, the manifest and `docs/TOOLS.md`, so clients never saw them. Seven older tools also get their missing `docs/TOOLS.md` sections.
+- **The PyPI package builds.** `pyproject.toml` uses hatchling, is named `unreal-ai-connection` (the name `server.json` points the MCP Registry at), reads its version from the bridge and installs an `unreal-ai-connection` console script. `server.json`'s description fits the registry's 100-character limit, and the README carries the registry's `mcp-name` marker. Nothing is published yet.
+- **CI runs the full suite on every PR**, docs-only ones included (the docs guards never ran on them before), and builds and smoke-tests the wheel.
+- **One source for tool counts.** Exact counts appear only in the README badge and Status row, the `docs/TOOLS.md` intro and the shipped metadata (`.uplugin`, manifest, `.claude-plugin`); prose says "150+ tools", and pytest counts are gone from the docs. `tests/test_catalog_sync.py` ties the counts to the C++ handlers, and `scripts/drift_sweep.py` now also scans the shipped metadata, the skill and every setup guide.
+- **Docs no longer point at a `v0.9.1-ue5.6` release**: it was never published. UE 5.6 is host-certified from source.
+- **Agent docs:** `AGENTS.md` is the single canonical file and `CLAUDE.md` imports it; machine paths and standing permissions moved to a gitignored `CLAUDE.local.md`. `docs/HANDOFF.md` opens on the current state; old session handoffs moved to `docs/internal/`.
+- **`driving-unreal` skill:** a shorter description with one trigger per case, bulk-tool inputs described per family, and `list_tools` as the full inventory.
 
 ### Added
 
