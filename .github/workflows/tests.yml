@@ -16,6 +16,16 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # The main-branch ruleset lists "detect changes" as a required check. This
+  # job used to gate pytest off for docs-only PRs; it now gates nothing and
+  # only reports success so PRs stay mergeable. Drop it once the ruleset no
+  # longer requires the check (a repo-settings change for the maintainer).
+  detect-changes:
+    name: detect changes
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "pytest runs on every PR; nothing to detect."
+
   ruff:
     name: ruff check + format
     runs-on: ubuntu-latest
