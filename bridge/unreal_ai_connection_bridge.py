@@ -81,7 +81,11 @@ UE_CONNECT_TIMEOUT_S = 5.0
 # -32099 stays "UE server not reachable" (nothing listening on the port).
 UE_BUSY_TIMEOUT_CODE = -32098
 
-PROTOCOL_VERSION = "2024-11-05"
+# Newest MCP protocol revision this bridge speaks, plus the older ones it
+# still accepts. initialize echoes the client's version when it's listed here
+# and offers the newest otherwise (MCP lifecycle: version negotiation).
+PROTOCOL_VERSION = "2025-06-18"
+SUPPORTED_PROTOCOL_VERSIONS = ("2025-06-18", "2025-03-26", "2024-11-05")
 SERVER_NAME = "unreal-ai-connection"
 SERVER_VERSION = "0.9.1"
 
@@ -3481,6 +3485,115 @@ SEARCH_TOOLS_DESCRIPTOR = {
         },
     },
 }
+
+
+# ---------------------------------------------------------------------------
+# MCP tool annotations (protocol 2025-03-26+)
+#
+# readOnlyHint=true lets a client auto-approve a tool, so this list is
+# explicit and conservative: a tool is here only if it changes nothing in the
+# project, the editor session or on disk. IsMutating() in the C++ is NOT the
+# source: it only says whether a handler opens an undo transaction, and many
+# asset-changing handlers (delete_asset, import_texture...) return false.
+# tests/test_tool_annotations.py checks this list against the C++ sources and
+# makes every new inspect_/get_/list_/find_ tool get a decision.
+# ---------------------------------------------------------------------------
+READ_ONLY_TOOLS = frozenset(
+    {
+        "audit_blueprint_compile_status",
+        "bulk_inspect_assets",
+        "compare_assets",
+        "find_actors_by_class",
+        "find_assets",
+        "find_console_variables",
+        "find_unused_assets",
+        "get_actors_in_level",
+        "get_camera_transform",
+        "get_console_variable",
+        "get_engine_version",
+        "get_log_lines",
+        "get_project_summary",
+        "get_reference_chain",
+        "get_selected_actors",
+        "inspect_anim_blueprint",
+        "inspect_anim_montage",
+        "inspect_asset",
+        "inspect_audio_bus",
+        "inspect_blueprint",
+        "inspect_curve",
+        "inspect_data_asset",
+        "inspect_data_table",
+        "inspect_dependency_graph",
+        "inspect_input_mappings",
+        "inspect_landscape",
+        "inspect_material",
+        "inspect_material_function",
+        "inspect_material_instance",
+        "inspect_metasound",
+        "inspect_ndisplay_config",
+        "inspect_niagara_system",
+        "inspect_ocio_config",
+        "inspect_physics_asset",
+        "inspect_project_setting",
+        "inspect_sequence",
+        "inspect_skeletal_mesh",
+        "inspect_sound_attenuation",
+        "inspect_sound_class",
+        "inspect_sound_cue",
+        "inspect_sound_submix",
+        "inspect_sound_wave",
+        "inspect_static_mesh",
+        "inspect_texture",
+        "inspect_widget_blueprint",
+        "inspect_widget_tree",
+        "list_levels",
+        "list_tasks",
+        "list_tools",
+        "marketplace_search",
+        "poll_task",
+        "search_tools",
+    }
+)
+
+# Tools that reach the internet (Poly Haven / ambientCG). Everything else
+# only talks to the local editor.
+OPEN_WORLD_TOOLS = frozenset({"marketplace_search", "marketplace_import"})
+
+# Words kept upper-case in generated titles.
+_TITLE_ACRONYMS = {
+    "ao": "AO",
+    "bp": "BP",
+    "csv": "CSV",
+    "cvar": "CVar",
+    "dmx": "DMX",
+    "gltf": "glTF",
+    "hdri": "HDRI",
+    "mi": "MI",
+    "mrq": "MRQ",
+    "ocio": "OCIO",
+    "pie": "PIE",
+    "png": "PNG",
+}
+
+
+def _tool_title(name: str) -> str:
+    """Human-readable title from a snake_case tool name ("inspect_ocio_config" ->
+    "Inspect OCIO Config"), for clients that show tools in a UI."""
+    return " ".join(_TITLE_ACRONYMS.get(w, w.capitalize()) for w in name.split("_"))
+
+
+def _annotate(tool: dict) -> None:
+    name = tool["name"]
+    tool.setdefault("title", _tool_title(name))
+    tool["annotations"] = {
+        "readOnlyHint": name in READ_ONLY_TOOLS,
+        "openWorldHint": name in OPEN_WORLD_TOOLS,
+    }
+
+
+for _tool in [*TOOLS, SEARCH_TOOLS_DESCRIPTOR]:
+    _annotate(_tool)
+del _tool
 
 
 def tool_mode() -> str:
@@ -11096,10 +11209,12 @@ def handle(req: dict) -> dict | None:
         return None
 
     if method == "initialize":
+        requested = params.get("protocolVersion") if isinstance(params, dict) else None
+        version = requested if requested in SUPPORTED_PROTOCOL_VERSIONS else PROTOCOL_VERSION
         return make_response(
             req_id,
             {
-                "protocolVersion": PROTOCOL_VERSION,
+                "protocolVersion": version,
                 "capabilities": {"tools": {}},
                 "serverInfo": {"name": SERVER_NAME, "version": SERVER_VERSION},
             },
