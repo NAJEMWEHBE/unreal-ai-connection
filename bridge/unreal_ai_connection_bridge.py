@@ -23,14 +23,21 @@ Behaviour:
                              (progressive tool disclosure); every tool stays
                              callable via tools/call in both modes.
   - "tools/call"             unpacks {name, arguments} and forwards to the
-                             UE server as the matching method
-  - All other methods        proxied as-is
+                             UE server as the matching method. A failing tool
+                             (editor error, bad input, editor unreachable or
+                             busy) comes back as a result with isError: true
+                             and the error object as JSON text, so the model
+                             can read it; an unknown tool or a malformed
+                             request stays a JSON-RPC protocol error.
+  - "ping"                   answered with an empty result
+  - All other methods        -32601 Method not found
 
-The bridge tolerates the UE server being down: it returns a JSON-RPC error
-rather than crashing, so the MCP client can show "MCP server not running -
-launch UE editor with the Unreal AI Connection plugin enabled".
+The bridge tolerates the UE server being down: the tool result says the
+editor isn't reachable (-32099) or is still busy with the request (-32098,
+error_code ue_busy_timeout) rather than the bridge crashing.
 
-Override host/port via env: UCMCP_HOST, UCMCP_PORT.
+Override host/port via env: UCMCP_HOST, UCMCP_PORT. Seconds to wait for the
+editor's answer: UCMCP_TIMEOUT (default 30).
 Tool-advertising mode via env: UCMCP_TOOL_MODE (unset/"all" = expose every
 tool, the default; "progressive" = core set + search_tools discovery).
 """
@@ -47,7 +54,38 @@ import uuid
 UE_HOST = os.environ.get("UCMCP_HOST", "127.0.0.1")
 UE_PORT = int(os.environ.get("UCMCP_PORT", "18888"))
 
-PROTOCOL_VERSION = "2024-11-05"
+_DEFAULT_TIMEOUT_S = 30.0
+
+
+def _parse_timeout_env(raw: str | None) -> float:
+    """Parse UCMCP_TIMEOUT (seconds to wait for the editor's answer).
+
+    Anything missing, non-numeric or not positive falls back to 30 s so a
+    typo in a client config can never turn into an instant or endless wait.
+    """
+    try:
+        value = float(raw) if raw else _DEFAULT_TIMEOUT_S
+    except ValueError:
+        return _DEFAULT_TIMEOUT_S
+    if not math.isfinite(value) or value <= 0:
+        return _DEFAULT_TIMEOUT_S
+    return value
+
+
+# How long call_ue waits for the editor's answer once the request is sent.
+UE_TIMEOUT_S = _parse_timeout_env(os.environ.get("UCMCP_TIMEOUT"))
+# Connecting to a loopback port either works or is refused at once; a short
+# connect timeout keeps "editor not running" fast to report.
+UE_CONNECT_TIMEOUT_S = 5.0
+# JSON-RPC server-error code for "request sent, editor still working".
+# -32099 stays "UE server not reachable" (nothing listening on the port).
+UE_BUSY_TIMEOUT_CODE = -32098
+
+# Newest MCP protocol revision this bridge speaks, plus the older ones it
+# still accepts. initialize echoes the client's version when it's listed here
+# and offers the newest otherwise (MCP lifecycle: version negotiation).
+PROTOCOL_VERSION = "2025-06-18"
+SUPPORTED_PROTOCOL_VERSIONS = ("2025-06-18", "2025-03-26", "2024-11-05")
 SERVER_NAME = "unreal-ai-connection"
 SERVER_VERSION = "0.9.1"
 
@@ -577,7 +615,7 @@ TOOLS = [
     },
     {
         "name": "get_viewport_screenshot",
-        "description": "Capture the active editor viewport as a PNG written to DISK (project-confined), returning the file path + dimensions. Forces a fresh frame first, so the capture is correct even when the editor is backgrounded/Slate-throttled. Optionally returns a small base64 thumbnail for quick inline look checks. (v0.10: no longer returns the full image base64-inline -- that produced multi-MB tool results.)",
+        "description": "Capture the active editor viewport as a PNG written to DISK (project-confined), returning the file path + dimensions. Forces a fresh frame first, so the capture is correct even when the editor is backgrounded/Slate-throttled. Optionally returns a small thumbnail as MCP image content for quick inline look checks. (v0.10: no longer returns the full image base64-inline -- that produced multi-MB tool results.)",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -587,7 +625,7 @@ TOOLS = [
                 },
                 "include_thumb": {
                     "type": "boolean",
-                    "description": "When true, also return thumb_base64 -- a small PNG thumbnail (default false).",
+                    "description": "When true, also return a small PNG thumbnail as image content (default false).",
                 },
                 "thumb_max_dim": {
                     "type": "integer",
@@ -967,7 +1005,7 @@ TOOLS = [
     },
     {
         "name": "list_tools",
-        "description": "Return the names of every registered MCP method on the UE server.",
+        "description": "Live inventory of every callable tool: the editor's registered methods (asked live, so tools from companion plugins such as DMX show up when loaded) merged with the bridge-side tools. Returns tools (sorted names), source (name -> 'native' or 'bridge'), count, native_count, bridge_count.",
         "inputSchema": {"type": "object", "properties": {}},
     },
     {
@@ -3449,6 +3487,114 @@ SEARCH_TOOLS_DESCRIPTOR = {
 }
 
 
+# ---------------------------------------------------------------------------
+# MCP tool annotations (protocol 2025-03-26+)
+#
+# readOnlyHint=true lets a client auto-approve a tool, so this list is
+# explicit and conservative: a tool is here only if it changes nothing in the
+# project, the editor session or on disk. IsMutating() in the C++ is NOT the
+# source: it only says whether a handler opens an undo transaction, and many
+# asset-changing handlers (delete_asset, import_texture...) return false.
+# tests/test_tool_annotations.py checks this list against the C++ sources and
+# makes every new inspect_/get_/list_/find_ tool get a decision.
+# ---------------------------------------------------------------------------
+READ_ONLY_TOOLS = frozenset(
+    {
+        "audit_blueprint_compile_status",
+        "bulk_inspect_assets",
+        "compare_assets",
+        "find_assets",
+        "find_console_variables",
+        "find_unused_assets",
+        "get_actors_in_level",
+        "get_camera_transform",
+        "get_console_variable",
+        "get_engine_version",
+        "get_log_lines",
+        "get_project_summary",
+        "get_reference_chain",
+        "get_selected_actors",
+        "inspect_anim_blueprint",
+        "inspect_anim_montage",
+        "inspect_asset",
+        "inspect_audio_bus",
+        "inspect_blueprint",
+        "inspect_curve",
+        "inspect_data_asset",
+        "inspect_data_table",
+        "inspect_dependency_graph",
+        "inspect_input_mappings",
+        "inspect_landscape",
+        "inspect_material",
+        "inspect_material_function",
+        "inspect_material_instance",
+        "inspect_metasound",
+        "inspect_ndisplay_config",
+        "inspect_niagara_system",
+        "inspect_ocio_config",
+        "inspect_physics_asset",
+        "inspect_project_setting",
+        "inspect_sequence",
+        "inspect_skeletal_mesh",
+        "inspect_sound_attenuation",
+        "inspect_sound_class",
+        "inspect_sound_cue",
+        "inspect_sound_submix",
+        "inspect_sound_wave",
+        "inspect_static_mesh",
+        "inspect_texture",
+        "inspect_widget_blueprint",
+        "inspect_widget_tree",
+        "list_levels",
+        "list_tasks",
+        "list_tools",
+        "marketplace_search",
+        "poll_task",
+        "search_tools",
+    }
+)
+
+# Tools that reach the internet (Poly Haven / ambientCG). Everything else
+# only talks to the local editor.
+OPEN_WORLD_TOOLS = frozenset({"marketplace_search", "marketplace_import"})
+
+# Words kept upper-case in generated titles.
+_TITLE_ACRONYMS = {
+    "ao": "AO",
+    "bp": "BP",
+    "csv": "CSV",
+    "cvar": "CVar",
+    "dmx": "DMX",
+    "gltf": "glTF",
+    "hdri": "HDRI",
+    "mi": "MI",
+    "mrq": "MRQ",
+    "ocio": "OCIO",
+    "pie": "PIE",
+    "png": "PNG",
+}
+
+
+def _tool_title(name: str) -> str:
+    """Human-readable title from a snake_case tool name ("inspect_ocio_config" ->
+    "Inspect OCIO Config"), for clients that show tools in a UI."""
+    return " ".join(_TITLE_ACRONYMS.get(w, w.capitalize()) for w in name.split("_"))
+
+
+def _annotate(tool: dict) -> None:
+    name = tool["name"]
+    tool.setdefault("title", _tool_title(name))
+    tool["annotations"] = {
+        "readOnlyHint": name in READ_ONLY_TOOLS,
+        "openWorldHint": name in OPEN_WORLD_TOOLS,
+    }
+
+
+for _tool in [*TOOLS, SEARCH_TOOLS_DESCRIPTOR]:
+    _annotate(_tool)
+del _tool
+
+
 def tool_mode() -> str:
     """Resolve the advertised-tool mode from the environment, at call time.
 
@@ -3740,65 +3886,110 @@ def make_response(req_id, result=None, error: dict | None = None) -> dict:
     return msg
 
 
+def _ue_error(code: int, message: str, **extra) -> dict:
+    error = {"code": code, "message": message}
+    error.update(extra)
+    return {"jsonrpc": "2.0", "id": 1, "error": error}
+
+
 def call_ue(method: str, params: dict | None) -> dict:
-    """Send one JSON-RPC request to the UE server, return the response dict."""
+    """Send one JSON-RPC request to the UE server, return the response dict.
+
+    Never raises for transport trouble. The failure modes stay distinct so an
+    agent can tell the user the right thing:
+      -32099  nothing answered the connect: the editor isn't running (or the
+              plugin isn't enabled / is on another port).
+      -32098  error_code "ue_busy_timeout": the request reached the editor but
+              no answer came within UE_TIMEOUT_S. The editor is busy; the
+              operation may still finish and apply.
+      -32700  the editor's answer couldn't be parsed (bad frame or not JSON).
+    """
+    s = socket.socket()
     try:
-        s = socket.socket()
-        s.settimeout(30)
-        s.connect((UE_HOST, UE_PORT))
+        try:
+            s.settimeout(UE_CONNECT_TIMEOUT_S)
+            s.connect((UE_HOST, UE_PORT))
+        except OSError as e:  # includes TimeoutError and ConnectionRefusedError
+            return _ue_error(
+                -32099,
+                f"UE server not reachable on {UE_HOST}:{UE_PORT}: {e}. Open the UE editor "
+                "with the UnrealAIConnection plugin enabled.",
+            )
+
         msg = {"jsonrpc": "2.0", "id": 1, "method": method}
         if params:
             msg["params"] = params
-        send_framed(s, json.dumps(msg).encode("utf-8"))
-        raw = recv_framed(s).decode("utf-8", errors="replace")
+        try:
+            s.settimeout(UE_TIMEOUT_S)
+            send_framed(s, json.dumps(msg).encode("utf-8"))
+            raw = recv_framed(s).decode("utf-8", errors="replace")
+        except TimeoutError:
+            return _ue_error(
+                UE_BUSY_TIMEOUT_CODE,
+                f"{method}: ue_busy_timeout: the request was sent and the editor on "
+                f"{UE_HOST}:{UE_PORT} is still working after {UE_TIMEOUT_S:g} s. The "
+                "operation may still finish and apply; don't resend it blindly. Check "
+                "the editor (or retry a read-only call) before repeating it. Raise "
+                "UCMCP_TIMEOUT for long synchronous operations, or use the async "
+                "start_python_task / poll_task tools.",
+                error_code="ue_busy_timeout",
+            )
+        except ValueError as e:  # recv_framed's framing_error
+            return _ue_error(-32700, f"UE server sent a bad frame: {e}")
+        except OSError as e:
+            return _ue_error(
+                -32099,
+                f"UE server on {UE_HOST}:{UE_PORT} closed the connection after the "
+                f"request was sent: {e}. The editor may have crashed or been closed.",
+            )
+    finally:
         s.close()
+
+    try:
         return json.loads(raw)
-    except (TimeoutError, ConnectionRefusedError, OSError) as e:
-        return {
-            "jsonrpc": "2.0",
-            "id": 1,
-            "error": {
-                "code": -32099,
-                "message": f"UE server not reachable on {UE_HOST}:{UE_PORT}: {e}. Open the UE editor with the UnrealAIConnection plugin enabled.",
-            },
-        }
     except json.JSONDecodeError as e:
-        return {
-            "jsonrpc": "2.0",
-            "id": 1,
-            "error": {"code": -32700, "message": f"UE server returned non-JSON: {e}"},
-        }
+        return _ue_error(-32700, f"UE server returned non-JSON: {e}")
+
+
+# Result fields that hold a base64 PNG the model should *see*. They go out as
+# MCP image content instead of base64 tokens inside the JSON text.
+_IMAGE_RESULT_FIELDS = ("thumb_base64",)
+_IMAGE_PLACEHOLDER = "<sent as MCP image content>"
 
 
 def _wrap_tool_result(req_id, result_obj: dict | list | str | int | float | bool | None) -> dict:
-    """Wrap a result object as an MCP tools/call response (JSON-stringified into a text block)."""
-    return make_response(
-        req_id,
-        {
-            "content": [{"type": "text", "text": json.dumps(result_obj, indent=2)}],
-            "isError": False,
-        },
-    )
+    """Wrap a result object as an MCP tools/call response.
+
+    The result is JSON-stringified into a text block. A screenshot thumbnail
+    (`thumb_base64`, e.g. get_viewport_screenshot include_thumb=true) is
+    moved into an `image` content block, so the model receives an image
+    rather than kilobytes of base64 text; the JSON keeps a short placeholder
+    in its place and every other field.
+    """
+    images = []
+    if isinstance(result_obj, dict):
+        for field in _IMAGE_RESULT_FIELDS:
+            data = result_obj.get(field)
+            if isinstance(data, str) and data:
+                images.append({"type": "image", "mimeType": "image/png", "data": data})
+                result_obj = {**result_obj, field: _IMAGE_PLACEHOLDER}
+    content = [{"type": "text", "text": json.dumps(result_obj, indent=2)}, *images]
+    return make_response(req_id, {"content": content, "isError": False})
 
 
-def _validate_asset_path(tool_name: str, path, label: str) -> str | None:
+def _validate_asset_path(
+    tool_name: str, path, label: str, error_code: str = "invalid_path"
+) -> str | None:
     """Shape-check a single UE asset path; return an error message or None.
 
-    Hoisted out of the bulk_*_assets family of synthetics in the
-    feat/wave-b-asset-hygiene-synthetics branch. The four older synthetics
-    (bulk_delete_assets / bulk_move_assets / bulk_rename_assets /
-    bulk_duplicate_assets / bulk_inspect_assets) duplicate the same NUL +
-    '..' segment guard; rather than refactor those tested-green call sites
-    in this branch, the new wave-B synthetics (`find_unused_assets`,
-    `get_reference_chain`, `bulk_compile_blueprints`,
-    `audit_blueprint_compile_status`) consume this helper. Existing
-    synthetics may be migrated in a future cleanup pass.
+    The one asset-path rule every path-taking synthetic uses, so the same
+    mistake gets the same error code in every tool.
 
     UE asset paths look like `/Game/...`, `/Engine/...`, or
     `/<MountPoint>/...`. Embedded NUL bytes or `..` segments are never
     legitimate and almost always indicate either input corruption or
     path-traversal intent; reject early with a caller-actionable -32602
-    error_code rather than forwarding malformed paths to the C++ handler.
+    error rather than forwarding malformed paths to the C++ handler.
 
     Args:
         tool_name: synthetic tool's name (used as error-message prefix).
@@ -3806,22 +3997,22 @@ def _validate_asset_path(tool_name: str, path, label: str) -> str | None:
         label: caller-supplied context for the error message
             (e.g. "paths[0]" or "path"). Goes into the message verbatim
             so the caller can pinpoint which input field failed.
+        error_code: `invalid_path` for source asset paths; destination
+            fields pass their own (`invalid_dest_path`, `invalid_dest_folder`).
 
     Returns:
-        None when `path` passes all checks; an error message string
-        otherwise. The message follows the canonical
-        `<tool>: <error_code>: <detail>` shape with `path_invalid` as
-        the error code (matching the wave-B spec). Caller wraps the
-        returned string in `make_response(req_id, error={...})`.
+        None when `path` passes all checks; otherwise a message in the
+        canonical `<tool>: <error_code>: <detail>` shape. Caller wraps it in
+        `make_response(req_id, error={"code": -32602, "message": ...})`.
     """
     if not isinstance(path, str) or not path:
-        return f"{tool_name}: path_must_be_string: {label} must be a non-empty string"
+        return f"{tool_name}: {error_code}: {label} must be a non-empty string"
     if "\x00" in path:
-        return f"{tool_name}: path_invalid: {label} contains a NUL byte"
+        return f"{tool_name}: {error_code}: {label} contains a NUL byte"
     # Block `..` as a path SEGMENT (between slashes or at ends), not as a
     # substring -- legitimate asset names like `My..Asset` should still pass.
     if any(segment == ".." for segment in path.split("/")):
-        return f"{tool_name}: path_invalid: {label} contains a '..' segment"
+        return f"{tool_name}: {error_code}: {label} contains a '..' segment"
     return None
 
 
@@ -4865,41 +5056,9 @@ def synthetic_bulk_delete_assets(req_id, args: dict) -> dict:
         )
 
     for i, path in enumerate(paths):
-        if not isinstance(path, str) or not path:
-            return make_response(
-                req_id,
-                error={
-                    "code": -32602,
-                    "message": f"bulk_delete_assets: invalid_path: paths[{i}] must be a non-empty string",
-                },
-            )
-        # Defensive shape checks. UE asset paths look like `/Game/...`,
-        # `/Engine/...`, or `/<MountPoint>/...`. Embedded NUL or `..`
-        # segments are never legitimate and almost always indicate either
-        # input corruption or path-traversal intent; reject early with a
-        # caller-actionable -32602 rather than forwarding a malformed path
-        # to delete_asset and letting it surface a confusing UE-side error.
-        if "\x00" in path:
-            return make_response(
-                req_id,
-                error={
-                    "code": -32602,
-                    "message": f"bulk_delete_assets: invalid_path: paths[{i}] contains a NUL byte",
-                },
-            )
-        # Block `..` as a path SEGMENT (between slashes or at ends), not as
-        # a substring -- legitimate asset names like `My..Asset` should
-        # still pass. The check covers leading `..`, trailing `..`, and
-        # `/../` mid-path.
-        segments = path.split("/")
-        if any(segment == ".." for segment in segments):
-            return make_response(
-                req_id,
-                error={
-                    "code": -32602,
-                    "message": f"bulk_delete_assets: invalid_path: paths[{i}] contains a '..' segment",
-                },
-            )
+        err = _validate_asset_path("bulk_delete_assets", path, f"paths[{i}]")
+        if err:
+            return make_response(req_id, error={"code": -32602, "message": err})
 
     continue_on_error = args.get("continue_on_error", True)
     if not isinstance(continue_on_error, bool):
@@ -4998,48 +5157,16 @@ def synthetic_bulk_move_assets(req_id, args: dict) -> dict:
             },
         )
     # Same defensive shape checks on dest_folder as on source paths.
-    if "\x00" in dest_folder:
-        return make_response(
-            req_id,
-            error={
-                "code": -32602,
-                "message": "bulk_move_assets: invalid_dest_folder: contains a NUL byte",
-            },
-        )
-    if any(segment == ".." for segment in dest_folder.split("/")):
-        return make_response(
-            req_id,
-            error={
-                "code": -32602,
-                "message": "bulk_move_assets: invalid_dest_folder: contains a '..' segment",
-            },
-        )
+    err = _validate_asset_path(
+        "bulk_move_assets", dest_folder, "dest_folder", error_code="invalid_dest_folder"
+    )
+    if err:
+        return make_response(req_id, error={"code": -32602, "message": err})
 
     for i, path in enumerate(paths):
-        if not isinstance(path, str) or not path:
-            return make_response(
-                req_id,
-                error={
-                    "code": -32602,
-                    "message": f"bulk_move_assets: invalid_path: paths[{i}] must be a non-empty string",
-                },
-            )
-        if "\x00" in path:
-            return make_response(
-                req_id,
-                error={
-                    "code": -32602,
-                    "message": f"bulk_move_assets: invalid_path: paths[{i}] contains a NUL byte",
-                },
-            )
-        if any(segment == ".." for segment in path.split("/")):
-            return make_response(
-                req_id,
-                error={
-                    "code": -32602,
-                    "message": f"bulk_move_assets: invalid_path: paths[{i}] contains a '..' segment",
-                },
-            )
+        err = _validate_asset_path("bulk_move_assets", path, f"paths[{i}]")
+        if err:
+            return make_response(req_id, error={"code": -32602, "message": err})
 
     continue_on_error = args.get("continue_on_error", True)
     if not isinstance(continue_on_error, bool):
@@ -5135,30 +5262,9 @@ def synthetic_bulk_rename_assets(req_id, args: dict) -> dict:
             )
         path = entry.get("path")
         new_name = entry.get("new_name")
-        if not isinstance(path, str) or not path:
-            return make_response(
-                req_id,
-                error={
-                    "code": -32602,
-                    "message": f"bulk_rename_assets: invalid_path: renames[{i}].path must be a non-empty string",
-                },
-            )
-        if "\x00" in path:
-            return make_response(
-                req_id,
-                error={
-                    "code": -32602,
-                    "message": f"bulk_rename_assets: invalid_path: renames[{i}].path contains a NUL byte",
-                },
-            )
-        if any(segment == ".." for segment in path.split("/")):
-            return make_response(
-                req_id,
-                error={
-                    "code": -32602,
-                    "message": f"bulk_rename_assets: invalid_path: renames[{i}].path contains a '..' segment",
-                },
-            )
+        err = _validate_asset_path("bulk_rename_assets", path, f"renames[{i}].path")
+        if err:
+            return make_response(req_id, error={"code": -32602, "message": err})
         if not isinstance(new_name, str) or not new_name:
             return make_response(
                 req_id,
@@ -5279,55 +5385,18 @@ def synthetic_bulk_duplicate_assets(req_id, args: dict) -> dict:
         path = entry.get("path")
         dest_path = entry.get("dest_path")
         # Validate source path.
-        if not isinstance(path, str) or not path:
-            return make_response(
-                req_id,
-                error={
-                    "code": -32602,
-                    "message": f"bulk_duplicate_assets: invalid_path: duplicates[{i}].path must be a non-empty string",
-                },
-            )
-        if "\x00" in path:
-            return make_response(
-                req_id,
-                error={
-                    "code": -32602,
-                    "message": f"bulk_duplicate_assets: invalid_path: duplicates[{i}].path contains a NUL byte",
-                },
-            )
-        if any(segment == ".." for segment in path.split("/")):
-            return make_response(
-                req_id,
-                error={
-                    "code": -32602,
-                    "message": f"bulk_duplicate_assets: invalid_path: duplicates[{i}].path contains a '..' segment",
-                },
-            )
+        err = _validate_asset_path("bulk_duplicate_assets", path, f"duplicates[{i}].path")
+        if err:
+            return make_response(req_id, error={"code": -32602, "message": err})
         # Validate destination path (same rules: it's a full asset path).
-        if not isinstance(dest_path, str) or not dest_path:
-            return make_response(
-                req_id,
-                error={
-                    "code": -32602,
-                    "message": f"bulk_duplicate_assets: invalid_dest_path: duplicates[{i}].dest_path must be a non-empty string",
-                },
-            )
-        if "\x00" in dest_path:
-            return make_response(
-                req_id,
-                error={
-                    "code": -32602,
-                    "message": f"bulk_duplicate_assets: invalid_dest_path: duplicates[{i}].dest_path contains a NUL byte",
-                },
-            )
-        if any(segment == ".." for segment in dest_path.split("/")):
-            return make_response(
-                req_id,
-                error={
-                    "code": -32602,
-                    "message": f"bulk_duplicate_assets: invalid_dest_path: duplicates[{i}].dest_path contains a '..' segment",
-                },
-            )
+        err = _validate_asset_path(
+            "bulk_duplicate_assets",
+            dest_path,
+            f"duplicates[{i}].dest_path",
+            error_code="invalid_dest_path",
+        )
+        if err:
+            return make_response(req_id, error={"code": -32602, "message": err})
 
     continue_on_error = args.get("continue_on_error", True)
     if not isinstance(continue_on_error, bool):
@@ -6121,31 +6190,9 @@ def synthetic_bulk_inspect_assets(req_id, args: dict) -> dict:
         )
 
     for i, path in enumerate(paths):
-        if not isinstance(path, str) or not path:
-            return make_response(
-                req_id,
-                error={
-                    "code": -32602,
-                    "message": f"bulk_inspect_assets: invalid_path: paths[{i}] must be a non-empty string",
-                },
-            )
-        # Same NUL + `..` path-shape guards as the other bulk_* synthetics.
-        if "\x00" in path:
-            return make_response(
-                req_id,
-                error={
-                    "code": -32602,
-                    "message": f"bulk_inspect_assets: invalid_path: paths[{i}] contains a NUL byte",
-                },
-            )
-        if any(segment == ".." for segment in path.split("/")):
-            return make_response(
-                req_id,
-                error={
-                    "code": -32602,
-                    "message": f"bulk_inspect_assets: invalid_path: paths[{i}] contains a '..' segment",
-                },
-            )
+        err = _validate_asset_path("bulk_inspect_assets", path, f"paths[{i}]")
+        if err:
+            return make_response(req_id, error={"code": -32602, "message": err})
 
     continue_on_error = args.get("continue_on_error", True)
     if not isinstance(continue_on_error, bool):
@@ -7886,19 +7933,11 @@ def synthetic_bulk_fix_redirectors(req_id, args: dict) -> dict:
                     "message": f"bulk_fix_redirectors: folder_must_be_string: folders[{i}] must be a non-empty string",
                 },
             )
-        err = _validate_asset_path("bulk_fix_redirectors", folder, f"folders[{i}]")
+        err = _validate_asset_path(
+            "bulk_fix_redirectors", folder, f"folders[{i}]", error_code="folder_invalid"
+        )
         if err is not None:
-            # _validate_asset_path emits path_must_be_string / path_invalid;
-            # remap to folder_invalid so the error code matches the spec.
-            return make_response(
-                req_id,
-                error={
-                    "code": -32602,
-                    "message": err.replace("path_must_be_string", "folder_invalid").replace(
-                        "path_invalid", "folder_invalid"
-                    ),
-                },
-            )
+            return make_response(req_id, error={"code": -32602, "message": err})
 
     recursive = args.get("recursive", True)
     if not isinstance(recursive, bool):
@@ -10001,22 +10040,27 @@ def _get_connected_engine_version() -> tuple[int, int] | None:
     `minor_dotted`. Any transport error / missing field -> None (fail open).
     No new UE round-trip type is introduced; this is the existing
     get_engine_version handler the catalog already documents.
+
+    Only an answer from the editor is memoised. A transport failure (editor
+    not up yet, busy, closed) fails open for this call but is NOT cached, so
+    a gated call made before the editor started can't disable the gate for
+    the rest of the bridge's life.
     """
     global _ENGINE_VERSION_CACHE
     if _ENGINE_VERSION_CACHE is not _ENGINE_VERSION_UNSET:
         return _ENGINE_VERSION_CACHE
 
     def _memoise(value: tuple[int, int] | None) -> tuple[int, int] | None:
-        # Always write the looked-up result -- including `None`
-        # (undeterminable) -- so the lookup happens exactly once. A cached
-        # `None` still means "fail open / proceed".
+        # The editor answered: cache what it said -- including `None`
+        # (answer without a usable version) -- so this editor is asked
+        # exactly once. A cached `None` still means "fail open / proceed".
         global _ENGINE_VERSION_CACHE
         _ENGINE_VERSION_CACHE = value
         return value
 
     resp = call_ue("get_engine_version", {})
     if not isinstance(resp, dict) or "error" in resp:
-        return _memoise(None)
+        return None  # transport/editor error: fail open, ask again next time
     result = resp.get("result")
     if not isinstance(result, dict):
         return _memoise(None)
@@ -11163,15 +11207,29 @@ def handle(req: dict) -> dict | None:
     if req_id is None and method.startswith("notifications/"):
         return None
 
+    if not isinstance(params, dict):
+        if req_id is None:
+            return None
+        return make_response(
+            req_id,
+            error={"code": -32602, "message": "Invalid params: 'params' must be an object"},
+        )
+
     if method == "initialize":
+        requested = params.get("protocolVersion")
+        version = requested if requested in SUPPORTED_PROTOCOL_VERSIONS else PROTOCOL_VERSION
         return make_response(
             req_id,
             {
-                "protocolVersion": PROTOCOL_VERSION,
+                "protocolVersion": version,
                 "capabilities": {"tools": {}},
                 "serverInfo": {"name": SERVER_NAME, "version": SERVER_VERSION},
             },
         )
+
+    if method == "ping":
+        # MCP basic/utilities/ping: the receiver MUST answer with an empty result.
+        return make_response(req_id, {})
 
     if method == "tools/list":
         # Honour progressive disclosure when UCMCP_TOOL_MODE=progressive;
@@ -11185,29 +11243,18 @@ def handle(req: dict) -> dict | None:
             return make_response(
                 req_id, error={"code": -32602, "message": "tools/call missing 'name'"}
             )
+        if not isinstance(tool_args, dict):
+            return make_response(
+                req_id,
+                error={
+                    "code": -32602,
+                    "message": (
+                        f"tools/call 'arguments' must be an object, got {type(tool_args).__name__}"
+                    ),
+                },
+            )
 
-        # Bridge-only progressive-disclosure discovery tool. Served entirely
-        # in-process: it never crosses the wire to UE and is always callable
-        # regardless of tool_mode() (so a client that found it in progressive
-        # mode can keep using it even if the mode flag changes). Pure, fail-
-        # closed: see search_tools_impl's security contract.
-        if tool_name == "search_tools":
-            return _wrap_tool_result(req_id, search_tools_impl(tool_args))
-
-        # Synthetic tools are served bridge-side without a UE round-trip
-        # (or, in wait_for_events's case, with multiple UE round-trips
-        # composed into one logical operation).
-        if tool_name in SYNTHETIC_TOOLS:
-            return SYNTHETIC_TOOLS[tool_name](req_id, tool_args)
-
-        if tool_name in _STDOUT_CAPTURE_TOOLS:
-            ue_resp = _call_ue_capturing_stdout(tool_name, tool_args)
-        else:
-            ue_resp = call_ue(tool_name, tool_args)
-        if "error" in ue_resp:
-            return make_response(req_id, error=ue_resp["error"])
-
-        return _wrap_tool_result(req_id, ue_resp.get("result", {}))
+        return _dispatch_tool_call(req_id, tool_name, tool_args)
 
     # Unknown method
     if req_id is not None:
@@ -11217,6 +11264,87 @@ def handle(req: dict) -> dict | None:
     return None
 
 
+def _as_tool_result(req_id, resp: dict) -> dict:
+    """Turn a failed tools/call into an MCP tool result with `isError: true`.
+
+    The MCP spec puts tool execution failures (editor errors, validation
+    errors, the editor being unreachable or busy) inside the result so the
+    model sees them and can correct itself; JSON-RPC protocol errors are for
+    malformed requests and unknown tools. The text block carries the original
+    error object as JSON, so `code`, `message` and any `error_code` survive.
+    """
+    error = resp.get("error") if isinstance(resp, dict) else None
+    if not isinstance(error, dict):
+        return resp
+    return make_response(
+        req_id,
+        {"content": [{"type": "text", "text": json.dumps(error, indent=2)}], "isError": True},
+    )
+
+
+def _list_tools_merged(req_id, tool_args: dict) -> dict:
+    """tools/call list_tools: the editor's live registry plus the bridge tools.
+
+    The C++ list_tools handler only sees the editor's registry, so on its own
+    it hides every synthetic tool. Merge them here, tagging each name with
+    where it runs. An editor failure is passed through unchanged.
+    """
+    ue_resp = call_ue("list_tools", tool_args)
+    if "error" in ue_resp:
+        return make_response(req_id, error=ue_resp["error"])
+    result = ue_resp.get("result")
+    native = result.get("tools") if isinstance(result, dict) else None
+    native = [n for n in native if isinstance(n, str)] if isinstance(native, list) else []
+    source = {name: "native" for name in native}
+    bridge_side = [*SYNTHETIC_TOOLS, SEARCH_TOOLS_DESCRIPTOR["name"]]
+    for name in bridge_side:
+        source.setdefault(name, "bridge")
+    return _wrap_tool_result(
+        req_id,
+        {
+            "tools": sorted(source),
+            "source": dict(sorted(source.items())),
+            "count": len(source),
+            "native_count": len(native),
+            "bridge_count": len(bridge_side),
+        },
+    )
+
+
+def _dispatch_tool_call(req_id, tool_name: str, tool_args: dict) -> dict:
+    """Route one tools/call to search_tools, a synthetic, or the editor."""
+    # Bridge-only progressive-disclosure discovery tool. Served entirely
+    # in-process: it never crosses the wire to UE and is always callable
+    # regardless of tool_mode() (so a client that found it in progressive
+    # mode can keep using it even if the mode flag changes). Pure, fail-
+    # closed: see search_tools_impl's security contract.
+    if tool_name == "search_tools":
+        return _as_tool_result(req_id, _wrap_tool_result(req_id, search_tools_impl(tool_args)))
+
+    # Synthetic tools are served bridge-side without a UE round-trip
+    # (or, in wait_for_events's case, with multiple UE round-trips
+    # composed into one logical operation).
+    if tool_name in SYNTHETIC_TOOLS:
+        return _as_tool_result(req_id, SYNTHETIC_TOOLS[tool_name](req_id, tool_args))
+
+    if tool_name == "list_tools":
+        return _as_tool_result(req_id, _list_tools_merged(req_id, tool_args))
+
+    if tool_name in _STDOUT_CAPTURE_TOOLS:
+        ue_resp = _call_ue_capturing_stdout(tool_name, tool_args)
+    else:
+        ue_resp = call_ue(tool_name, tool_args)
+    if "error" in ue_resp:
+        error = ue_resp["error"]
+        if isinstance(error, dict) and error.get("code") == -32601:
+            # The editor has no such method: an unknown tool, which MCP
+            # reports as a protocol error rather than a tool result.
+            return make_response(req_id, error=error)
+        return _as_tool_result(req_id, make_response(req_id, error=error))
+
+    return _wrap_tool_result(req_id, ue_resp.get("result", {}))
+
+
 def main() -> None:
     for line in sys.stdin:
         line = line.strip()
@@ -11224,7 +11352,18 @@ def main() -> None:
             continue
         try:
             req = json.loads(line)
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as e:
+            # JSON-RPC 2.0: a request that isn't valid JSON gets -32700, id null.
+            write_msg(make_response(None, error={"code": -32700, "message": f"Parse error: {e}"}))
+            continue
+        if not isinstance(req, dict):
+            # Valid JSON but not a request object (batches aren't used by MCP).
+            write_msg(
+                make_response(
+                    None,
+                    error={"code": -32600, "message": "Invalid Request: expected a JSON object"},
+                )
+            )
             continue
         try:
             resp = handle(req)

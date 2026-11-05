@@ -130,6 +130,8 @@ Capture the active editor viewport as a PNG written to **disk** (project-confine
 - `width`, `height`, `bytes` (numbers)
 - `thumb_base64`, `thumb_width`, `thumb_height` — only when `include_thumb=true`
 
+  Through the MCP bridge the thumbnail arrives as an MCP `image` content block (`image/png`) next to the JSON text, so the model sees the picture; in the JSON, `thumb_base64` holds the placeholder `<sent as MCP image content>`. Raw TCP clients still get the base64 string.
+
 **Errors:** `no_editor`, `no_viewport`, `zero_size`, `read_failed`, `encode_failed`, `write_failed`, `dir_create_failed`, `path_escapes_project`.
 
 ---
@@ -268,13 +270,16 @@ Aim the active level-editor viewport, either by **framing a named actor** or by 
 
 ## list_tools
 
-Return the names of every registered MCP method.
+Live inventory of every callable tool. The editor reports its registered methods (asked live, so companion-plugin tools such as the DMX ones appear when that plugin is loaded) and the MCP bridge adds its bridge-side tools.
 
 **Params** — none
 
-**Result**
-- `tools` (array of strings, sorted)
-- `count` (int)
+**Result** (through the MCP bridge)
+- `tools` (array of strings, sorted): editor methods and bridge-side tools together
+- `source` (object): tool name → `"native"` (runs in the editor) or `"bridge"` (runs in the bridge)
+- `count`, `native_count`, `bridge_count` (int)
+
+A raw TCP client talking to the plugin directly gets only the editor half: `tools` and `count`.
 
 ---
 
@@ -4525,7 +4530,7 @@ Recompile multiple Blueprints in one MCP call by composing the [`compile_bluepri
   - `ok` (bool)
   - `error` (object, only on failure) — `{code: int, message: string}` preserved from the upstream `compile_blueprint` response
 
-**Errors (envelope-level):** `-32602` (`missing_required_field` / `invalid_paths_shape` / `path_must_be_string` / `path_invalid` / non-bool `continue_on_error`).
+**Errors (envelope-level):** `-32602` (`missing_required_field` / `invalid_paths_shape` / `invalid_path` / non-bool `continue_on_error`).
 
 **Example — happy path**
 ```json
