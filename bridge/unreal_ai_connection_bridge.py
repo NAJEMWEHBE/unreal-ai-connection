@@ -3159,6 +3159,79 @@ TOOLS = [
         },
     },
     {
+        "name": "create_dmx_patch",
+        "description": "Create a DMX fixture patch in a DMXLibrary asset and bind it to an existing fixture type by display name, at a universe + starting address + mode. Does the fixture-type bind in C++ because UE's Python bindings can't (the entity Id is protected). Saves the library by default. Needs the optional UnrealAIConnectionDMX companion plugin enabled in the project (it pulls in DMXEngine + DMXProtocol); without it the editor answers 'Method not found'.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "library_path": {
+                    "type": "string",
+                    "description": "DMXLibrary asset path, e.g. '/Game/DMX/DMXL_Stage'.",
+                },
+                "fixture_type": {
+                    "type": "string",
+                    "description": "Display name of a fixture type already defined in that library.",
+                },
+                "patch_name": {"type": "string", "description": "Display name for the new patch."},
+                "universe": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "Local universe id (default 1).",
+                },
+                "starting_address": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 512,
+                    "description": "Starting channel within the universe (default 1).",
+                },
+                "active_mode": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Fixture-type mode index (default 0).",
+                },
+                "save": {
+                    "type": "boolean",
+                    "description": "Save the library asset after creating the patch (default true).",
+                },
+            },
+            "required": ["library_path", "fixture_type", "patch_name"],
+        },
+    },
+    {
+        "name": "dmx_stream_set",
+        "description": "Set DMX channel values and keep sending them: a game-thread ticker re-sends the held buffer to every DMX output port each editor frame, so Art-Net/sACN keeps carrying the latest values. Channels outside 1..512 are ignored; values are clamped to 0..255. Output flows while the editor ticks (realtime viewport, PIE or an external engine link); an idle editor holds the last frame. Needs the optional UnrealAIConnectionDMX companion plugin enabled in the project (it pulls in DMXEngine + DMXProtocol); without it the editor answers 'Method not found'.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "channels": {
+                    "type": "object",
+                    "description": 'Map of 1-based channel number (as a string key) to value 0..255, e.g. {"1": 255, "2": 128}.',
+                    "additionalProperties": {"type": "integer"},
+                },
+                "universe": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "Local universe id (default 1).",
+                },
+                "merge": {
+                    "type": "boolean",
+                    "description": "Merge into the universe's held buffer (default true); false replaces it.",
+                },
+            },
+            "required": ["channels"],
+        },
+    },
+    {
+        "name": "dmx_stream_stop",
+        "description": "Stop continuous DMX output started by dmx_stream_set and clear every held buffer. Needs the optional UnrealAIConnectionDMX companion plugin enabled in the project (it pulls in DMXEngine + DMXProtocol); without it the editor answers 'Method not found'.",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "dmx_stream_status",
+        "description": "Report continuous DMX output: running flag, frames sent, number of output ports, and per-universe held channel counts. Needs the optional UnrealAIConnectionDMX companion plugin enabled in the project (it pulls in DMXEngine + DMXProtocol); without it the editor answers 'Method not found'.",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
         "name": "mesh_bake_ao_to_vertex_color",
         "description": "Bake self-occlusion ambient occlusion into a Static Mesh asset's vertex colors, in place. Native C++ handler (optional UnrealAIConnectionGeometry companion; needs the GeometryScripting engine plugin enabled). Copies the mesh out via Geometry Scripting, bakes AO to the RGBA vertex-color channel (self-occlusion), optionally blurs, writes back into the chosen SourceModel LOD and saves. Look/optimization use: cheap baked occlusion in vertex colors for real-time shading. Edits + saves the asset.",
         "inputSchema": {
