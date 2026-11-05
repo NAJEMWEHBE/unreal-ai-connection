@@ -19,6 +19,7 @@ import json
 from unittest.mock import patch
 
 import pytest
+from conftest import is_tool_error, tool_error
 
 import unreal_ai_connection_bridge as bridge
 
@@ -94,8 +95,8 @@ def test_gate_blocks_each_gated_tool_on_engine_4_27(tool_name):
     assert m.call_count == 1
     assert m.call_args[0][0] == "get_engine_version"
 
-    assert "error" in resp, f"expected structured error envelope, got {resp}"
-    err = resp["error"]
+    assert is_tool_error(resp), f"expected structured error envelope, got {resp}"
+    err = tool_error(resp)
     # JSON-RPC 2.0: error.code is an INTEGER (application-defined range);
     # the string identifier lives in the sibling `error_code` field.
     assert err["code"] == -32001
@@ -208,7 +209,7 @@ def test_structured_error_shape_matches_spec():
         )
     assert resp["jsonrpc"] == "2.0"
     assert resp["id"] == 12
-    err = resp["error"]
+    err = tool_error(resp)
     assert set(err.keys()) == {
         "code",
         "error_code",

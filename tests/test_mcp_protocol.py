@@ -58,3 +58,49 @@ def test_non_object_arguments_get_invalid_params(bad_args):
     m.assert_not_called()
     assert resp["error"]["code"] == -32602
     assert "arguments" in resp["error"]["message"]
+
+
+# -------- tool failures are results with isError, not protocol errors ----------
+
+
+def _error_payload(resp):
+    """The structured error a failed tool call carries in its text block."""
+    assert "error" not in resp, f"expected a tool result, got a protocol error: {resp}"
+    result = resp["result"]
+    assert result["isError"] is True
+    return json.loads(result["content"][0]["text"])
+
+
+def test_editor_side_failure_is_an_iserror_result():
+    ue_error = {"code": -32000, "message": "spawn_actor: class_not_found: Nope"}
+    with patch.object(bridge, "call_ue", return_value={"error": ue_error}):
+        resp = _call("spawn_actor", {"class": "Nope"})
+    assert _error_payload(resp) == ue_error
+
+
+def test_editor_unreachable_is_an_iserror_result_the_model_can_read():
+    ue_error = {"code": -32099, "message": "UE server not reachable on 127.0.0.1:18888"}
+    with patch.object(bridge, "call_ue", return_value={"error": ue_error}):
+        resp = _call("list_levels", {})
+    assert _error_payload(resp)["code"] == -32099
+
+
+def test_synthetic_validation_failure_is_an_iserror_result():
+    with patch.object(bridge, "call_ue") as m:
+        resp = _call("bulk_delete_assets", {"paths": "not-a-list"})
+    m.assert_not_called()
+    payload = _error_payload(resp)
+    assert payload["code"] == -32602
+    assert "bulk_delete_assets" in payload["message"]
+
+
+def test_unknown_tool_stays_a_protocol_error():
+    ue_error = {"code": -32601, "message": "Method not found: no_such_tool"}
+    with patch.object(bridge, "call_ue", return_value={"error": ue_error}):
+        resp = _call("no_such_tool", {})
+    assert resp["error"]["code"] == -32601
+
+
+def test_missing_tool_name_stays_a_protocol_error():
+    resp = bridge.handle({"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {}})
+    assert resp["error"]["code"] == -32602

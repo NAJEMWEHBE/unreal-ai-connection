@@ -23,14 +23,21 @@ Behaviour:
                              (progressive tool disclosure); every tool stays
                              callable via tools/call in both modes.
   - "tools/call"             unpacks {name, arguments} and forwards to the
-                             UE server as the matching method
-  - All other methods        proxied as-is
+                             UE server as the matching method. A failing tool
+                             (editor error, bad input, editor unreachable or
+                             busy) comes back as a result with isError: true
+                             and the error object as JSON text, so the model
+                             can read it; an unknown tool or a malformed
+                             request stays a JSON-RPC protocol error.
+  - "ping"                   answered with an empty result
+  - All other methods        -32601 Method not found
 
-The bridge tolerates the UE server being down: it returns a JSON-RPC error
-rather than crashing, so the MCP client can show "MCP server not running -
-launch UE editor with the Unreal AI Connection plugin enabled".
+The bridge tolerates the UE server being down: the tool result says the
+editor isn't reachable (-32099) or is still busy with the request (-32098,
+error_code ue_busy_timeout) rather than the bridge crashing.
 
-Override host/port via env: UCMCP_HOST, UCMCP_PORT.
+Override host/port via env: UCMCP_HOST, UCMCP_PORT. Seconds to wait for the
+editor's answer: UCMCP_TIMEOUT (default 30).
 Tool-advertising mode via env: UCMCP_TOOL_MODE (unset/"all" = expose every
 tool, the default; "progressive" = core set + search_tools discovery).
 """
@@ -11262,28 +11269,7 @@ def handle(req: dict) -> dict | None:
                 },
             )
 
-        # Bridge-only progressive-disclosure discovery tool. Served entirely
-        # in-process: it never crosses the wire to UE and is always callable
-        # regardless of tool_mode() (so a client that found it in progressive
-        # mode can keep using it even if the mode flag changes). Pure, fail-
-        # closed: see search_tools_impl's security contract.
-        if tool_name == "search_tools":
-            return _wrap_tool_result(req_id, search_tools_impl(tool_args))
-
-        # Synthetic tools are served bridge-side without a UE round-trip
-        # (or, in wait_for_events's case, with multiple UE round-trips
-        # composed into one logical operation).
-        if tool_name in SYNTHETIC_TOOLS:
-            return SYNTHETIC_TOOLS[tool_name](req_id, tool_args)
-
-        if tool_name in _STDOUT_CAPTURE_TOOLS:
-            ue_resp = _call_ue_capturing_stdout(tool_name, tool_args)
-        else:
-            ue_resp = call_ue(tool_name, tool_args)
-        if "error" in ue_resp:
-            return make_response(req_id, error=ue_resp["error"])
-
-        return _wrap_tool_result(req_id, ue_resp.get("result", {}))
+        return _dispatch_tool_call(req_id, tool_name, tool_args)
 
     # Unknown method
     if req_id is not None:
@@ -11291,6 +11277,55 @@ def handle(req: dict) -> dict | None:
             req_id, error={"code": -32601, "message": f"Method not found: {method}"}
         )
     return None
+
+
+def _as_tool_result(req_id, resp: dict) -> dict:
+    """Turn a failed tools/call into an MCP tool result with `isError: true`.
+
+    The MCP spec puts tool execution failures (editor errors, validation
+    errors, the editor being unreachable or busy) inside the result so the
+    model sees them and can correct itself; JSON-RPC protocol errors are for
+    malformed requests and unknown tools. The text block carries the original
+    error object as JSON, so `code`, `message` and any `error_code` survive.
+    """
+    error = resp.get("error") if isinstance(resp, dict) else None
+    if not isinstance(error, dict):
+        return resp
+    return make_response(
+        req_id,
+        {"content": [{"type": "text", "text": json.dumps(error, indent=2)}], "isError": True},
+    )
+
+
+def _dispatch_tool_call(req_id, tool_name: str, tool_args: dict) -> dict:
+    """Route one tools/call to search_tools, a synthetic, or the editor."""
+    # Bridge-only progressive-disclosure discovery tool. Served entirely
+    # in-process: it never crosses the wire to UE and is always callable
+    # regardless of tool_mode() (so a client that found it in progressive
+    # mode can keep using it even if the mode flag changes). Pure, fail-
+    # closed: see search_tools_impl's security contract.
+    if tool_name == "search_tools":
+        return _as_tool_result(req_id, _wrap_tool_result(req_id, search_tools_impl(tool_args)))
+
+    # Synthetic tools are served bridge-side without a UE round-trip
+    # (or, in wait_for_events's case, with multiple UE round-trips
+    # composed into one logical operation).
+    if tool_name in SYNTHETIC_TOOLS:
+        return _as_tool_result(req_id, SYNTHETIC_TOOLS[tool_name](req_id, tool_args))
+
+    if tool_name in _STDOUT_CAPTURE_TOOLS:
+        ue_resp = _call_ue_capturing_stdout(tool_name, tool_args)
+    else:
+        ue_resp = call_ue(tool_name, tool_args)
+    if "error" in ue_resp:
+        error = ue_resp["error"]
+        if isinstance(error, dict) and error.get("code") == -32601:
+            # The editor has no such method: an unknown tool, which MCP
+            # reports as a protocol error rather than a tool result.
+            return make_response(req_id, error=error)
+        return _as_tool_result(req_id, make_response(req_id, error=error))
+
+    return _wrap_tool_result(req_id, ue_resp.get("result", {}))
 
 
 def main() -> None:
