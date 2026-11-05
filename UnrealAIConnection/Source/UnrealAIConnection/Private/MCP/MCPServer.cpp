@@ -5,6 +5,7 @@
 
 #include "Common/TcpListener.h"
 #include "HAL/PlatformMisc.h"
+#include "HAL/PlatformTime.h"
 #include "IPAddress.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
@@ -13,6 +14,27 @@
 #include "SocketTypes.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogUCMCP, Log, All);
+
+// Audit F12 limits. Frame cap: UCMCP::Framing::kMaxBodyBytes (MCPServer.h).
+//
+// Clients: the bridge opens one short-lived connection per call, so 8 is
+// plenty for several MCP sessions at once; extras are refused on the
+// listener thread (FTcpListener closes the socket when the accept delegate
+// returns false).
+static constexpr int32 kMaxClients = 8;
+
+// A client is dropped after this long with no bytes moving in either
+// direction, mid-frame or between frames. Handlers run synchronously inside
+// TickClients, so time spent in a handler is never counted against the
+// client that sent the request: its progress stamp is taken after the
+// handler returns and its request bytes were read. A client queued behind a
+// long handler is checked only after its own read attempt in the same
+// pass, so bytes that arrived meanwhile count as progress.
+static constexpr double kClientIdleTimeoutSeconds = 300.0;
+
+// Body bytes are read through this stack chunk and appended, so the buffer
+// only grows with bytes that really arrived.
+static constexpr int32 kRecvChunkBytes = 16 * 1024;
 
 // ---------------------------------------------------------------------------
 // v0.9.1 wire-framing state machine
@@ -56,8 +78,9 @@ static bool IsWouldBlock()
 /**
  * Advance the per-client read state by whatever bytes are available right now.
  * Returns Complete only when a full frame has assembled in State.BodyBuf.
+ * Adds every byte received to OutBytesMoved (for the idle timeout).
  */
-static EUCMCPFrameResult AdvanceRead(FSocket* Socket, FUCMCPClientReadState& State)
+static EUCMCPFrameResult AdvanceRead(FSocket* Socket, FUCMCPClientReadState& State, int64& OutBytesMoved)
 {
     // --- Phase 1: read the 8-byte big-endian length prefix ---
     while (State.PrefixAccum < 8)
@@ -74,48 +97,49 @@ static EUCMCPFrameResult AdvanceRead(FSocket* Socket, FUCMCPClientReadState& Sta
                                   : EUCMCPFrameResult::Disconnect;
         }
         State.PrefixAccum += BytesRead;
+        OutBytesMoved += BytesRead;
     }
 
-    // --- Phase 1 → 2 transition: decode prefix, allocate body buffer ---
+    // --- Phase 1 → 2 transition: decode and validate the prefix ---
     if (State.BodyLength == 0)
     {
-        uint64 BodyLen = 0;
-        for (int32 i = 0; i < 8; ++i)
+        const uint64 BodyLen = UCMCP::Framing::DecodeLengthPrefix(State.PrefixBuf);
+        if (!UCMCP::Framing::IsAcceptableBodyLength(BodyLen))
         {
-            BodyLen = (BodyLen << 8) | static_cast<uint64>(State.PrefixBuf[i]);
-        }
-        if (BodyLen == 0)
-        {
-            UE_LOG(LogUCMCP, Warning, TEXT("framing_error: zero-length body"));
-            return EUCMCPFrameResult::Disconnect;
-        }
-        constexpr uint64 MaxBodyBytes = 1024ULL * 1024ULL * 1024ULL; // 1 GB
-        if (BodyLen > MaxBodyBytes)
-        {
-            UE_LOG(LogUCMCP, Warning,
-                TEXT("framing_error: body length %llu exceeds 1 GB cap"), BodyLen);
+            if (BodyLen == 0)
+            {
+                UE_LOG(LogUCMCP, Warning, TEXT("framing_error: zero-length body"));
+            }
+            else
+            {
+                UE_LOG(LogUCMCP, Warning,
+                    TEXT("framing_error: body length %llu exceeds 64 MB cap"), BodyLen);
+            }
             return EUCMCPFrameResult::Disconnect;
         }
         State.BodyLength = BodyLen;
-        State.BodyBuf.SetNumUninitialized(static_cast<int32>(BodyLen));
         State.BodyAccum = 0;
+        // No pre-allocation: the prefix is only a claim. BodyBuf grows below
+        // as bytes arrive (TArray::Append grows geometrically).
+        State.BodyBuf.Reset();
     }
 
-    // --- Phase 2: read BodyLength bytes ---
-    while (State.BodyAccum < static_cast<int32>(State.BodyLength))
+    // --- Phase 2: read BodyLength bytes (<= 64 MB, so int32 is safe) ---
+    const int32 BodyLen32 = static_cast<int32>(State.BodyLength);
+    uint8 Chunk[kRecvChunkBytes];
+    while (State.BodyAccum < BodyLen32)
     {
+        const int32 Want = FMath::Min(BodyLen32 - State.BodyAccum, kRecvChunkBytes);
         int32 BytesRead = 0;
-        const bool bOk = Socket->Recv(
-            State.BodyBuf.GetData() + State.BodyAccum,
-            static_cast<int32>(State.BodyLength) - State.BodyAccum,
-            BytesRead,
-            ESocketReceiveFlags::None);
+        const bool bOk = Socket->Recv(Chunk, Want, BytesRead, ESocketReceiveFlags::None);
         if (!bOk || BytesRead == 0)
         {
             return IsWouldBlock() ? EUCMCPFrameResult::InProgress
                                   : EUCMCPFrameResult::Disconnect;
         }
+        State.BodyBuf.Append(Chunk, BytesRead);
         State.BodyAccum += BytesRead;
+        OutBytesMoved += BytesRead;
     }
 
     return EUCMCPFrameResult::Complete;
@@ -143,8 +167,9 @@ static void EncodeFrame(const FString& Body, TArray<uint8>& OutBytes)
 /**
  * Advance the per-client write state by whatever bytes the OS will accept now.
  * Returns Complete only when State.PendingBytes has fully drained.
+ * Adds every byte sent to OutBytesMoved (for the idle timeout).
  */
-static EUCMCPFrameResult AdvanceWrite(FSocket* Socket, FUCMCPClientWriteState& State)
+static EUCMCPFrameResult AdvanceWrite(FSocket* Socket, FUCMCPClientWriteState& State, int64& OutBytesMoved)
 {
     while (!State.IsDrained())
     {
@@ -160,6 +185,7 @@ static EUCMCPFrameResult AdvanceWrite(FSocket* Socket, FUCMCPClientWriteState& S
                                   : EUCMCPFrameResult::Disconnect;
         }
         State.BytesSent += BytesSent;
+        OutBytesMoved += BytesSent;
     }
     return EUCMCPFrameResult::Complete;
 }
@@ -423,6 +449,10 @@ void FUCMCPServer::Stop()
     ConnectedClients.Empty();
     ReadStates.Empty();
     WriteStates.Empty();
+    {
+        FScopeLock Lock(&PendingClientsCS);
+        AdoptedClientCount = 0;
+    }
     bRunning = false;
     UE_LOG(LogUCMCP, Log, TEXT("Stopped"));
 }
@@ -433,15 +463,38 @@ bool FUCMCPServer::OnConnectionAccepted(FSocket* InSocket, const FIPv4Endpoint& 
     {
         return false;
     }
+    // Before publishing: once the socket is in PendingAccepted the game
+    // thread may adopt it and Recv() on it, and a blocking Recv there would
+    // freeze the editor.
     InSocket->SetNonBlocking(true);
+
     // D2: FTcpListener invokes this on its OWN thread. Park the socket under
     // the lock; the game thread adopts it at the top of TickClients. Never
     // touch ConnectedClients/ReadStates/WriteStates here — cross-thread
-    // mutation of those is exactly the D2 race #225 left open.
+    // mutation of those is exactly the D2 race #225 left open. The client cap
+    // reads AdoptedClientCount, the lock-guarded mirror of ConnectedClients.
+    int32 SlotsInUse = 0;
+    bool bAccepted = false;
     {
         FScopeLock Lock(&PendingClientsCS);
-        PendingAccepted.Add(InSocket);
+        SlotsInUse = AdoptedClientCount + PendingAccepted.Num();
+        if (SlotsInUse < kMaxClients)
+        {
+            PendingAccepted.Add(InSocket);
+            bAccepted = true;
+        }
     }
+
+    if (!bAccepted)
+    {
+        // Returning false makes FTcpListener::Run() Close() and DestroySocket()
+        // the socket (TcpListener.h), so the client sees it closed at once.
+        UE_LOG(LogUCMCP, Warning,
+            TEXT("Refused client from %s: all %d client slots in use"),
+            *InEndpoint.ToString(), SlotsInUse);
+        return false;
+    }
+
     UE_LOG(LogUCMCP, Log, TEXT("Client connected from %s (pending adoption)"),
         *InEndpoint.ToString());
     return true;
@@ -460,11 +513,18 @@ bool FUCMCPServer::TickClients(float /*DeltaTime*/)
         {
             FScopeLock Lock(&PendingClientsCS);
             NewlyAccepted = MoveTemp(PendingAccepted);
+            PendingAccepted.Reset();
+            // Count them as adopted before the lock drops, so the listener's
+            // cap check can't see them in neither list.
+            AdoptedClientCount = ConnectedClients.Num() + NewlyAccepted.Num();
         }
+        const double AdoptSeconds = FPlatformTime::Seconds();
         for (FSocket* Sock : NewlyAccepted)
         {
             ConnectedClients.Add(Sock);
-            ReadStates.Add(Sock, FUCMCPClientReadState{});
+            FUCMCPClientReadState NewReadState;
+            NewReadState.LastProgressSeconds = AdoptSeconds;
+            ReadStates.Add(Sock, MoveTemp(NewReadState));
             WriteStates.Add(Sock, FUCMCPClientWriteState{});
             UE_LOG(LogUCMCP, Log, TEXT("Client adopted (now %d clients)"),
                 ConnectedClients.Num());
@@ -489,13 +549,21 @@ bool FUCMCPServer::TickClients(float /*DeltaTime*/)
             continue;
         }
 
+        // Bytes moved in either direction for this client this tick. Any
+        // movement restarts its idle clock (F12, see below).
+        int64 BytesMoved = 0;
+        bool bDropAfter = false;
+        bool bSkipReads = false;
+
+        FUCMCPClientWriteState& W = WriteStates.FindOrAdd(Sock);
+        FUCMCPClientReadState& R = ReadStates.FindOrAdd(Sock);
+
         // Step 1: drain any pending write state first. If a previous tick left
         // a partial response in flight, push more bytes before reading new
         // requests — keeps responses ordered ahead of the next read.
-        FUCMCPClientWriteState& W = WriteStates.FindOrAdd(Sock);
         if (!W.IsDrained())
         {
-            const EUCMCPFrameResult WR = AdvanceWrite(Sock, W);
+            const EUCMCPFrameResult WR = AdvanceWrite(Sock, W, BytesMoved);
             if (WR == EUCMCPFrameResult::Disconnect)
             {
                 Dropped.Add(Sock);
@@ -504,21 +572,24 @@ bool FUCMCPServer::TickClients(float /*DeltaTime*/)
             if (WR == EUCMCPFrameResult::InProgress)
             {
                 // Still flushing; reads can wait until the response goes out.
-                continue;
+                // (Falls through to the idle check, not `continue`, so a
+                // client that never reads its response still times out.)
+                bSkipReads = true;
             }
-            // Complete — fall through to reads.
-            W.Reset();
+            else
+            {
+                // Complete — fall through to reads.
+                W.Reset();
+            }
         }
 
         // Step 2: drain as many complete read frames as are available this
         // tick. The 32-frame safety bound prevents one busy client from
         // monopolizing the tick; fairness across clients comes from the
         // outer ConnectedClients loop.
-        FUCMCPClientReadState& R = ReadStates.FindOrAdd(Sock);
-        bool bDropAfter = false;
-        for (int32 SafetyBound = 0; SafetyBound < 32; ++SafetyBound)
+        for (int32 SafetyBound = 0; !bSkipReads && SafetyBound < 32; ++SafetyBound)
         {
-            const EUCMCPFrameResult RR = AdvanceRead(Sock, R);
+            const EUCMCPFrameResult RR = AdvanceRead(Sock, R, BytesMoved);
             if (RR == EUCMCPFrameResult::Disconnect)
             {
                 bDropAfter = true;
@@ -544,7 +615,7 @@ bool FUCMCPServer::TickClients(float /*DeltaTime*/)
 
             EncodeFrame(Resp, W.PendingBytes);
             W.BytesSent = 0;
-            const EUCMCPFrameResult WR2 = AdvanceWrite(Sock, W);
+            const EUCMCPFrameResult WR2 = AdvanceWrite(Sock, W, BytesMoved);
             if (WR2 == EUCMCPFrameResult::Disconnect)
             {
                 bDropAfter = true;
@@ -562,20 +633,44 @@ bool FUCMCPServer::TickClients(float /*DeltaTime*/)
         if (bDropAfter)
         {
             Dropped.Add(Sock);
+            continue;
+        }
+
+        // F12 idle timeout. Now is read AFTER any handler above returned, so
+        // a request that ran for minutes stamps "now", and the time spent in
+        // the handler is never charged to this client.
+        const double Now = FPlatformTime::Seconds();
+        if (BytesMoved > 0 || R.LastProgressSeconds <= 0.0)
+        {
+            R.LastProgressSeconds = Now;
+        }
+        else if (Now - R.LastProgressSeconds > kClientIdleTimeoutSeconds)
+        {
+            UE_LOG(LogUCMCP, Log,
+                TEXT("Dropping idle client: no bytes in either direction for %.0f s (limit %.0f s)%s"),
+                Now - R.LastProgressSeconds, kClientIdleTimeoutSeconds,
+                R.PrefixAccum > 0 ? TEXT(", mid-frame") : TEXT(""));
+            Dropped.Add(Sock);
         }
     }
 
     if (!bRunning) { return false; }   // Stop() already closed/destroyed all sockets and emptied the maps
-    for (FSocket* Sock : Dropped)
+    if (Dropped.Num() > 0)
     {
-        ConnectedClients.Remove(Sock);
-        ReadStates.Remove(Sock);
-        WriteStates.Remove(Sock);
-        if (Sock && Subsystem)
+        for (FSocket* Sock : Dropped)
         {
-            Sock->Close();
-            Subsystem->DestroySocket(Sock);
+            ConnectedClients.Remove(Sock);
+            ReadStates.Remove(Sock);
+            WriteStates.Remove(Sock);
+            if (Sock && Subsystem)
+            {
+                Sock->Close();
+                Subsystem->DestroySocket(Sock);
+            }
         }
+        // Free the slots for the listener thread's cap check.
+        FScopeLock Lock(&PendingClientsCS);
+        AdoptedClientCount = ConnectedClients.Num();
     }
 
     return true;

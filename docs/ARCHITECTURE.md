@@ -133,11 +133,15 @@ Every TCP message uses explicit length-prefixed framing. Each frame on the wire 
 
 - The 8-byte prefix encodes the body byte count as an unsigned 64-bit integer in network (big-endian) byte order.
 - The body is the raw UTF-8 JSON-RPC 2.0 object.
-- Length of 0 is invalid. Length > 1 GB is invalid. Both are rejected with `framing_error`.
+- Length of 0 is invalid. On the plugin side a request body over **64 MB** is invalid (`UCMCP::Framing::kMaxBodyBytes` in `MCPServer.h`). Both are rejected with `framing_error` and the client is dropped. (The bridge still accepts response frames up to 1 GB; its own cap is a separate change.)
+- The plugin never allocates the declared length up front: the body buffer grows as bytes actually arrive, so a bare 8-byte prefix can't pin memory.
+- At most **8 clients** are connected at once; a 9th connection is closed straight away by the listener thread (Warning `Refused client ...`). The bridge opens one short connection per call, so this only bites if something holds sockets open.
+- A client with **no bytes moving in either direction for 300 s** (mid-frame or between frames) is dropped. Handlers run synchronously on the game thread and the client's clock is stamped after its handler returns, so a request that legitimately runs for minutes does not trip it.
+- An HTTP request sent to the port by mistake (or by a browser) reads `GET / HT` as the length, about 5.1e18 bytes, and is dropped by the cap.
 
 Both sides (`MCPServer.cpp` via `ReadFramedMessage` / `WriteFramedMessage`, and the bridge via `recv_framed` / `send_framed`) loop on `Recv` / `Send` until the exact byte count is transferred, eliminating the old "one `recv()` = one whole message" assumption.
 
-**Stable error code: `framing_error`** — returned when the length prefix is unreadable, when the declared length exceeds the 1 GB cap, when the declared length is zero, or when body bytes stop arriving before the declared length is met (socket timeout or premature close).
+**Stable error code: `framing_error`** — returned when the length prefix is unreadable, when the declared length exceeds the cap (64 MB for requests into the plugin, 1 GB for responses into the bridge), when the declared length is zero, or when body bytes stop arriving before the declared length is met (socket timeout or premature close).
 
 Mixed-version connections (v0.4.0 bridge + v0.5.0 plugin, or vice versa) fail immediately with a framing error on the receiving side — loud, not silent. The bridge and plugin must be upgraded together.
 
