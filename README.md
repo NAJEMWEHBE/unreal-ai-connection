@@ -489,7 +489,7 @@ tests/                            Pytest suite for the bridge (no UE required)
 
 | | |
 |---|---|
-| **Latest release** | v0.9.1 — 2026-05-23 (plus [`v0.9.1-ue5.6`](https://github.com/NAJEMWEHBE/unreal-ai-connection/releases/tag/v0.9.1-ue5.6) prebuilt 5.6 binaries — 2026-05-25) |
+| **Latest release** | v0.9.1 — 2026-05-23 |
 | **Tools** | **151 live** — 114 native C++ handlers (one MCP method per `Handler_*.cpp`) plus 37 bridge-side synthetic tools (Python-only composition over existing handlers; never crosses the TCP wire as a dedicated round-trip). See [`docs/TOOLS.md`](docs/TOOLS.md) for the per-tool reference. |
 | **Tested on** | UE 5.7.4 / Windows 11 / Visual Studio Build Tools 2022 / MSVC 14.44 / NETFXSDK 4.8.1 |
 | **Build status** | Plugin compiles + loads against UE 5.7.4 host on Windows 11; 114 handlers register, TCP server binds `127.0.0.1:18888`, bridge round-trip via `tools/call list_tools` returns full registry. |
@@ -504,7 +504,7 @@ One in-flight item is stated plainly here so nothing is oversold:
 
 - **Officially built & tested on UE 5.7.** Other UE versions are community / best-effort: the cross-engine compatibility scaffold lets you build from source for your engine version (uncertified, not actively maintained, contributions welcome). See [ADR-0001](docs/adr/ADR-0001-ue57-only-freeze-cross-engine-compat.md) / [docs/PHASE-H-COMPAT.md](docs/PHASE-H-COMPAT.md).
 - **Engine 5.3 and older, from source:** re-pin an engine-appropriate MSVC toolchain in your `BuildConfiguration.xml` (`<CompilerVersion>`); the maintainer's own pin is cleared (36th closing note in [`docs/HANDOFF.md`](docs/HANDOFF.md)).
-- **Prebuilt 5.6 binaries available (Win64).** Host-verified build (MSVC 14.38) + live smoke pass (all suites green) on a real 5.6 editor. Skip the source build: download the packaged plugin from the [`v0.9.1-ue5.6`](https://github.com/NAJEMWEHBE/unreal-ai-connection/releases/tag/v0.9.1-ue5.6) release and drop it into `YourProject/Plugins/`. **Load note:** enable the engine's `DMXEngine` + `DMXProtocol` plugins (the DMX handlers link against them) or the module fails to load.
+- **UE 5.6 host-certified from source.** Built with MSVC 14.38 and smoke-tested live (all suites green) on a real 5.6 editor. No prebuilt 5.6 binaries are published: build from source as for 5.7. **DMX note:** the DMX tools need the optional `UnrealAIConnectionDMX` companion plugin, which pulls in the engine's `DMXEngine` + `DMXProtocol`; the core plugin loads without them.
 
 ---
 
