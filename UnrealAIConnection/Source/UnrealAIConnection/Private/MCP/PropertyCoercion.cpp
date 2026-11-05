@@ -3,6 +3,7 @@
 #include "MCP/PropertyCoercion.h"
 
 #include "Dom/JsonObject.h"
+#include "UCMCPCompat.h"
 #include "UObject/UnrealType.h"
 #include "UObject/EnumProperty.h"
 #include "UObject/TextProperty.h"
@@ -365,7 +366,7 @@ namespace UCMCP::PropertyCoercion
             // Generic USTRUCT: field-by-field recursive coercion.
             for (const auto& Pair : Obj->Values)
             {
-                const FString& FieldName = Pair.Key;
+                const FString FieldName = UCMCPCompat::JsonKey(Pair.Key);
                 FProperty* FieldProp = Struct->FindPropertyByName(FName(*FieldName));
                 if (!FieldProp)
                 {
@@ -483,6 +484,7 @@ namespace UCMCP::PropertyCoercion
             Helper.EmptyValues();
             for (const auto& Pair : (*AsObj)->Values)
             {
+                const FString PairKey = UCMCPCompat::JsonKey(Pair.Key);
                 const int32 NewIndex = Helper.AddDefaultValue_Invalid_NeedsRehash();
                 void* KeyAddr = Helper.GetKeyPtr(NewIndex);
                 void* ValAddr = Helper.GetValuePtr(NewIndex);
@@ -490,15 +492,15 @@ namespace UCMCP::PropertyCoercion
                 // Set key (string or name).
                 if (bStrKey)
                 {
-                    CastFieldChecked<FStrProperty>(MapProp->KeyProp)->SetPropertyValue(KeyAddr, Pair.Key);
+                    CastFieldChecked<FStrProperty>(MapProp->KeyProp)->SetPropertyValue(KeyAddr, PairKey);
                 }
                 else
                 {
-                    CastFieldChecked<FNameProperty>(MapProp->KeyProp)->SetPropertyValue(KeyAddr, FName(*Pair.Key));
+                    CastFieldChecked<FNameProperty>(MapProp->KeyProp)->SetPropertyValue(KeyAddr, FName(*PairKey));
                 }
 
                 // Coerce value recursively.
-                const FString ValPath = ChildPath(CurrentPath, Pair.Key);
+                const FString ValPath = ChildPath(CurrentPath, PairKey);
                 FCoerceOutcome ValOutcome = SetProperty(Container, MapProp->ValueProp, ValAddr, Pair.Value, ValPath, Depth + 1);
                 if (ValOutcome.Result != ECoerceResult::Success)
                 {
