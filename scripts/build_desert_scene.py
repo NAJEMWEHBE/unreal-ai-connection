@@ -17,11 +17,12 @@
 # Idempotent: any prior actor with label starting "Val" or "Desert_" is
 # destroyed; competing project sky / atmosphere actors are temporarily hidden.
 
-import unreal
+import builtins
 import math
 import random
 import sys
-import builtins
+
+import unreal
 
 random.seed(42)
 

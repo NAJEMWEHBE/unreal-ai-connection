@@ -92,7 +92,7 @@ def call(method: str, params: dict | None = None, request_id: int = 1) -> dict:
     try:
         _send_framed(s, raw)
         payload_bytes = _recv_framed(s)
-    except (ConnectionError, ValueError, socket.timeout) as e:
+    except (TimeoutError, ConnectionError, ValueError) as e:
         s.close()
         return {"_error": f"framing error: {e}"}
     s.close()
@@ -265,7 +265,7 @@ def main():
             if field not in result:
                 raise SmokeFailure(f"[get_project_summary] missing '{field}': {result}")
         if not isinstance(result["plugins"], list):
-            raise SmokeFailure(f"[get_project_summary] 'plugins' not a list")
+            raise SmokeFailure("[get_project_summary] 'plugins' not a list")
         if not isinstance(result["asset_count"], int):
             raise SmokeFailure(f"[get_project_summary] 'asset_count' not int: {result['asset_count']}")
     step("get_project_summary", t3)
@@ -281,7 +281,7 @@ def main():
         total = result.get("total_actors")
         returned = result.get("returned")
         if not isinstance(total, int) or not isinstance(returned, int):
-            raise SmokeFailure(f"[get_actors_in_level] missing/invalid total_actors/returned")
+            raise SmokeFailure("[get_actors_in_level] missing/invalid total_actors/returned")
         if returned > total:
             raise SmokeFailure(f"[get_actors_in_level] returned ({returned}) > total ({total})")
     step("get_actors_in_level", t4)
@@ -388,14 +388,14 @@ def main():
             "label": "SmokeBuildCube1",
         })
         s1_res = assert_ok(s1, "spawn_actor.cube1")
-        cube1_fname = s1_res["name"]
+        assert "name" in s1_res, "spawn_actor.cube1 returned no name"
 
         s2 = call("spawn_actor", {
             "class_path": "/Script/Engine.StaticMeshActor",
             "location": {"x": 200, "y": 0, "z": 0},
             "label": "SmokeBuildCube2",
         })
-        s2_res = assert_ok(s2, "spawn_actor.cube2")
+        assert_ok(s2, "spawn_actor.cube2")
 
         # 3. Move + rotate cube2
         t = call("set_actor_transform", {

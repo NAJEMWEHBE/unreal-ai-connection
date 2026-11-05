@@ -119,7 +119,7 @@ class BridgeClient:
         self.bridge_path = bridge_path
         self.proc: subprocess.Popen | None = None
         self._next_id = 1
-        self._stdout_q: "queue.Queue[str]" = queue.Queue()
+        self._stdout_q: queue.Queue[str] = queue.Queue()
         self._reader_thread: threading.Thread | None = None
 
     def _stdout_pump(self) -> None:
@@ -208,7 +208,7 @@ class BridgeClient:
             raise RuntimeError(
                 f"bridge_read_timeout: no response within {eff_timeout:.1f}s "
                 f"(context={ctx})"
-            )
+            ) from None
         if not line:
             err = ""
             if self.proc.stderr is not None:
@@ -511,7 +511,7 @@ def step_bind_camera(client: BridgeClient, sequence_path: str) -> str:
 def step_add_keyframes(client: BridgeClient, sequence_path: str, binding_guid: str) -> int:
     """Add the 6 keyframes; returns total keys reported across all calls."""
     total_keys = 0
-    for i, (t, loc, rot) in enumerate(keyframes()):
+    for t, loc, rot in keyframes():
         resp = client.call_tool("sequencer_add_transform_keyframe", {
             "sequence_path": sequence_path,
             "binding_id": binding_guid,

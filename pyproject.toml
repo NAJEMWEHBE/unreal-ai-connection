@@ -46,7 +46,7 @@ Issues = "https://github.com/NAJEMWEHBE/unreal-ai-connection/issues"
 dev = [
     "pytest>=7.0",
     "pytest-cov>=4.0",
-    "ruff>=0.5.0",
+    "ruff>=0.17,<0.18",
 ]
 
 # ---------------------------------------------------------------------------
@@ -83,6 +83,10 @@ select = [
 # E501 (line too long) is delegated to the formatter — it will wrap or warn
 # but doesn't fail the lint.
 ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+# One-off in-editor scene scripts keep their %-formatting; the bridge and tests do not.
+"scripts/**" = ["UP031"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["unreal_ai_connection_bridge"]

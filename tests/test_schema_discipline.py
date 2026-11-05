@@ -115,7 +115,7 @@ def test_enums_are_nonempty_and_match_declared_type():
         if py_types:
             for m in members:
                 # bool is a subclass of int; exclude it from integer/number checks
-                if isinstance(m, bool) and not (bool in py_types):
+                if isinstance(m, bool) and bool not in py_types:
                     bad.append(f"{tool}.{p}: enum member {m!r} is bool, type={types}")
                 elif not isinstance(m, py_types):
                     bad.append(f"{tool}.{p}: enum member {m!r} not of type {types}")

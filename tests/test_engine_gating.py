@@ -22,7 +22,6 @@ import pytest
 
 import unreal_ai_connection_bridge as bridge
 
-
 GATED_TOOLS = [
     "convert_hdri_to_cubemap",
     "sequencer_add_transform_keyframe",

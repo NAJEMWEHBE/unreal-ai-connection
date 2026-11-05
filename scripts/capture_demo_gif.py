@@ -167,7 +167,7 @@ def call(host: str, port: int, method: str,
         try:
             _send_framed(s, raw)
             payload_bytes = _recv_framed(s)
-        except (ConnectionError, ValueError, socket.timeout) as e:
+        except (TimeoutError, ConnectionError, ValueError) as e:
             return {"_error": f"framing error: {e}"}
     finally:
         s.close()
@@ -282,7 +282,7 @@ def read_scene_code() -> str:
             f"scene script not found at {path} — run this from a clean "
             f"checkout (expected {SCENE_SCRIPT_RELPATH} beside scripts/)."
         )
-    with open(path, "r", encoding="utf-8") as fh:
+    with open(path, encoding="utf-8") as fh:
         code = fh.read()
     if "__main__" in code:
         # Defensive: the current script has no guard. If a future edit adds
@@ -731,7 +731,7 @@ def main() -> None:
                       f"raw keys: {sorted(result.keys())})")
             scene_built = True
             labels = get_actor_labels(host, port, request_id=3)
-            elv = [l for l in labels if l.startswith("ELV_")]
+            elv = [lbl for lbl in labels if lbl.startswith("ELV_")]
             print(f"  scene built: {len(labels)} actors in level, "
                   f"{len(elv)} ELV_* (expect ~100+).")
             if len(elv) < 50:
