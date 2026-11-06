@@ -2457,6 +2457,107 @@ def test_compile_mod_pak_omitted_extra_args_defaults_empty():
     assert "project_path" in tool_error(resp)["message"]
 
 
+def _compile_mod_pak_args(tmp_path, **overrides):
+    """Arguments that pass every compile_mod_pak check: the project file and
+    RunUAT file both exist under tmp_path."""
+    project = tmp_path / "Game" / "Game.uproject"
+    project.parent.mkdir(exist_ok=True)
+    project.write_text("{}")
+    run_uat = tmp_path / "RunUAT.bat"
+    run_uat.write_text("")
+    args = {
+        "project_path": str(project),
+        "run_uat_path": str(run_uat),
+        "output_dir": str(tmp_path / "out"),
+        "mod_name": "CoolMod",
+    }
+    args.update(overrides)
+    return args
+
+
+def _call_compile_mod_pak(arguments):
+    """Call compile_mod_pak with subprocess.run and os.makedirs mocked out, and
+    return the response plus both mocks."""
+    with (
+        patch("subprocess.run") as run,
+        patch("os.makedirs") as makedirs,
+    ):
+        run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+        resp = bridge.handle(
+            {
+                "jsonrpc": "2.0",
+                "id": 47,
+                "method": "tools/call",
+                "params": {"name": "compile_mod_pak", "arguments": arguments},
+            }
+        )
+    return resp, run, makedirs
+
+
+def test_compile_mod_pak_valid_call_reaches_runuat(tmp_path):
+    """A plain BuildMod call still builds the documented argv and launches it."""
+    args = _compile_mod_pak_args(tmp_path, extra_args=["-NoP4"])
+    resp, run, makedirs = _call_compile_mod_pak(args)
+    assert not is_tool_error(resp), resp
+    makedirs.assert_called_once_with(args["output_dir"], exist_ok=True)
+    run.assert_called_once()
+    assert run.call_args.args[0] == [
+        args["run_uat_path"],
+        "BuildMod",
+        f"-Project={args['project_path']}",
+        "-Mod=CoolMod",
+        "-Cook",
+        "-Pak",
+        "-FinalPak",
+        f"-Output={args['output_dir']}",
+        "-NoP4",
+    ]
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"mod_name": "A&B"},
+        {"mod_name": 'a" & b & "'},
+        {"mod_name": "CoolMod|x"},
+        {"mod_name": "CoolMod\n"},
+        {"mod_name": "Cool Mod"},
+        {"mod_name": 42},
+        {"uat_command": "BuildMod|x"},
+        {"uat_command": "BuildCookRun"},
+        {"output_dir": "R&D"},
+        {"output_dir": "out%TEMP%"},
+        {"extra_args": ["-Opt=a&b"]},
+        {"extra_args": ["-NoP4", 5]},
+        {"uat_command": "BuildPlugin", "plugin_path": "C:/Mods/A^B/A.uplugin"},
+    ],
+)
+def test_compile_mod_pak_rejects_unsafe_arguments(tmp_path, overrides):
+    """RunUAT is a batch file, so cmd.exe re-reads its command line. Values it
+    could treat as command syntax, an unknown uat_command or a mod_name outside
+    the identifier set must fail with -32602 before any directory is created
+    or any process is started."""
+    resp, run, makedirs = _call_compile_mod_pak(_compile_mod_pak_args(tmp_path, **overrides))
+    assert is_tool_error(resp), f"expected an error for {overrides!r}, got {resp}"
+    assert tool_error(resp)["code"] == -32602
+    assert tool_error(resp)["message"].startswith("compile_mod_pak:")
+    run.assert_not_called()
+    makedirs.assert_not_called()
+
+
+def test_compile_mod_pak_rejects_unsafe_project_path(tmp_path):
+    """The check also covers the project path, which must exist as a file."""
+    project = tmp_path / "R&D" / "Game.uproject"
+    project.parent.mkdir()
+    project.write_text("{}")
+    args = _compile_mod_pak_args(tmp_path, project_path=str(project))
+    resp, run, makedirs = _call_compile_mod_pak(args)
+    assert is_tool_error(resp)
+    assert tool_error(resp)["code"] == -32602
+    run.assert_not_called()
+    makedirs.assert_not_called()
+
+
 def test_bulk_delete_assets_is_synthetic():
     """bulk_delete_assets is a SYNTHETIC bridge-side handler (PR #90 — Codex
     parallel-dispatch test): loops over delete_asset calls and aggregates

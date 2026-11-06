@@ -45,6 +45,7 @@ tool, the default; "progressive" = core set + search_tools discovery).
 import json
 import math
 import os
+import re
 import socket
 import sys
 import tempfile
@@ -4622,6 +4623,14 @@ def synthetic_screenshot_actor(req_id, args: dict) -> dict:
     )
 
 
+# RunUAT is a Windows batch file, so cmd.exe re-reads the whole command line it
+# is launched with. compile_mod_pak refuses any argument holding one of these
+# characters rather than trying to escape it for cmd.exe.
+_COMPILE_MOD_PAK_CMD_META = frozenset('&|<>^%!"\r\n')
+_COMPILE_MOD_PAK_MOD_NAME_RE = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}")
+_COMPILE_MOD_PAK_UAT_COMMANDS = ("BuildMod", "BuildPlugin")
+
+
 def synthetic_compile_mod_pak(req_id, args: dict) -> dict:
     """Bridge-side: compile a UE mod plugin to a .pak file via RunUAT BuildMod
     or BuildPlugin, headless. No UE Editor session required.
@@ -4714,6 +4723,35 @@ def synthetic_compile_mod_pak(req_id, args: dict) -> dict:
             },
         )
 
+    # The schema advertises these as an enum and a mod identifier; enforce
+    # both here, since tools/call arguments reach this handler unvalidated.
+    if uat_command not in _COMPILE_MOD_PAK_UAT_COMMANDS:
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "compile_mod_pak: uat_command must be 'BuildMod' or 'BuildPlugin'",
+            },
+        )
+    if mod_name and (
+        not isinstance(mod_name, str) or not _COMPILE_MOD_PAK_MOD_NAME_RE.fullmatch(mod_name)
+    ):
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "compile_mod_pak: mod_name may only use letters, digits, '_', '.' and '-'",
+            },
+        )
+    if not all(isinstance(a, str) for a in extra_args):
+        return make_response(
+            req_id,
+            error={
+                "code": -32602,
+                "message": "compile_mod_pak: extra_args must be an array of strings",
+            },
+        )
+
     if not project_path or not os.path.isfile(project_path):
         return make_response(
             req_id,
@@ -4774,9 +4812,6 @@ def synthetic_compile_mod_pak(req_id, args: dict) -> dict:
             },
         )
 
-    if output_dir:
-        os.makedirs(output_dir, exist_ok=True)
-
     cmd = [run_uat_path, uat_command, f"-Project={project_path}"]
     if uat_command == "BuildMod":
         cmd.append(f"-Mod={mod_name}")
@@ -4788,6 +4823,25 @@ def synthetic_compile_mod_pak(req_id, args: dict) -> dict:
         if output_dir:
             cmd.append(f"-Package={output_dir}")
     cmd.extend(extra_args)
+
+    # Checked on every platform (not only Windows) so the behaviour, and the
+    # tests that cover it, are the same everywhere. Runs before anything is
+    # created on disk or launched.
+    for arg in cmd:
+        if any(ch in _COMPILE_MOD_PAK_CMD_META for ch in str(arg)):
+            return make_response(
+                req_id,
+                error={
+                    "code": -32602,
+                    "message": (
+                        "compile_mod_pak: arguments may not contain any of "
+                        '& | < > ^ % ! " or line breaks; got ' + repr(arg)
+                    ),
+                },
+            )
+
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
 
     start = time.time()
     try:
